@@ -33,3 +33,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# VSCode settings with sensitive data
+.vscode/settings.json
