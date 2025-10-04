@@ -16,14 +16,22 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "expo": "~53.0.20",
+    "expo": "~54.0.0",
+    "expo-linear-gradient": "^15.0.7",
     "expo-status-bar": "~2.2.3",
-    "react": "19.0.0",
-    "react-native": "0.79.5"
+    "react": "19.1.0",
+    "react-native": "0.81.4",
+    "react-native-svg": "15.11.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "typescript": "^5.3.3"
+    "@types/react": "~19.1.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.37.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "~5.8.3"
   },
   "private": true
 }

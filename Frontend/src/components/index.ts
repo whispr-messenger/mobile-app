@@ -1,3 +1,4 @@
 // Export all components from this file
-// Example: export { default as Button } from './Button';
-// Example: export { default as Input } from './Input';
+export { Logo } from './Logo';
+export { Button } from './Button';
+export { Input } from './Input';
