@@ -1,0 +1,22 @@
+# <emoji> <type>(<scope>): <description>
+#
+# [optional body]
+#
+# WHISPR-XXX
+
+# ──────────────────────────────────────────────────────────────────
+# Types: feat, fix, docs, style, refactor, perf, test, chore, build, ci
+# 
+# Emojis:
+# ✨ feat     - Nouvelle fonctionnalité
+# 🐛 fix      - Correction de bug
+# 📝 docs     - Documentation
+# 🎨 style    - Format du code
+# ♻️ refactor - Refactorisation
+# ⚡️ perf     - Performance
+# ✅ test     - Tests
+# 🔧 chore    - Configuration
+# 🚀 deploy   - Déploiement
+# 🔒️ security - Sécurité
+# ──────────────────────────────────────────────────────────────────
+

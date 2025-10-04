@@ -1,0 +1,23 @@
+{
+  "name": "whispr-mobile-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prepare": "husky install",
+    "commit": "cz",
+    "validate": "bash scripts/validate-branch-name.sh"
+  },
+  "devDependencies": {
+    "husky": "^8.0.3",
+    "@commitlint/cli": "^18.6.0",
+    "@commitlint/config-conventional": "^18.6.0",
+    "commitizen": "^4.3.0",
+    "cz-conventional-changelog": "^3.3.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}
+
