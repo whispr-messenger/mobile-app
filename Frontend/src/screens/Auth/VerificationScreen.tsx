@@ -14,6 +14,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -35,10 +36,12 @@ export const VerificationScreen: React.FC = () => {
   const [timer, setTimer] = useState(120); // 2 minutes
   const [canResend, setCanResend] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Entrance animation
@@ -63,12 +66,17 @@ export const VerificationScreen: React.FC = () => {
       });
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   const handleCodeChange = (text: string, index: number) => {
+    // Clear error on input
+    setError('');
+    
     if (text.length > 1) {
-      // Pasted code
+      // Pasted code (OTP Autofill)
       const digits = text.slice(0, 6).split('');
       const newCode = [...code];
       digits.forEach((digit, i) => {
@@ -77,6 +85,13 @@ export const VerificationScreen: React.FC = () => {
         }
       });
       setCode(newCode);
+      
+      // Auto-verify pasted code
+      const fullCode = newCode.join('');
+      if (fullCode.length === 6) {
+        setTimeout(() => handleVerify(newCode), 500);
+      }
+      
       inputRefs.current[5]?.focus();
       return;
     }
@@ -90,9 +105,12 @@ export const VerificationScreen: React.FC = () => {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-verify when all filled
+    // Auto-verify when all filled (avec délai pour éviter la disparition)
     if (index === 5 && text) {
-      setTimeout(() => handleVerify(newCode), 1000); // Délai plus long pour laisser le temps de voir
+      const fullCode = newCode.join('');
+      if (fullCode.length === 6) {
+        setTimeout(() => handleVerify(newCode), 1000);
+      }
     }
   };
 
@@ -109,13 +127,26 @@ export const VerificationScreen: React.FC = () => {
       Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
+    
+    // Vibration pour le feedback haptique
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate(200);
+    }
+  };
+
+  const pulseInputs = () => {
+    Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 1.1, duration: 100, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
   };
 
   const handleVerify = async (codeToVerify = code) => {
     const fullCode = codeToVerify.join('');
     
     if (fullCode.length !== 6) {
-      Alert.alert('Erreur', 'Veuillez entrer le code complet');
+      setError('Veuillez entrer le code complet');
+      shakeInputs();
       return;
     }
 
@@ -146,10 +177,10 @@ export const VerificationScreen: React.FC = () => {
           );
         } else {
           setLoading(false);
+          setError('Code incorrect');
           shakeInputs();
           setCode(['', '', '', '', '', '']);
           inputRefs.current[0]?.focus();
-          Alert.alert('Code invalide', 'Veuillez réessayer');
         }
       }, 1500);
     } catch (error) {
@@ -216,11 +247,16 @@ export const VerificationScreen: React.FC = () => {
             </Text>
           </View>
 
-          {/* Code Inputs */}
+          {/* Code Inputs avec animations */}
           <Animated.View 
             style={[
               styles.codeContainer,
-              { transform: [{ translateX: shakeAnim }] }
+              { 
+                transform: [
+                  { translateX: shakeAnim },
+                  { scale: pulseAnim }
+                ]
+              }
             ]}
           >
             {code.map((digit, index) => (
@@ -230,17 +266,28 @@ export const VerificationScreen: React.FC = () => {
                 style={[
                   styles.codeInput,
                   digit && styles.codeInputFilled,
+                  error && styles.codeInputError,
                 ]}
                 value={digit}
                 onChangeText={(text) => handleCodeChange(text, index)}
                 onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+                onFocus={() => pulseInputs()}
                 keyboardType="number-pad"
                 maxLength={1}
                 selectTextOnFocus
                 textContentType="oneTimeCode"
+                autoComplete="sms-otp"
+                importantForAutofill="yes"
               />
             ))}
           </Animated.View>
+
+          {/* Error Message */}
+          {error && (
+            <Animated.View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </Animated.View>
+          )}
 
           {/* Timer / Resend */}
           <View style={styles.timerContainer}>
@@ -344,6 +391,19 @@ const styles = StyleSheet.create({
   codeInputFilled: {
     backgroundColor: 'rgba(254, 122, 92, 0.3)',
     borderColor: colors.primary.main,
+  },
+  codeInputError: {
+    borderColor: colors.ui.error,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+  errorContainer: {
+    marginTop: spacing.sm,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.ui.error,
+    fontWeight: '500',
   },
   timerContainer: {
     alignItems: 'center',
