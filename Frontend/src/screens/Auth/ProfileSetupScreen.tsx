@@ -154,14 +154,28 @@ export const ProfileSetupScreen: React.FC = () => {
       // Simulate
       setTimeout(() => {
         setLoading(false);
+        console.log('👤 ProfileSetup terminé, navigation vers Profile avec:', {
+          userId: route.params.userId,
+          token: route.params.token,
+          firstName,
+          lastName,
+          profilePicture: profilePhoto,
+        });
         Alert.alert(
           'Compte créé ! 🎉',
           'Votre compte Whispr est prêt',
           [{ 
             text: 'Continuer',
             onPress: () => {
-              // TODO: Navigate to Home
-              Alert.alert('Navigation', 'Redirection vers Home (à implémenter)');
+              // Navigation vers ProfileScreen avec données
+              navigation.navigate('Profile', {
+                userId: route.params.userId,
+                token: route.params.token,
+                firstName,
+                lastName,
+                profilePicture: profilePhoto,
+                phoneNumber: '+33 07 12 34 56 78', // TODO: injecter vrai numéro saisi si dispo
+              });
             }
           }]
         );

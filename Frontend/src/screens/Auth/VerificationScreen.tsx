@@ -30,7 +30,7 @@ type RoutePropType = RouteProp<AuthStackParamList, 'Verification'>;
 export const VerificationScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
-  const { phoneNumber } = route.params;
+  const { phoneNumber, isLogin = false } = route.params || { phoneNumber: '', isLogin: false };
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(120); // 2 minutes
@@ -160,23 +160,46 @@ export const VerificationScreen: React.FC = () => {
       setTimeout(() => {
         if (fullCode === '123456') { // Demo code
           setLoading(false);
-          Alert.alert(
-            'Code vérifié ! ✅',
-            'Votre numéro est maintenant vérifié',
-            [
-              {
-                text: 'Continuer',
-                onPress: () => {
-                  navigation.navigate('ProfileSetup', { 
-                    userId: 'demo-user-id',
-                    token: 'demo-token'
-                  });
+          
+          if (isLogin) {
+            // Pour la connexion, aller directement au profil
+                 console.log('✅ Code correct, navigation selon isLogin=', isLogin);
+                 Alert.alert(
+              'Connexion réussie ! ✅',
+              'Bienvenue sur Whispr',
+              [
+                {
+                  text: 'Continuer',
+                  onPress: () => {
+                    navigation.navigate('Profile', { 
+                      userId: 'demo-user-id',
+                      token: 'demo-token'
+                    });
+                  }
                 }
-              }
-            ]
-          );
+              ]
+            );
+          } else {
+            // Pour l'inscription, aller au setup du profil
+            Alert.alert(
+              'Code vérifié ! ✅',
+              'Votre numéro est maintenant vérifié',
+              [
+                {
+                  text: 'Continuer',
+                  onPress: () => {
+                    navigation.navigate('ProfileSetup', { 
+                      userId: 'demo-user-id',
+                      token: 'demo-token'
+                    });
+                  }
+                }
+              ]
+            );
+          }
         } else {
-          setLoading(false);
+                 setLoading(false);
+                 console.log('❌ Code incorrect saisi:', fullCode);
           setError('Code incorrect');
           shakeInputs();
           setCode(['', '', '', '', '', '']);
