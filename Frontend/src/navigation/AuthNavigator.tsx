@@ -11,6 +11,7 @@ import { VerificationScreen } from '../screens/Auth/VerificationScreen';
 import { ProfileSetupScreen } from '../screens/Auth/ProfileSetupScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
+import { SecurityKeysScreen } from '../screens/Security/SecurityKeysScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -19,6 +20,7 @@ export type AuthStackParamList = {
   ProfileSetup: { userId: string; token: string };
   Profile: { userId?: string; token?: string; firstName?: string; lastName?: string; phoneNumber?: string; profilePicture?: string; username?: string; biography?: string };
   Settings: undefined;
+  SecurityKeys: undefined;
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -53,6 +55,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
     </Stack.Navigator>
   );
 };
