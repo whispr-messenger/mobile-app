@@ -3,7 +3,7 @@
  * Two-factor authentication management
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Modal,
   TextInput,
   Animated,
   Platform,
@@ -24,6 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import Toast from '../../components/Toast/Toast';
+import QRCodeStyled from 'react-native-qrcode-styled';
+import { Circle, Path } from 'react-native-svg';
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -45,12 +46,42 @@ interface RecoveryCode {
   createdAt: string;
 }
 
+const buildStarPath = (cx: number, cy: number, r: number) =>
+  `
+    M ${cx} ${cy - r}
+    L ${cx + r * 0.35} ${cy - r * 0.25}
+    L ${cx + r} ${cy - r * 0.15}
+    L ${cx + r * 0.4} ${cy + r * 0.1}
+    L ${cx + r * 0.65} ${cy + r}
+    L ${cx} ${cy + r * 0.45}
+    L ${cx - r * 0.65} ${cy + r}
+    L ${cx - r * 0.4} ${cy + r * 0.1}
+    L ${cx - r} ${cy - r * 0.15}
+    L ${cx - r * 0.35} ${cy - r * 0.25}
+    Z
+  `;
+
+const buildSparkPath = (cx: number, cy: number, r: number) =>
+  `
+    M ${cx - r} ${cy - r * 0.2}
+    L ${cx - r * 0.2} ${cy - r}
+    L ${cx + r * 0.2} ${cy - r}
+    L ${cx + r} ${cy - r * 0.2}
+    L ${cx + r} ${cy + r * 0.2}
+    L ${cx + r * 0.2} ${cy + r}
+    L ${cx - r * 0.2} ${cy + r}
+    L ${cx - r} ${cy + r * 0.2}
+    Z
+  `;
+
 export const TwoFactorAuthScreen: React.FC = () => {
   const navigation = useNavigation();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
   const accentColor = '#9692AC';
   const accentColorDark = '#727596';
+  const qrGradientColors = ['#FFB07B', '#F86F71', '#F04882'];
+  const qrShapes = useMemo(() => ['star', 'spark', 'diamond', 'dot'], []);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -60,7 +91,41 @@ export const TwoFactorAuthScreen: React.FC = () => {
   const [expandedRecoveryCodes, setExpandedRecoveryCodes] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [qrCodeSecret] = useState('JBSWY3DPEHPK3PXP');
-  
+  const renderStylizedPiece = useCallback(
+    ({ x, y, pieceSize, bitMatrix }: { x: number; y: number; pieceSize: number; bitMatrix: number[][] }) => {
+      if (!bitMatrix[y] || bitMatrix[y][x] === 0) {
+        return null;
+      }
+      const shape = qrShapes[(x + y) % qrShapes.length];
+      const size = pieceSize * 0.92;
+      const cx = x * pieceSize + pieceSize / 2;
+      const cy = y * pieceSize + pieceSize / 2;
+      const r = size / 2;
+      const fill = 'url(#gradient)';
+
+      const key = `${x}-${y}`;
+
+      switch (shape) {
+        case 'diamond':
+          return (
+            <Path
+              key={key}
+              d={`M ${cx} ${cy - r} L ${cx + r} ${cy} L ${cx} ${cy + r} L ${cx - r} ${cy} Z`}
+              fill={fill}
+            />
+          );
+        case 'spark':
+          return <Path key={key} d={buildSparkPath(cx, cy, r)} fill={fill} />;
+        case 'dot':
+          return <Circle key={key} cx={cx} cy={cy} r={r} fill={fill} />;
+        case 'star':
+        default:
+          return <Path key={key} d={buildStarPath(cx, cy, r)} fill={fill} />;
+      }
+    },
+    [qrShapes]
+  );
+
   const qrOpacity = useRef(new Animated.Value(0)).current;
   const recoveryCodesOpacity = useRef(new Animated.Value(0)).current;
   const qrChevronRotation = useRef(new Animated.Value(0)).current;
@@ -490,26 +555,56 @@ export const TwoFactorAuthScreen: React.FC = () => {
                       },
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.qrCodeContainer,
-                        {
-                          backgroundColor: themeColors.background.primary,
-                          borderColor: accentColor + '30',
-                        },
-                      ]}
-                    >
-                      <View style={styles.qrCodePlaceholder}>
-                        <Ionicons name="qr-code" size={120} color={accentColor} />
-                        <Text
-                          style={[
-                            styles.qrCodeText,
-                            { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
-                          ]}
-                        >
-                          {qrCodeSecret}
-                        </Text>
+                    <View style={styles.qrCard}>
+                      <View style={styles.qrOuterFrame}>
+                        <View style={styles.qrInnerFrame}>
+                          <LinearGradient
+                            colors={['#FFF3F0', '#FDDDEA']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.qrCanvas}
+                          >
+                            <QRCodeStyled
+                              data={`otpauth://totp/WHISPR?secret=${qrCodeSecret}&issuer=Whispr`}
+                              padding={10}
+                              size={190}
+                              pieceCornerType="rounded"
+                              pieceBorderRadius={60}
+                              pieceLiquidRadius={50}
+                              pieceScale={1.05}
+                              isPiecesGlued
+                              gradient={{
+                                type: 'linear',
+                                options: {
+                                  colors: qrGradientColors,
+                                  start: [0, 0],
+                                  end: [1, 1],
+                                },
+                              }}
+                              outerEyesOptions={{
+                                topLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
+                                topRight: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
+                                bottomLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
+                              }}
+                              innerEyesOptions={{
+                                topLeft: { borderRadius: 18, color: '#2D1935' },
+                                topRight: { borderRadius: 18, color: '#2D1935' },
+                                bottomLeft: { borderRadius: 18, color: '#2D1935' },
+                              }}
+                              color="#F66E7E"
+                              renderCustomPieceItem={renderStylizedPiece}
+                            />
+                          </LinearGradient>
+                        </View>
                       </View>
+                      <Text
+                        style={[
+                          styles.qrSecretLabel,
+                          { color: themeColors.text.primary, fontSize: getFontSize('sm') },
+                        ]}
+                      >
+                        {qrCodeSecret}
+                      </Text>
                     </View>
 
                     <TouchableOpacity
@@ -926,20 +1021,31 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginTop: 8,
   },
-  qrCodeContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    borderRadius: 16,
+  qrCard: {
     marginBottom: 24,
-    borderWidth: 1,
+    width: '100%',
   },
-  qrCodePlaceholder: {
+  qrOuterFrame: {
+    borderRadius: 28,
+    padding: 4,
+    backgroundColor: '#120B23',
+    borderWidth: 2,
+    borderColor: '#F9B192',
+  },
+  qrInnerFrame: {
+    borderRadius: 24,
+    padding: 12,
+    backgroundColor: '#1B1030',
+  },
+  qrCanvas: {
+    borderRadius: 20,
+    padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qrCodeText: {
+  qrSecretLabel: {
     marginTop: 16,
+    textAlign: 'center',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     letterSpacing: 2,
   },
