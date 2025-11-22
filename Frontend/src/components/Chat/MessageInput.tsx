@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 176, 123, 0.1)',
+    borderTopColor: colors.ui.divider,
   },
   input: {
     flex: 1,

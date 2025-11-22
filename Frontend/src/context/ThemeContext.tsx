@@ -393,22 +393,22 @@ const lightThemeColors: ThemeColors = {
 
 const darkThemeColors: ThemeColors = {
   background: {
-    primary: '#1D112F', // Violet foncé Whispr
-    secondary: '#2D1F3F', // Violet moyen Whispr
+    primary: '#0B1124', // Dark navy from gradient
+    secondary: '#1A1F3A', // Dark card color
     tertiary: '#212135', // Dark tertiary
-    gradient: ['#FFB07B', '#F86F71', '#F04882'], // Gradient orange→pink Whispr
+    gradient: ['#0B1124', '#3C2E7C', '#FE7A5C'],
   },
   text: {
     primary: '#FFFFFF',
-    secondary: '#9692AC', // Violet clair Whispr
-    tertiary: '#9692AC',
+    secondary: '#ABABAB',
+    tertiary: '#8E8E93',
   },
-  primary: '#FE7A5C', // Orange principal
-  secondary: '#F04882', // Pink principal
+  primary: '#FE7A5C',
+  secondary: '#6774BD',
   error: '#FF3B30',
   success: '#21C004',
   warning: '#FF9500',
-  info: '#F04882', // Pink au lieu de bleu
+  info: '#6774BD',
 };
 
 // Font size multipliers

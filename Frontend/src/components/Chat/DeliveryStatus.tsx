@@ -25,12 +25,12 @@ export const DeliveryStatus: React.FC<DeliveryStatusProps> = ({ status }) => {
   }
 
   if (status === 'sent') {
-    return <Text style={[styles.check, { color: '#9692AC' }]}>✓</Text>;
+    return <Text style={[styles.check, { color: colors.text.tertiary }]}>✓</Text>;
   }
 
   if (status === 'delivered') {
     return (
-      <Text style={[styles.check, { color: '#9692AC' }]}>✓✓</Text>
+      <Text style={[styles.check, { color: colors.text.tertiary }]}>✓✓</Text>
     );
   }
 
