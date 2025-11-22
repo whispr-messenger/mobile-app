@@ -15,6 +15,7 @@ interface TabItem {
   name: string;
   icon?: keyof typeof Ionicons.glyphMap;
   useLogo?: boolean;
+  logoVariant?: 'single' | 'double';
   route: string;
   badge?: number;
 }
@@ -22,8 +23,8 @@ interface TabItem {
 const tabs: TabItem[] = [
   { name: 'Contacts', icon: 'person-outline', route: 'Profile' },
   { name: 'Calls', icon: 'call-outline', route: 'ConversationsList' },
-  { name: 'Chats', useLogo: true, route: 'ConversationsList', badge: 4 },
-  { name: 'Settings', useLogo: true, route: 'Settings' },
+  { name: 'Chats', useLogo: true, logoVariant: 'double', route: 'ConversationsList', badge: 4 },
+  { name: 'Settings', useLogo: true, logoVariant: 'single', route: 'Settings' },
 ];
 
 export const BottomTabBar: React.FC = () => {
@@ -58,7 +59,18 @@ export const BottomTabBar: React.FC = () => {
               <View style={styles.iconContainer}>
                 {tab.useLogo ? (
                   <View style={styles.logoContainer}>
-                    <Logo variant="icon" size="small" />
+                    {tab.logoVariant === 'double' ? (
+                      <View style={styles.doubleLogoContainer}>
+                        <View style={styles.logoBack}>
+                          <Logo variant="icon" size="small" />
+                        </View>
+                        <View style={styles.logoFront}>
+                          <Logo variant="icon" size="small" />
+                        </View>
+                      </View>
+                    ) : (
+                      <Logo variant="icon" size="small" />
+                    )}
                   </View>
                 ) : tab.icon ? (
                   <Ionicons
@@ -118,16 +130,36 @@ const styles = StyleSheet.create({
   iconContainer: {
     position: 'relative',
     marginBottom: 2,
-    width: 28,
-    height: 28,
+    width: 40,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoContainer: {
-    width: 24,
-    height: 24,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  doubleLogoContainer: {
+    width: 32,
+    height: 32,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoBack: {
+    position: 'absolute',
+    top: 2,
+    left: 0,
+    opacity: 0.8,
+    zIndex: 1,
+  },
+  logoFront: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 2,
   },
   badge: {
     position: 'absolute',
