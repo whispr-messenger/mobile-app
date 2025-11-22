@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
+import { ConversationItem } from '../../components/Chat/ConversationItem';
 
 export const ConversationsListScreen: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -28,9 +29,20 @@ export const ConversationsListScreen: React.FC = () => {
     }
   }, []);
 
-  const renderItem = useCallback(() => {
-    return null; // TODO: Implement ConversationItem
+  const handleConversationPress = useCallback((conversationId: string) => {
+    // TODO: Navigate to ChatScreen
+    console.log('Navigate to conversation:', conversationId);
   }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Conversation }) => (
+      <ConversationItem
+        conversation={item}
+        onPress={handleConversationPress}
+      />
+    ),
+    [handleConversationPress]
+  );
 
   const keyExtractor = useCallback((item: Conversation) => item.id, []);
 
