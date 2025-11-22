@@ -70,17 +70,17 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   );
 
   const sendMessage = useCallback(
-    (conversationId: string, content: string, messageType: 'text' | 'media' | 'system' = 'text') => {
+    (conversationId: string, content: string, messageType: 'text' | 'media' | 'system' = 'text', clientRandom?: number) => {
       if (!socketRef.current) return;
 
       const channel = socketRef.current.channel(`conversation:${conversationId}`);
-      const clientRandom = Math.floor(Math.random() * 1000000);
+      const random = clientRandom || Math.floor(Math.random() * 1000000);
       
       channel.push('new_message', {
         conversation_id: conversationId,
         content,
         message_type: messageType,
-        client_random: clientRandom,
+        client_random: random,
       });
 
       // Listen for reply to update message status
