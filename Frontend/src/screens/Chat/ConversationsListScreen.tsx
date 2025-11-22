@@ -68,9 +68,13 @@ export const ConversationsListScreen: React.FC = () => {
   });
 
   useEffect(() => {
-    joinUserChannel();
-    loadConversations();
-  }, [joinUserChannel]);
+    const init = async () => {
+      joinUserChannel();
+      await loadConversations();
+    };
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -78,18 +82,21 @@ export const ConversationsListScreen: React.FC = () => {
       
       // Load from cache first for instant display
       const cachedData = await cacheService.getConversations();
-      if (cachedData) {
+      if (cachedData && cachedData.length > 0) {
+        console.log('📦 Loaded from cache:', cachedData.length, 'conversations');
         setConversations(cachedData);
       }
       
-      // Fetch fresh data in parallel
+      // Fetch fresh data
+      console.log('🌐 Fetching conversations from API...');
       const data = await messagingAPI.getConversations();
+      console.log('✅ Fetched conversations:', data.length, 'conversations');
       setConversations(data);
       
       // Save to cache
       await cacheService.saveConversations(data);
     } catch (error) {
-      console.error('Error loading conversations:', error);
+      console.error('❌ Error loading conversations:', error);
     } finally {
       setLoading(false);
     }
@@ -154,7 +161,7 @@ export const ConversationsListScreen: React.FC = () => {
 
       {loading && conversations.length === 0 ? (
         <View style={styles.loadingContainer}>
-          {/* TODO: Add loading skeleton */}
+          <Text style={{ color: themeColors.text.secondary }}>Chargement...</Text>
         </View>
       ) : sortedConversations.length === 0 ? (
         <EmptyState />
@@ -163,10 +170,7 @@ export const ConversationsListScreen: React.FC = () => {
           data={sortedConversations}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          contentContainerStyle={[
-            styles.listContent,
-            sortedConversations.length === 0 && styles.emptyContent,
-          ]}
+          contentContainerStyle={styles.listContent}
           style={styles.list}
           removeClippedSubviews={false}
           maxToRenderPerBatch={10}
