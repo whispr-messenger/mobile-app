@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, SafeAreaView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Conversation, Message } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
@@ -16,6 +17,7 @@ import ConversationItem from '../../components/Chat/ConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
+import { colors } from '../../theme/colors';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
 
@@ -135,7 +137,26 @@ export const ConversationsListScreen: React.FC = () => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: themeColors.ui.divider }]}>
+        <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Messages</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Profile')}
+            style={styles.headerButton}
+          >
+            <Ionicons name="person-outline" size={24} color={themeColors.text.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+            style={styles.headerButton}
+          >
+            <Ionicons name="settings-outline" size={24} color={themeColors.text.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {loading && conversations.length === 0 ? (
         <View style={styles.loadingContainer}>
           {/* TODO: Add loading skeleton */}
@@ -164,13 +185,33 @@ export const ConversationsListScreen: React.FC = () => {
           }
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerButton: {
+    padding: 4,
   },
   listContent: {
     paddingVertical: 8,
