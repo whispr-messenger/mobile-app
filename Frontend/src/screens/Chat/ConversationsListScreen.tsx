@@ -338,8 +338,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.ui.divider,
+    backgroundColor: 'transparent',
   },
   searchBar: {
     flexDirection: 'row',
