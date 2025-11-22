@@ -3,13 +3,12 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
-import { Logo } from '../Logo/Logo';
 
 interface TabItem {
   name: string;
@@ -62,14 +61,26 @@ export const BottomTabBar: React.FC = () => {
                     {tab.logoVariant === 'double' ? (
                       <View style={styles.doubleLogoContainer}>
                         <View style={styles.logoBack}>
-                          <Logo variant="icon" size="small" />
+                          <Image
+                            source={require('../../../assets/images/logo-icon.png')}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                          />
                         </View>
                         <View style={styles.logoFront}>
-                          <Logo variant="icon" size="small" />
+                          <Image
+                            source={require('../../../assets/images/logo-icon.png')}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                          />
                         </View>
                       </View>
                     ) : (
-                      <Logo variant="icon" size="small" />
+                      <Image
+                        source={require('../../../assets/images/logo-icon.png')}
+                        style={styles.logoImage}
+                        resizeMode="contain"
+                      />
                     )}
                   </View>
                 ) : tab.icon ? (
@@ -140,6 +151,12 @@ const styles = StyleSheet.create({
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  logoImage: {
+    width: 24,
+    height: 24,
+    tintColor: undefined,
   },
   doubleLogoContainer: {
     width: 40,
@@ -147,6 +164,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   logoBack: {
     position: 'absolute',
