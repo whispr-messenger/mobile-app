@@ -244,7 +244,7 @@ export const messagingAPI = {
         is_muted: true,
         is_archived: false,
         display_name: 'Kim Jong-un',
-        avatar_url: 'https://i.pravatar.cc/150?img=70',
+        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Kim_Jong-un_April_2019_%28cropped%29.jpg/150px-Kim_Jong-un_April_2019_%28cropped%29.jpg',
         last_message: {
           id: 'msg-9',
           conversation_id: 'conv-9',
