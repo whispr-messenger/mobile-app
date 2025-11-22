@@ -53,7 +53,7 @@ export const colors = {
     divider: '#8F8C9F',   // Lignes de séparation
     success: '#21C004',   // Vert (succès)
     error: '#FF3B30',     // Rouge (erreur)
-    warning: '#FF9500',   // Orange (avertissement)
+    warning: '#F04882',   // Pink (avertissement)
     info: '#6774BD',      // Bleu (info)
   },
 

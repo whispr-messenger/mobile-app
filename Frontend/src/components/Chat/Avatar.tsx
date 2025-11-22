@@ -38,7 +38,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           resizeMode="cover"
           onError={() => {
             // Fallback to initials if image fails to load
-            console.log('Avatar image failed to load, using initials');
+            // Image will fallback to initials automatically
           }}
         />
       ) : (

@@ -218,7 +218,6 @@ export const ConversationsListScreen: React.FC = () => {
   }, []);
 
   const handlePin = useCallback((conversationId: string) => {
-    console.log('📌 Pin conversation:', conversationId);
     setConversations(prev => prev.map(conv => 
       conv.id === conversationId 
         ? { ...conv, is_pinned: !conv.is_pinned }
