@@ -393,9 +393,9 @@ const lightThemeColors: ThemeColors = {
 
 const darkThemeColors: ThemeColors = {
   background: {
-    primary: '#0A0E27',
-    secondary: '#1A1F3A',
-    tertiary: '#212135',
+    primary: '#0B1124', // Dark navy from gradient
+    secondary: '#1A1F3A', // Dark card color
+    tertiary: '#212135', // Dark tertiary
     gradient: ['#0B1124', '#3C2E7C', '#FE7A5C'],
   },
   text: {

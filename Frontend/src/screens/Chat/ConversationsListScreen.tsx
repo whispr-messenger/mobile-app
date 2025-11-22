@@ -198,9 +198,9 @@ export const ConversationsListScreen: React.FC = () => {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.secondary }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: themeColors.background.secondary, borderBottomColor: colors.ui.divider }]}>
+      <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: colors.ui.divider }]}>
         <TouchableOpacity
           onPress={() => {
             // TODO: Implement edit mode
@@ -225,8 +225,8 @@ export const ConversationsListScreen: React.FC = () => {
       </View>
 
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: themeColors.background.secondary }]}>
-        <View style={[styles.searchBar, { backgroundColor: themeColors.background.secondary }]}>
+      <View style={[styles.searchContainer, { backgroundColor: themeColors.background.primary }]}>
+        <View style={[styles.searchBar, { backgroundColor: themeColors.background.secondary, opacity: 0.6 }]}>
           <Ionicons name="search-outline" size={20} color={themeColors.text.tertiary} style={styles.searchIcon} />
           <TextInput
             style={[styles.searchInput, { color: themeColors.text.primary }]}
