@@ -326,6 +326,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
     navigation.navigate('Settings');
   };
 
+  // Handle home navigation (ConversationsList)
+  const handleHomePress = () => {
+    navigation.navigate('ConversationsList');
+  };
+
   // Handle back navigation
   const handleBackPress = () => {
     if (isEditing) {
@@ -371,9 +376,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
             <Text style={styles.headerTitle}>Profil</Text>
             
             {!isEditing ? (
-              <TouchableOpacity onPress={handleSettingsPress} style={styles.settingsButton}>
-                <Text style={styles.settingsButtonText}>⚙️</Text>
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity onPress={handleHomePress} style={styles.homeButton}>
+                  <Ionicons name="chatbubbles" size={24} color={colors.text.light} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSettingsPress} style={styles.settingsButton}>
+                  <Text style={styles.settingsButtonText}>⚙️</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <TouchableOpacity onPress={() => setIsEditing(false)} style={styles.cancelButton}>
                 <Text style={styles.cancelButtonText}>Annuler</Text>
@@ -610,6 +620,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  homeButton: {
+    padding: spacing.sm,
   },
   settingsButton: {
     padding: spacing.sm,
