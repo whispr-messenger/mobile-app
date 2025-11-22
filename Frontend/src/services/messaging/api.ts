@@ -36,7 +36,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Elon Musk',
-        avatar_url: 'https://i.pravatar.cc/150?img=68',
+        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Elon_Musk_Royal_Society_%28crop2%29.jpg/150px-Elon_Musk_Royal_Society_%28crop2%29.jpg',
         last_message: {
           id: 'msg-1',
           conversation_id: 'conv-1',
@@ -192,7 +192,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Vladimir Poutine',
-        avatar_url: 'https://i.pravatar.cc/150?img=69',
+        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Vladimir_Putin_17-11-2021_%28cropped%29.jpg/150px-Vladimir_Putin_17-11-2021_%28cropped%29.jpg',
         last_message: {
           id: 'msg-7',
           conversation_id: 'conv-7',
@@ -218,7 +218,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Queen Elizabeth II',
-        avatar_url: 'https://i.pravatar.cc/150?img=65',
+        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Queen_Elizabeth_II_in_March_2015.jpg/150px-Queen_Elizabeth_II_in_March_2015.jpg',
         last_message: {
           id: 'msg-8',
           conversation_id: 'conv-8',
