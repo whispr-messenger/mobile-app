@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +22,7 @@ import { BottomTabBar } from '../../components/Navigation/BottomTabBar';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
+import Toast from '../../components/Toast/Toast';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
 
@@ -33,6 +34,11 @@ export const ConversationsListScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' | 'info' | 'warning' }>({
+    visible: false,
+    message: '',
+    type: 'info',
+  });
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -379,30 +385,40 @@ export const ConversationsListScreen: React.FC = () => {
         {editMode && selectedConversations.size > 0 && (
           <View style={styles.editActionsBar}>
             <TouchableOpacity
-              style={[styles.editActionButton, { backgroundColor: colors.ui.error }]}
+              style={styles.editActionButton}
               onPress={handleBulkDelete}
             >
-              <Ionicons name="trash-outline" size={20} color={colors.text.light} />
+              <Ionicons name="trash-outline" size={24} color={colors.ui.error} />
               <Text style={styles.editActionText}>Delete</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.editActionButton, { backgroundColor: colors.secondary.main }]}
+              style={styles.editActionButton}
               onPress={handleBulkArchive}
             >
-              <Ionicons name="archive-outline" size={20} color={colors.text.light} />
+              <Ionicons name="archive-outline" size={24} color={colors.secondary.main} />
               <Text style={styles.editActionText}>Archive</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.editActionButton, { backgroundColor: colors.primary.main }]}
+              style={styles.editActionButton}
               onPress={handleSelectAll}
             >
-              <Ionicons name="checkmark-done-outline" size={20} color={colors.text.light} />
+              <Ionicons 
+                name={selectedConversations.size === filteredAndSortedConversations.length ? "checkmark-done-outline" : "checkmark-outline"} 
+                size={24} 
+                color={colors.primary.main} 
+              />
               <Text style={styles.editActionText}>
                 {selectedConversations.size === filteredAndSortedConversations.length ? 'Deselect All' : 'Select All'}
               </Text>
             </TouchableOpacity>
           </View>
         )}
+        <Toast
+          visible={toast.visible}
+          message={toast.message}
+          type={toast.type}
+          onHide={() => setToast({ ...toast, visible: false })}
+        />
         <BottomTabBar />
       </SafeAreaView>
     </LinearGradient>
