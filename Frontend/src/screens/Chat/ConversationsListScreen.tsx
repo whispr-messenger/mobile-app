@@ -48,6 +48,7 @@ export const ConversationsListScreen: React.FC = () => {
       setConversations(prev => {
         const updated = prev.map(conv => {
           if (conv.id === message.conversation_id) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             return {
               ...conv,
               last_message: message,
