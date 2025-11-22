@@ -12,6 +12,7 @@ export const ChatScreen: React.FC = () => {
   const { conversationId } = route.params;
   const [messages, setMessages] = useState<MessageWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const conversationChannelRef = useRef<any>(null);
 
   // Mock user ID - TODO: Get from auth context
@@ -19,7 +20,7 @@ export const ChatScreen: React.FC = () => {
   const token = 'mock-token';
 
   // WebSocket connection
-  const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead } = useWebSocket({
+  const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -39,6 +40,17 @@ export const ChatScreen: React.FC = () => {
         });
         // Mark as read if chat is open
         markAsRead(conversationId, message.id);
+      }
+    },
+    onTyping: (typingUserId: string, typing: boolean) => {
+      if (typingUserId !== userId) {
+        setTypingUsers(prev => {
+          if (typing) {
+            return prev.includes(typingUserId) ? prev : [...prev, typingUserId];
+          } else {
+            return prev.filter(id => id !== typingUserId);
+          }
+        });
       }
     },
   });
@@ -72,6 +84,9 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMessage = useCallback(
     (content: string) => {
+      // Stop typing indicator
+      sendTyping(conversationId, false);
+
       // Optimistic UI - add message immediately
       const tempMessage: MessageWithStatus = {
         id: `temp-${Date.now()}`,
@@ -92,7 +107,7 @@ export const ChatScreen: React.FC = () => {
       // Send via WebSocket
       wsSendMessage(conversationId, content, 'text');
     },
-    [conversationId, userId, wsSendMessage]
+    [conversationId, userId, wsSendMessage, sendTyping]
   );
 
   const renderItem = useCallback(
@@ -118,6 +133,9 @@ export const ChatScreen: React.FC = () => {
         updateCellsBatchingPeriod={50}
         initialNumToRender={15}
         windowSize={10}
+        ListFooterComponent={
+          typingUsers.length > 0 ? <TypingIndicator /> : null
+        }
       />
       <MessageInput onSend={handleSendMessage} />
     </View>
