@@ -35,9 +35,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ conversationId }) => {
     }
   }, [conversationId]);
 
-  const renderItem = useCallback(() => {
-    return null; // TODO: Implement MessageBubble
-  }, []);
+  const renderItem = useCallback(
+    ({ item }: { item: MessageWithStatus }) => {
+      // TODO: Get current user ID from context
+      const isSent = true; // item.sender_id === currentUserId;
+      return <MessageBubble message={item} isSent={isSent} />;
+    },
+    []
+  );
 
   const keyExtractor = useCallback((item: MessageWithStatus) => item.id, []);
 
