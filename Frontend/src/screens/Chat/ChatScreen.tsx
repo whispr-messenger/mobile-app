@@ -122,6 +122,11 @@ export const ChatScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <ChatHeader
+        conversationName="Contact"
+        conversationType="direct"
+        isOnline={false}
+      />
       <FlatList
         data={messages}
         renderItem={renderItem}
