@@ -3,13 +3,45 @@
  * Displays list of conversations with real-time updates
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, FlatList } from 'react-native';
+import { Conversation } from '../../types/messaging';
+import { messagingAPI } from '../../services/messaging/api';
 
 export const ConversationsListScreen: React.FC = () => {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await messagingAPI.getConversations();
+      setConversations(data);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const renderItem = useCallback(() => {
+    return null; // TODO: Implement ConversationItem
+  }, []);
+
+  const keyExtractor = useCallback((item: Conversation) => item.id, []);
+
   return (
     <View style={styles.container}>
-      {/* TODO: Implement conversation list */}
+      <FlatList
+        data={conversations}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={styles.listContent}
+      />
     </View>
   );
 };
@@ -17,6 +49,9 @@ export const ConversationsListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  listContent: {
+    paddingVertical: 8,
   },
 });
 
