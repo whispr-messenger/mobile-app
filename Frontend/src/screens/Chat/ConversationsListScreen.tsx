@@ -19,6 +19,15 @@ export const ConversationsListScreen: React.FC = () => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
+  // Sort conversations by last message timestamp
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => {
+      const aTime = a.last_message?.sent_at || a.updated_at;
+      const bTime = b.last_message?.sent_at || b.updated_at;
+      return new Date(bTime).getTime() - new Date(aTime).getTime();
+    });
+  }, [conversations]);
+
   useEffect(() => {
     loadConversations();
   }, []);
@@ -95,7 +104,7 @@ export const ConversationsListScreen: React.FC = () => {
         </View>
       ) : (
         <FlatList
-          data={conversations}
+          data={sortedConversations}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           contentContainerStyle={listContentStyle}
