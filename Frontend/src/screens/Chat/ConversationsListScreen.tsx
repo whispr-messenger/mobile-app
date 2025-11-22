@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -198,93 +199,109 @@ export const ConversationsListScreen: React.FC = () => {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: colors.ui.divider }]}>
-        <TouchableOpacity
-          onPress={() => {
-            // TODO: Implement edit mode
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          style={styles.headerButton}
-        >
-          <Text style={[styles.editButton, { color: colors.secondary.main }]}>Edit</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Chats</Text>
-        <TouchableOpacity
-          onPress={() => {
-            // TODO: Navigate to new conversation
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          style={styles.headerButton}
-        >
-          <View style={[styles.composeButton, { backgroundColor: colors.palette.violet }]}>
-            <Ionicons name="create-outline" size={20} color={colors.text.light} />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: themeColors.background.primary }]}>
-        <View style={[styles.searchBar, { backgroundColor: themeColors.background.secondary, opacity: 0.6 }]}>
-          <Ionicons name="search-outline" size={20} color={themeColors.text.tertiary} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: themeColors.text.primary }]}
-            placeholder="Search for messages or users"
-            placeholderTextColor={themeColors.text.tertiary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              style={styles.clearButton}
+    <LinearGradient
+      colors={colors.background.gradient.app}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: 'rgba(255, 255, 255, 0.1)' }]}>
+          <TouchableOpacity
+            onPress={() => {
+              // TODO: Implement edit mode
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            style={styles.headerButton}
+          >
+            <Text style={[styles.editButton, { color: colors.text.light }]}>Edit</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text.light }]}>Chats</Text>
+          <TouchableOpacity
+            onPress={() => {
+              // TODO: Navigate to new conversation
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            style={styles.headerButton}
+          >
+            <LinearGradient
+              colors={[colors.primary.main, colors.secondary.main]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.composeButton}
             >
-              <Ionicons name="close-circle" size={20} color={themeColors.text.tertiary} />
-            </TouchableOpacity>
-          )}
+              <Ionicons name="create-outline" size={20} color={colors.text.light} />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
-      </View>
 
-      {loading && conversations.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <Text style={{ color: themeColors.text.secondary }}>Chargement...</Text>
-        </View>
-      ) : filteredAndSortedConversations.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <FlatList
-          data={filteredAndSortedConversations}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.listContent}
-          style={styles.list}
-          removeClippedSubviews={false}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          initialNumToRender={15}
-          windowSize={10}
-          getItemLayout={getItemLayout}
-          showsVerticalScrollIndicator={true}
-          ListEmptyComponent={<EmptyState />}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={themeColors.primary}
-              colors={[themeColors.primary]}
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBar, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
+            <Ionicons name="search-outline" size={20} color="rgba(255, 255, 255, 0.7)" style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text.light }]}
+              placeholder="Search for messages or users"
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
-          }
-        />
-      )}
-      <BottomTabBar />
-    </SafeAreaView>
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={styles.clearButton}
+              >
+                <Ionicons name="close-circle" size={20} color="rgba(255, 255, 255, 0.7)" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {loading && conversations.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Chargement...</Text>
+          </View>
+        ) : filteredAndSortedConversations.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <FlatList
+            data={filteredAndSortedConversations}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={styles.listContent}
+            style={styles.list}
+            removeClippedSubviews={false}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={15}
+            windowSize={10}
+            getItemLayout={getItemLayout}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<EmptyState />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.text.light}
+                colors={[colors.primary.main]}
+              />
+            }
+          />
+        )}
+        <BottomTabBar />
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
@@ -293,6 +310,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
+    backgroundColor: 'transparent',
   },
   headerTitle: {
     fontSize: 28,
@@ -344,10 +362,18 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   listContent: {
     paddingVertical: 8,
     flexGrow: 1,
+    backgroundColor: 'transparent',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   emptyContent: {
     flexGrow: 1,

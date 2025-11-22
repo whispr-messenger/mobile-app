@@ -90,7 +90,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <TouchableOpacity
         style={[
           styles.container,
-          { backgroundColor: themeColors.background.primary },
+          { backgroundColor: 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.1)' },
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -107,7 +107,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         />
         <View style={styles.textContainer}>
           <Text
-            style={[styles.name, { color: themeColors.text.primary }]}
+            style={[styles.name, { color: '#FFFFFF' }]}
             numberOfLines={1}
           >
             {conversation.type === 'direct'
@@ -116,7 +116,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           </Text>
           {conversation.last_message && lastMessageContent ? (
             <Text
-              style={[styles.lastMessage, { color: themeColors.text.secondary }]}
+              style={[styles.lastMessage, { color: 'rgba(255, 255, 255, 0.7)' }]}
               numberOfLines={1}
             >
               {lastMessageContent}
@@ -127,7 +127,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           <View style={styles.metaRow}>
             {formattedTime ? (
               <Text
-                style={[styles.timestamp, { color: themeColors.text.tertiary }]}
+                style={[styles.timestamp, { color: 'rgba(255, 255, 255, 0.6)' }]}
               >
                 {formattedTime}
               </Text>
@@ -136,7 +136,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               <Ionicons 
                 name="pin" 
                 size={14} 
-                color={themeColors.text.tertiary} 
+                color="rgba(255, 255, 255, 0.6)" 
                 style={styles.pinIcon}
               />
             )}
@@ -164,6 +164,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderBottomWidth: 1,
   },
   content: {
     flexDirection: 'row',

@@ -8,15 +8,12 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 
 export const EmptyState: React.FC = () => {
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
-
   return (
-    <View style={styles.container}>
-      <Text style={[styles.title, { color: themeColors.text.primary }]}>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+      <Text style={[styles.title, { color: '#FFFFFF' }]}>
         Aucune conversation
       </Text>
-      <Text style={[styles.subtitle, { color: themeColors.text.secondary }]}>
+      <Text style={[styles.subtitle, { color: 'rgba(255, 255, 255, 0.7)' }]}>
         Commencez une nouvelle conversation pour démarrer
       </Text>
     </View>
