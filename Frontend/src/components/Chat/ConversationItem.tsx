@@ -2,7 +2,7 @@
  * ConversationItem - Individual conversation list item
  */
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Conversation } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
@@ -126,5 +126,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+});
+
+// Memoize with custom comparator
+export default memo(ConversationItem, (prevProps, nextProps) => {
+  return (
+    prevProps.conversation.id === nextProps.conversation.id &&
+    prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
+    prevProps.conversation.unread_count === nextProps.conversation.unread_count
+  );
 });
 
