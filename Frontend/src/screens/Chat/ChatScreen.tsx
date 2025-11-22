@@ -10,10 +10,10 @@ import { StackScreenProps } from '@react-navigation/stack';
 import { Message, MessageWithStatus } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import MessageBubble from '../../components/Chat/MessageBubble';
-import MessageInput from '../../components/Chat/MessageInput';
-import TypingIndicator from '../../components/Chat/TypingIndicator';
-import ChatHeader from './ChatHeader';
+import { MessageBubble } from '../../components/Chat/MessageBubble';
+import { MessageInput } from '../../components/Chat/MessageInput';
+import { TypingIndicator } from '../../components/Chat/TypingIndicator';
+import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
@@ -125,7 +125,7 @@ export const ChatScreen: React.FC = () => {
       setMessages(prev => [tempMessage, ...prev]);
 
       // Send via WebSocket
-      wsSendMessage(conversationId, content, 'text', clientRandom);
+      wsSendMessage(conversationId, content, 'text', tempMessage.client_random);
     },
     [conversationId, userId, wsSendMessage, sendTyping]
   );
