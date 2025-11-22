@@ -32,6 +32,9 @@ export const ConversationsListScreen: React.FC = () => {
 
   // Sort conversations by last message timestamp
   const sortedConversations = useMemo(() => {
+    if (!conversations || conversations.length === 0) {
+      return [];
+    }
     return [...conversations].sort((a, b) => {
       const aTime = a.last_message?.sent_at || a.updated_at;
       const bTime = b.last_message?.sent_at || b.updated_at;
@@ -179,6 +182,7 @@ export const ConversationsListScreen: React.FC = () => {
           windowSize={10}
           getItemLayout={getItemLayout}
           showsVerticalScrollIndicator={true}
+          ListEmptyComponent={<EmptyState />}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
