@@ -134,7 +134,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               <Ionicons 
                 name="pin" 
                 size={14} 
-                color={themeColors.text.tertiary} 
+                color="rgba(235, 235, 245, 0.6)" 
                 style={styles.pinIcon}
               />
             )}

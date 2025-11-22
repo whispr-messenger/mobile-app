@@ -247,8 +247,8 @@ export const ConversationsListScreen: React.FC = () => {
       </View>
 
       {loading && conversations.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <Text style={{ color: themeColors.text.secondary }}>Chargement...</Text>
+        <View style={[styles.loadingContainer, { backgroundColor: '#1A1625' }]}>
+          <Text style={{ color: 'rgba(235, 235, 245, 0.6)' }}>Chargement...</Text>
         </View>
       ) : filteredAndSortedConversations.length === 0 ? (
         <EmptyState />
@@ -271,8 +271,8 @@ export const ConversationsListScreen: React.FC = () => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={themeColors.primary}
-              colors={[themeColors.primary]}
+              tintColor="#F04882"
+              colors={["#F04882"]}
             />
           }
         />
@@ -345,10 +345,12 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    backgroundColor: '#1A1625',
   },
   listContent: {
     paddingVertical: 8,
     flexGrow: 1,
+    backgroundColor: '#1A1625',
   },
   emptyContent: {
     flexGrow: 1,
