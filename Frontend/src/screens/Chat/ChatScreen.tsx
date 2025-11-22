@@ -54,6 +54,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ conversationId }) => {
         keyExtractor={keyExtractor}
         inverted
         contentContainerStyle={styles.listContent}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={15}
+        windowSize={10}
       />
     </View>
   );
