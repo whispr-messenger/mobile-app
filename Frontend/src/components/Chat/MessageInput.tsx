@@ -11,6 +11,7 @@ import { colors } from '../../theme/colors';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
+  onTyping?: (typing: boolean) => void;
   placeholder?: string;
 }
 

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { Message, MessageWithStatus } from '../../types/messaging';
@@ -131,7 +132,7 @@ export const ChatScreen: React.FC = () => {
   const keyExtractor = useCallback((item: MessageWithStatus) => item.id, []);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ChatHeader
         conversationName="Contact"
         conversationType="direct"
@@ -156,7 +157,7 @@ export const ChatScreen: React.FC = () => {
         onSend={handleSendMessage}
         onTyping={(typing) => sendTyping(conversationId, typing)}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
