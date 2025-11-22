@@ -3,11 +3,11 @@
  * Displays list of conversations with real-time updates
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
-import { ConversationItem } from '../../components/Chat/ConversationItem';
+import ConversationItem from '../../components/Chat/ConversationItem';
 
 export const ConversationsListScreen: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -46,6 +46,15 @@ export const ConversationsListScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: Conversation) => item.id, []);
 
+  const getItemLayout = useCallback(
+    (_data: Conversation[] | null | undefined, index: number) => ({
+      length: 72, // Fixed height for conversation item
+      offset: 72 * index,
+      index,
+    }),
+    []
+  );
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -58,6 +67,7 @@ export const ConversationsListScreen: React.FC = () => {
         updateCellsBatchingPeriod={50}
         initialNumToRender={15}
         windowSize={10}
+        getItemLayout={getItemLayout}
       />
     </View>
   );
