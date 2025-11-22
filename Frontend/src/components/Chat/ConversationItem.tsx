@@ -77,9 +77,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getBadgeColor = useMemo(() => {
     const count = conversation.unread_count || 0;
     if (count === 0) return null;
-    if (count < 10) return '#F04882'; // Pink
-    if (count < 50) return '#FFB07B'; // Orange
-    return '#F04882'; // Pink for high counts
+    if (count < 10) return colors.secondary.main; // Purple/blue
+    if (count < 50) return colors.primary.main; // Orange
+    return colors.ui.error; // Red for high counts
   }, [conversation.unread_count]);
 
   // Safety check for last_message content
