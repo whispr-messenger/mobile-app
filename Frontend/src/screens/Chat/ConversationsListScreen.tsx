@@ -4,14 +4,18 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import ConversationItem from '../../components/Chat/ConversationItem';
+import { useTheme } from '../../context/ThemeContext';
 
 export const ConversationsListScreen: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { getThemeColors } = useTheme();
+  const themeColors = getThemeColors();
 
   useEffect(() => {
     loadConversations();
@@ -56,6 +60,12 @@ export const ConversationsListScreen: React.FC = () => {
     []
   );
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadConversations();
+    setRefreshing(false);
+  }, [loadConversations]);
+
   return (
     <View style={styles.container}>
       <FlatList
@@ -69,6 +79,14 @@ export const ConversationsListScreen: React.FC = () => {
         initialNumToRender={15}
         windowSize={10}
         getItemLayout={getItemLayout}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={themeColors.primary}
+            colors={[themeColors.primary]}
+          />
+        }
       />
     </View>
   );
