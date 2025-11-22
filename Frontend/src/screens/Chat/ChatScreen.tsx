@@ -2,10 +2,20 @@
  * ChatScreen - Individual conversation chat interface
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
-import { MessageWithStatus } from '../../types/messaging';
+import { useRoute } from '@react-navigation/native';
+import { StackScreenProps } from '@react-navigation/stack';
+import { Message, MessageWithStatus } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import MessageBubble from '../../components/Chat/MessageBubble';
+import MessageInput from '../../components/Chat/MessageInput';
+import TypingIndicator from '../../components/Chat/TypingIndicator';
+import ChatHeader from './ChatHeader';
+import { AuthStackParamList } from '../../navigation/AuthNavigator';
+
+type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
