@@ -36,7 +36,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Elon Musk',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Elon_Musk_Royal_Society_%28crop2%29.jpg/220px-Elon_Musk_Royal_Society_%28crop2%29.jpg',
+        avatar_url: 'https://randomuser.me/api/portraits/men/1.jpg',
         last_message: {
           id: 'msg-1',
           conversation_id: 'conv-1',
@@ -88,7 +88,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Emmanuel Macron',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Emmanuel_Macron_%28cropped%29.jpg/220px-Emmanuel_Macron_%28cropped%29.jpg',
+        avatar_url: 'https://randomuser.me/api/portraits/men/32.jpg',
         last_message: {
           id: 'msg-3',
           conversation_id: 'conv-3',
@@ -192,7 +192,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Vladimir Poutine',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Vladimir_Putin_17-11-2021_%28cropped%29.jpg/220px-Vladimir_Putin_17-11-2021_%28cropped%29.jpg',
+        avatar_url: 'https://randomuser.me/api/portraits/men/22.jpg',
         last_message: {
           id: 'msg-7',
           conversation_id: 'conv-7',
@@ -218,7 +218,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Queen Elizabeth II',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Queen_Elizabeth_II_in_March_2015.jpg/220px-Queen_Elizabeth_II_in_March_2015.jpg',
+        avatar_url: 'https://randomuser.me/api/portraits/women/44.jpg',
         last_message: {
           id: 'msg-8',
           conversation_id: 'conv-8',
@@ -244,7 +244,7 @@ export const messagingAPI = {
         is_muted: true,
         is_archived: false,
         display_name: 'Kim Jong-un',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Kim_Jong-un_April_2019_%28cropped%29.jpg/220px-Kim_Jong-un_April_2019_%28cropped%29.jpg',
+        avatar_url: 'https://randomuser.me/api/portraits/men/45.jpg',
         last_message: {
           id: 'msg-9',
           conversation_id: 'conv-9',
