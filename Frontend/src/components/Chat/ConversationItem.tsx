@@ -2,7 +2,7 @@
  * ConversationItem - Individual conversation list item
  */
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Conversation } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
@@ -19,6 +19,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  const formattedTime = useMemo(() => {
+    if (!conversation.last_message) return '';
+    return new Date(conversation.last_message.sent_at).toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }, [conversation.last_message?.sent_at]);
 
   return (
     <TouchableOpacity
@@ -50,14 +58,11 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           )}
         </View>
         <View style={styles.metaContainer}>
-          {conversation.last_message && (
+          {formattedTime && (
             <Text
               style={[styles.timestamp, { color: themeColors.text.tertiary }]}
             >
-              {new Date(conversation.last_message.sent_at).toLocaleTimeString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {formattedTime}
             </Text>
           )}
           {conversation.unread_count && conversation.unread_count > 0 && (
