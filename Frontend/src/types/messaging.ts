@@ -16,6 +16,7 @@ export interface Conversation {
   last_message?: Message;
   unread_count?: number;
   participants?: ConversationParticipant[];
+  is_pinned?: boolean; // From conversation_members for current user
 }
 
 export interface ConversationParticipant {
