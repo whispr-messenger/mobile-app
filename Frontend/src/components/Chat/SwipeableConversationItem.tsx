@@ -20,6 +20,8 @@ interface SwipeableConversationItemProps {
   onArchive?: (conversationId: string) => void;
   onPin?: (conversationId: string) => void;
   index?: number;
+  editMode?: boolean;
+  isSelected?: boolean;
 }
 
 export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps> = ({
@@ -31,6 +33,8 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
   onArchive,
   onPin,
   index = 0,
+  editMode = false,
+  isSelected = false,
 }) => {
   const swipeableRef = useRef<Swipeable>(null);
 
@@ -119,6 +123,18 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
     );
   };
 
+  if (editMode) {
+    return (
+      <ConversationItem
+        conversation={conversation}
+        onPress={onPress}
+        index={index}
+        editMode={editMode}
+        isSelected={isSelected}
+      />
+    );
+  }
+
   return (
     <Swipeable
       ref={swipeableRef}
@@ -132,6 +148,8 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
         conversation={conversation}
         onPress={onPress}
         index={index}
+        editMode={editMode}
+        isSelected={isSelected}
       />
     </Swipeable>
   );
