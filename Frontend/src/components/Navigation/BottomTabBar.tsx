@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doubleLogoContainer: {
-    width: 32,
+    width: 40,
     height: 32,
     position: 'relative',
     justifyContent: 'center',
@@ -150,16 +150,18 @@ const styles = StyleSheet.create({
   },
   logoBack: {
     position: 'absolute',
-    top: 2,
+    top: 0,
     left: 0,
-    opacity: 0.8,
+    opacity: 0.75,
     zIndex: 1,
+    transform: [{ scale: 0.85 }],
   },
   logoFront: {
     position: 'absolute',
     top: 0,
     right: 0,
     zIndex: 2,
+    transform: [{ scale: 0.85 }],
   },
   badge: {
     position: 'absolute',
