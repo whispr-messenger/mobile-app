@@ -17,6 +17,10 @@ export interface Conversation {
   unread_count?: number;
   participants?: ConversationParticipant[];
   is_pinned?: boolean; // From conversation_members for current user
+  is_muted?: boolean; // Frontend local state
+  is_archived?: boolean; // Frontend local state
+  avatar_url?: string; // For direct conversations (other user) or groups
+  display_name?: string; // Computed display name
 }
 
 export interface ConversationParticipant {

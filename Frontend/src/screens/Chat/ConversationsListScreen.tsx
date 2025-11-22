@@ -39,14 +39,16 @@ export const ConversationsListScreen: React.FC = () => {
       return [];
     }
     
+    // Filter out archived conversations (for now, can add toggle later)
+    let filtered = conversations.filter(conv => !conv.is_archived);
+    
     // Filter by search query
-    let filtered = conversations;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = conversations.filter(conv => {
-        const name = conv.type === 'direct' 
+      filtered = filtered.filter(conv => {
+        const name = conv.display_name || (conv.type === 'direct' 
           ? 'Contact' 
-          : (conv.metadata?.name || 'Group');
+          : (conv.metadata?.name || 'Group'));
         const lastMessage = conv.last_message?.content || '';
         return name.toLowerCase().includes(query) || lastMessage.toLowerCase().includes(query);
       });
@@ -136,23 +138,39 @@ export const ConversationsListScreen: React.FC = () => {
   );
 
   const handleDelete = useCallback((conversationId: string) => {
-    console.log('🗑️ Delete conversation:', conversationId);
-    // TODO: Implement delete
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+    // TODO: Call API when backend is ready
   }, []);
 
   const handleMute = useCallback((conversationId: string) => {
-    console.log('🔇 Mute conversation:', conversationId);
-    // TODO: Implement mute
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setConversations(prev => prev.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, is_muted: !conv.is_muted }
+        : conv
+    ));
+    // TODO: Call API when backend is ready
   }, []);
 
   const handleUnread = useCallback((conversationId: string) => {
-    console.log('📬 Mark as unread:', conversationId);
-    // TODO: Implement mark as unread
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setConversations(prev => prev.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, unread_count: (conv.unread_count || 0) + 1 }
+        : conv
+    ));
+    // TODO: Call API when backend is ready
   }, []);
 
   const handleArchive = useCallback((conversationId: string) => {
-    console.log('📦 Archive conversation:', conversationId);
-    // TODO: Implement archive
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setConversations(prev => prev.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, is_archived: !conv.is_archived }
+        : conv
+    ));
+    // TODO: Call API when backend is ready
   }, []);
 
   const handlePin = useCallback((conversationId: string) => {

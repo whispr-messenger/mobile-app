@@ -22,7 +22,7 @@ export const messagingAPI = {
   }): Promise<Conversation[]> {
     await mockDelay(600);
     
-    // Mock data - realistic conversations
+    // Mock data - realistic conversations with names and avatars
     const now = new Date();
     const mockConversations: Conversation[] = [
       {
@@ -33,6 +33,10 @@ export const messagingAPI = {
         updated_at: new Date(now.getTime() - 3600000).toISOString(),
         is_active: true,
         is_pinned: true,
+        is_muted: false,
+        is_archived: false,
+        display_name: 'Alex Martin',
+        avatar_url: undefined, // Will use initials
         last_message: {
           id: 'msg-1',
           conversation_id: 'conv-1',
@@ -55,6 +59,10 @@ export const messagingAPI = {
         updated_at: new Date(now.getTime() - 7200000).toISOString(),
         is_active: true,
         is_pinned: true,
+        is_muted: false,
+        is_archived: false,
+        display_name: 'Whispr project Team',
+        avatar_url: undefined, // Will use initials
         last_message: {
           id: 'msg-2',
           conversation_id: 'conv-2',
@@ -77,6 +85,10 @@ export const messagingAPI = {
         updated_at: new Date(now.getTime() - 86400000 * 1).toISOString(),
         is_active: true,
         is_pinned: true,
+        is_muted: false,
+        is_archived: false,
+        display_name: 'Sophie Dubois',
+        avatar_url: undefined,
         last_message: {
           id: 'msg-3',
           conversation_id: 'conv-3',
@@ -99,6 +111,10 @@ export const messagingAPI = {
         updated_at: new Date(now.getTime() - 3600000 * 2).toISOString(),
         is_active: true,
         is_pinned: false,
+        is_muted: false,
+        is_archived: false,
+        display_name: 'Summer Trip 2025',
+        avatar_url: undefined,
         last_message: {
           id: 'msg-4',
           conversation_id: 'conv-4',
@@ -121,6 +137,10 @@ export const messagingAPI = {
         updated_at: new Date(now.getTime() - 86400000 * 2).toISOString(),
         is_active: true,
         is_pinned: false,
+        is_muted: false,
+        is_archived: false,
+        display_name: 'Design Community',
+        avatar_url: undefined,
         last_message: {
           id: 'msg-5',
           conversation_id: 'conv-5',
@@ -143,6 +163,10 @@ export const messagingAPI = {
         updated_at: new Date(now.getTime() - 3600000 * 5).toISOString(),
         is_active: true,
         is_pinned: false,
+        is_muted: false,
+        is_archived: false,
+        display_name: 'Hakathon buddies',
+        avatar_url: undefined,
         last_message: {
           id: 'msg-6',
           conversation_id: 'conv-6',
