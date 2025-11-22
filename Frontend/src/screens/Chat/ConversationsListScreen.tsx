@@ -115,20 +115,18 @@ export const ConversationsListScreen: React.FC = () => {
       // Load from cache first for instant display
       const cachedData = await cacheService.getConversations();
       if (cachedData && cachedData.length > 0) {
-        console.log('📦 Loaded from cache:', cachedData.length, 'conversations');
+        // Loaded from cache
         setConversations(cachedData);
       }
       
       // Fetch fresh data
-      console.log('🌐 Fetching conversations from API...');
       const data = await messagingAPI.getConversations();
-      console.log('✅ Fetched conversations:', data.length, 'conversations');
       setConversations(data);
       
       // Save to cache
       await cacheService.saveConversations(data);
     } catch (error) {
-      console.error('❌ Error loading conversations:', error);
+      console.error('Error loading conversations:', error);
     } finally {
       setLoading(false);
     }
