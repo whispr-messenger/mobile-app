@@ -138,7 +138,7 @@ export const ConversationsListScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: colors.ui.divider }]}>
         <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Messages</Text>
@@ -170,7 +170,8 @@ export const ConversationsListScreen: React.FC = () => {
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           contentContainerStyle={listContentStyle}
-          removeClippedSubviews={true}
+          style={styles.list}
+          removeClippedSubviews={false}
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={50}
           initialNumToRender={15}
@@ -214,8 +215,12 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 4,
   },
+  list: {
+    flex: 1,
+  },
   listContent: {
     paddingVertical: 8,
+    flexGrow: 1,
   },
   emptyContent: {
     flexGrow: 1,
