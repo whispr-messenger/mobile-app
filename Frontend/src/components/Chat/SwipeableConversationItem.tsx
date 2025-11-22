@@ -47,17 +47,17 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
 
     return (
       <View style={styles.rightActions}>
-        {onUnread && (
+        {onArchive && (
           <TouchableOpacity
-            style={[styles.actionButton, styles.unreadButton]}
+            style={[styles.actionButton, styles.archiveButton]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onUnread(conversation.id);
+              onArchive(conversation.id);
               swipeableRef.current?.close();
             }}
           >
-            <Ionicons name="chatbubble-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Unread</Text>
+            <Ionicons name="archive-outline" size={20} color={colors.text.light} />
+            <Text style={styles.actionText}>Archive</Text>
           </TouchableOpacity>
         )}
         {onMute && (
@@ -106,17 +106,17 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
             <Text style={styles.actionText}>Pin</Text>
           </TouchableOpacity>
         )}
-        {onArchive && (
+        {onUnread && (
           <TouchableOpacity
-            style={[styles.actionButton, styles.archiveButton]}
+            style={[styles.actionButton, styles.unreadButton]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onArchive(conversation.id);
+              onUnread(conversation.id);
               swipeableRef.current?.close();
             }}
           >
-            <Ionicons name="archive-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Archive</Text>
+            <Ionicons name="chatbubble-outline" size={20} color={colors.text.light} />
+            <Text style={styles.actionText}>Unread</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -169,26 +169,26 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
   },
   actionButton: {
-    width: 80,
-    height: 72,
+    width: 88,
+    height: 88,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 8,
   },
+  archiveButton: {
+    backgroundColor: '#5E5CE6',
+  },
   muteButton: {
-    backgroundColor: colors.palette.violet,
+    backgroundColor: '#5E5CE6',
   },
   deleteButton: {
-    backgroundColor: colors.primary.main,
-  },
-  unreadButton: {
-    backgroundColor: colors.palette.violet,
-  },
-  archiveButton: {
-    backgroundColor: colors.palette.violet,
+    backgroundColor: '#FF3B30',
   },
   pinButton: {
-    backgroundColor: colors.primary.main,
+    backgroundColor: '#FF9500',
+  },
+  unreadButton: {
+    backgroundColor: '#4A90E2',
   },
   actionText: {
     color: colors.text.light,
