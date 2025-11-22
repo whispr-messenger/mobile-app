@@ -74,7 +74,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             style={[styles.name, { color: themeColors.text.primary }]}
             numberOfLines={1}
           >
-            {conversation.type === 'direct' ? 'Contact' : 'Group'}
+            {conversation.type === 'direct'
+              ? 'Contact'
+              : conversation.metadata?.name || 'Group'}
           </Text>
           {conversation.last_message && (
             <Text
