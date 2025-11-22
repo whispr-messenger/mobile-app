@@ -185,6 +185,7 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
           />
         </LinearGradient>
       </Swipeable>
+    </View>
   );
 };
 
