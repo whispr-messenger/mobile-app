@@ -296,7 +296,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Tim Cook',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/Tim_Cook_2009_cropped.jpg/150px-Tim_Cook_2009_cropped.jpg',
+        avatar_url: 'https://i.pravatar.cc/150?img=51',
         last_message: {
           id: 'msg-11',
           conversation_id: 'conv-11',
@@ -374,7 +374,7 @@ export const messagingAPI = {
         is_muted: true,
         is_archived: false,
         display_name: 'Satya Nadella',
-        avatar_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Satya_Nadella.jpg/150px-Satya_Nadella.jpg',
+        avatar_url: 'https://i.pravatar.cc/150?img=52',
         last_message: {
           id: 'msg-14',
           conversation_id: 'conv-14',
