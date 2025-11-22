@@ -280,6 +280,7 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
     prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
     prevProps.conversation.unread_count === nextProps.conversation.unread_count &&
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
+    prevProps.conversation.is_muted === nextProps.conversation.is_muted &&
     prevEditMode === nextEditMode &&
     prevIsSelected === nextIsSelected
   );
