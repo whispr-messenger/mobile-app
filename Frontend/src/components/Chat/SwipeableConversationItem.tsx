@@ -151,31 +151,31 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
   },
   actionButton: {
-    width: 80,
-    height: 72,
+    width: 88,
+    height: 88,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 8,
   },
   muteButton: {
-    backgroundColor: colors.palette.violet,
+    backgroundColor: '#5E5CE6', // Violet iOS
   },
   deleteButton: {
-    backgroundColor: colors.primary.main,
+    backgroundColor: '#FF3B30', // Rouge iOS
   },
   unreadButton: {
-    backgroundColor: colors.palette.violet,
+    backgroundColor: '#4A90E2', // Bleu iOS
   },
   archiveButton: {
-    backgroundColor: colors.palette.violet,
+    backgroundColor: '#5E5CE6', // Violet iOS
   },
   pinButton: {
-    backgroundColor: colors.primary.main,
+    backgroundColor: '#FF9500', // Orange iOS
   },
   actionText: {
-    color: colors.text.light,
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '400',
     marginTop: 4,
   },
 });

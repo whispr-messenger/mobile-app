@@ -77,9 +77,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getBadgeColor = useMemo(() => {
     const count = conversation.unread_count || 0;
     if (count === 0) return null;
-    if (count < 10) return colors.secondary.main; // Purple/blue
-    if (count < 50) return colors.primary.main; // Orange
-    return colors.ui.error; // Red for high counts
+    return '#F04882'; // Pink Whispr for all unread counts
   }, [conversation.unread_count]);
 
   // Safety check for last_message content
@@ -90,7 +88,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <TouchableOpacity
         style={[
           styles.container,
-          { backgroundColor: themeColors.background.primary },
+          { backgroundColor: 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.08)' },
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -100,14 +98,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       >
       <View style={styles.content}>
         <Avatar
-          size={48}
+          size={56}
           name={conversation.type === 'direct' ? 'Contact' : (conversation.metadata?.name || 'Group')}
           showOnlineBadge={conversation.type === 'direct'}
           isOnline={false}
         />
         <View style={styles.textContainer}>
           <Text
-            style={[styles.name, { color: themeColors.text.primary }]}
+            style={[styles.name, { color: '#FFFFFF' }]}
             numberOfLines={1}
           >
             {conversation.type === 'direct'
@@ -116,7 +114,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           </Text>
           {conversation.last_message && lastMessageContent ? (
             <Text
-              style={[styles.lastMessage, { color: themeColors.text.secondary }]}
+              style={[styles.lastMessage, { color: 'rgba(235, 235, 245, 0.6)' }]}
               numberOfLines={1}
             >
               {lastMessageContent}
@@ -127,7 +125,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           <View style={styles.metaRow}>
             {formattedTime ? (
               <Text
-                style={[styles.timestamp, { color: themeColors.text.tertiary }]}
+                style={[styles.timestamp, { color: 'rgba(235, 235, 245, 0.6)' }]}
               >
                 {formattedTime}
               </Text>
@@ -164,6 +162,8 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    height: 88,
+    borderBottomWidth: 1,
   },
   content: {
     flexDirection: 'row',
@@ -177,12 +177,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   name: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     marginBottom: 4,
   },
   lastMessage: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '400',
   },
   metaContainer: {
     alignItems: 'flex-end',
@@ -193,7 +194,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: 15,
+    fontWeight: '400',
   },
   pinIcon: {
     marginLeft: 4,
