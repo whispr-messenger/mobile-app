@@ -77,7 +77,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getBadgeColor = useMemo(() => {
     const count = conversation.unread_count || 0;
     if (count === 0) return null;
-    return '#F04882'; // Pink Whispr for all unread counts
+    if (count < 10) return colors.secondary.main; // Purple/blue
+    if (count < 50) return colors.primary.main; // Orange
+    return colors.ui.error; // Red for high counts
   }, [conversation.unread_count]);
 
   // Safety check for last_message content
@@ -88,7 +90,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <TouchableOpacity
         style={[
           styles.container,
-          { backgroundColor: 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.08)' },
+          { backgroundColor: themeColors.background.primary },
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -98,14 +100,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       >
       <View style={styles.content}>
         <Avatar
-          size={56}
+          size={48}
           name={conversation.type === 'direct' ? 'Contact' : (conversation.metadata?.name || 'Group')}
           showOnlineBadge={conversation.type === 'direct'}
           isOnline={false}
         />
         <View style={styles.textContainer}>
           <Text
-            style={[styles.name, { color: '#FFFFFF' }]}
+            style={[styles.name, { color: themeColors.text.primary }]}
             numberOfLines={1}
           >
             {conversation.type === 'direct'
@@ -114,7 +116,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           </Text>
           {conversation.last_message && lastMessageContent ? (
             <Text
-              style={[styles.lastMessage, { color: 'rgba(235, 235, 245, 0.6)' }]}
+              style={[styles.lastMessage, { color: themeColors.text.secondary }]}
               numberOfLines={1}
             >
               {lastMessageContent}
@@ -125,7 +127,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           <View style={styles.metaRow}>
             {formattedTime ? (
               <Text
-                style={[styles.timestamp, { color: 'rgba(235, 235, 245, 0.6)' }]}
+                style={[styles.timestamp, { color: themeColors.text.tertiary }]}
               >
                 {formattedTime}
               </Text>
@@ -134,7 +136,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               <Ionicons 
                 name="pin" 
                 size={14} 
-                color="rgba(235, 235, 245, 0.6)" 
+                color={themeColors.text.tertiary} 
                 style={styles.pinIcon}
               />
             )}
@@ -162,8 +164,6 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    height: 88,
-    borderBottomWidth: 1,
   },
   content: {
     flexDirection: 'row',
@@ -177,13 +177,12 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   name: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
   lastMessage: {
-    fontSize: 15,
-    fontWeight: '400',
+    fontSize: 14,
   },
   metaContainer: {
     alignItems: 'flex-end',
@@ -194,25 +193,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   timestamp: {
-    fontSize: 15,
-    fontWeight: '400',
+    fontSize: 12,
   },
   pinIcon: {
     marginLeft: 4,
   },
   unreadBadge: {
-    minWidth: 24,
-    height: 24,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
   unreadText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    color: colors.text.light,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

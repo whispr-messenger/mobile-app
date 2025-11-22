@@ -5,7 +5,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
@@ -22,8 +21,8 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: 'Contacts', icon: 'person-outline', route: 'Profile' },
-  { name: 'Calls', icon: 'call-outline', route: 'ConversationsList', badge: 2 },
-  { name: 'Chats', useLogo: true, logoVariant: 'double', route: 'ConversationsList' },
+  { name: 'Calls', icon: 'call-outline', route: 'ConversationsList' },
+  { name: 'Chats', useLogo: true, logoVariant: 'double', route: 'ConversationsList', badge: 4 },
   { name: 'Settings', useLogo: true, logoVariant: 'single', route: 'Settings' },
 ];
 
@@ -45,8 +44,8 @@ export const BottomTabBar: React.FC = () => {
   };
 
   return (
-    <SafeAreaView edges={['bottom']} style={[styles.container, { backgroundColor: '#1A1625' }]}>
-      <View style={[styles.tabBar, { borderTopColor: 'rgba(255, 255, 255, 0.08)' }]}>
+    <SafeAreaView edges={['bottom']} style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
+      <View style={[styles.tabBar, { borderTopColor: colors.ui.divider }]}>
         {tabs.map((tab) => {
           const active = isActive(tab.route);
           return (
@@ -62,33 +61,24 @@ export const BottomTabBar: React.FC = () => {
                     {tab.logoVariant === 'double' ? (
                       <View style={styles.doubleLogoContainer}>
                         <View style={styles.logoBack}>
-                          <View style={[styles.logoBackGradient, { backgroundColor: 'rgba(107, 91, 149, 0.6)' }]}>
-                            <Image
-                              source={require('../../../assets/images/logo-icon.png')}
-                              style={[styles.logoImage, { width: 28, height: 28 }]}
-                              resizeMode="contain"
-                            />
-                          </View>
+                          <Image
+                            source={require('../../../assets/images/logo-icon.png')}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                          />
                         </View>
                         <View style={styles.logoFront}>
-                          <LinearGradient
-                            colors={['#FFB07B', '#F04882']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.logoFrontGradient}
-                          >
-                            <Image
-                              source={require('../../../assets/images/logo-icon.png')}
-                              style={[styles.logoImage, { width: 32, height: 32, tintColor: '#FFFFFF' }]}
-                              resizeMode="contain"
-                            />
-                          </LinearGradient>
+                          <Image
+                            source={require('../../../assets/images/logo-icon.png')}
+                            style={styles.logoImage}
+                            resizeMode="contain"
+                          />
                         </View>
                       </View>
                     ) : (
                       <Image
                         source={require('../../../assets/images/logo-icon.png')}
-                        style={[styles.logoImage, { width: 28, height: 28, tintColor: active ? '#F04882' : 'rgba(235, 235, 245, 0.6)' }]}
+                        style={styles.logoImage}
                         resizeMode="contain"
                       />
                     )}
@@ -96,8 +86,8 @@ export const BottomTabBar: React.FC = () => {
                 ) : tab.icon ? (
                   <Ionicons
                     name={tab.icon}
-                    size={28}
-                    color={active ? '#F04882' : 'rgba(235, 235, 245, 0.6)'}
+                    size={24}
+                    color={active ? themeColors.primary : themeColors.text.tertiary}
                   />
                 ) : null}
               {tab.badge && tab.badge > 0 && (
@@ -117,8 +107,8 @@ export const BottomTabBar: React.FC = () => {
               <Text style={[
                 styles.tabLabel, 
                 { 
-                  color: active ? '#F04882' : 'rgba(235, 235, 245, 0.6)',
-                  fontWeight: active ? '600' : '400',
+                  color: active ? themeColors.primary : themeColors.text.primary,
+                  fontWeight: active ? '600' : '500',
                 }
               ]}>
                 {tab.name}
@@ -137,7 +127,7 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    height: 83,
+    height: 60,
     paddingHorizontal: 4,
     borderTopWidth: 1,
     backgroundColor: 'transparent',
@@ -170,7 +160,7 @@ const styles = StyleSheet.create({
   },
   doubleLogoContainer: {
     width: 40,
-    height: 40,
+    height: 32,
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
@@ -178,50 +168,39 @@ const styles = StyleSheet.create({
   },
   logoBack: {
     position: 'absolute',
-    top: 6,
+    top: 0,
     left: 0,
+    opacity: 0.75,
     zIndex: 1,
-  },
-  logoBackGradient: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    transform: [{ scale: 0.85 }],
   },
   logoFront: {
     position: 'absolute',
     top: 0,
-    right: 6,
+    right: 0,
     zIndex: 2,
-  },
-  logoFrontGradient: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    transform: [{ scale: 0.85 }],
   },
   badge: {
     position: 'absolute',
     top: -4,
-    right: -4,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
   },
   badgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
+    color: colors.text.light,
+    fontSize: 10,
     fontWeight: '600',
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '400',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 
