@@ -103,6 +103,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             overflow: 'hidden',
           },
         ]}
+        activeOpacity={0.7}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress(conversation.id);

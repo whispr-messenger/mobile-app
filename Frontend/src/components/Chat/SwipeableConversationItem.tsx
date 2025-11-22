@@ -185,11 +185,9 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
 };
 
 const styles = StyleSheet.create({
-  swipeableContainer: {
-    overflow: 'hidden',
-  },
   contentWrapper: {
     backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
   rightActions: {
     flexDirection: 'row',
