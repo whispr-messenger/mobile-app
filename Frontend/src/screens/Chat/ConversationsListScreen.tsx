@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { Conversation, Message } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { cacheService } from '../../services/messaging/cache';
@@ -12,8 +14,12 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 import ConversationItem from '../../components/Chat/ConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
 import { useTheme } from '../../context/ThemeContext';
+import { AuthStackParamList } from '../../navigation/AuthNavigator';
+
+type NavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
 
 export const ConversationsListScreen: React.FC = () => {
+  const navigation = useNavigation<NavigationProp>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,10 +89,12 @@ export const ConversationsListScreen: React.FC = () => {
     }
   }, []);
 
-  const handleConversationPress = useCallback((conversationId: string) => {
-    // TODO: Navigate to ChatScreen
-    console.log('Navigate to conversation:', conversationId);
-  }, []);
+  const handleConversationPress = useCallback(
+    (conversationId: string) => {
+      navigation.navigate('Chat', { conversationId });
+    },
+    [navigation]
+  );
 
   const renderItem = useCallback(
     ({ item, index }: { item: Conversation; index: number }) => (
