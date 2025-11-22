@@ -12,6 +12,10 @@ interface DeliveryStatusProps {
 }
 
 export const DeliveryStatus: React.FC<DeliveryStatusProps> = ({ status }) => {
+  if (!status) {
+    return null;
+  }
+
   if (status === 'sending') {
     return <Text style={styles.sending}>⏳</Text>;
   }

@@ -81,6 +81,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     return colors.ui.error; // Red for high counts
   }, [conversation.unread_count]);
 
+  // Safety check for last_message content
+  const lastMessageContent = conversation.last_message?.content || '';
+
   return (
     <Animated.View style={animatedStyle}>
       <TouchableOpacity
@@ -110,14 +113,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               ? 'Contact'
               : conversation.metadata?.name || 'Group'}
           </Text>
-          {conversation.last_message && (
+          {conversation.last_message && lastMessageContent ? (
             <Text
               style={[styles.lastMessage, { color: themeColors.text.secondary }]}
               numberOfLines={1}
             >
-              {conversation.last_message.content}
+              {lastMessageContent}
             </Text>
-          )}
+          ) : null}
         </View>
         <View style={styles.metaContainer}>
           <View style={styles.metaRow}>

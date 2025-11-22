@@ -25,6 +25,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
+  // Safety check
+  if (!message || !message.content) {
+    return null;
+  }
+
   const scale = useSharedValue(0.8);
   const opacity = useSharedValue(0);
 
@@ -55,7 +60,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           end={{ x: 1, y: 1 }}
           style={styles.sentBubble}
         >
-          <Text style={styles.sentText}>{message.content}</Text>
+          <Text style={styles.sentText}>{message.content || ''}</Text>
           <View style={styles.footer}>
             <Text style={styles.timestamp}>
               {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
@@ -63,7 +68,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 minute: '2-digit',
               })}
             </Text>
-            <DeliveryStatus status={message.status} />
+            <DeliveryStatus status={message.status || 'sent'} />
           </View>
         </LinearGradient>
       </Animated.View>
@@ -79,7 +84,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ]}
       >
         <Text style={[styles.receivedText, { color: themeColors.text.primary }]}>
-          {message.content}
+          {message.content || ''}
         </Text>
         <Text style={[styles.timestamp, { color: colors.text.tertiary }]}>
           {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
