@@ -6,6 +6,7 @@ import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import Animated from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Conversation } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
@@ -58,7 +59,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           styles.container,
           { backgroundColor: themeColors.background.primary },
         ]}
-        onPress={() => onPress(conversation.id)}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onPress(conversation.id);
+        }}
         activeOpacity={0.7}
       >
       <View style={styles.content}>
