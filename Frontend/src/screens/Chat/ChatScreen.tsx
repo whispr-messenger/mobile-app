@@ -70,13 +70,37 @@ export const ChatScreen: React.FC = () => {
     }
   }, [conversationId]);
 
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      // Optimistic UI - add message immediately
+      const tempMessage: MessageWithStatus = {
+        id: `temp-${Date.now()}`,
+        conversation_id: conversationId,
+        sender_id: userId,
+        message_type: 'text',
+        content,
+        metadata: {},
+        client_random: Math.floor(Math.random() * 1000000),
+        sent_at: new Date().toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+        status: 'sending',
+      };
+
+      setMessages(prev => [tempMessage, ...prev]);
+
+      // Send via WebSocket
+      wsSendMessage(conversationId, content, 'text');
+    },
+    [conversationId, userId, wsSendMessage]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: MessageWithStatus }) => {
-      // TODO: Get current user ID from context
-      const isSent = true; // item.sender_id === currentUserId;
+      const isSent = item.sender_id === userId;
       return <MessageBubble message={item} isSent={isSent} />;
     },
-    []
+    [userId]
   );
 
   const keyExtractor = useCallback((item: MessageWithStatus) => item.id, []);
@@ -95,6 +119,7 @@ export const ChatScreen: React.FC = () => {
         initialNumToRender={15}
         windowSize={10}
       />
+      <MessageInput onSend={handleSendMessage} />
     </View>
   );
 };
