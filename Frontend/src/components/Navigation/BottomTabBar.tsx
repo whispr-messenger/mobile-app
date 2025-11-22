@@ -94,8 +94,8 @@ export const BottomTabBar: React.FC = () => {
                 <View style={[
                   styles.badge, 
                   { 
-                    backgroundColor: '#FF3B30',
-                    borderColor: '#1A1625',
+                    backgroundColor: colors.primary.main,
+                    borderColor: themeColors.background.primary,
                   }
                 ]}>
                   <Text style={styles.badgeText}>
