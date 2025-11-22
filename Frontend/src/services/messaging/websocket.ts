@@ -95,6 +95,18 @@ class MockChannel {
           },
         });
       }, 200);
+    } else if (event === 'typing_start' || event === 'typing_stop') {
+      // Broadcast typing events
+      this.socket.emit(`${this.topic}:user_typing`, {
+        user_id: this.socket['userId'],
+        typing: event === 'typing_start',
+      });
+    } else if (event === 'message_read') {
+      // Broadcast read receipt
+      this.socket.emit(`${this.topic}:delivery_status`, {
+        message_id: payload.message_id,
+        status: 'read',
+      });
     }
   }
 
