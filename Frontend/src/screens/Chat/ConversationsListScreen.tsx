@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -27,20 +27,41 @@ export const ConversationsListScreen: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  // Sort conversations by last message timestamp
-  const sortedConversations = useMemo(() => {
+  // Filter and sort conversations
+  const filteredAndSortedConversations = useMemo(() => {
     if (!conversations || conversations.length === 0) {
       return [];
     }
-    return [...conversations].sort((a, b) => {
+    
+    // Filter by search query
+    let filtered = conversations;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = conversations.filter(conv => {
+        const name = conv.type === 'direct' 
+          ? 'Contact' 
+          : (conv.metadata?.name || 'Group');
+        const lastMessage = conv.last_message?.content || '';
+        return name.toLowerCase().includes(query) || lastMessage.toLowerCase().includes(query);
+      });
+    }
+    
+    // Sort: pinned first, then by timestamp
+    return [...filtered].sort((a, b) => {
+      // Pinned conversations first
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      
+      // Then by timestamp
       const aTime = a.last_message?.sent_at || a.updated_at;
       const bTime = b.last_message?.sent_at || b.updated_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
-  }, [conversations]);
+  }, [conversations, searchQuery]);
 
   // Mock user ID - TODO: Get from auth context
   const userId = 'user-1';
@@ -145,20 +166,48 @@ export const ConversationsListScreen: React.FC = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: colors.ui.divider }]}>
-        <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Messages</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Profile')}
-            style={styles.headerButton}
-          >
-            <Ionicons name="person-outline" size={24} color={themeColors.text.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Settings')}
-            style={styles.headerButton}
-          >
-            <Ionicons name="settings-outline" size={24} color={themeColors.text.primary} />
-          </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            // TODO: Implement edit mode
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+          style={styles.headerButton}
+        >
+          <Text style={[styles.editButton, { color: colors.secondary.main }]}>Edit</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Chats</Text>
+        <TouchableOpacity
+          onPress={() => {
+            // TODO: Navigate to new conversation
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+          style={styles.headerButton}
+        >
+          <View style={[styles.composeButton, { backgroundColor: colors.secondary.main }]}>
+            <Ionicons name="create-outline" size={20} color={colors.text.light} />
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Bar */}
+      <View style={[styles.searchContainer, { backgroundColor: themeColors.background.primary }]}>
+        <View style={[styles.searchBar, { backgroundColor: themeColors.background.secondary }]}>
+          <Ionicons name="search-outline" size={20} color={themeColors.text.tertiary} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: themeColors.text.primary }]}
+            placeholder="Search for messages or users"
+            placeholderTextColor={themeColors.text.tertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearButton}
+            >
+              <Ionicons name="close-circle" size={20} color={themeColors.text.tertiary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -166,11 +215,11 @@ export const ConversationsListScreen: React.FC = () => {
         <View style={styles.loadingContainer}>
           <Text style={{ color: themeColors.text.secondary }}>Chargement...</Text>
         </View>
-      ) : sortedConversations.length === 0 ? (
+      ) : filteredAndSortedConversations.length === 0 ? (
         <EmptyState />
       ) : (
         <FlatList
-          data={sortedConversations}
+          data={filteredAndSortedConversations}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
@@ -212,13 +261,49 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flex: 1,
+    textAlign: 'center',
   },
   headerButton: {
+    padding: 4,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButton: {
+    fontSize: 17,
+    fontWeight: '500',
+  },
+  composeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.ui.divider,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
+  },
+  clearButton: {
+    marginLeft: 8,
     padding: 4,
   },
   list: {

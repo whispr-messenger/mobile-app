@@ -11,6 +11,7 @@ import { Conversation } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { Avatar } from './Avatar';
+import { Ionicons } from '@expo/vector-icons';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -47,11 +48,38 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
 
   const formattedTime = useMemo(() => {
     if (!conversation.last_message) return '';
-    return new Date(conversation.last_message.sent_at).toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
+    const date = new Date(conversation.last_message.sent_at);
+    const now = new Date();
+    const diffTime = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Today: show time
+    if (diffDays === 0) {
+      return date.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+    
+    // This week: show day name
+    if (diffDays < 7) {
+      return date.toLocaleDateString('fr-FR', { weekday: 'short' });
+    }
+    
+    // Older: show date
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
     });
   }, [conversation.last_message?.sent_at]);
+
+  const getBadgeColor = useMemo(() => {
+    const count = conversation.unread_count || 0;
+    if (count === 0) return null;
+    if (count < 10) return colors.secondary.main; // Purple/blue
+    if (count < 50) return colors.primary.main; // Orange
+    return colors.ui.error; // Red for high counts
+  }, [conversation.unread_count]);
 
   return (
     <Animated.View style={animatedStyle}>
@@ -92,18 +120,28 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           )}
         </View>
         <View style={styles.metaContainer}>
-          {formattedTime ? (
-            <Text
-              style={[styles.timestamp, { color: themeColors.text.tertiary }]}
-            >
-              {formattedTime}
-            </Text>
-          ) : null}
-          {conversation.unread_count && conversation.unread_count > 0 && (
+          <View style={styles.metaRow}>
+            {formattedTime ? (
+              <Text
+                style={[styles.timestamp, { color: themeColors.text.tertiary }]}
+              >
+                {formattedTime}
+              </Text>
+            ) : null}
+            {conversation.is_pinned && (
+              <Ionicons 
+                name="pin" 
+                size={14} 
+                color={themeColors.text.tertiary} 
+                style={styles.pinIcon}
+              />
+            )}
+          </View>
+          {conversation.unread_count && conversation.unread_count > 0 && getBadgeColor && (
             <View
               style={[
                 styles.unreadBadge,
-                { backgroundColor: colors.primary.main },
+                { backgroundColor: getBadgeColor },
               ]}
             >
               <Text style={styles.unreadText}>
@@ -145,9 +183,16 @@ const styles = StyleSheet.create({
   metaContainer: {
     alignItems: 'flex-end',
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   timestamp: {
     fontSize: 12,
-    marginBottom: 4,
+  },
+  pinIcon: {
+    marginLeft: 4,
   },
   unreadBadge: {
     minWidth: 20,
@@ -169,7 +214,8 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
   return (
     prevProps.conversation.id === nextProps.conversation.id &&
     prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
-    prevProps.conversation.unread_count === nextProps.conversation.unread_count
+    prevProps.conversation.unread_count === nextProps.conversation.unread_count &&
+    prevProps.conversation.is_pinned === nextProps.conversation.is_pinned
   );
 });
 
