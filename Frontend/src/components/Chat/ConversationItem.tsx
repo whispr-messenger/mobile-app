@@ -63,7 +63,8 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     
     // This week: show day name
     if (diffDays < 7) {
-      return date.toLocaleDateString('fr-FR', { weekday: 'short' });
+      const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' });
+      return dayName || '';
     }
     
     // Older: show date
