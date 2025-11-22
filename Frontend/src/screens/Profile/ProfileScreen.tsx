@@ -162,7 +162,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       });
 
       if (!result.canceled && result.assets[0]) {
-        console.log('🖼️ Image sélectionnée:', result.assets[0].uri);
         setProfile(prev => ({
           ...prev,
           profilePicture: result.assets[0].uri,
@@ -250,7 +249,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
       } catch (e) {
-        console.log('⚠️ Impossible d\'écrire le profil local:', e);
       }
       
       setIsEditing(false);
