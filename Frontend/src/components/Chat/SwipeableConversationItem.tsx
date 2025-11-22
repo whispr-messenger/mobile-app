@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from '
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Conversation } from '../../types/messaging';
 import { colors } from '../../theme/colors';
 import ConversationItem from './ConversationItem';
@@ -168,9 +169,13 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
         friction={2}
         overshootRight={false}
         overshootLeft={false}
-        containerStyle={styles.swipeableContainer}
       >
-        <View style={styles.contentWrapper}>
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.contentWrapper}
+        >
           <ConversationItem
             conversation={conversation}
             onPress={onPress}
@@ -178,9 +183,8 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
             editMode={editMode}
             isSelected={isSelected}
           />
-        </View>
+        </LinearGradient>
       </Swipeable>
-    </View>
   );
 };
 
