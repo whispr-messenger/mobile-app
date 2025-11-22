@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -139,7 +140,7 @@ export const ConversationsListScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: themeColors.ui.divider }]}>
+      <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: colors.ui.divider }]}>
         <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Messages</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
