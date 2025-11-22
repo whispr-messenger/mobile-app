@@ -165,7 +165,7 @@ export const VerificationScreen: React.FC = () => {
           setLoading(false);
           
           if (isLogin) {
-            // Pour la connexion, aller directement au profil
+            // Pour la connexion, aller directement à la home page (ConversationsList)
                  console.log('✅ Code correct, navigation selon isLogin=', isLogin);
                  Alert.alert(
               getLocalizedText('auth.loginSuccess'),
@@ -174,10 +174,7 @@ export const VerificationScreen: React.FC = () => {
                 {
                   text: getLocalizedText('auth.continue'),
                   onPress: () => {
-                    navigation.navigate('Profile', { 
-                      userId: 'demo-user-id',
-                      token: 'demo-token'
-                    });
+                    navigation.navigate('ConversationsList');
                   }
                 }
               ]

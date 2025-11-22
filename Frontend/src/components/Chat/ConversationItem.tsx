@@ -69,7 +69,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <View style={styles.content}>
         <Avatar
           size={48}
-          name={conversation.type === 'direct' ? 'Contact' : conversation.metadata?.name}
+          name={conversation.type === 'direct' ? 'Contact' : (conversation.metadata?.name || 'Group')}
           showOnlineBadge={conversation.type === 'direct'}
           isOnline={false}
         />

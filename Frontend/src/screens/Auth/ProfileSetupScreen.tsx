@@ -171,7 +171,7 @@ export const ProfileSetupScreen: React.FC = () => {
             text: 'Continuer',
             onPress: () => {
               // Navigation vers ProfileScreen avec données
-              navigation.navigate('Profile', {
+              navigation.navigate('ConversationsList');
                 userId: route.params.userId,
                 token: route.params.token,
                 firstName,
