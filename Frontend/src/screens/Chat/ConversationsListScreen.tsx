@@ -14,8 +14,9 @@ import { Conversation, Message } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { cacheService } from '../../services/messaging/cache';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import ConversationItem from '../../components/Chat/ConversationItem';
+import { SwipeableConversationItem } from '../../components/Chat/SwipeableConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
+import { BottomTabBar } from '../../components/Navigation/BottomTabBar';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
@@ -133,15 +134,49 @@ export const ConversationsListScreen: React.FC = () => {
     [navigation]
   );
 
+  const handleDelete = useCallback((conversationId: string) => {
+    console.log('🗑️ Delete conversation:', conversationId);
+    // TODO: Implement delete
+  }, []);
+
+  const handleMute = useCallback((conversationId: string) => {
+    console.log('🔇 Mute conversation:', conversationId);
+    // TODO: Implement mute
+  }, []);
+
+  const handleUnread = useCallback((conversationId: string) => {
+    console.log('📬 Mark as unread:', conversationId);
+    // TODO: Implement mark as unread
+  }, []);
+
+  const handleArchive = useCallback((conversationId: string) => {
+    console.log('📦 Archive conversation:', conversationId);
+    // TODO: Implement archive
+  }, []);
+
+  const handlePin = useCallback((conversationId: string) => {
+    console.log('📌 Pin conversation:', conversationId);
+    setConversations(prev => prev.map(conv => 
+      conv.id === conversationId 
+        ? { ...conv, is_pinned: !conv.is_pinned }
+        : conv
+    ));
+  }, []);
+
   const renderItem = useCallback(
     ({ item, index }: { item: Conversation; index: number }) => (
-      <ConversationItem
+      <SwipeableConversationItem
         conversation={item}
         onPress={handleConversationPress}
+        onDelete={handleDelete}
+        onMute={handleMute}
+        onUnread={handleUnread}
+        onArchive={handleArchive}
+        onPin={handlePin}
         index={index}
       />
     ),
-    [handleConversationPress]
+    [handleConversationPress, handleDelete, handleMute, handleUnread, handleArchive, handlePin]
   );
 
   const keyExtractor = useCallback((item: Conversation) => item.id, []);
@@ -173,7 +208,7 @@ export const ConversationsListScreen: React.FC = () => {
           }}
           style={styles.headerButton}
         >
-          <Text style={[styles.editButton, { color: colors.secondary.main }]}>Edit</Text>
+          <Text style={[styles.editButton, { color: colors.palette.violet }]}>Edit</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Chats</Text>
         <TouchableOpacity
@@ -183,7 +218,7 @@ export const ConversationsListScreen: React.FC = () => {
           }}
           style={styles.headerButton}
         >
-          <View style={[styles.composeButton, { backgroundColor: colors.secondary.main }]}>
+          <View style={[styles.composeButton, { backgroundColor: colors.palette.violet }]}>
             <Ionicons name="create-outline" size={20} color={colors.text.light} />
           </View>
         </TouchableOpacity>
@@ -242,6 +277,7 @@ export const ConversationsListScreen: React.FC = () => {
           }
         />
       )}
+      <BottomTabBar />
     </SafeAreaView>
   );
 };

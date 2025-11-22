@@ -76,7 +76,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getBadgeColor = useMemo(() => {
     const count = conversation.unread_count || 0;
     if (count === 0) return null;
-    if (count < 10) return colors.secondary.main; // Purple/blue
+    if (count < 10) return colors.palette.violet; // Violet
     if (count < 50) return colors.primary.main; // Orange
     return colors.ui.error; // Red for high counts
   }, [conversation.unread_count]);
@@ -198,9 +198,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   unreadBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     paddingHorizontal: 6,
     justifyContent: 'center',
     alignItems: 'center',
