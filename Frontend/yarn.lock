@@ -4512,10 +4512,10 @@ react-native-qrcode-styled@^0.4.0:
     qrcode "1.5.4"
     react-fast-compare "^3.2.2"
 
-react-native-reanimated@4.1.2:
-  version "4.1.2"
-  resolved "https://registry.npmjs.org/react-native-reanimated/-/react-native-reanimated-4.1.2.tgz"
-  integrity sha512-qzmQiFrvjm62pRBcj97QI9Xckc3EjgHQoY1F2yjktd0kpjhoyePeuTEXjYRCAVIy7IV/1cfeSup34+zFThFoHQ==
+react-native-reanimated@4.1.1:
+  version "4.1.1"
+  resolved "https://registry.npmjs.org/react-native-reanimated/-/react-native-reanimated-4.1.1.tgz"
+  integrity sha512-QWe8EJJFOQW92b/sl551u3uPeLT5TUx2eAXkga8Kcj2w+Qs/Yh6fsz5sN8iyNO6zcoSNFqYQLICD6dvBIFGzbg==
   dependencies:
     react-native-is-edge-to-edge "^1.2.1"
     semver "7.7.2"
