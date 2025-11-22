@@ -10,6 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { Conversation } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { Avatar } from './Avatar';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -66,9 +67,12 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         activeOpacity={0.7}
       >
       <View style={styles.content}>
-        <View style={styles.avatarContainer}>
-          {/* TODO: Add avatar */}
-        </View>
+        <Avatar
+          size={48}
+          name={conversation.type === 'direct' ? 'Contact' : conversation.metadata?.name}
+          showOnlineBadge={conversation.type === 'direct'}
+          isOnline={false}
+        />
         <View style={styles.textContainer}>
           <Text
             style={[styles.name, { color: themeColors.text.primary }]}
@@ -124,11 +128,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     marginRight: 12,
-    backgroundColor: colors.secondary.light,
   },
   textContainer: {
     flex: 1,
