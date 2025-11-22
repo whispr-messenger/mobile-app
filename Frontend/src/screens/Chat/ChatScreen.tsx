@@ -137,7 +137,10 @@ export const ChatScreen: React.FC = () => {
           typingUsers.length > 0 ? <TypingIndicator /> : null
         }
       />
-      <MessageInput onSend={handleSendMessage} />
+      <MessageInput
+        onSend={handleSendMessage}
+        onTyping={(typing) => sendTyping(conversationId, typing)}
+      />
     </View>
   );
 };
