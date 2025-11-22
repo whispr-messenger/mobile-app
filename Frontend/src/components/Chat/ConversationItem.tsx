@@ -92,13 +92,13 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           )}
         </View>
         <View style={styles.metaContainer}>
-          {formattedTime && (
+          {formattedTime ? (
             <Text
               style={[styles.timestamp, { color: themeColors.text.tertiary }]}
             >
               {formattedTime}
             </Text>
-          )}
+          ) : null}
           {conversation.unread_count && conversation.unread_count > 0 && (
             <View
               style={[
