@@ -101,19 +101,25 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <View style={styles.content}>
         <Avatar
           size={48}
-          name={conversation.type === 'direct' ? 'Contact' : (conversation.metadata?.name || 'Group')}
+          uri={conversation.avatar_url}
+          name={conversation.display_name || (conversation.type === 'direct' ? 'Contact' : (conversation.metadata?.name || 'Group'))}
           showOnlineBadge={conversation.type === 'direct'}
           isOnline={false}
         />
         <View style={styles.textContainer}>
-          <Text
-            style={[styles.name, { color: '#FFFFFF' }]}
-            numberOfLines={1}
-          >
-            {conversation.type === 'direct'
-              ? 'Contact'
-              : conversation.metadata?.name || 'Group'}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text
+              style={[styles.name, { color: '#FFFFFF' }]}
+              numberOfLines={1}
+            >
+              {conversation.display_name || (conversation.type === 'direct'
+                ? 'Contact'
+                : conversation.metadata?.name || 'Group')}
+            </Text>
+            {conversation.is_muted && (
+              <Ionicons name="notifications-off" size={14} color="rgba(255, 255, 255, 0.6)" style={styles.mutedIcon} />
+            )}
+          </View>
           {conversation.last_message && lastMessageContent ? (
             <Text
               style={[styles.lastMessage, { color: 'rgba(255, 255, 255, 0.7)' }]}
@@ -177,10 +183,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   name: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    flex: 1,
+  },
+  mutedIcon: {
+    marginLeft: 4,
   },
   lastMessage: {
     fontSize: 14,
