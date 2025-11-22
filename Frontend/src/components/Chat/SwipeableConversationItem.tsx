@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF3B30',
   },
   pinButton: {
-    backgroundColor: '#FF9500',
+    backgroundColor: '#F04882',
   },
   unreadButton: {
     backgroundColor: '#4A90E2',

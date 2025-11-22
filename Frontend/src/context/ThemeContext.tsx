@@ -387,7 +387,7 @@ const lightThemeColors: ThemeColors = {
   secondary: '#6774BD',
   error: '#FF3B30',
   success: '#21C004',
-  warning: '#FF9500',
+  warning: '#F04882',
   info: '#6774BD',
 };
 
@@ -407,7 +407,7 @@ const darkThemeColors: ThemeColors = {
   secondary: '#6774BD',
   error: '#FF3B30',
   success: '#21C004',
-  warning: '#FF9500',
+  warning: '#F04882',
   info: '#6774BD',
 };
 
