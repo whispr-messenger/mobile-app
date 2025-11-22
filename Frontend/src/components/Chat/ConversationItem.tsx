@@ -90,7 +90,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <TouchableOpacity
         style={[
           styles.container,
-          { backgroundColor: themeColors.background.primary },
+          { backgroundColor: themeColors.background.secondary },
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
