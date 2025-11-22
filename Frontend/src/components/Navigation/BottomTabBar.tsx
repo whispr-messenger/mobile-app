@@ -9,12 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
-import { WhisprIcon } from './WhisprIcon';
+import { Logo } from '../Logo/Logo';
 
 interface TabItem {
   name: string;
   icon?: keyof typeof Ionicons.glyphMap;
-  customIcon?: 'whispr-double' | 'whispr-single';
+  useLogo?: boolean;
   route: string;
   badge?: number;
 }
@@ -22,8 +22,8 @@ interface TabItem {
 const tabs: TabItem[] = [
   { name: 'Contacts', icon: 'person-outline', route: 'Profile' },
   { name: 'Calls', icon: 'call-outline', route: 'ConversationsList' },
-  { name: 'Chats', customIcon: 'whispr-double', route: 'ConversationsList', badge: 4 },
-  { name: 'Settings', customIcon: 'whispr-single', route: 'Settings' },
+  { name: 'Chats', useLogo: true, route: 'ConversationsList', badge: 4 },
+  { name: 'Settings', useLogo: true, route: 'Settings' },
 ];
 
 export const BottomTabBar: React.FC = () => {
@@ -56,11 +56,10 @@ export const BottomTabBar: React.FC = () => {
               activeOpacity={0.7}
             >
               <View style={styles.iconContainer}>
-                {tab.customIcon ? (
-                  <WhisprIcon 
-                    size={24} 
-                    variant={tab.customIcon === 'whispr-double' ? 'double' : 'single'} 
-                  />
+                {tab.useLogo ? (
+                  <View style={styles.logoContainer}>
+                    <Logo variant="icon" size="small" />
+                  </View>
                 ) : tab.icon ? (
                   <Ionicons
                     name={tab.icon}
@@ -73,7 +72,7 @@ export const BottomTabBar: React.FC = () => {
                   styles.badge, 
                   { 
                     backgroundColor: colors.primary.main,
-                    borderColor: themeColors.background.primary || colors.background.dark,
+                    borderColor: themeColors.background.primary,
                   }
                 ]}>
                   <Text style={styles.badgeText}>
@@ -124,6 +123,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  logoContainer: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   badge: {
     position: 'absolute',
     top: -4,
@@ -135,7 +140,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: themeColors.background.primary || colors.background.dark,
   },
   badgeText: {
     color: colors.text.light,
