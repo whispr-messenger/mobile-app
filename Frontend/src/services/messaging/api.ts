@@ -96,7 +96,36 @@ export const messagingAPI = {
   ): Promise<Message[]> {
     await mockDelay(500);
     
-    return [];
+    // Mock messages
+    const now = new Date();
+    const mockMessages: Message[] = [
+      {
+        id: 'msg-1',
+        conversation_id: conversationId,
+        sender_id: 'user-2',
+        message_type: 'text',
+        content: 'Salut ! Comment ça va ?',
+        metadata: {},
+        client_random: 12345,
+        sent_at: new Date(now.getTime() - 3600000).toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+      },
+      {
+        id: 'msg-2',
+        conversation_id: conversationId,
+        sender_id: 'user-1',
+        message_type: 'text',
+        content: 'Ça va bien merci !',
+        metadata: {},
+        client_random: 12346,
+        sent_at: new Date(now.getTime() - 3300000).toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+      },
+    ];
+    
+    return mockMessages;
   },
 
   /**
