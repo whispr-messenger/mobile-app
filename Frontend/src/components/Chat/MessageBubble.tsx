@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { MessageWithStatus } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { DeliveryStatus } from './DeliveryStatus';
 
 interface MessageBubbleProps {
   message: MessageWithStatus;
@@ -55,12 +56,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           style={styles.sentBubble}
         >
           <Text style={styles.sentText}>{message.content}</Text>
-          <Text style={styles.timestamp}>
-            {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+          <View style={styles.footer}>
+            <Text style={styles.timestamp}>
+              {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+            <DeliveryStatus status={message.status} />
+          </View>
         </LinearGradient>
       </Animated.View>
     );
@@ -122,10 +126,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 4,
   },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
   timestamp: {
     fontSize: 12,
     color: colors.text.tertiary,
-    alignSelf: 'flex-end',
+    marginRight: 4,
   },
 });
 
