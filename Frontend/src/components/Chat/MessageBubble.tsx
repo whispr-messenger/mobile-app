@@ -55,7 +55,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <Animated.View style={[styles.sentContainer, animatedStyle]}>
         <LinearGradient
-          colors={[colors.primary.main, colors.primary.light]}
+          colors={['#FFB07B', '#F86F71', '#F04882']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.sentBubble}

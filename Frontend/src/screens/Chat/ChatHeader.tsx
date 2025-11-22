@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.ui.divider,
+    borderBottomColor: 'rgba(255, 176, 123, 0.1)',
   },
   backButton: {
     marginRight: 12,

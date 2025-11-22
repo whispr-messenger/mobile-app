@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -218,15 +219,20 @@ export const ConversationsListScreen: React.FC = () => {
           }}
           style={styles.headerButton}
         >
-          <View style={[styles.composeButton, { backgroundColor: colors.palette.violet }]}>
+          <LinearGradient
+            colors={['#FFB07B', '#F04882']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.composeButton}
+          >
             <Ionicons name="create-outline" size={20} color={colors.text.light} />
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
       <View style={[styles.searchContainer, { backgroundColor: themeColors.background.primary }]}>
-        <View style={[styles.searchBar, { backgroundColor: themeColors.background.secondary, opacity: 0.6 }]}>
+        <View style={[styles.searchBar, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
           <Ionicons name="search-outline" size={20} color={themeColors.text.tertiary} style={styles.searchIcon} />
           <TextInput
             style={[styles.searchInput, { color: themeColors.text.primary }]}

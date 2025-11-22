@@ -84,7 +84,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         activeOpacity={0.7}
       >
         <LinearGradient
-          colors={[colors.primary.main, colors.primary.light]}
+          colors={['#FFB07B', '#F04882']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
         >
           <Text style={styles.sendIcon}>→</Text>
@@ -101,7 +103,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: colors.ui.divider,
+    borderTopColor: 'rgba(255, 176, 123, 0.1)',
   },
   input: {
     flex: 1,

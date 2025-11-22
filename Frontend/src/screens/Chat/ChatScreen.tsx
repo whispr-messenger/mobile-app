@@ -7,6 +7,7 @@ import { View, StyleSheet, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
+import { useTheme } from '../../context/ThemeContext';
 import { Message, MessageWithStatus } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
@@ -25,6 +26,8 @@ export const ChatScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const conversationChannelRef = useRef<any>(null);
+  const { getThemeColors } = useTheme();
+  const themeColors = getThemeColors();
 
   // Mock user ID - TODO: Get from auth context
   const userId = 'user-1';
@@ -144,7 +147,7 @@ export const ChatScreen: React.FC = () => {
   const keyExtractor = useCallback((item: MessageWithStatus) => item.id, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
       <ChatHeader
         conversationName="Contact"
         conversationType="direct"
