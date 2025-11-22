@@ -170,15 +170,8 @@ export const ProfileSetupScreen: React.FC = () => {
           [{ 
             text: 'Continuer',
             onPress: () => {
-              // Navigation vers ProfileScreen avec données
+              // Navigation vers ConversationsList (home page)
               navigation.navigate('ConversationsList');
-                userId: route.params.userId,
-                token: route.params.token,
-                firstName,
-                lastName,
-                profilePicture: profilePhoto,
-                phoneNumber: '+33 07 12 34 56 78', // TODO: injecter vrai numéro saisi si dispo
-              });
             }
           }]
         );
