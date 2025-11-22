@@ -169,13 +169,20 @@ export const ConversationsListScreen: React.FC = () => {
 
   const handleBulkDelete = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    const count = selectedConversations.size;
     setConversations(prev => prev.filter(conv => !selectedConversations.has(conv.id)));
     setSelectedConversations(new Set());
     setEditMode(false);
+    setToast({
+      visible: true,
+      message: `${count} conversation${count > 1 ? 's' : ''} deleted`,
+      type: 'success',
+    });
   }, [selectedConversations]);
 
   const handleBulkArchive = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const count = selectedConversations.size;
     setConversations(prev => prev.map(conv => 
       selectedConversations.has(conv.id)
         ? { ...conv, is_archived: true }
@@ -183,6 +190,11 @@ export const ConversationsListScreen: React.FC = () => {
     ));
     setSelectedConversations(new Set());
     setEditMode(false);
+    setToast({
+      visible: true,
+      message: `${count} conversation${count > 1 ? 's' : ''} archived`,
+      type: 'success',
+    });
   }, [selectedConversations]);
 
   const handleDelete = useCallback((conversationId: string) => {
@@ -509,6 +521,40 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  editActionsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  editActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginHorizontal: 4,
+  },
+  editActionText: {
+    color: '#1A1625',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
   },
 });
 
