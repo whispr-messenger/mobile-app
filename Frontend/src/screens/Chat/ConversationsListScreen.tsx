@@ -135,11 +135,13 @@ export const ConversationsListScreen: React.FC = () => {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
       {loading && conversations.length === 0 ? (
         <View style={styles.loadingContainer}>
           {/* TODO: Add loading skeleton */}
         </View>
+      ) : sortedConversations.length === 0 ? (
+        <EmptyState />
       ) : (
         <FlatList
           data={sortedConversations}
@@ -160,7 +162,6 @@ export const ConversationsListScreen: React.FC = () => {
               colors={[themeColors.primary]}
             />
           }
-          ListEmptyComponent={<EmptyState />}
         />
       )}
     </View>
