@@ -5,9 +5,10 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { Conversation } from '../../types/messaging';
+import { Conversation, Message } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { cacheService } from '../../services/messaging/cache';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import ConversationItem from '../../components/Chat/ConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
 import { useTheme } from '../../context/ThemeContext';
@@ -27,6 +28,33 @@ export const ConversationsListScreen: React.FC = () => {
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
   }, [conversations]);
+
+  // Mock user ID - TODO: Get from auth context
+  const userId = 'user-1';
+  const token = 'mock-token';
+
+  // WebSocket connection
+  const { onNewMessage } = useWebSocket({
+    userId,
+    token,
+    onNewMessage: (message: Message) => {
+      // Update conversation with new message
+      setConversations(prev => {
+        const updated = prev.map(conv => {
+          if (conv.id === message.conversation_id) {
+            return {
+              ...conv,
+              last_message: message,
+              updated_at: message.sent_at,
+              unread_count: (conv.unread_count || 0) + 1,
+            };
+          }
+          return conv;
+        });
+        return updated;
+      });
+    },
+  });
 
   useEffect(() => {
     loadConversations();
