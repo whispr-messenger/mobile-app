@@ -90,13 +90,16 @@ export const ChatScreen: React.FC = () => {
     try {
       setLoading(true);
       const data = await messagingAPI.getMessages(conversationId);
-      const messagesWithStatus: MessageWithStatus[] = data.map(msg => ({
-        ...msg,
-        status: 'sent' as const,
-      }));
+      const messagesWithStatus: MessageWithStatus[] = data
+        .filter(msg => msg && msg.content) // Filter out invalid messages
+        .map(msg => ({
+          ...msg,
+          status: (msg as any).status || 'sent' as const,
+        }));
       setMessages(messagesWithStatus);
     } catch (error) {
       console.error('Error loading messages:', error);
+      setMessages([]);
     } finally {
       setLoading(false);
     }
