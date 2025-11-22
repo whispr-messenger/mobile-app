@@ -198,9 +198,9 @@ export const ConversationsListScreen: React.FC = () => {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#1A1625' }]} edges={['top']}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: themeColors.background.primary, borderBottomColor: colors.ui.divider }]}>
+      <View style={[styles.header, { backgroundColor: '#1A1625', borderBottomColor: 'rgba(255, 255, 255, 0.08)' }]}>
         <TouchableOpacity
           onPress={() => {
             // TODO: Implement edit mode
@@ -208,9 +208,9 @@ export const ConversationsListScreen: React.FC = () => {
           }}
           style={styles.headerButton}
         >
-          <Text style={[styles.editButton, { color: colors.secondary.main }]}>Edit</Text>
+          <Text style={[styles.editButton, { color: '#4A90E2' }]}>Edit</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Chats</Text>
+        <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Chats</Text>
         <TouchableOpacity
           onPress={() => {
             // TODO: Navigate to new conversation
@@ -218,20 +218,20 @@ export const ConversationsListScreen: React.FC = () => {
           }}
           style={styles.headerButton}
         >
-          <View style={[styles.composeButton, { backgroundColor: colors.palette.violet }]}>
-            <Ionicons name="create-outline" size={20} color={colors.text.light} />
+          <View style={[styles.composeButton, { backgroundColor: 'transparent' }]}>
+            <Ionicons name="create-outline" size={24} color="#4A90E2" />
           </View>
         </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: themeColors.background.primary }]}>
-        <View style={[styles.searchBar, { backgroundColor: themeColors.background.secondary, opacity: 0.6 }]}>
-          <Ionicons name="search-outline" size={20} color={themeColors.text.tertiary} style={styles.searchIcon} />
+      <View style={[styles.searchContainer, { backgroundColor: '#1A1625' }]}>
+        <View style={[styles.searchBar, { backgroundColor: 'rgba(118, 118, 128, 0.24)' }]}>
+          <Ionicons name="search-outline" size={20} color="rgba(235, 235, 245, 0.6)" style={styles.searchIcon} />
           <TextInput
-            style={[styles.searchInput, { color: themeColors.text.primary }]}
+            style={[styles.searchInput, { color: '#FFFFFF' }]}
             placeholder="Search for messages or users"
-            placeholderTextColor={themeColors.text.tertiary}
+            placeholderTextColor="rgba(235, 235, 245, 0.6)"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -240,7 +240,7 @@ export const ConversationsListScreen: React.FC = () => {
               onPress={() => setSearchQuery('')}
               style={styles.clearButton}
             >
-              <Ionicons name="close-circle" size={20} color={themeColors.text.tertiary} />
+              <Ionicons name="close-circle" size={20} color="rgba(235, 235, 245, 0.6)" />
             </TouchableOpacity>
           )}
         </View>
@@ -295,8 +295,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 34,
+    fontWeight: '700',
     flex: 1,
     textAlign: 'center',
   },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   editButton: {
     fontSize: 17,
-    fontWeight: '500',
+    fontWeight: '400',
   },
   composeButton: {
     width: 32,
@@ -329,6 +329,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    height: 36,
   },
   searchIcon: {
     marginRight: 8,
