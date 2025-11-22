@@ -39,7 +39,16 @@ export const ChatScreen: React.FC = () => {
         setMessages(prev => {
           // Check if message already exists (avoid duplicates)
           if (prev.some(m => m.id === message.id)) {
-            return prev;
+            return prev.map(m => (m.id === message.id ? { ...message, status: 'sent' as const } : m));
+          }
+          // Replace optimistic message if it matches client_random
+          const optimisticMessageIndex = prev.findIndex(
+            m => m.id.startsWith('temp-') && m.client_random === message.client_random
+          );
+          if (optimisticMessageIndex !== -1) {
+            const newMessages = [...prev];
+            newMessages[optimisticMessageIndex] = { ...message, status: 'sent' as const };
+            return newMessages;
           }
           return [
             {
@@ -116,7 +125,7 @@ export const ChatScreen: React.FC = () => {
       setMessages(prev => [tempMessage, ...prev]);
 
       // Send via WebSocket
-      wsSendMessage(conversationId, content, 'text');
+      wsSendMessage(conversationId, content, 'text', clientRandom);
     },
     [conversationId, userId, wsSendMessage, sendTyping]
   );
