@@ -17,12 +17,16 @@ interface ConversationItemProps {
   conversation: Conversation;
   onPress: (conversationId: string) => void;
   index?: number;
+  editMode?: boolean;
+  isSelected?: boolean;
 }
 
 export const ConversationItem: React.FC<ConversationItemProps> = ({
   conversation,
   onPress,
   index = 0,
+  editMode = false,
+  isSelected = false,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -90,7 +94,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <TouchableOpacity
         style={[
           styles.container,
-          { backgroundColor: 'transparent', borderBottomColor: 'rgba(255, 255, 255, 0.1)' },
+          { 
+            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            borderBottomColor: 'rgba(255, 255, 255, 0.1)' 
+          },
         ]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -99,6 +106,19 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         activeOpacity={0.7}
       >
       <View style={styles.content}>
+        {editMode && (
+          <View style={styles.checkboxContainer}>
+            <View style={[
+              styles.checkbox,
+              isSelected && styles.checkboxSelected,
+              { borderColor: isSelected ? colors.primary.main : 'rgba(255, 255, 255, 0.5)' }
+            ]}>
+              {isSelected && (
+                <Ionicons name="checkmark" size={16} color={colors.text.light} />
+              )}
+            </View>
+          </View>
+        )}
         <Avatar
           size={48}
           uri={conversation.avatar_url}
@@ -175,6 +195,21 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: colors.primary.main,
   },
   avatarContainer: {
     marginRight: 12,

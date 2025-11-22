@@ -132,10 +132,50 @@ export const ConversationsListScreen: React.FC = () => {
 
   const handleConversationPress = useCallback(
     (conversationId: string) => {
-      navigation.navigate('Chat', { conversationId });
+      if (editMode) {
+        setSelectedConversations(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(conversationId)) {
+            newSet.delete(conversationId);
+          } else {
+            newSet.add(conversationId);
+          }
+          return newSet;
+        });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        navigation.navigate('Chat', { conversationId });
+      }
     },
-    [navigation]
+    [navigation, editMode]
   );
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedConversations.size === filteredAndSortedConversations.length) {
+      setSelectedConversations(new Set());
+    } else {
+      setSelectedConversations(new Set(filteredAndSortedConversations.map(c => c.id)));
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [filteredAndSortedConversations, selectedConversations]);
+
+  const handleBulkDelete = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setConversations(prev => prev.filter(conv => !selectedConversations.has(conv.id)));
+    setSelectedConversations(new Set());
+    setEditMode(false);
+  }, [selectedConversations]);
+
+  const handleBulkArchive = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setConversations(prev => prev.map(conv => 
+      selectedConversations.has(conv.id)
+        ? { ...conv, is_archived: true }
+        : conv
+    ));
+    setSelectedConversations(new Set());
+    setEditMode(false);
+  }, [selectedConversations]);
 
   const handleDelete = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -193,9 +233,11 @@ export const ConversationsListScreen: React.FC = () => {
         onArchive={handleArchive}
         onPin={handlePin}
         index={index}
+        editMode={editMode}
+        isSelected={selectedConversations.has(item.id)}
       />
     ),
-    [handleConversationPress, handleDelete, handleMute, handleUnread, handleArchive, handlePin]
+    [handleConversationPress, handleDelete, handleMute, handleUnread, handleArchive, handlePin, editMode, selectedConversations]
   );
 
   const keyExtractor = useCallback((item: Conversation) => item.id, []);
@@ -226,15 +268,20 @@ export const ConversationsListScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: 'rgba(255, 255, 255, 0.1)' }]}>
-          <TouchableOpacity
-            onPress={() => {
-              // TODO: Implement edit mode
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }}
-            style={styles.headerButton}
-          >
-            <Text style={[styles.editButton, { color: colors.text.light }]}>Edit</Text>
-          </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setEditMode(!editMode);
+            if (editMode) {
+              setSelectedConversations(new Set());
+            }
+          }}
+          style={styles.headerButton}
+        >
+          <Text style={[styles.editButton, { color: colors.text.light }]}>
+            {editMode ? 'Cancel' : 'Edit'}
+          </Text>
+        </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text.light }]}>Chats</Text>
           <TouchableOpacity
             onPress={() => {
@@ -306,6 +353,33 @@ export const ConversationsListScreen: React.FC = () => {
               />
             }
           />
+        )}
+        {editMode && selectedConversations.size > 0 && (
+          <View style={styles.editActionsBar}>
+            <TouchableOpacity
+              style={[styles.editActionButton, { backgroundColor: colors.ui.error }]}
+              onPress={handleBulkDelete}
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.text.light} />
+              <Text style={styles.editActionText}>Delete</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.editActionButton, { backgroundColor: colors.secondary.main }]}
+              onPress={handleBulkArchive}
+            >
+              <Ionicons name="archive-outline" size={20} color={colors.text.light} />
+              <Text style={styles.editActionText}>Archive</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.editActionButton, { backgroundColor: colors.primary.main }]}
+              onPress={handleSelectAll}
+            >
+              <Ionicons name="checkmark-done-outline" size={20} color={colors.text.light} />
+              <Text style={styles.editActionText}>
+                {selectedConversations.size === filteredAndSortedConversations.length ? 'Deselect All' : 'Select All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
         <BottomTabBar />
       </SafeAreaView>
