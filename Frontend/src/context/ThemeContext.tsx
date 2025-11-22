@@ -447,7 +447,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setSettings(parsed);
         }
       } catch (error) {
-        console.error('❌ Error loading settings:', error);
+        console.error('Error loading settings:', error);
       } finally {
         setIsLoaded(true);
       }
@@ -461,9 +461,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setSettings(updated);
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      console.log('✅ Settings updated:', updated);
     } catch (error) {
-      console.error('❌ Error saving settings:', error);
+      console.error('Error saving settings:', error);
     }
   };
 

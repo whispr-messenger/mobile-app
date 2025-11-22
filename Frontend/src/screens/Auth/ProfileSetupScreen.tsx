@@ -157,7 +157,6 @@ export const ProfileSetupScreen: React.FC = () => {
       // Simulate
       setTimeout(() => {
         setLoading(false);
-        console.log('👤 ProfileSetup terminé, navigation vers Profile avec:', {
           userId: route.params.userId,
           token: route.params.token,
           firstName,
