@@ -130,13 +130,6 @@ export const ConversationsListScreen: React.FC = () => {
     setRefreshing(false);
   }, [loadConversations]);
 
-  const listContentStyle = useMemo(
-    () => [
-      styles.listContent,
-      conversations.length === 0 && styles.emptyContent,
-    ],
-    [conversations.length]
-  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
@@ -170,7 +163,10 @@ export const ConversationsListScreen: React.FC = () => {
           data={sortedConversations}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          contentContainerStyle={listContentStyle}
+          contentContainerStyle={[
+            styles.listContent,
+            sortedConversations.length === 0 && styles.emptyContent,
+          ]}
           style={styles.list}
           removeClippedSubviews={false}
           maxToRenderPerBatch={10}
@@ -178,6 +174,7 @@ export const ConversationsListScreen: React.FC = () => {
           initialNumToRender={15}
           windowSize={10}
           getItemLayout={getItemLayout}
+          showsVerticalScrollIndicator={true}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
