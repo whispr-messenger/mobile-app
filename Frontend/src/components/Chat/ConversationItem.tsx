@@ -201,17 +201,18 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   unreadBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    paddingHorizontal: 6,
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     justifyContent: 'center',
     alignItems: 'center',
   },
   unreadText: {
-    color: colors.text.light,
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
 
