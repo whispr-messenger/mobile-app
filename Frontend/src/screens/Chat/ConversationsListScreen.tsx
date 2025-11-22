@@ -17,6 +17,7 @@ import { cacheService } from '../../services/messaging/cache';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { SwipeableConversationItem } from '../../components/Chat/SwipeableConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
+import { ConversationSkeleton } from '../../components/Chat/SkeletonLoader';
 import { BottomTabBar } from '../../components/Navigation/BottomTabBar';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
@@ -325,10 +326,17 @@ export const ConversationsListScreen: React.FC = () => {
 
         {loading && conversations.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Chargement...</Text>
+            {[...Array(5)].map((_, i) => (
+              <ConversationSkeleton key={i} />
+            ))}
           </View>
         ) : filteredAndSortedConversations.length === 0 ? (
-          <EmptyState />
+          <EmptyState 
+            onNewConversation={() => {
+              // TODO: Navigate to new conversation
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+          />
         ) : (
           <FlatList
             data={filteredAndSortedConversations}
@@ -462,8 +470,6 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: 'transparent',
   },
   emptyContent: {
