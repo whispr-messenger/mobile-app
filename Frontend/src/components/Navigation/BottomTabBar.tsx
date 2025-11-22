@@ -63,16 +63,29 @@ export const BottomTabBar: React.FC = () => {
                         <View style={styles.logoBack}>
                           <Image
                             source={require('../../../assets/images/logo-icon.png')}
-                            style={styles.logoImage}
+                            style={styles.logoImageBack}
                             resizeMode="contain"
                           />
                         </View>
                         <View style={styles.logoFront}>
                           <Image
                             source={require('../../../assets/images/logo-icon.png')}
-                            style={styles.logoImage}
+                            style={styles.logoImageFront}
                             resizeMode="contain"
                           />
+                          {tab.badge && tab.badge > 0 && (
+                            <View style={[
+                              styles.badge, 
+                              { 
+                                backgroundColor: colors.primary.main,
+                                borderColor: themeColors.background.primary,
+                              }
+                            ]}>
+                              <Text style={styles.badgeText}>
+                                {tab.badge > 99 ? '99+' : String(tab.badge)}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                     ) : (
@@ -90,19 +103,6 @@ export const BottomTabBar: React.FC = () => {
                     color={active ? themeColors.primary : themeColors.text.tertiary}
                   />
                 ) : null}
-              {tab.badge && tab.badge > 0 && (
-                <View style={[
-                  styles.badge, 
-                  { 
-                    backgroundColor: colors.primary.main,
-                    borderColor: themeColors.background.primary,
-                  }
-                ]}>
-                  <Text style={styles.badgeText}>
-                    {tab.badge > 99 ? '99+' : String(tab.badge)}
-                  </Text>
-                </View>
-              )}
               </View>
               <Text style={[
                 styles.tabLabel, 
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   iconContainer: {
     position: 'relative',
     marginBottom: 2,
-    width: 40,
+    width: 48,
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     tintColor: undefined,
   },
   doubleLogoContainer: {
-    width: 40,
+    width: 48,
     height: 32,
     position: 'relative',
     justifyContent: 'center',
@@ -168,23 +168,29 @@ const styles = StyleSheet.create({
   },
   logoBack: {
     position: 'absolute',
-    top: 0,
     left: 0,
-    opacity: 0.75,
+    top: 0,
     zIndex: 1,
-    transform: [{ scale: 0.85 }],
   },
   logoFront: {
     position: 'absolute',
-    top: 0,
     right: 0,
+    top: 0,
     zIndex: 2,
-    transform: [{ scale: 0.85 }],
+  },
+  logoImageBack: {
+    width: 28,
+    height: 28,
+    opacity: 0.7,
+  },
+  logoImageFront: {
+    width: 28,
+    height: 28,
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -6,
+    top: -2,
+    right: -2,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
