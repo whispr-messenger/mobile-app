@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
@@ -45,7 +46,7 @@ export const BottomTabBar: React.FC = () => {
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.container, { backgroundColor: themeColors.background.primary }]}>
-      <View style={[styles.tabBar, { borderTopColor: colors.ui.divider }]}>
+      <View style={[styles.tabBar, { borderTopColor: 'rgba(255, 176, 123, 0.1)' }]}>
         {tabs.map((tab) => {
           const active = isActive(tab.route);
           return (
@@ -84,17 +85,32 @@ export const BottomTabBar: React.FC = () => {
                     )}
                   </View>
                 ) : tab.icon ? (
-                  <Ionicons
-                    name={tab.icon}
-                    size={24}
-                    color={active ? themeColors.primary : themeColors.text.tertiary}
-                  />
+                  active ? (
+                    <LinearGradient
+                      colors={['#FFB07B', '#F04882']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.gradientIcon}
+                    >
+                      <Ionicons
+                        name={tab.icon}
+                        size={24}
+                        color={colors.text.light}
+                      />
+                    </LinearGradient>
+                  ) : (
+                    <Ionicons
+                      name={tab.icon}
+                      size={24}
+                      color={themeColors.text.secondary}
+                    />
+                  )
                 ) : null}
               {tab.badge && tab.badge > 0 && (
                 <View style={[
                   styles.badge, 
                   { 
-                    backgroundColor: colors.primary.main,
+                    backgroundColor: '#F04882',
                     borderColor: themeColors.background.primary,
                   }
                 ]}>
@@ -107,7 +123,7 @@ export const BottomTabBar: React.FC = () => {
               <Text style={[
                 styles.tabLabel, 
                 { 
-                  color: active ? themeColors.primary : themeColors.text.primary,
+                  color: active ? '#F04882' : themeColors.text.secondary,
                   fontWeight: active ? '600' : '500',
                 }
               ]}>
@@ -201,6 +217,13 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  gradientIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

@@ -25,19 +25,21 @@ export const DeliveryStatus: React.FC<DeliveryStatusProps> = ({ status }) => {
   }
 
   if (status === 'sent') {
-    return <Text style={[styles.check, { color: colors.text.tertiary }]}>✓</Text>;
+    return <Text style={[styles.check, { color: '#9692AC' }]}>✓</Text>;
   }
 
   if (status === 'delivered') {
     return (
-      <Text style={[styles.check, { color: colors.text.tertiary }]}>✓✓</Text>
+      <Text style={[styles.check, { color: '#9692AC' }]}>✓✓</Text>
     );
   }
 
   if (status === 'read') {
     return (
       <LinearGradient
-        colors={[colors.secondary.main, colors.secondary.light]}
+        colors={['#FFB07B', '#F04882']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={styles.gradientCheck}
       >
         <Text style={styles.checkText}>✓✓</Text>
