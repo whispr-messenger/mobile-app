@@ -89,13 +89,16 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   // Safety check for last_message content
   const lastMessageContent = conversation.last_message?.content || '';
 
+  const isEditMode = editMode === true;
+  const isItemSelected = isSelected === true;
+
   return (
     <Animated.View style={animatedStyle}>
       <TouchableOpacity
         style={[
           styles.container,
           { 
-            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            backgroundColor: isItemSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
             borderBottomColor: 'rgba(255, 255, 255, 0.1)' 
           },
         ]}
@@ -106,14 +109,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         activeOpacity={0.7}
       >
       <View style={styles.content}>
-        {editMode && (
+        {isEditMode && (
           <View style={styles.checkboxContainer}>
             <View style={[
               styles.checkbox,
-              isSelected && styles.checkboxSelected,
-              { borderColor: isSelected ? colors.primary.main : 'rgba(255, 255, 255, 0.5)' }
+              isItemSelected && styles.checkboxSelected,
+              { borderColor: isItemSelected ? colors.primary.main : 'rgba(255, 255, 255, 0.5)' }
             ]}>
-              {isSelected && (
+              {isItemSelected && (
                 <Ionicons name="checkmark" size={16} color={colors.text.light} />
               )}
             </View>
@@ -269,7 +272,9 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
     prevProps.conversation.id === nextProps.conversation.id &&
     prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
     prevProps.conversation.unread_count === nextProps.conversation.unread_count &&
-    prevProps.conversation.is_pinned === nextProps.conversation.is_pinned
+    prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
+    prevProps.editMode === nextProps.editMode &&
+    prevProps.isSelected === nextProps.isSelected
   );
 });
 
