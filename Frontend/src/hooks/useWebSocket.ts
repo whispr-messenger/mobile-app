@@ -112,7 +112,31 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     channel.push('message_read', { message_id: messageId });
   }, []);
 
+  const joinUserChannel = useCallback(() => {
+    // This channel is already joined in the useEffect, but this function can be exposed
+    // if there's a need to re-join or ensure it's active from a component.
+    if (userChannelRef.current && socketRef.current?.isConnected()) {
+      return userChannelRef.current;
+    }
+    // Re-initialize if somehow disconnected (should be handled by useEffect)
+    const socket = createMockSocket();
+    socket.connect(options.userId, options.token);
+    socketRef.current = socket;
+    const userChannel = socket.channel(`user:${options.userId}`);
+    userChannelRef.current = userChannel;
+    userChannel.join().then(() => {
+      userChannel.on('new_message', (data: { message: Message }) => {
+        options.onNewMessage?.(data.message);
+      });
+      userChannel.on('delivery_status', (data: { message_id: string; status: string }) => {
+        options.onDeliveryStatus?.(data.message_id, data.status);
+      });
+    });
+    return userChannel;
+  }, [options.userId, options.token, options.onNewMessage, options.onDeliveryStatus]);
+
   return {
+    joinUserChannel,
     joinConversationChannel,
     sendMessage,
     sendTyping,

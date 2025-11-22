@@ -44,7 +44,7 @@ export const ConversationsListScreen: React.FC = () => {
   const token = 'mock-token';
 
   // WebSocket connection
-  const { onNewMessage } = useWebSocket({
+  const { joinUserChannel } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -68,8 +68,9 @@ export const ConversationsListScreen: React.FC = () => {
   });
 
   useEffect(() => {
+    joinUserChannel();
     loadConversations();
-  }, []);
+  }, [joinUserChannel]);
 
   const loadConversations = useCallback(async () => {
     try {
