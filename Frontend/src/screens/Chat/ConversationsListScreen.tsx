@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import * as Haptics from 'expo-haptics';
 import { Conversation, Message } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { cacheService } from '../../services/messaging/cache';
