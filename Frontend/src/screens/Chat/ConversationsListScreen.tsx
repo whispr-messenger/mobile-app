@@ -205,11 +205,16 @@ export const ConversationsListScreen: React.FC = () => {
 
   const handleMute = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConversations(prev => prev.map(conv => 
-      conv.id === conversationId 
-        ? { ...conv, is_muted: !conv.is_muted }
-        : conv
-    ));
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === conversationId) {
+        return { 
+          ...conv, 
+          is_muted: !conv.is_muted,
+          updated_at: new Date().toISOString() // Force update to trigger re-render
+        };
+      }
+      return conv;
+    }));
     // TODO: Call API when backend is ready
   }, []);
 
