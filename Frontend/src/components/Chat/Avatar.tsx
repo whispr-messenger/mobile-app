@@ -32,7 +32,15 @@ export const Avatar: React.FC<AvatarProps> = ({
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       {uri ? (
-        <Image source={{ uri }} style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} />
+        <Image 
+          source={{ uri }} 
+          style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} 
+          resizeMode="cover"
+          onError={() => {
+            // Fallback to initials if image fails to load
+            console.log('Avatar image failed to load, using initials');
+          }}
+        />
       ) : (
         <LinearGradient
           colors={[colors.primary.main, colors.primary.light]}
