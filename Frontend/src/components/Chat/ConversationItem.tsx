@@ -4,6 +4,8 @@
 
 import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { Conversation } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
@@ -11,14 +13,35 @@ import { colors } from '../../theme/colors';
 interface ConversationItemProps {
   conversation: Conversation;
   onPress: (conversationId: string) => void;
+  index?: number;
 }
 
 export const ConversationItem: React.FC<ConversationItemProps> = ({
   conversation,
   onPress,
+  index = 0,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  const translateX = useSharedValue(50);
+  const opacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    const delay = index * 50;
+    setTimeout(() => {
+      translateX.value = withSpring(0, {
+        damping: 15,
+        stiffness: 150,
+      });
+      opacity.value = withTiming(1, { duration: 300 });
+    }, delay);
+  }, [index, translateX, opacity]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+    opacity: opacity.value,
+  }));
 
   const formattedTime = useMemo(() => {
     if (!conversation.last_message) return '';
@@ -29,14 +52,15 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   }, [conversation.last_message?.sent_at]);
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.container,
-        { backgroundColor: themeColors.background.primary },
-      ]}
-      onPress={() => onPress(conversation.id)}
-      activeOpacity={0.7}
-    >
+    <Animated.View style={animatedStyle}>
+      <TouchableOpacity
+        style={[
+          styles.container,
+          { backgroundColor: themeColors.background.primary },
+        ]}
+        onPress={() => onPress(conversation.id)}
+        activeOpacity={0.7}
+      >
       <View style={styles.content}>
         <View style={styles.avatarContainer}>
           {/* TODO: Add avatar */}
@@ -80,6 +104,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         </View>
       </View>
     </TouchableOpacity>
+    </Animated.View>
   );
 };
 
