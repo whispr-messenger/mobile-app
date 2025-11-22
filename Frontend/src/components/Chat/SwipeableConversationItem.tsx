@@ -3,13 +3,15 @@
  */
 
 import React, { useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Conversation } from '../../types/messaging';
 import { colors } from '../../theme/colors';
 import ConversationItem from './ConversationItem';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 interface SwipeableConversationItemProps {
   conversation: Conversation;
@@ -39,8 +41,11 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
   const swipeableRef = useRef<Swipeable>(null);
 
   const renderRightActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+    const actionCount = [onArchive, onMute, onDelete].filter(Boolean).length;
+    const totalWidth = actionCount * 88;
+    
     return (
-      <View style={styles.rightActions}>
+      <View style={[styles.rightActions, { width: Math.max(totalWidth, SCREEN_WIDTH) }]}>
         {onArchive && (
           <TouchableOpacity
             style={[styles.actionButton, styles.archiveButton]}
@@ -85,8 +90,11 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
   };
 
   const renderLeftActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+    const actionCount = [onPin, onUnread].filter(Boolean).length;
+    const totalWidth = actionCount * 88;
+    
     return (
-      <View style={styles.leftActions}>
+      <View style={[styles.leftActions, { width: Math.max(totalWidth, SCREEN_WIDTH) }]}>
         {onPin && (
           <TouchableOpacity
             style={[styles.actionButton, styles.pinButton]}
@@ -156,15 +164,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     justifyContent: 'flex-end',
-    width: '100%',
     height: 88,
+    minWidth: SCREEN_WIDTH,
   },
   leftActions: {
     flexDirection: 'row',
     alignItems: 'stretch',
     justifyContent: 'flex-start',
-    width: '100%',
     height: 88,
+    minWidth: SCREEN_WIDTH,
   },
   actionButton: {
     width: 88,
