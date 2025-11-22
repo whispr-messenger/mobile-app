@@ -36,7 +36,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Alex Martin',
-        avatar_url: undefined, // Will use initials
+        avatar_url: 'https://i.pravatar.cc/150?img=1',
         last_message: {
           id: 'msg-1',
           conversation_id: 'conv-1',
@@ -62,7 +62,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Whispr project Team',
-        avatar_url: undefined, // Will use initials
+        avatar_url: 'https://i.pravatar.cc/150?img=5',
         last_message: {
           id: 'msg-2',
           conversation_id: 'conv-2',
@@ -88,7 +88,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Sophie Dubois',
-        avatar_url: undefined,
+        avatar_url: 'https://i.pravatar.cc/150?img=9',
         last_message: {
           id: 'msg-3',
           conversation_id: 'conv-3',
@@ -114,7 +114,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Summer Trip 2025',
-        avatar_url: undefined,
+        avatar_url: 'https://i.pravatar.cc/150?img=12',
         last_message: {
           id: 'msg-4',
           conversation_id: 'conv-4',
@@ -140,7 +140,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Design Community',
-        avatar_url: undefined,
+        avatar_url: 'https://i.pravatar.cc/150?img=15',
         last_message: {
           id: 'msg-5',
           conversation_id: 'conv-5',
