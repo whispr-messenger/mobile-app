@@ -1,5 +1,6 @@
 // Learn more https://docs.expo.io/guides/customizing-metro
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
@@ -9,6 +10,9 @@ config.resolver.sourceExts = [...config.resolver.sourceExts, 'web.ts', 'web.tsx'
 
 // Fix for semver module resolution in react-native-reanimated
 config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
+
+// Fix for CommonJS modules in nested node_modules
+config.resolver.unstable_enablePackageExports = false;
 
 module.exports = config;
 
