@@ -74,14 +74,28 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       if (!socketRef.current) return;
 
       const channel = socketRef.current.channel(`conversation:${conversationId}`);
+      const clientRandom = Math.floor(Math.random() * 1000000);
+      
       channel.push('new_message', {
         conversation_id: conversationId,
         content,
         message_type: messageType,
-        client_random: Math.floor(Math.random() * 1000000),
+        client_random: clientRandom,
       });
+
+      // Listen for reply to update message status
+      const replyKey = `${channel['topic']}:phx_reply`;
+      const replyHandler = (data: { status: string; response?: { message: Message } }) => {
+        if (data.status === 'ok' && data.response?.message) {
+          options.onNewMessage?.(data.response.message);
+        }
+        // Remove listener after handling
+        socketRef.current?.emit(replyKey, null);
+      };
+      
+      socketRef.current.on(replyKey, replyHandler);
     },
-    []
+    [options]
   );
 
   const sendTyping = useCallback((conversationId: string, typing: boolean) => {
