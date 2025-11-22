@@ -311,11 +311,25 @@ export const ConversationsListScreen: React.FC = () => {
               placeholder="Search for messages or users"
               placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                // Debounce search if needed for future API calls
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                }
+                searchTimeoutRef.current = setTimeout(() => {
+                  // Future: trigger API search here
+                }, 300);
+              }}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity
-                onPress={() => setSearchQuery('')}
+                onPress={() => {
+                  setSearchQuery('');
+                  if (searchTimeoutRef.current) {
+                    clearTimeout(searchTimeoutRef.current);
+                  }
+                }}
                 style={styles.clearButton}
               >
                 <Ionicons name="close-circle" size={20} color="rgba(255, 255, 255, 0.7)" />
