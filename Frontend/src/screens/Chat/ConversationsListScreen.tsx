@@ -205,11 +205,18 @@ export const ConversationsListScreen: React.FC = () => {
 
   const handleMute = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConversations(prev => prev.map(conv => 
-      conv.id === conversationId 
-        ? { ...conv, is_muted: !conv.is_muted }
-        : conv
-    ));
+    setConversations(prev => prev.map(conv => {
+      if (conv.id === conversationId) {
+        const newMutedState = !conv.is_muted;
+        setToast({
+          visible: true,
+          message: newMutedState ? 'Conversation muted' : 'Conversation unmuted',
+          type: 'success',
+        });
+        return { ...conv, is_muted: newMutedState };
+      }
+      return conv;
+    }));
     // TODO: Call API when backend is ready
   }, []);
 
@@ -310,7 +317,7 @@ export const ConversationsListScreen: React.FC = () => {
             style={styles.headerButton}
           >
             <LinearGradient
-              colors={[colors.primary.main, colors.secondary.main]}
+              colors={['#FFB07B', '#F04882']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.composeButton}

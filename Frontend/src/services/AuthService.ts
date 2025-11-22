@@ -36,7 +36,6 @@ export class AuthService {
   async sendVerificationCode(phoneNumber: PhoneNumber): Promise<{ success: boolean; message?: string }> {
     try {
       // TODO: Appel API réel vers auth-service
-      console.log('📱 Envoi SMS vers:', phoneNumber);
       
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -61,26 +60,18 @@ export class AuthService {
   async loginRequest(phoneNumber: PhoneNumber): Promise<{ success: boolean; message?: string }> {
     try {
       // TODO: Appel API réel vers auth-service /auth/login/verify/request
-      console.log('🔐 Demande de connexion pour:', phoneNumber);
-      console.log('📱 Code pays:', phoneNumber.countryCode);
-      console.log('🔢 Numéro:', phoneNumber.number);
       
       // Validation du numéro
       const validation = this.validatePhoneNumber(phoneNumber);
       if (!validation.isValid) {
-        console.log('❌ Validation échouée:', validation.error);
         return {
           success: false,
           message: validation.error
         };
       }
       
-      console.log('✅ Validation réussie, envoi du code...');
-      
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('📨 Code de vérification envoyé avec succès');
       
       // Pour le développement, on simule toujours un succès
       return {
@@ -102,7 +93,6 @@ export class AuthService {
   async verifyCode(phoneNumber: PhoneNumber, code: VerificationCode): Promise<{ success: boolean; message?: string }> {
     try {
       // TODO: Appel API réel vers auth-service
-      console.log('🔐 Vérification code:', code.code, 'pour:', phoneNumber);
       
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -120,7 +110,7 @@ export class AuthService {
         };
       }
     } catch (error) {
-      console.error('❌ Erreur vérification:', error);
+      console.error('Erreur vérification:', error);
       return {
         success: false,
         message: 'Erreur lors de la vérification'
@@ -134,7 +124,6 @@ export class AuthService {
   async createProfile(phoneNumber: PhoneNumber, profile: UserProfile): Promise<{ success: boolean; message?: string }> {
     try {
       // TODO: Appel API réel vers user-service
-      console.log('👤 Création profil:', profile, 'pour:', phoneNumber);
       
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -241,7 +230,6 @@ export class AuthService {
         'whispr.profile.v1',
       ]);
       
-      console.log('✅ Déconnexion réussie');
       return {
         success: true,
         message: 'Déconnexion réussie'
@@ -266,7 +254,6 @@ export class AuthService {
       // Supprimer toutes les données locales
       await AsyncStorage.clear();
       
-      console.log('✅ Compte supprimé avec succès');
       return {
         success: true,
         message: 'Compte supprimé avec succès'

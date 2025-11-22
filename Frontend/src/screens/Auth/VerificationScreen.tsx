@@ -166,7 +166,6 @@ export const VerificationScreen: React.FC = () => {
           
           if (isLogin) {
             // Pour la connexion, aller directement à la home page (ConversationsList)
-                 console.log('✅ Code correct, navigation selon isLogin=', isLogin);
                  Alert.alert(
               getLocalizedText('auth.loginSuccess'),
               getLocalizedText('auth.welcome'),
@@ -199,7 +198,6 @@ export const VerificationScreen: React.FC = () => {
           }
         } else {
                  setLoading(false);
-                 console.log('❌ Code incorrect saisi:', fullCode);
           setError(getLocalizedText('auth.codeIncorrect'));
           shakeInputs();
           setCode(['', '', '', '', '', '']);
