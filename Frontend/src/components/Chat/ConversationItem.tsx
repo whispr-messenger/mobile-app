@@ -268,13 +268,18 @@ const styles = StyleSheet.create({
 
 // Memoize with custom comparator
 export default memo(ConversationItem, (prevProps, nextProps) => {
+  const prevEditMode = 'editMode' in prevProps ? prevProps.editMode : false;
+  const nextEditMode = 'editMode' in nextProps ? nextProps.editMode : false;
+  const prevIsSelected = 'isSelected' in prevProps ? prevProps.isSelected : false;
+  const nextIsSelected = 'isSelected' in nextProps ? nextProps.isSelected : false;
+
   return (
     prevProps.conversation.id === nextProps.conversation.id &&
     prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
     prevProps.conversation.unread_count === nextProps.conversation.unread_count &&
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
-    prevProps.editMode === nextProps.editMode &&
-    prevProps.isSelected === nextProps.isSelected
+    prevEditMode === nextEditMode &&
+    prevIsSelected === nextIsSelected
   );
 });
 
