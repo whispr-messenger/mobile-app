@@ -208,7 +208,7 @@ export const ConversationsListScreen: React.FC = () => {
           }}
           style={styles.headerButton}
         >
-          <Text style={[styles.editButton, { color: colors.palette.violet }]}>Edit</Text>
+          <Text style={[styles.editButton, { color: colors.secondary.main }]}>Edit</Text>
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Chats</Text>
         <TouchableOpacity
