@@ -36,7 +36,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Elon Musk',
-        avatar_url: 'https://randomuser.me/api/portraits/men/1.jpg',
+        avatar_url: 'https://ui-avatars.com/api/?name=Elon+Musk&size=150&background=FE7A5C&color=fff&bold=true',
         last_message: {
           id: 'msg-1',
           conversation_id: 'conv-1',
@@ -88,7 +88,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Emmanuel Macron',
-        avatar_url: 'https://randomuser.me/api/portraits/men/32.jpg',
+        avatar_url: 'https://ui-avatars.com/api/?name=Emmanuel+Macron&size=150&background=6774BD&color=fff&bold=true',
         last_message: {
           id: 'msg-3',
           conversation_id: 'conv-3',
@@ -192,7 +192,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Vladimir Poutine',
-        avatar_url: 'https://randomuser.me/api/portraits/men/22.jpg',
+        avatar_url: 'https://ui-avatars.com/api/?name=Vladimir+Putin&size=150&background=F04882&color=fff&bold=true',
         last_message: {
           id: 'msg-7',
           conversation_id: 'conv-7',
@@ -218,7 +218,7 @@ export const messagingAPI = {
         is_muted: false,
         is_archived: false,
         display_name: 'Queen Elizabeth II',
-        avatar_url: 'https://randomuser.me/api/portraits/women/44.jpg',
+        avatar_url: 'https://ui-avatars.com/api/?name=Queen+Elizabeth&size=150&background=FFB07B&color=fff&bold=true',
         last_message: {
           id: 'msg-8',
           conversation_id: 'conv-8',
@@ -244,7 +244,7 @@ export const messagingAPI = {
         is_muted: true,
         is_archived: false,
         display_name: 'Kim Jong-un',
-        avatar_url: 'https://randomuser.me/api/portraits/men/45.jpg',
+        avatar_url: 'https://ui-avatars.com/api/?name=Kim+Jong-un&size=150&background=39437C&color=fff&bold=true',
         last_message: {
           id: 'msg-9',
           conversation_id: 'conv-9',
