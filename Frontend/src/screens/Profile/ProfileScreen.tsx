@@ -118,12 +118,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
           return;
         }
       } catch (e) {
-        console.log('⚠️ Impossible de lire le profil local:', e);
       }
 
       if (!params?.firstName && !params?.lastName) {
         try {
-          console.log('⬇️ Chargement profil via UserService...');
           const service = UserService.getInstance();
           const res = await service.getProfile();
           if (res.success && res.profile) {
@@ -138,7 +136,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
               createdAt: res.profile.createdAt || prev.createdAt,
             }));
           } else {
-            console.log('⚠️ Profil API indisponible:', res.message);
           }
         } catch (e) {
         }
