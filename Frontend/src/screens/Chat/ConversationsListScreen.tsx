@@ -9,6 +9,7 @@ import { Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { cacheService } from '../../services/messaging/cache';
 import ConversationItem from '../../components/Chat/ConversationItem';
+import { EmptyState } from '../../components/Chat/EmptyState';
 import { useTheme } from '../../context/ThemeContext';
 
 export const ConversationsListScreen: React.FC = () => {
@@ -78,28 +79,43 @@ export const ConversationsListScreen: React.FC = () => {
     setRefreshing(false);
   }, [loadConversations]);
 
+  const listContentStyle = useMemo(
+    () => [
+      styles.listContent,
+      conversations.length === 0 && styles.emptyContent,
+    ],
+    [conversations.length]
+  );
+
   return (
     <View style={styles.container}>
-      <FlatList
-        data={conversations}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={styles.listContent}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={15}
-        windowSize={10}
-        getItemLayout={getItemLayout}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={themeColors.primary}
-            colors={[themeColors.primary]}
-          />
-        }
-      />
+      {loading && conversations.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          {/* TODO: Add loading skeleton */}
+        </View>
+      ) : (
+        <FlatList
+          data={conversations}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={listContentStyle}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={15}
+          windowSize={10}
+          getItemLayout={getItemLayout}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={themeColors.primary}
+              colors={[themeColors.primary]}
+            />
+          }
+          ListEmptyComponent={<EmptyState />}
+        />
+      )}
     </View>
   );
 };
@@ -110,6 +126,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: 8,
+  },
+  emptyContent: {
+    flexGrow: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
