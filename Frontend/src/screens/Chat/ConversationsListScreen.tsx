@@ -31,6 +31,9 @@ export const ConversationsListScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
