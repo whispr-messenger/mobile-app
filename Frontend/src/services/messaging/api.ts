@@ -22,8 +22,54 @@ export const messagingAPI = {
   }): Promise<Conversation[]> {
     await mockDelay(600);
     
-    // Mock data
-    return [];
+    // Mock data - realistic conversations
+    const now = new Date();
+    const mockConversations: Conversation[] = [
+      {
+        id: 'conv-1',
+        type: 'direct',
+        metadata: {},
+        created_at: new Date(now.getTime() - 86400000 * 2).toISOString(),
+        updated_at: new Date(now.getTime() - 3600000).toISOString(),
+        is_active: true,
+        last_message: {
+          id: 'msg-1',
+          conversation_id: 'conv-1',
+          sender_id: 'user-2',
+          message_type: 'text',
+          content: 'Salut, ça va ?',
+          metadata: {},
+          client_random: 12345,
+          sent_at: new Date(now.getTime() - 3600000).toISOString(),
+          is_deleted: false,
+          delete_for_everyone: false,
+        },
+        unread_count: 2,
+      },
+      {
+        id: 'conv-2',
+        type: 'group',
+        metadata: { name: 'Équipe Dev' },
+        created_at: new Date(now.getTime() - 86400000 * 5).toISOString(),
+        updated_at: new Date(now.getTime() - 7200000).toISOString(),
+        is_active: true,
+        last_message: {
+          id: 'msg-2',
+          conversation_id: 'conv-2',
+          sender_id: 'user-3',
+          message_type: 'text',
+          content: 'Le déploiement est prêt !',
+          metadata: {},
+          client_random: 12346,
+          sent_at: new Date(now.getTime() - 7200000).toISOString(),
+          is_deleted: false,
+          delete_for_everyone: false,
+        },
+        unread_count: 0,
+      },
+    ];
+    
+    return mockConversations;
   },
 
   /**
