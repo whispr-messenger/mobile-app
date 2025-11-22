@@ -35,10 +35,11 @@ export const ConversationsListScreen: React.FC = () => {
   }, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: Conversation }) => (
+    ({ item, index }: { item: Conversation; index: number }) => (
       <ConversationItem
         conversation={item}
         onPress={handleConversationPress}
+        index={index}
       />
     ),
     [handleConversationPress]
