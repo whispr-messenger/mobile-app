@@ -46,10 +46,14 @@ export const Avatar: React.FC<AvatarProps> = ({
           style={[
             styles.onlineBadge,
             {
-              width: size * 0.25,
-              height: size * 0.25,
-              borderRadius: size * 0.125,
-              backgroundColor: isOnline ? colors.status.online : colors.status.offline,
+              width: 14,
+              height: 14,
+              borderRadius: 7,
+              backgroundColor: isOnline ? '#21C004' : colors.status.offline,
+              borderWidth: 2,
+              borderColor: '#1A1625',
+              bottom: -2,
+              right: -2,
             },
           ]}
         />
@@ -75,10 +79,6 @@ const styles = StyleSheet.create({
   },
   onlineBadge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    borderWidth: 2,
-    borderColor: colors.background.primary,
   },
 });
 
