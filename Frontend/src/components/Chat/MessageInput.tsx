@@ -16,11 +16,36 @@ interface MessageInputProps {
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
+  onTyping,
   placeholder = 'Message...',
 }) => {
   const [text, setText] = useState('');
+  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  const handleTextChange = useCallback(
+    (newText: string) => {
+      setText(newText);
+
+      // Send typing_start on first keystroke
+      if (newText.length === 1 && !typingTimeoutRef.current) {
+        onTyping?.(true);
+      }
+
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Send typing_stop after 3 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        onTyping?.(false);
+        typingTimeoutRef.current = null;
+      }, 3000);
+    },
+    [onTyping]
+  );
 
   const handleSend = useCallback(() => {
     if (text.trim()) {
@@ -46,7 +71,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           },
         ]}
         value={text}
-        onChangeText={setText}
+        onChangeText={handleTextChange}
         placeholder={placeholder}
         placeholderTextColor={themeColors.text.tertiary}
         multiline
