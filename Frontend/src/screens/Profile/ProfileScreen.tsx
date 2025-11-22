@@ -80,7 +80,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
     createdAt: '2024-01-15T10:30:00Z',
   });
   useEffect(() => {
-    console.log('👤 State profile initialisé:', profile);
   }, []);
   
   const [isEditing, setIsEditing] = useState(false);
@@ -115,7 +114,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
-          console.log('📦 Profil chargé depuis stockage local');
           setProfile(prev => ({ ...prev, ...parsed }));
           return;
         }
@@ -129,7 +127,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
           const service = UserService.getInstance();
           const res = await service.getProfile();
           if (res.success && res.profile) {
-            console.log('✅ Profil API:', res.profile);
             setProfile(prev => ({
               ...prev,
               firstName: res.profile.firstName,
@@ -144,7 +141,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
             console.log('⚠️ Profil API indisponible:', res.message);
           }
         } catch (e) {
-          console.log('❌ Erreur chargement profil:', e);
         }
       }
     };
@@ -256,7 +252,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       await new Promise(resolve => setTimeout(resolve, 1500));
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-        console.log('📦 Profil sauvegardé en local');
       } catch (e) {
         console.log('⚠️ Impossible d\'écrire le profil local:', e);
       }

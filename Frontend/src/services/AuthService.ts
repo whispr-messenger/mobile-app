@@ -46,7 +46,7 @@ export class AuthService {
         message: 'Code de vérification envoyé'
       };
     } catch (error) {
-      console.error('❌ Erreur envoi SMS:', error);
+      console.error('Erreur envoi SMS:', error);
       return {
         success: false,
         message: 'Erreur lors de l\'envoi du code'
@@ -79,7 +79,7 @@ export class AuthService {
         message: 'Code de vérification envoyé pour la connexion'
       };
     } catch (error) {
-      console.error('❌ Erreur demande connexion:', error);
+      console.error('Erreur demande connexion:', error);
       return {
         success: false,
         message: 'Erreur lors de la demande de connexion'
@@ -133,7 +133,7 @@ export class AuthService {
         message: 'Profil créé avec succès'
       };
     } catch (error) {
-      console.error('❌ Erreur création profil:', error);
+      console.error('Erreur création profil:', error);
       return {
         success: false,
         message: 'Erreur lors de la création du profil'
@@ -235,7 +235,7 @@ export class AuthService {
         message: 'Déconnexion réussie'
       };
     } catch (error) {
-      console.error('❌ Erreur déconnexion:', error);
+      console.error('Erreur déconnexion:', error);
       return {
         success: false,
         message: 'Erreur lors de la déconnexion'
@@ -259,7 +259,7 @@ export class AuthService {
         message: 'Compte supprimé avec succès'
       };
     } catch (error) {
-      console.error('❌ Erreur suppression compte:', error);
+      console.error('Erreur suppression compte:', error);
       return {
         success: false,
         message: 'Erreur lors de la suppression du compte'

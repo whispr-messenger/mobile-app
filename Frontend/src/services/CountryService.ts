@@ -37,7 +37,7 @@ export class CountryService {
         data: countries
       };
     } catch (error) {
-      console.error('❌ Erreur récupération pays:', error);
+      console.error('Erreur récupération pays:', error);
       return {
         success: false,
         error: 'Erreur lors de la récupération des pays'
@@ -61,7 +61,7 @@ export class CountryService {
         data: results
       };
     } catch (error) {
-      console.error('❌ Erreur recherche pays:', error);
+      console.error('Erreur recherche pays:', error);
       return {
         success: false,
         error: 'Erreur lors de la recherche'
@@ -85,7 +85,7 @@ export class CountryService {
         data: results
       };
     } catch (error) {
-      console.error('❌ Erreur récupération pays par région:', error);
+      console.error('Erreur récupération pays par région:', error);
       return {
         success: false,
         error: 'Erreur lors de la récupération des pays'
@@ -121,7 +121,7 @@ export class CountryService {
         data: popularCountries
       };
     } catch (error) {
-      console.error('❌ Erreur récupération pays populaires:', error);
+      console.error('Erreur récupération pays populaires:', error);
       return {
         success: false,
         error: 'Erreur lors de la récupération des pays populaires'
