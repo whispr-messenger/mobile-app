@@ -99,7 +99,8 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           styles.container,
           { 
             backgroundColor: isItemSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            borderBottomColor: 'rgba(255, 255, 255, 0.1)' 
+            borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+            overflow: 'hidden',
           },
         ]}
         onPress={() => {

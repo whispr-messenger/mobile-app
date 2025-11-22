@@ -43,47 +43,58 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
   const renderRightActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
     const actionCount = [onArchive, onMute, onDelete].filter(Boolean).length;
     const totalWidth = actionCount * 88;
+    const scale = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.8, 1],
+      extrapolate: 'clamp',
+    });
     
     return (
       <View style={[styles.rightActions, { width: Math.max(totalWidth, SCREEN_WIDTH) }]}>
         {onArchive && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.archiveButton]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onArchive(conversation.id);
-              swipeableRef.current?.close();
-            }}
-          >
-            <Ionicons name="archive-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Archive</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.archiveButton]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onArchive(conversation.id);
+                swipeableRef.current?.close();
+              }}
+            >
+              <Ionicons name="archive-outline" size={20} color={colors.text.light} />
+              <Text style={styles.actionText}>Archive</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
         {onMute && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.muteButton]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onMute(conversation.id);
-              swipeableRef.current?.close();
-            }}
-          >
-            <Ionicons name="notifications-off-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Mute</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.muteButton]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onMute(conversation.id);
+                swipeableRef.current?.close();
+              }}
+            >
+              <Ionicons name="notifications-off-outline" size={20} color={colors.text.light} />
+              <Text style={styles.actionText}>Mute</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
         {onDelete && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              onDelete(conversation.id);
-              swipeableRef.current?.close();
-            }}
-          >
-            <Ionicons name="trash-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Delete</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                onDelete(conversation.id);
+                swipeableRef.current?.close();
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.text.light} />
+              <Text style={styles.actionText}>Delete</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
       </View>
     );
@@ -92,34 +103,43 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
   const renderLeftActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
     const actionCount = [onPin, onUnread].filter(Boolean).length;
     const totalWidth = actionCount * 88;
+    const scale = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.8, 1],
+      extrapolate: 'clamp',
+    });
     
     return (
       <View style={[styles.leftActions, { width: Math.max(totalWidth, SCREEN_WIDTH) }]}>
         {onPin && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.pinButton]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onPin(conversation.id);
-              swipeableRef.current?.close();
-            }}
-          >
-            <Ionicons name="pin-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Pin</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.pinButton]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onPin(conversation.id);
+                swipeableRef.current?.close();
+              }}
+            >
+              <Ionicons name="pin-outline" size={20} color={colors.text.light} />
+              <Text style={styles.actionText}>Pin</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
         {onUnread && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.unreadButton]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              onUnread(conversation.id);
-              swipeableRef.current?.close();
-            }}
-          >
-            <Ionicons name="chatbubble-outline" size={20} color={colors.text.light} />
-            <Text style={styles.actionText}>Unread</Text>
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.unreadButton]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onUnread(conversation.id);
+                swipeableRef.current?.close();
+              }}
+            >
+              <Ionicons name="chatbubble-outline" size={20} color={colors.text.light} />
+              <Text style={styles.actionText}>Unread</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
       </View>
     );
@@ -138,34 +158,46 @@ export const SwipeableConversationItem: React.FC<SwipeableConversationItemProps>
   }
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      renderRightActions={renderRightActions}
-      renderLeftActions={renderLeftActions}
-      rightThreshold={40}
-      leftThreshold={40}
-      friction={2}
-      overshootRight={false}
-      overshootLeft={false}
-    >
-      <ConversationItem
-        conversation={conversation}
-        onPress={onPress}
-        index={index}
-        editMode={editMode}
-        isSelected={isSelected}
-      />
-    </Swipeable>
+    <View style={styles.swipeableContainer}>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        renderLeftActions={renderLeftActions}
+        rightThreshold={40}
+        leftThreshold={40}
+        friction={2}
+        overshootRight={false}
+        overshootLeft={false}
+        containerStyle={styles.swipeableContainer}
+      >
+        <View style={styles.contentWrapper}>
+          <ConversationItem
+            conversation={conversation}
+            onPress={onPress}
+            index={index}
+            editMode={editMode}
+            isSelected={isSelected}
+          />
+        </View>
+      </Swipeable>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  swipeableContainer: {
+    overflow: 'hidden',
+  },
+  contentWrapper: {
+    backgroundColor: 'transparent',
+  },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'stretch',
     justifyContent: 'flex-end',
     height: 88,
     minWidth: SCREEN_WIDTH,
+    backgroundColor: 'transparent',
   },
   leftActions: {
     flexDirection: 'row',
@@ -173,6 +205,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     height: 88,
     minWidth: SCREEN_WIDTH,
+    backgroundColor: 'transparent',
   },
   actionButton: {
     width: 88,
