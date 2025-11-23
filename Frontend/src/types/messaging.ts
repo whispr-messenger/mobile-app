@@ -64,4 +64,35 @@ export interface MessageWithStatus extends Message {
   delivery_statuses?: DeliveryStatus[];
 }
 
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  reaction: string; // Emoji Unicode
+  created_at: string;
+}
+
+export interface MessageAttachment {
+  id: string;
+  message_id: string;
+  media_id: string;
+  media_type: 'image' | 'video' | 'file' | 'audio';
+  metadata: {
+    filename?: string;
+    size?: number;
+    mime_type?: string;
+    thumbnail_url?: string;
+    duration?: number;
+  };
+  created_at: string;
+}
+
+export interface MessageWithRelations extends MessageWithStatus {
+  reply_to?: Message;
+  reactions?: MessageReaction[];
+  attachments?: MessageAttachment[];
+  is_pinned?: boolean;
+  reaction_summary?: Record<string, number>; // { '❤️': 5, '👍': 2 }
+}
+
 
