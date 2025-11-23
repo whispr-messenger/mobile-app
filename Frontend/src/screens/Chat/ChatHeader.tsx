@@ -82,7 +82,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          onPress={onInfoPress}
+          onPress={() => {
+            console.log('[ChatHeader] Info button clicked');
+            console.log('[ChatHeader] onInfoPress function:', typeof onInfoPress);
+            onInfoPress?.();
+          }}
           style={styles.actionButton}
         >
           <Ionicons

@@ -116,28 +116,42 @@ export const ChatScreen: React.FC = () => {
   }, [conversationId]);
 
   const loadConversation = useCallback(async () => {
+    console.log('[ChatScreen] Loading conversation:', conversationId);
     try {
       const conv = await messagingAPI.getConversation(conversationId);
+      console.log('[ChatScreen] Conversation loaded:', {
+        id: conv.id,
+        name: conv.display_name,
+        type: conv.type,
+      });
       setConversation(conv);
     } catch (error) {
-      console.error('Error loading conversation:', error);
+      console.error('[ChatScreen] Error loading conversation:', error);
     }
   }, [conversationId]);
 
   useEffect(() => {
+    console.log('[ChatScreen] Component mounted/updated, conversationId:', conversationId);
     loadConversation();
     loadMessages();
     loadPinnedMessages();
     // Join conversation channel
     const channel = joinConversationChannel(conversationId);
     conversationChannelRef.current = channel;
+    console.log('[ChatScreen] Joined conversation channel:', conversationId);
 
     return () => {
+      console.log('[ChatScreen] Component unmounting, leaving channel:', conversationId);
       channel?.leave();
     };
   }, [conversationId, joinConversationChannel, loadMessages, loadPinnedMessages, loadConversation]);
 
   const loadMessages = useCallback(async (before?: string) => {
+    console.log('[ChatScreen] Loading messages:', {
+      conversationId,
+      before: before || 'initial load',
+      limit: 50,
+    });
     try {
       if (before) {
         setLoadingMore(true);
@@ -148,6 +162,10 @@ export const ChatScreen: React.FC = () => {
       const data = await messagingAPI.getMessages(conversationId, {
         limit: 50,
         before,
+      });
+      console.log('[ChatScreen] Messages loaded:', {
+        count: data.length,
+        before: before || 'initial',
       });
 
       // Load reactions and enrich messages
@@ -197,15 +215,20 @@ export const ChatScreen: React.FC = () => {
 
       if (before) {
         // Loading older messages - append to end
-        setMessages(prev => [...prev, ...messagesWithRelations]);
+        setMessages(prev => {
+          const newMessages = [...prev, ...messagesWithRelations];
+          console.log('[ChatScreen] Older messages appended, total:', newMessages.length);
+          return newMessages;
+        });
         setHasMore(messagesWithRelations.length === 50);
       } else {
         // Initial load
+        console.log('[ChatScreen] Initial messages set, count:', messagesWithRelations.length);
         setMessages(messagesWithRelations);
         setHasMore(messagesWithRelations.length === 50);
       }
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('[ChatScreen] Error loading messages:', error);
       if (!before) {
         setMessages([]);
       }
@@ -226,17 +249,24 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMessage = useCallback(
     async (content: string, replyToId?: string) => {
+      console.log('[ChatScreen] Sending message:', {
+        content: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
+        replyToId,
+        editing: !!editingMessage,
+      });
       // Stop typing indicator
       sendTyping(conversationId, false);
 
       // If editing, update the message
       if (editingMessage) {
+        console.log('[ChatScreen] Editing message:', editingMessage.id);
         try {
           const updated = await messagingAPI.editMessage(
             editingMessage.id,
             conversationId,
             content
           );
+          console.log('[ChatScreen] Message edited successfully');
           setMessages(prev =>
             prev.map(msg =>
               msg.id === editingMessage.id
@@ -246,7 +276,7 @@ export const ChatScreen: React.FC = () => {
           );
           setEditingMessage(null);
         } catch (error) {
-          console.error('Error editing message:', error);
+          console.error('[ChatScreen] Error editing message:', error);
         }
         return;
       }
@@ -268,10 +298,12 @@ export const ChatScreen: React.FC = () => {
         reply_to: replyingTo || undefined,
       };
 
+      console.log('[ChatScreen] Adding optimistic message:', tempMessage.id);
       setMessages(prev => [tempMessage, ...prev]);
       setReplyingTo(null);
 
       // Send via WebSocket
+      console.log('[ChatScreen] Sending via WebSocket');
       wsSendMessage(conversationId, content, 'text', tempMessage.client_random);
     },
     [conversationId, userId, wsSendMessage, sendTyping, editingMessage, replyingTo]
@@ -279,6 +311,11 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMedia = useCallback(
     async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => {
+      console.log('[ChatScreen] Sending media:', {
+        type,
+        uri: uri.substring(0, 50) + '...',
+        replyToId,
+      });
       // Stop typing indicator
       sendTyping(conversationId, false);
 
@@ -588,8 +625,15 @@ export const ChatScreen: React.FC = () => {
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
   const handleInfoPress = useCallback(() => {
+    console.log('[ChatScreen] Info button pressed');
+    console.log('[ChatScreen] Current conversation:', {
+      id: conversation?.id,
+      name: conversation?.display_name,
+      type: conversation?.type,
+    });
     setShowInfoModal(true);
-  }, []);
+    console.log('[ChatScreen] Info modal opened');
+  }, [conversation]);
 
   const renderItem = useCallback(
     ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
@@ -736,7 +780,13 @@ export const ChatScreen: React.FC = () => {
         visible={showInfoModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowInfoModal(false)}
+        onRequestClose={() => {
+          console.log('[ChatScreen] Info modal closed (back button)');
+          setShowInfoModal(false);
+        }}
+        onShow={() => {
+          console.log('[ChatScreen] Info modal shown');
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: themeColors.background.primary }]}>
@@ -745,7 +795,10 @@ export const ChatScreen: React.FC = () => {
                 Informations de la conversation
               </Text>
               <TouchableOpacity
-                onPress={() => setShowInfoModal(false)}
+                onPress={() => {
+                  console.log('[ChatScreen] Info modal close button clicked');
+                  setShowInfoModal(false);
+                }}
                 style={styles.closeButton}
               >
                 <Ionicons name="close" size={24} color={themeColors.text.primary} />
