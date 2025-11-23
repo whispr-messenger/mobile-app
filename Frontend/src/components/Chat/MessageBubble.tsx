@@ -24,6 +24,7 @@ interface MessageBubbleProps {
   onReactionPress?: (messageId: string, emoji: string) => void;
   onReplyPress?: (messageId: string) => void;
   onLongPress?: () => void;
+  isHighlighted?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -33,6 +34,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReactionPress,
   onReplyPress,
   onLongPress,
+  isHighlighted = false,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -274,6 +276,11 @@ const styles = StyleSheet.create({
   deletedText: {
     fontStyle: 'italic',
     opacity: 0.7,
+  },
+  highlighted: {
+    backgroundColor: 'rgba(254, 122, 92, 0.2)',
+    borderRadius: 8,
+    padding: 2,
   },
 });
 
