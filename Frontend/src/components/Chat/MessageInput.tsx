@@ -3,10 +3,11 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Text, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { Message } from '../../types/messaging';
@@ -14,6 +15,7 @@ import { ReplyPreview } from './ReplyPreview';
 
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string) => void;
+  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => void;
   onTyping?: (typing: boolean) => void;
   placeholder?: string;
   replyingTo?: Message | null;
@@ -24,6 +26,7 @@ interface MessageInputProps {
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
+  onSendMedia,
   onTyping,
   placeholder = 'Message...',
   replyingTo,
@@ -78,6 +81,34 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [text, onSend, replyingTo, onCancelReply, onCancelEdit]);
 
+  const handlePickImage = useCallback(async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onSendMedia?.(result.assets[0].uri, 'image', replyingTo?.id);
+        onCancelReply?.();
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner une image.');
+    }
+  }, [onSendMedia, replyingTo, onCancelReply]);
+
   return (
     <View
       style={[
@@ -113,6 +144,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </View>
       )}
       <View style={styles.inputContainer}>
+        {!editingMessage && (
+          <TouchableOpacity
+            onPress={handlePickImage}
+            style={styles.attachButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="image-outline"
+              size={24}
+              color={themeColors.text.secondary}
+            />
+          </TouchableOpacity>
+        )}
         <TextInput
         style={[
           styles.input,
@@ -182,6 +226,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     alignItems: 'flex-end',
+  },
+  attachButton: {
+    marginRight: 8,
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   input: {
     flex: 1,
