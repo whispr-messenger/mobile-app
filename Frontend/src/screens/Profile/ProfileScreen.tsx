@@ -64,7 +64,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const params = (route as any)?.params as RouteParams | undefined;
-  console.log('🧭 ProfileScreen params:', params);
+  // ProfileScreen params loaded
   
   // States
   const [profile, setProfile] = useState<UserProfile>({

@@ -61,7 +61,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   const handleReactionSelect = (emoji: string) => {
-    onReactionPress?.(message.id, emoji);
+    if (onReactionPress) {
+      onReactionPress(message.id, emoji);
+      setShowReactionPicker(false);
+    }
   };
 
   const scale = useSharedValue(0.8);

@@ -15,6 +15,7 @@ import { MessageBubble } from '../../components/Chat/MessageBubble';
 import { MessageInput } from '../../components/Chat/MessageInput';
 import { TypingIndicator } from '../../components/Chat/TypingIndicator';
 import { MessageActionsMenu } from '../../components/Chat/MessageActionsMenu';
+import { ReactionPicker } from '../../components/Chat/ReactionPicker';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 
@@ -32,6 +33,8 @@ export const ChatScreen: React.FC = () => {
   const [editingMessage, setEditingMessage] = useState<MessageWithRelations | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<MessageWithRelations | null>(null);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -324,6 +327,25 @@ export const ChatScreen: React.FC = () => {
     }
   }, [selectedMessage]);
 
+  const handleStartReaction = useCallback(() => {
+    if (selectedMessage) {
+      setReactionPickerMessageId(selectedMessage.id);
+      setShowReactionPicker(true);
+      setShowActionsMenu(false);
+    }
+  }, [selectedMessage]);
+
+  const handleReactionSelectFromPicker = useCallback(
+    async (emoji: string) => {
+      if (reactionPickerMessageId) {
+        await handleReactionPress(reactionPickerMessageId, emoji);
+        setShowReactionPicker(false);
+        setReactionPickerMessageId(null);
+      }
+    },
+    [reactionPickerMessageId, handleReactionPress]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: MessageWithRelations }) => {
       const isSent = item.sender_id === userId;
@@ -350,41 +372,48 @@ export const ChatScreen: React.FC = () => {
         conversationType="direct"
         isOnline={false}
       />
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        inverted
-        contentContainerStyle={styles.listContent}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        initialNumToRender={15}
-        windowSize={10}
-        onEndReached={loadMoreMessages}
-        onEndReachedThreshold={0.3}
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-        }}
-        ListFooterComponent={
-          loadingMore ? (
-            <View style={styles.loadingMore}>
-              <ActivityIndicator size="small" color={themeColors.primary.main} />
-            </View>
-          ) : typingUsers.length > 0 ? (
-            <TypingIndicator />
-          ) : null
-        }
-      />
-      <MessageInput
-        onSend={handleSendMessage}
-        onTyping={(typing) => sendTyping(conversationId, typing)}
-        replyingTo={replyingTo}
-        onCancelReply={() => setReplyingTo(null)}
-        editingMessage={editingMessage}
-        onCancelEdit={() => setEditingMessage(null)}
-      />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          inverted
+          contentContainerStyle={styles.listContent}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={15}
+          windowSize={10}
+          onEndReached={loadMoreMessages}
+          onEndReachedThreshold={0.3}
+          maintainVisibleContentPosition={{
+            minIndexForVisible: 0,
+          }}
+          keyboardShouldPersistTaps="handled"
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={themeColors.primary} />
+              </View>
+            ) : typingUsers.length > 0 ? (
+              <TypingIndicator />
+            ) : null
+          }
+        />
+        <MessageInput
+          onSend={handleSendMessage}
+          onTyping={(typing) => sendTyping(conversationId, typing)}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
+          editingMessage={editingMessage}
+          onCancelEdit={() => setEditingMessage(null)}
+        />
+      </KeyboardAvoidingView>
       <MessageActionsMenu
         visible={showActionsMenu}
         message={selectedMessage}
@@ -396,19 +425,27 @@ export const ChatScreen: React.FC = () => {
         onReply={handleStartReply}
         onEdit={handleEditMessage}
         onDelete={handleDeleteMessage}
-        onReact={() => {
-          if (selectedMessage) {
-            setShowActionsMenu(false);
-            // Reaction picker is handled by MessageBubble long press
-          }
-        }}
+        onReact={handleStartReaction}
       />
+      {showReactionPicker && (
+        <ReactionPicker
+          visible={showReactionPicker}
+          onClose={() => {
+            setShowReactionPicker(false);
+            setReactionPickerMessageId(null);
+          }}
+          onReactionSelect={handleReactionSelectFromPicker}
+        />
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  keyboardView: {
     flex: 1,
   },
   listContent: {
