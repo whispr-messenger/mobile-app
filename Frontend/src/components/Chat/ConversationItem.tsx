@@ -172,7 +172,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               />
             )}
           </View>
-          {conversation.unread_count && conversation.unread_count > 0 && getBadgeColor && (
+          {conversation.unread_count && conversation.unread_count > 0 && getBadgeColor ? (
             <View
               style={[
                 styles.unreadBadge,

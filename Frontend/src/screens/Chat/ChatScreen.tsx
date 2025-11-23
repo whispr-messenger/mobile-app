@@ -55,7 +55,7 @@ export const ChatScreen: React.FC = () => {
         setMessages(prev => {
           // Check if message already exists (avoid duplicates)
           if (prev.some(m => m.id === message.id)) {
-            return prev.map(m => (m.id === message.id ? { ...message, status: 'sent' as const } : m));
+            return prev.map(m => (m.id === message.id ? { ...message, status: (message as any).status || 'sent' as const } : m));
           }
           // Replace optimistic message if it matches client_random
           const optimisticMessageIndex = prev.findIndex(
@@ -63,13 +63,13 @@ export const ChatScreen: React.FC = () => {
           );
           if (optimisticMessageIndex !== -1) {
             const newMessages = [...prev];
-            newMessages[optimisticMessageIndex] = { ...message, status: 'sent' as const };
+            newMessages[optimisticMessageIndex] = { ...message, status: (message as any).status || 'sent' as const };
             return newMessages;
           }
           return [
             {
               ...message,
-              status: 'sent' as const,
+              status: (message as any).status || 'sent' as const,
             },
             ...prev,
           ];
@@ -120,7 +120,7 @@ export const ChatScreen: React.FC = () => {
         data
           .filter(msg => msg && (msg.content || msg.is_deleted)) // Include deleted messages (they show "[Message supprimé]")
           .map(async (msg) => {
-            const status = (msg as any).status || 'sent' as const;
+            const status = (msg as any)?.status || 'sent' as const;
             
             // Load reactions for this message
             let reactions = [];
