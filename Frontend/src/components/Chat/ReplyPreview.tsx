@@ -31,7 +31,7 @@ export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, onPress }) 
         styles.container,
         {
           borderLeftColor: themeColors.primary,
-          backgroundColor: themeColors.background.primary + '80',
+          backgroundColor: 'rgba(26, 31, 58, 0.4)',
         },
       ]}
     >
