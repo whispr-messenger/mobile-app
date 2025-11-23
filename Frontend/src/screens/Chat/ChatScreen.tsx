@@ -16,6 +16,7 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 import { MessageBubble } from '../../components/Chat/MessageBubble';
 import { MessageInput } from '../../components/Chat/MessageInput';
 import { TypingIndicator } from '../../components/Chat/TypingIndicator';
+import { Avatar } from '../../components/Chat/Avatar';
 import { MessageActionsMenu } from '../../components/Chat/MessageActionsMenu';
 import { ReactionPicker } from '../../components/Chat/ReactionPicker';
 import { DateSeparator } from '../../components/Chat/DateSeparator';
@@ -804,14 +805,23 @@ export const ChatScreen: React.FC = () => {
                 <Ionicons name="close" size={24} color={themeColors.text.primary} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
-              <View style={styles.infoSection}>
-                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                  Nom
-                </Text>
-                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={[styles.infoSection, { borderBottomWidth: 0, marginBottom: 0 }]}>
+                <Avatar
+                  size={80}
+                  uri={conversation?.avatar_url}
+                  name={conversation?.display_name || 'Contact'}
+                  showOnlineBadge={conversation?.type === 'direct'}
+                  isOnline={false}
+                />
+                <Text style={[styles.infoValue, { color: themeColors.text.primary, marginTop: 16, fontSize: 22 }]}>
                   {conversation?.display_name || 'Contact'}
                 </Text>
+                {conversation?.type === 'direct' && (
+                  <Text style={[styles.infoLabel, { color: themeColors.text.secondary, marginTop: 4, textTransform: 'none', fontSize: 14 }]}>
+                    Hors ligne
+                  </Text>
+                )}
               </View>
               <View style={styles.infoSection}>
                 <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
@@ -821,16 +831,6 @@ export const ChatScreen: React.FC = () => {
                   {conversation?.type === 'group' ? 'Groupe' : 'Conversation directe'}
                 </Text>
               </View>
-              {conversation?.type === 'direct' && (
-                <View style={styles.infoSection}>
-                  <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                    Statut
-                  </Text>
-                  <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                    Hors ligne
-                  </Text>
-                </View>
-              )}
               <View style={styles.infoSection}>
                 <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
                   Messages
@@ -867,41 +867,59 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '85%',
+    backgroundColor: 'rgba(26, 31, 58, 0.95)',
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.05)',
+    borderRightColor: 'rgba(255, 255, 255, 0.05)',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalBody: {
     padding: 20,
   },
   infoSection: {
-    marginBottom: 24,
+    marginBottom: 28,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   infoLabel: {
-    fontSize: 12,
-    marginBottom: 4,
+    fontSize: 11,
+    marginBottom: 8,
     textTransform: 'uppercase',
+    letterSpacing: 1,
+    opacity: 0.6,
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 17,
+    fontWeight: '500',
   },
 });

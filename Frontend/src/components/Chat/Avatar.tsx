@@ -22,6 +22,8 @@ export const Avatar: React.FC<AvatarProps> = ({
   showOnlineBadge = false,
   isOnline = false,
 }) => {
+  const [imageError, setImageError] = React.useState(false);
+  
   const initials = name
     ?.split(' ')
     .map(n => n[0])
@@ -29,16 +31,23 @@ export const Avatar: React.FC<AvatarProps> = ({
     .toUpperCase()
     .slice(0, 2) || '?';
 
+  // Reset error state when URI changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [uri]);
+
+  const shouldShowImage = uri && !imageError;
+
   return (
     <View style={[styles.container, { width: size, height: size }]}>
-      {uri ? (
+      {shouldShowImage ? (
         <Image 
           source={{ uri }} 
           style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} 
           resizeMode="cover"
-          onError={() => {
-            // Fallback to initials if image fails to load
-            // Image will fallback to initials automatically
+          onError={(error) => {
+            console.log('[Avatar] Image load error:', uri, error.nativeEvent?.error);
+            setImageError(true);
           }}
         />
       ) : (
