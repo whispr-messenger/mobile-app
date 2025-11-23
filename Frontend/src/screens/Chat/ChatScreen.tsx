@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';

@@ -112,7 +112,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               thumbnailUri={firstAttachment.metadata.thumbnail_url}
             />
           )}
-          {displayContent && (
+          {displayContent ? (
             <Text
               style={[
                 styles.sentText,
@@ -121,7 +121,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             >
               {displayContent}
             </Text>
-          )}
+          ) : null}
           <View style={styles.footer}>
             <Text style={styles.timestamp}>
               {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
@@ -129,11 +129,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 minute: '2-digit',
               })}
             </Text>
-            {message.edited_at && (
+            {message.edited_at ? (
               <Text style={[styles.editedLabel, { color: themeColors.text.tertiary }]}>
                 {' '}édité
               </Text>
-            )}
+            ) : null}
             <DeliveryStatus status={message.status || 'sent'} />
           </View>
         </LinearGradient>
@@ -162,7 +162,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             thumbnailUri={firstAttachment.metadata.thumbnail_url}
           />
         )}
-        {displayContent && (
+        {displayContent ? (
           <Text
             style={[
               styles.receivedText,
@@ -172,7 +172,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           >
             {displayContent}
           </Text>
-        )}
+        ) : null}
         <View style={styles.footer}>
         <Text style={[styles.timestamp, { color: themeColors.text.tertiary }]}>
           {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
@@ -180,11 +180,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             minute: '2-digit',
           })}
         </Text>
-        {message.edited_at && (
+        {message.edited_at ? (
           <Text style={[styles.editedLabel, { color: themeColors.text.tertiary }]}>
             {' '}édité
           </Text>
-        )}
+        ) : null}
         </View>
       </View>
     );
@@ -203,13 +203,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ]}
         >
           {renderBubbleContent()}
-          {message.reactions && message.reactions.length > 0 && (
+          {message.reactions && message.reactions.length > 0 ? (
             <ReactionBar
               reactions={message.reactions}
               currentUserId={currentUserId}
               onReactionPress={handleReactionSelect}
             />
-          )}
+          ) : null}
         </Animated.View>
       </Pressable>
       <ReactionPicker
