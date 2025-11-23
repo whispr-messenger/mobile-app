@@ -2,33 +2,67 @@
  * MessageBubble - Individual message display component
  */
 
-import React, { memo, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { memo, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import Animated from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MessageWithStatus } from '../../types/messaging';
+import { MessageWithRelations } from '../../types/messaging';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { DeliveryStatus } from './DeliveryStatus';
+import { ReactionBar } from './ReactionBar';
+import { ReplyPreview } from './ReplyPreview';
+import { ReactionPicker } from './ReactionPicker';
+import { MediaMessage } from './MediaMessage';
 
 interface MessageBubbleProps {
-  message: MessageWithStatus;
+  message: MessageWithRelations;
   isSent: boolean;
+  currentUserId: string;
+  onReactionPress?: (messageId: string, emoji: string) => void;
+  onReplyPress?: (messageId: string) => void;
+  onLongPress?: () => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isSent,
+  currentUserId,
+  onReactionPress,
+  onReplyPress,
+  onLongPress,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   // Safety check
-  if (!message || !message.content) {
+  if (!message || (!message.content && !message.is_deleted)) {
     return null;
   }
+
+  const displayContent = message.is_deleted && message.delete_for_everyone
+    ? '[Message supprimé]'
+    : message.content;
+
+  // Check if message has media attachments
+  const hasMedia = message.attachments && message.attachments.length > 0;
+  const firstAttachment = hasMedia && message.attachments ? message.attachments[0] : null;
+
+  const handleLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (onLongPress) {
+      onLongPress();
+    } else {
+      setShowReactionPicker(true);
+    }
+  };
+
+  const handleReactionSelect = (emoji: string) => {
+    onReactionPress?.(message.id, emoji);
+  };
 
   const scale = useSharedValue(0.8);
   const opacity = useSharedValue(0);
@@ -51,16 +85,40 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     opacity: opacity.value,
   }));
 
-  if (isSent) {
-    return (
-      <Animated.View style={[styles.sentContainer, animatedStyle]}>
+  const renderBubbleContent = () => {
+    if (isSent) {
+      return (
         <LinearGradient
           colors={['#FFB07B', '#F86F71', '#F04882']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.sentBubble}
         >
-          <Text style={styles.sentText}>{message.content || ''}</Text>
+          {message.reply_to && (
+            <ReplyPreview
+              replyTo={message.reply_to}
+              onPress={() => onReplyPress?.(message.reply_to!.id)}
+            />
+          )}
+          {hasMedia && firstAttachment && firstAttachment.metadata && (
+            <MediaMessage
+              uri={firstAttachment.metadata.thumbnail_url || ''}
+              type={firstAttachment.media_type}
+              filename={firstAttachment.metadata.filename}
+              size={firstAttachment.metadata.size}
+              thumbnailUri={firstAttachment.metadata.thumbnail_url}
+            />
+          )}
+          {displayContent && (
+            <Text
+              style={[
+                styles.sentText,
+                message.is_deleted && message.delete_for_everyone && styles.deletedText,
+              ]}
+            >
+              {displayContent}
+            </Text>
+          )}
           <View style={styles.footer}>
             <Text style={styles.timestamp}>
               {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
@@ -68,32 +126,95 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 minute: '2-digit',
               })}
             </Text>
+            {message.edited_at && (
+              <Text style={[styles.editedLabel, { color: colors.text.tertiary }]}>
+                {' '}édité
+              </Text>
+            )}
             <DeliveryStatus status={message.status || 'sent'} />
           </View>
         </LinearGradient>
-      </Animated.View>
-    );
-  }
+      );
+    }
 
-  return (
-    <Animated.View style={[styles.receivedContainer, animatedStyle]}>
+    return (
       <View
         style={[
           styles.receivedBubble,
           { backgroundColor: themeColors.background.secondary },
         ]}
       >
-        <Text style={[styles.receivedText, { color: themeColors.text.primary }]}>
-          {message.content || ''}
-        </Text>
-        <Text style={[styles.timestamp, { color: colors.text.tertiary }]}>
-          {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
+        {message.reply_to && (
+          <ReplyPreview
+            replyTo={message.reply_to}
+            onPress={() => onReplyPress?.(message.reply_to!.id)}
+          />
+        )}
+        {hasMedia && firstAttachment && firstAttachment.metadata && (
+          <MediaMessage
+            uri={firstAttachment.metadata.thumbnail_url || ''}
+            type={firstAttachment.media_type}
+            filename={firstAttachment.metadata.filename}
+            size={firstAttachment.metadata.size}
+            thumbnailUri={firstAttachment.metadata.thumbnail_url}
+          />
+        )}
+        {displayContent && (
+          <Text
+            style={[
+              styles.receivedText,
+              { color: themeColors.text.primary },
+              message.is_deleted && message.delete_for_everyone && styles.deletedText,
+            ]}
+          >
+            {displayContent}
+          </Text>
+        )}
+        <View style={styles.footer}>
+          <Text style={[styles.timestamp, { color: colors.text.tertiary }]}>
+            {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+          {message.edited_at && (
+            <Text style={[styles.editedLabel, { color: colors.text.tertiary }]}>
+              {' '}édité
+            </Text>
+          )}
+        </View>
       </View>
-    </Animated.View>
+    );
+  };
+
+  return (
+    <>
+      <Pressable
+        onLongPress={handleLongPress}
+        delayLongPress={300}
+      >
+        <Animated.View
+          style={[
+            isSent ? styles.sentContainer : styles.receivedContainer,
+            animatedStyle,
+          ]}
+        >
+          {renderBubbleContent()}
+          {message.reactions && message.reactions.length > 0 && (
+            <ReactionBar
+              reactions={message.reactions}
+              currentUserId={currentUserId}
+              onReactionPress={handleReactionSelect}
+            />
+          )}
+        </Animated.View>
+      </Pressable>
+      <ReactionPicker
+        visible={showReactionPicker}
+        onClose={() => setShowReactionPicker(false)}
+        onReactionSelect={handleReactionSelect}
+      />
+    </>
   );
 };
 
@@ -142,13 +263,25 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     marginRight: 4,
   },
+  editedLabel: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginRight: 4,
+  },
+  deletedText: {
+    fontStyle: 'italic',
+    opacity: 0.7,
+  },
 });
 
 export default memo(MessageBubble, (prevProps, nextProps) => {
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.content === nextProps.message.content &&
-    prevProps.message.status === nextProps.message.status
+    prevProps.message.status === nextProps.message.status &&
+    prevProps.message.edited_at === nextProps.message.edited_at &&
+    prevProps.message.is_deleted === nextProps.message.is_deleted &&
+    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions)
   );
 });
 
