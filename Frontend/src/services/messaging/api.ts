@@ -52,29 +52,108 @@ const generateMockMessages = (conversationId: string, count: number = 50): Messa
     'Parfait, merci !',
   ];
 
+  // Sample images for media messages
+  const sampleImages = [
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=300&fit=crop',
+  ];
+
+  // Add system message at the beginning (oldest)
+  messages.push({
+    id: `sys-${conversationId}-join`,
+    conversation_id: conversationId,
+    sender_id: 'system',
+    message_type: 'system' as const,
+    content: 'Vous avez rejoint la conversation',
+    metadata: {},
+    client_random: 0,
+    sent_at: new Date(now.getTime() - (count * 1800000)).toISOString(), // Oldest message
+    is_deleted: false,
+    delete_for_everyone: false,
+  });
+
   for (let i = 0; i < count; i++) {
     const senderId = users[i % users.length];
     const textIndex = i % sampleTexts.length;
     const hoursAgo = Math.floor(i / 2); // Messages espacés de 30 min
     const minutesOffset = (i % 2) * 30;
     const messageId = `msg-${conversationId}-${i}`;
+    const sentAt = new Date(now.getTime() - (hoursAgo * 3600000) - (minutesOffset * 60000));
     
-    messages.push({
-      id: messageId,
-      conversation_id: conversationId,
-      sender_id: senderId,
-      message_type: 'text' as const,
-      content: sampleTexts[textIndex],
-      metadata: {},
-      client_random: 10000 + i,
-      sent_at: new Date(now.getTime() - (hoursAgo * 3600000) - (minutesOffset * 60000)).toISOString(),
-      is_deleted: false,
-      delete_for_everyone: false,
-      // Add reply_to_id for some messages
-      reply_to_id: i > 5 && i % 7 === 0 ? `msg-${conversationId}-${i - 3}` : undefined,
-      // Add edited_at for some messages
-      edited_at: i > 10 && i % 11 === 0 ? new Date(now.getTime() - (hoursAgo * 3600000) - (minutesOffset * 60000) + 60000).toISOString() : undefined,
-    });
+    // Add system message every 20 messages (user joined/left)
+    if (i > 0 && i % 20 === 0) {
+      messages.push({
+        id: `sys-${conversationId}-${i}`,
+        conversation_id: conversationId,
+        sender_id: 'system',
+        message_type: 'system' as const,
+        content: i % 40 === 0 ? 'Un utilisateur a rejoint la conversation' : 'Un utilisateur a quitté la conversation',
+        metadata: {},
+        client_random: 0,
+        sent_at: sentAt.toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+      });
+    }
+
+    // Add media message every 8 messages
+    if (i > 0 && i % 8 === 0) {
+      const imageIndex = Math.floor(i / 8) % sampleImages.length;
+      messages.push({
+        id: messageId,
+        conversation_id: conversationId,
+        sender_id: senderId,
+        message_type: 'media' as const,
+        content: 'Photo',
+        metadata: {
+          media_type: 'image',
+          media_url: sampleImages[imageIndex],
+          thumbnail_url: sampleImages[imageIndex],
+        },
+        client_random: 10000 + i,
+        sent_at: sentAt.toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+      });
+
+      // Add attachment to mockStore for this media message
+      const attachmentId = `att-${messageId}`;
+      mockStore.addAttachment(messageId, {
+        id: attachmentId,
+        message_id: messageId,
+        media_id: `media-${messageId}`,
+        media_type: 'image' as const,
+        metadata: {
+          filename: `photo-${i}.jpg`,
+          size: 245760, // ~240 KB
+          mime_type: 'image/jpeg',
+          media_url: sampleImages[imageIndex],
+          thumbnail_url: sampleImages[imageIndex],
+        },
+        created_at: sentAt.toISOString(),
+      });
+    } else {
+      // Regular text message
+      messages.push({
+        id: messageId,
+        conversation_id: conversationId,
+        sender_id: senderId,
+        message_type: 'text' as const,
+        content: sampleTexts[textIndex],
+        metadata: {},
+        client_random: 10000 + i,
+        sent_at: sentAt.toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+        // Add reply_to_id for some messages
+        reply_to_id: i > 5 && i % 7 === 0 ? `msg-${conversationId}-${i - 3}` : undefined,
+        // Add edited_at for some messages
+        edited_at: i > 10 && i % 11 === 0 ? new Date(sentAt.getTime() + 60000).toISOString() : undefined,
+      });
+    }
 
     // Add some mock reactions to messages
     if (i > 3 && i % 5 === 0) {
@@ -695,6 +774,16 @@ export const messagingAPI = {
     const allMessages = mockStore.getMessages(conversationId);
     
     return allMessages.filter(msg => pinnedIds.includes(msg.id));
+  },
+
+  /**
+   * GET /api/v1/messages/:id/attachments
+   * Get attachments for a message
+   */
+  async getAttachments(messageId: string) {
+    await mockDelay(200);
+    
+    return mockStore.getAttachments(messageId);
   },
 };
 
