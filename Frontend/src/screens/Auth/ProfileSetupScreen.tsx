@@ -157,12 +157,6 @@ export const ProfileSetupScreen: React.FC = () => {
       // Simulate
       setTimeout(() => {
         setLoading(false);
-          userId: route.params.userId,
-          token: route.params.token,
-          firstName,
-          lastName,
-          profilePicture: profilePhoto,
-        });
         Alert.alert(
           'Compte créé ! 🎉',
           'Votre compte Whispr est prêt',
