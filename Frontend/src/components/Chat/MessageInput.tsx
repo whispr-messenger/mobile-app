@@ -2,28 +2,48 @@
  * MessageInput - Message input component with send button
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { Message } from '../../types/messaging';
+import { ReplyPreview } from './ReplyPreview';
 
 interface MessageInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, replyToId?: string) => void;
   onTyping?: (typing: boolean) => void;
   placeholder?: string;
+  replyingTo?: Message | null;
+  onCancelReply?: () => void;
+  editingMessage?: Message | null;
+  onCancelEdit?: () => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
   onTyping,
   placeholder = 'Message...',
+  replyingTo,
+  onCancelReply,
+  editingMessage,
+  onCancelEdit,
 }) => {
   const [text, setText] = useState('');
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  // Update text when editing message changes
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.content);
+    } else if (!replyingTo) {
+      setText('');
+    }
+  }, [editingMessage, replyingTo]);
 
   const handleTextChange = useCallback(
     (newText: string) => {
@@ -51,10 +71,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleSend = useCallback(() => {
     if (text.trim()) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      onSend(text.trim());
+      onSend(text.trim(), replyingTo?.id);
       setText('');
+      onCancelReply?.();
+      onCancelEdit?.();
     }
-  }, [text, onSend]);
+  }, [text, onSend, replyingTo, onCancelReply, onCancelEdit]);
 
   return (
     <View
@@ -63,47 +85,103 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         { backgroundColor: themeColors.background.primary },
       ]}
     >
-      <TextInput
-        style={[
-          styles.input,
-          {
-            color: themeColors.text.primary,
-            backgroundColor: themeColors.background.secondary,
-          },
-        ]}
-        value={text}
-        onChangeText={handleTextChange}
-        placeholder={placeholder}
-        placeholderTextColor={themeColors.text.tertiary}
-        multiline
-        maxLength={1000}
-      />
-      <TouchableOpacity
-        onPress={handleSend}
-        disabled={!text.trim()}
-        activeOpacity={0.7}
-      >
-        <LinearGradient
-          colors={['#FFB07B', '#F04882']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
+      {(replyingTo || editingMessage) && (
+        <View
+          style={[
+            styles.replyContainer,
+            { backgroundColor: themeColors.background.secondary },
+          ]}
         >
-          <Text style={styles.sendIcon}>→</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+          {replyingTo && <ReplyPreview replyTo={replyingTo} />}
+          {editingMessage && (
+            <View style={styles.editContainer}>
+              <Text style={[styles.editLabel, { color: themeColors.primary.main }]}>
+                Modifier le message
+              </Text>
+            </View>
+          )}
+          <TouchableOpacity
+            onPress={replyingTo ? onCancelReply : onCancelEdit}
+            style={styles.cancelReplyButton}
+          >
+            <Ionicons
+              name="close"
+              size={20}
+              color={themeColors.text.secondary}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              color: themeColors.text.primary,
+              backgroundColor: themeColors.background.secondary,
+            },
+          ]}
+          value={text}
+          onChangeText={handleTextChange}
+          placeholder={
+            editingMessage
+              ? 'Modifier le message...'
+              : replyingTo
+              ? 'Répondre...'
+              : placeholder
+          }
+          placeholderTextColor={themeColors.text.tertiary}
+          multiline
+          maxLength={1000}
+        />
+        <TouchableOpacity
+          onPress={handleSend}
+          disabled={!text.trim()}
+          activeOpacity={0.7}
+        >
+          <LinearGradient
+            colors={['#FFB07B', '#F04882']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
+          >
+            <Text style={styles.sendIcon}>→</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    borderTopWidth: 1,
+    borderTopColor: colors.ui.divider,
+  },
+  replyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.ui.divider,
+  },
+  cancelReplyButton: {
+    marginLeft: 'auto',
+    padding: 4,
+  },
+  editContainer: {
+    flex: 1,
+  },
+  editLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inputContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
     alignItems: 'flex-end',
-    borderTopWidth: 1,
-    borderTopColor: colors.ui.divider,
   },
   input: {
     flex: 1,
