@@ -30,9 +30,9 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
         styles.container,
         {
           backgroundColor: isActive
-            ? themeColors.primary.light + '30'
+            ? colors.primary.light + '30'
             : themeColors.background.secondary,
-          borderColor: isActive ? themeColors.primary.main : themeColors.ui.divider,
+          borderColor: isActive ? themeColors.primary : colors.ui.divider,
         },
       ]}
       activeOpacity={0.7}
@@ -42,7 +42,7 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
         <Text
           style={[
             styles.count,
-            { color: isActive ? themeColors.primary.main : themeColors.text.secondary },
+            { color: isActive ? themeColors.primary : themeColors.text.secondary },
           ]}
         >
           {count}

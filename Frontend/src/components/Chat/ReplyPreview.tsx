@@ -30,13 +30,13 @@ export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, onPress }) 
       style={[
         styles.container,
         {
-          borderLeftColor: themeColors.primary.main,
+          borderLeftColor: themeColors.primary,
           backgroundColor: themeColors.background.primary + '80',
         },
       ]}
     >
       <Text
-        style={[styles.senderName, { color: themeColors.primary.main }]}
+        style={[styles.senderName, { color: themeColors.primary }]}
         numberOfLines={1}
       >
         {replyTo.sender_id === 'user-1' ? 'Vous' : 'Contact'}

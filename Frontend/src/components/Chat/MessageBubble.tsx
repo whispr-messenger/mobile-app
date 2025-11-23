@@ -127,7 +127,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               })}
             </Text>
             {message.edited_at && (
-              <Text style={[styles.editedLabel, { color: colors.text.tertiary }]}>
+              <Text style={[styles.editedLabel, { color: themeColors.text.tertiary }]}>
                 {' '}édité
               </Text>
             )}
@@ -171,17 +171,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </Text>
         )}
         <View style={styles.footer}>
-          <Text style={[styles.timestamp, { color: colors.text.tertiary }]}>
-            {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+        <Text style={[styles.timestamp, { color: themeColors.text.tertiary }]}>
+          {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </Text>
+        {message.edited_at && (
+          <Text style={[styles.editedLabel, { color: themeColors.text.tertiary }]}>
+            {' '}édité
           </Text>
-          {message.edited_at && (
-            <Text style={[styles.editedLabel, { color: colors.text.tertiary }]}>
-              {' '}édité
-            </Text>
-          )}
+        )}
         </View>
       </View>
     );

@@ -83,7 +83,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         <Ionicons
           name="document"
           size={32}
-          color={themeColors.primary.main}
+          color={themeColors.primary}
           style={styles.fileIcon}
         />
         <View style={styles.fileInfo}>
