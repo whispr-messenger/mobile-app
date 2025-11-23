@@ -95,7 +95,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {replyingTo && <ReplyPreview replyTo={replyingTo} />}
           {editingMessage && (
             <View style={styles.editContainer}>
-              <Text style={[styles.editLabel, { color: themeColors.primary.main }]}>
+              <Text style={[styles.editLabel, { color: themeColors.primary }]}>
                 Modifier le message
               </Text>
             </View>
