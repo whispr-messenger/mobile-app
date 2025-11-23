@@ -2,7 +2,7 @@
  * ChatScreen - Individual conversation chat interface
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -349,24 +349,65 @@ export const ChatScreen: React.FC = () => {
     [reactionPickerMessageId, handleReactionPress]
   );
 
+  // Group messages by date and add date separators
+  const messagesWithSeparators = useMemo(() => {
+    if (messages.length === 0) return [];
+
+    const result: Array<MessageWithRelations | { type: 'date'; date: Date; id: string }> = [];
+    let lastDate: string | null = null;
+
+    messages.forEach((message) => {
+      const messageDate = new Date(message.sent_at);
+      const dateKey = messageDate.toDateString();
+
+      // Add date separator if date changed
+      if (lastDate !== dateKey) {
+        result.push({
+          type: 'date',
+          date: messageDate,
+          id: `date-${dateKey}`,
+        } as any);
+        lastDate = dateKey;
+      }
+
+      result.push(message);
+    });
+
+    return result;
+  }, [messages]);
+
   const renderItem = useCallback(
-    ({ item }: { item: MessageWithRelations }) => {
-      const isSent = item.sender_id === userId;
+    ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
+      // Check if it's a date separator
+      if ((item as any).type === 'date') {
+        return <DateSeparator date={(item as any).date} />;
+      }
+
+      const message = item as MessageWithRelations;
+      const isSent = message.sender_id === userId;
       return (
         <MessageBubble
-          message={item}
+          message={message}
           isSent={isSent}
           currentUserId={userId}
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
-          onLongPress={() => handleMessageLongPress(item)}
+          onLongPress={() => handleMessageLongPress(message)}
         />
       );
     },
     [userId, handleReactionPress, handleReplyPress, handleMessageLongPress]
   );
 
-  const keyExtractor = useCallback((item: MessageWithStatus) => item.id, []);
+  const keyExtractor = useCallback(
+    (item: MessageWithRelations | { type: 'date'; date: Date; id: string }) => {
+      if ((item as any).type === 'date') {
+        return (item as any).id;
+      }
+      return (item as MessageWithRelations).id;
+    },
+    []
+  );
 
   return (
     <LinearGradient
