@@ -3,12 +3,13 @@
  * Simulates backend state for development without backend
  */
 
-import { Message, MessageReaction } from '../../types/messaging';
+import { Message, MessageReaction, MessageAttachment } from '../../types/messaging';
 
 interface MockStoreData {
   messages: Record<string, Message[]>; // conversationId -> messages
   reactions: Record<string, MessageReaction[]>; // messageId -> reactions
   pinnedMessages: Record<string, string[]>; // conversationId -> messageIds
+  attachments: Record<string, MessageAttachment[]>; // messageId -> attachments
 }
 
 class MockStore {
@@ -16,6 +17,7 @@ class MockStore {
     messages: {},
     reactions: {},
     pinnedMessages: {},
+    attachments: {},
   };
 
   // Messages
@@ -141,12 +143,33 @@ class MockStore {
     return this.store.pinnedMessages[conversationId]?.includes(messageId) || false;
   }
 
+  // Attachments
+  getAttachments(messageId: string): MessageAttachment[] {
+    return this.store.attachments[messageId] || [];
+  }
+
+  addAttachment(messageId: string, attachment: MessageAttachment): void {
+    if (!this.store.attachments[messageId]) {
+      this.store.attachments[messageId] = [];
+    }
+    this.store.attachments[messageId].push(attachment);
+  }
+
+  removeAttachment(messageId: string, attachmentId: string): void {
+    const attachments = this.store.attachments[messageId] || [];
+    const index = attachments.findIndex(a => a.id === attachmentId);
+    if (index !== -1) {
+      attachments.splice(index, 1);
+    }
+  }
+
   // Clear all data (for testing)
   clear(): void {
     this.store = {
       messages: {},
       reactions: {},
       pinnedMessages: {},
+      attachments: {},
     };
   }
 }
