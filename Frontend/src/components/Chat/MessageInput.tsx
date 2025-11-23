@@ -156,7 +156,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 const styles = StyleSheet.create({
   container: {
     borderTopWidth: 1,
-    borderTopColor: colors.ui.divider,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   replyContainer: {
     flexDirection: 'row',
