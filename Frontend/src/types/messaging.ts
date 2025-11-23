@@ -81,6 +81,7 @@ export interface MessageAttachment {
     filename?: string;
     size?: number;
     mime_type?: string;
+    media_url?: string;
     thumbnail_url?: string;
     duration?: number;
   };
