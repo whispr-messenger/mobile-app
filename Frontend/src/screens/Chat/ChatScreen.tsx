@@ -382,6 +382,84 @@ export const ChatScreen: React.FC = () => {
     return result;
   }, [messages]);
 
+  // Handle search
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      const results = messages.filter(msg => {
+        if (msg.message_type === 'system') return false;
+        return msg.content?.toLowerCase().includes(query.toLowerCase());
+      });
+      setSearchResults(results);
+      setCurrentSearchIndex(0);
+      
+      // Scroll to first result
+      if (results.length > 0 && flatListRef.current) {
+        const firstResultIndex = messagesWithSeparators.findIndex(
+          item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
+        );
+        if (firstResultIndex !== -1) {
+          try {
+            flatListRef.current.scrollToIndex({
+              index: firstResultIndex,
+              animated: true,
+              viewPosition: 0.5,
+            });
+          } catch (error) {
+            // Ignore scroll errors
+          }
+        }
+      }
+    } else {
+      setSearchResults([]);
+      setCurrentSearchIndex(0);
+    }
+  }, [messages, messagesWithSeparators]);
+
+  const handleSearchNext = useCallback(() => {
+    if (currentSearchIndex < searchResults.length - 1) {
+      const newIndex = currentSearchIndex + 1;
+      setCurrentSearchIndex(newIndex);
+      const result = searchResults[newIndex];
+      const resultIndex = messagesWithSeparators.findIndex(
+        item => !(item as any).type && (item as MessageWithRelations).id === result.id
+      );
+      if (resultIndex !== -1 && flatListRef.current) {
+        try {
+          flatListRef.current.scrollToIndex({
+            index: resultIndex,
+            animated: true,
+            viewPosition: 0.5,
+          });
+        } catch (error) {
+          // Ignore scroll errors
+        }
+      }
+    }
+  }, [currentSearchIndex, searchResults, messagesWithSeparators]);
+
+  const handleSearchPrevious = useCallback(() => {
+    if (currentSearchIndex > 0) {
+      const newIndex = currentSearchIndex - 1;
+      setCurrentSearchIndex(newIndex);
+      const result = searchResults[newIndex];
+      const resultIndex = messagesWithSeparators.findIndex(
+        item => !(item as any).type && (item as MessageWithRelations).id === result.id
+      );
+      if (resultIndex !== -1 && flatListRef.current) {
+        try {
+          flatListRef.current.scrollToIndex({
+            index: resultIndex,
+            animated: true,
+            viewPosition: 0.5,
+          });
+        } catch (error) {
+          // Ignore scroll errors
+        }
+      }
+    }
+  }, [currentSearchIndex, searchResults, messagesWithSeparators]);
+
   const renderItem = useCallback(
     ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
       // Check if it's a date separator
