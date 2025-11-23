@@ -144,7 +144,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <View
         style={[
           styles.receivedBubble,
-          { backgroundColor: themeColors.background.secondary },
+          { backgroundColor: 'rgba(26, 31, 58, 0.6)' }, // Dark card with transparency
         ]}
       >
         {message.reply_to ? (
