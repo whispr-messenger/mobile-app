@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute } from '@react-navigation/native';
@@ -11,6 +11,7 @@ import { StackScreenProps } from '@react-navigation/stack';
 import { useTheme } from '../../context/ThemeContext';
 import { Message, MessageWithStatus, MessageWithRelations } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
+import { mockStore } from '../../services/messaging/mockStore';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { MessageBubble } from '../../components/Chat/MessageBubble';
 import { MessageInput } from '../../components/Chat/MessageInput';
@@ -25,6 +26,7 @@ import { EmptyChatState } from '../../components/Chat/EmptyChatState';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
+import { Ionicons } from '@expo/vector-icons';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 
@@ -48,6 +50,7 @@ export const ChatScreen: React.FC = () => {
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -139,7 +142,7 @@ export const ChatScreen: React.FC = () => {
       // Load reactions and enrich messages
       const messagesWithRelations: MessageWithRelations[] = await Promise.all(
         data
-          .filter(msg => msg && (msg.content || msg.is_deleted)) // Include deleted messages (they show "[Message supprimé]")
+          .filter(msg => msg && (msg.content || msg.is_deleted || msg.message_type === 'media' || msg.message_type === 'system')) // Include all message types
           .map(async (msg) => {
             const status = (msg as any)?.status || 'sent' as const;
             
@@ -573,6 +576,10 @@ export const ChatScreen: React.FC = () => {
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
+  const handleInfoPress = useCallback(() => {
+    setShowInfoModal(true);
+  }, []);
+
   const renderItem = useCallback(
     ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
       // Check if it's a date separator
@@ -627,6 +634,8 @@ export const ChatScreen: React.FC = () => {
           conversationName="Contact"
           conversationType="direct"
           isOnline={false}
+          onSearchPress={() => setShowSearch(true)}
+          onInfoPress={handleInfoPress}
         />
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -712,6 +721,62 @@ export const ChatScreen: React.FC = () => {
         onNext={handleSearchNext}
         onPrevious={handleSearchPrevious}
       />
+      <Modal
+        visible={showInfoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background.primary }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text.primary }]}>
+                Informations de la conversation
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowInfoModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={themeColors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.infoSection}>
+                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
+                  Nom
+                </Text>
+                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
+                  Contact
+                </Text>
+              </View>
+              <View style={styles.infoSection}>
+                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
+                  Type
+                </Text>
+                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
+                  Conversation directe
+                </Text>
+              </View>
+              <View style={styles.infoSection}>
+                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
+                  Statut
+                </Text>
+                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
+                  Hors ligne
+                </Text>
+              </View>
+              <View style={styles.infoSection}>
+                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
+                  Messages
+                </Text>
+                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
+                  {messages.length} message{messages.length > 1 ? 's' : ''}
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -733,5 +798,44 @@ const styles = StyleSheet.create({
   loadingMore: {
     paddingVertical: 16,
     alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  infoSection: {
+    marginBottom: 24,
+  },
+  infoLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  infoValue: {
+    fontSize: 16,
   },
 });
