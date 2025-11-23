@@ -183,7 +183,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 {conversation.unread_count > 99 ? '99+' : String(conversation.unread_count)}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>
