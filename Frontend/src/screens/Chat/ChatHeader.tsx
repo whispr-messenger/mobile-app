@@ -29,7 +29,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     <View
       style={[
         styles.container,
-        { backgroundColor: themeColors.background.primary },
+        { backgroundColor: 'transparent' },
       ]}
     >
       <TouchableOpacity
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.ui.divider,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
     marginRight: 12,

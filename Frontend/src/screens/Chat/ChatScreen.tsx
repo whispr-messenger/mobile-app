@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,6 +19,7 @@ import { MessageActionsMenu } from '../../components/Chat/MessageActionsMenu';
 import { ReactionPicker } from '../../components/Chat/ReactionPicker';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
+import { colors } from '../../theme/colors';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 
@@ -366,17 +368,23 @@ export const ChatScreen: React.FC = () => {
   const keyExtractor = useCallback((item: MessageWithStatus) => item.id, []);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background.primary }]} edges={['top']}>
-      <ChatHeader
-        conversationName="Contact"
-        conversationType="direct"
-        isOnline={false}
-      />
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
+    <LinearGradient
+      colors={colors.background.gradient.app}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ChatHeader
+          conversationName="Contact"
+          conversationType="direct"
+          isOnline={false}
+        />
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -436,12 +444,15 @@ export const ChatScreen: React.FC = () => {
           }}
           onReactionSelect={handleReactionSelectFromPicker}
         />
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },

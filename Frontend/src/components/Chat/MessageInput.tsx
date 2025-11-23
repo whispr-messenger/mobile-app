@@ -82,14 +82,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     <View
       style={[
         styles.container,
-        { backgroundColor: themeColors.background.primary },
+        { backgroundColor: 'transparent' },
       ]}
     >
       {(replyingTo || editingMessage) && (
         <View
           style={[
             styles.replyContainer,
-            { backgroundColor: themeColors.background.secondary },
+            { backgroundColor: 'rgba(26, 31, 58, 0.6)' }, // Dark card with transparency
           ]}
         >
           {replyingTo && <ReplyPreview replyTo={replyingTo} />}
@@ -114,13 +114,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       )}
       <View style={styles.inputContainer}>
         <TextInput
-          style={[
-            styles.input,
-            {
-              color: themeColors.text.primary,
-              backgroundColor: themeColors.background.secondary,
-            },
-          ]}
+        style={[
+          styles.input,
+          {
+            color: themeColors.text.primary,
+            backgroundColor: 'rgba(26, 31, 58, 0.6)', // Dark card with transparency
+          },
+        ]}
           value={text}
           onChangeText={handleTextChange}
           placeholder={
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.ui.divider,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   cancelReplyButton: {
     marginLeft: 'auto',
