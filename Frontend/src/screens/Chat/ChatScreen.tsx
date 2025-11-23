@@ -444,6 +444,7 @@ export const ChatScreen: React.FC = () => {
           }}
           onReactionSelect={handleReactionSelectFromPicker}
         />
+      )}
       </SafeAreaView>
     </LinearGradient>
   );
