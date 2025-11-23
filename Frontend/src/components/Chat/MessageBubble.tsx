@@ -97,13 +97,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           end={{ x: 1, y: 1 }}
           style={styles.sentBubble}
         >
-          {message.reply_to && (
+          {message.reply_to ? (
             <ReplyPreview
               replyTo={message.reply_to}
               onPress={() => onReplyPress?.(message.reply_to!.id)}
             />
-          )}
-          {hasMedia && firstAttachment && firstAttachment.metadata && (
+          ) : null}
+          {hasMedia && firstAttachment && firstAttachment.metadata ? (
             <MediaMessage
               uri={firstAttachment.metadata.thumbnail_url || ''}
               type={firstAttachment.media_type}
@@ -111,7 +111,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               size={firstAttachment.metadata.size}
               thumbnailUri={firstAttachment.metadata.thumbnail_url}
             />
-          )}
+          ) : null}
           {displayContent ? (
             <Text
               style={[
@@ -147,13 +147,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           { backgroundColor: themeColors.background.secondary },
         ]}
       >
-        {message.reply_to && (
+        {message.reply_to ? (
           <ReplyPreview
             replyTo={message.reply_to}
             onPress={() => onReplyPress?.(message.reply_to!.id)}
           />
-        )}
-        {hasMedia && firstAttachment && firstAttachment.metadata && (
+        ) : null}
+        {hasMedia && firstAttachment && firstAttachment.metadata ? (
           <MediaMessage
             uri={firstAttachment.metadata.thumbnail_url || ''}
             type={firstAttachment.media_type}
@@ -161,7 +161,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             size={firstAttachment.metadata.size}
             thumbnailUri={firstAttachment.metadata.thumbnail_url}
           />
-        )}
+        ) : null}
         {displayContent ? (
           <Text
             style={[
