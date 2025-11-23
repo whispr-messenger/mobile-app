@@ -18,6 +18,8 @@ import { TypingIndicator } from '../../components/Chat/TypingIndicator';
 import { MessageActionsMenu } from '../../components/Chat/MessageActionsMenu';
 import { ReactionPicker } from '../../components/Chat/ReactionPicker';
 import { DateSeparator } from '../../components/Chat/DateSeparator';
+import { SystemMessage } from '../../components/Chat/SystemMessage';
+import { MessageSearch } from '../../components/Chat/MessageSearch';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
@@ -38,6 +40,10 @@ export const ChatScreen: React.FC = () => {
   const [selectedMessage, setSelectedMessage] = useState<MessageWithRelations | null>(null);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<MessageWithRelations[]>([]);
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -384,7 +390,15 @@ export const ChatScreen: React.FC = () => {
       }
 
       const message = item as MessageWithRelations;
+      
+      // Handle system messages
+      if (message.message_type === 'system') {
+        return <SystemMessage content={message.content} />;
+      }
+
       const isSent = message.sender_id === userId;
+      const isHighlighted = searchQuery.trim() && searchResults.some(r => r.id === message.id);
+      
       return (
         <MessageBubble
           message={message}
@@ -393,10 +407,11 @@ export const ChatScreen: React.FC = () => {
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
+          isHighlighted={isHighlighted}
         />
       );
     },
-    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress]
+    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults]
   );
 
   const keyExtractor = useCallback(
@@ -487,6 +502,19 @@ export const ChatScreen: React.FC = () => {
           onReactionSelect={handleReactionSelectFromPicker}
         />
       )}
+      <MessageSearch
+        visible={showSearch}
+        onClose={() => {
+          setShowSearch(false);
+          setSearchQuery('');
+          setSearchResults([]);
+        }}
+        onSearch={handleSearch}
+        resultsCount={searchResults.length}
+        currentIndex={currentSearchIndex}
+        onNext={handleSearchNext}
+        onPrevious={handleSearchPrevious}
+      />
       </SafeAreaView>
     </LinearGradient>
   );

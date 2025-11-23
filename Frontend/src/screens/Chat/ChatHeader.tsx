@@ -2,8 +2,8 @@
  * ChatHeader - Header component for ChatScreen
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -14,12 +14,16 @@ interface ChatHeaderProps {
   conversationName: string;
   isOnline?: boolean;
   conversationType: 'direct' | 'group';
+  onSearchPress?: () => void;
+  onInfoPress?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationName,
   isOnline = false,
   conversationType,
+  onSearchPress,
+  onInfoPress,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -64,6 +68,30 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </Text>
         )}
       </View>
+      <View style={styles.actions}>
+        {onSearchPress && (
+          <TouchableOpacity
+            onPress={onSearchPress}
+            style={styles.actionButton}
+          >
+            <Ionicons
+              name="search"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          onPress={onInfoPress}
+          style={styles.actionButton}
+        >
+          <Ionicons
+            name="information-circle-outline"
+            size={22}
+            color={themeColors.text.primary}
+          />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -91,6 +119,15 @@ const styles = StyleSheet.create({
   status: {
     fontSize: 12,
     marginTop: 2,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 4,
   },
 });
 
