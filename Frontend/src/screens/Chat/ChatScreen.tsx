@@ -21,6 +21,7 @@ import { DateSeparator } from '../../components/Chat/DateSeparator';
 import { SystemMessage } from '../../components/Chat/SystemMessage';
 import { MessageSearch } from '../../components/Chat/MessageSearch';
 import { PinnedMessagesBar } from '../../components/Chat/PinnedMessagesBar';
+import { EmptyChatState } from '../../components/Chat/EmptyChatState';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
