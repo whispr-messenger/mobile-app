@@ -20,6 +20,7 @@ import { ReactionPicker } from '../../components/Chat/ReactionPicker';
 import { DateSeparator } from '../../components/Chat/DateSeparator';
 import { SystemMessage } from '../../components/Chat/SystemMessage';
 import { MessageSearch } from '../../components/Chat/MessageSearch';
+import { PinnedMessagesBar } from '../../components/Chat/PinnedMessagesBar';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
@@ -44,6 +45,8 @@ export const ChatScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MessageWithRelations[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
+  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [showPinnedBar, setShowPinnedBar] = useState(true);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -263,23 +266,28 @@ export const ChatScreen: React.FC = () => {
 
   const handleReplyPress = useCallback(
     (messageId: string) => {
-      const index = messages.findIndex(m => m.id === messageId);
-      if (index !== -1 && flatListRef.current) {
-        // Scroll to message (inverted list)
-        try {
-          flatListRef.current.scrollToIndex({
-            index,
-            animated: true,
-            viewPosition: 0.5, // Center the message
-          });
-        } catch (error) {
-          // Fallback if scrollToIndex fails
-          console.error('Error scrolling to message:', error);
-        }
-      }
+      scrollToMessage(messageId);
     },
-    [messages]
+    []
   );
+
+  const scrollToMessage = useCallback((messageId: string) => {
+    const index = messagesWithSeparators.findIndex(
+      item => !(item as any).type && (item as MessageWithRelations).id === messageId
+    );
+    if (index !== -1 && flatListRef.current) {
+      try {
+        flatListRef.current.scrollToIndex({
+          index,
+          animated: true,
+          viewPosition: 0.5,
+        });
+      } catch (error) {
+        // Fallback if scrollToIndex fails
+        console.error('Error scrolling to message:', error);
+      }
+    }
+  }, [messagesWithSeparators]);
 
   const handleMessageLongPress = useCallback((message: MessageWithRelations) => {
     setSelectedMessage(message);
@@ -538,6 +546,11 @@ export const ChatScreen: React.FC = () => {
             minIndexForVisible: 0,
           }}
           keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            !loading && messages.length === 0 ? (
+              <EmptyChatState conversationName="Contact" />
+            ) : null
+          }
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.loadingMore}>
