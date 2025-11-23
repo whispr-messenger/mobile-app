@@ -107,7 +107,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ) : null}
           {hasMedia && firstAttachment && firstAttachment.metadata ? (
             <MediaMessage
-              uri={firstAttachment.metadata.thumbnail_url || ''}
+              uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
               type={firstAttachment.media_type}
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
@@ -157,7 +157,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : null}
         {hasMedia && firstAttachment && firstAttachment.metadata ? (
           <MediaMessage
-            uri={firstAttachment.metadata.thumbnail_url || ''}
+            uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
             type={firstAttachment.media_type}
             filename={firstAttachment.metadata.filename}
             size={firstAttachment.metadata.size}
