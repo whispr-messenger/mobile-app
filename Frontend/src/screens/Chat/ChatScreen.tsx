@@ -17,6 +17,7 @@ import { MessageInput } from '../../components/Chat/MessageInput';
 import { TypingIndicator } from '../../components/Chat/TypingIndicator';
 import { MessageActionsMenu } from '../../components/Chat/MessageActionsMenu';
 import { ReactionPicker } from '../../components/Chat/ReactionPicker';
+import { DateSeparator } from '../../components/Chat/DateSeparator';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
@@ -387,7 +388,7 @@ export const ChatScreen: React.FC = () => {
         >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={messagesWithSeparators}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           inverted
