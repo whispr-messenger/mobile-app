@@ -101,8 +101,18 @@ export const ChatScreen: React.FC = () => {
     },
   });
 
+  const loadPinnedMessages = useCallback(async () => {
+    try {
+      const pinned = await messagingAPI.getPinnedMessages(conversationId);
+      setPinnedMessages(pinned);
+    } catch (error) {
+      // Ignore errors for pinned messages
+    }
+  }, [conversationId]);
+
   useEffect(() => {
     loadMessages();
+    loadPinnedMessages();
     // Join conversation channel
     const channel = joinConversationChannel(conversationId);
     conversationChannelRef.current = channel;
@@ -110,7 +120,7 @@ export const ChatScreen: React.FC = () => {
     return () => {
       channel?.leave();
     };
-  }, [conversationId, joinConversationChannel]);
+  }, [conversationId, joinConversationChannel, loadMessages, loadPinnedMessages]);
 
   const loadMessages = useCallback(async (before?: string) => {
     try {
@@ -264,12 +274,32 @@ export const ChatScreen: React.FC = () => {
     [userId]
   );
 
-  const handleReplyPress = useCallback(
-    (messageId: string) => {
-      scrollToMessage(messageId);
-    },
-    []
-  );
+  // Group messages by date and add date separators
+  const messagesWithSeparators = useMemo(() => {
+    if (messages.length === 0) return [];
+
+    const result: Array<MessageWithRelations | { type: 'date'; date: Date; id: string }> = [];
+    let lastDate: string | null = null;
+
+    messages.forEach((message) => {
+      const messageDate = new Date(message.sent_at);
+      const dateKey = messageDate.toDateString();
+
+      // Add date separator if date changed
+      if (lastDate !== dateKey) {
+        result.push({
+          type: 'date',
+          date: messageDate,
+          id: `date-${dateKey}`,
+        } as any);
+        lastDate = dateKey;
+      }
+
+      result.push(message);
+    });
+
+    return result;
+  }, [messages]);
 
   const scrollToMessage = useCallback((messageId: string) => {
     const index = messagesWithSeparators.findIndex(
@@ -288,6 +318,13 @@ export const ChatScreen: React.FC = () => {
       }
     }
   }, [messagesWithSeparators]);
+
+  const handleReplyPress = useCallback(
+    (messageId: string) => {
+      scrollToMessage(messageId);
+    },
+    [scrollToMessage]
+  );
 
   const handleMessageLongPress = useCallback((message: MessageWithRelations) => {
     setSelectedMessage(message);
@@ -362,33 +399,6 @@ export const ChatScreen: React.FC = () => {
     },
     [reactionPickerMessageId, handleReactionPress]
   );
-
-  // Group messages by date and add date separators
-  const messagesWithSeparators = useMemo(() => {
-    if (messages.length === 0) return [];
-
-    const result: Array<MessageWithRelations | { type: 'date'; date: Date; id: string }> = [];
-    let lastDate: string | null = null;
-
-    messages.forEach((message) => {
-      const messageDate = new Date(message.sent_at);
-      const dateKey = messageDate.toDateString();
-
-      // Add date separator if date changed
-      if (lastDate !== dateKey) {
-        result.push({
-          type: 'date',
-          date: messageDate,
-          id: `date-${dateKey}`,
-        } as any);
-        lastDate = dateKey;
-      }
-
-      result.push(message);
-    });
-
-    return result;
-  }, [messages]);
 
   // Handle search
   const handleSearch = useCallback((query: string) => {
