@@ -133,9 +133,12 @@ export const ChatScreen: React.FC = () => {
 
   useEffect(() => {
     console.log('[ChatScreen] Component mounted/updated, conversationId:', conversationId);
+    
+    // Load data
     loadConversation();
     loadMessages();
     loadPinnedMessages();
+    
     // Join conversation channel
     const channel = joinConversationChannel(conversationId);
     conversationChannelRef.current = channel;
@@ -145,7 +148,8 @@ export const ChatScreen: React.FC = () => {
       console.log('[ChatScreen] Component unmounting, leaving channel:', conversationId);
       channel?.leave();
     };
-  }, [conversationId, joinConversationChannel, loadMessages, loadPinnedMessages, loadConversation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, joinConversationChannel]);
 
   const loadMessages = useCallback(async (before?: string) => {
     console.log('[ChatScreen] Loading messages:', {
@@ -193,15 +197,11 @@ export const ChatScreen: React.FC = () => {
               // Ignore errors for attachments
             }
 
-            // Find reply_to message if exists (search in all messages, not just current page)
+            // Find reply_to message if exists (search in current batch only)
             let replyTo: Message | undefined;
             if (msg.reply_to_id) {
-              // First search in current batch
+              // Search in current batch
               replyTo = data.find(m => m.id === msg.reply_to_id);
-              // If not found, search in already loaded messages
-              if (!replyTo && messages.length > 0) {
-                replyTo = messages.find(m => m.id === msg.reply_to_id);
-              }
             }
 
             return {
