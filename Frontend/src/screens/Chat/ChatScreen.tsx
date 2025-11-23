@@ -152,6 +152,14 @@ export const ChatScreen: React.FC = () => {
               // Ignore errors for reactions
             }
 
+            // Load attachments for this message
+            let attachments = [];
+            try {
+              attachments = await messagingAPI.getAttachments(msg.id);
+            } catch (error) {
+              // Ignore errors for attachments
+            }
+
             // Find reply_to message if exists (search in all messages, not just current page)
             let replyTo: Message | undefined;
             if (msg.reply_to_id) {
@@ -167,6 +175,7 @@ export const ChatScreen: React.FC = () => {
               ...msg,
               status,
               reactions,
+              attachments,
               reply_to: replyTo,
             } as MessageWithRelations;
           })
@@ -252,6 +261,91 @@ export const ChatScreen: React.FC = () => {
       wsSendMessage(conversationId, content, 'text', tempMessage.client_random);
     },
     [conversationId, userId, wsSendMessage, sendTyping, editingMessage, replyingTo]
+  );
+
+  const handleSendMedia = useCallback(
+    async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => {
+      // Stop typing indicator
+      sendTyping(conversationId, false);
+
+      try {
+        // Create optimistic message
+        const tempMessage: MessageWithRelations = {
+          id: `temp-${Date.now()}`,
+          conversation_id: conversationId,
+          sender_id: userId,
+          message_type: 'media',
+          content: type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier',
+          metadata: {
+            media_type: type,
+            media_url: uri,
+            thumbnail_url: uri, // For now, use same URI for thumbnail
+          },
+          client_random: Math.floor(Math.random() * 1000000),
+          sent_at: new Date().toISOString(),
+          is_deleted: false,
+          delete_for_everyone: false,
+          status: 'sending',
+          reply_to_id: replyToId,
+          reply_to: replyingTo || undefined,
+          attachments: [
+            {
+              id: `att-temp-${Date.now()}`,
+              message_id: `temp-${Date.now()}`,
+              media_id: `media-temp-${Date.now()}`,
+              media_type: type,
+              metadata: {
+                filename: uri.split('/').pop() || 'media',
+                media_url: uri,
+                thumbnail_url: uri,
+              },
+              created_at: new Date().toISOString(),
+            },
+          ],
+        };
+
+        setMessages(prev => [tempMessage, ...prev]);
+        setReplyingTo(null);
+
+        // Send via API (mock for now)
+        const sentMessage = await messagingAPI.sendMessage(conversationId, {
+          content: tempMessage.content,
+          message_type: 'media',
+          client_random: tempMessage.client_random,
+          metadata: tempMessage.metadata,
+          reply_to_id: replyToId,
+        });
+
+        // Add attachment to mockStore
+        if (tempMessage.attachments && tempMessage.attachments[0]) {
+          mockStore.addAttachment(sentMessage.id, tempMessage.attachments[0]);
+        }
+
+        // Update message with real ID
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === tempMessage.id
+              ? {
+                  ...msg,
+                  id: sentMessage.id,
+                  status: 'sent' as const,
+                }
+              : msg
+          )
+        );
+      } catch (error) {
+        console.error('Error sending media:', error);
+        // Update message status to failed
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id.startsWith('temp-') && msg.status === 'sending'
+              ? { ...msg, status: 'failed' as const }
+              : msg
+          )
+        );
+      }
+    },
+    [conversationId, userId, sendTyping, replyingTo]
   );
 
   const handleReactionPress = useCallback(
@@ -574,6 +668,7 @@ export const ChatScreen: React.FC = () => {
         />
         <MessageInput
           onSend={handleSendMessage}
+          onSendMedia={handleSendMedia}
           onTyping={(typing) => sendTyping(conversationId, typing)}
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
