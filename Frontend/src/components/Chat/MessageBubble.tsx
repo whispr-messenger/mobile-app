@@ -45,7 +45,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const displayContent = message.is_deleted && message.delete_for_everyone
     ? '[Message supprimé]'
-    : message.content;
+    : message.content || '';
 
   // Check if message has media attachments
   const hasMedia = message.attachments && message.attachments.length > 0;
