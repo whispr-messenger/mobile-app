@@ -41,7 +41,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   // Safety check
-  if (!message || (!message.content && !message.is_deleted)) {
+  if (!message || (!message.content && !message.is_deleted && (!message.attachments || message.attachments.length === 0))) {
     return null;
   }
 
