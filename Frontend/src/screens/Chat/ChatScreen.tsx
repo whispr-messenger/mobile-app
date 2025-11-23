@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
 import { useTheme } from '../../context/ThemeContext';
-import { Message, MessageWithStatus, MessageWithRelations } from '../../types/messaging';
+import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { mockStore } from '../../services/messaging/mockStore';
 import { useWebSocket } from '../../hooks/useWebSocket';
@@ -33,6 +33,7 @@ type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route']
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const { conversationId } = route.params;
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -114,7 +115,17 @@ export const ChatScreen: React.FC = () => {
     }
   }, [conversationId]);
 
+  const loadConversation = useCallback(async () => {
+    try {
+      const conv = await messagingAPI.getConversation(conversationId);
+      setConversation(conv);
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+    }
+  }, [conversationId]);
+
   useEffect(() => {
+    loadConversation();
     loadMessages();
     loadPinnedMessages();
     // Join conversation channel
@@ -124,7 +135,7 @@ export const ChatScreen: React.FC = () => {
     return () => {
       channel?.leave();
     };
-  }, [conversationId, joinConversationChannel, loadMessages, loadPinnedMessages]);
+  }, [conversationId, joinConversationChannel, loadMessages, loadPinnedMessages, loadConversation]);
 
   const loadMessages = useCallback(async (before?: string) => {
     try {
@@ -631,8 +642,8 @@ export const ChatScreen: React.FC = () => {
     >
       <SafeAreaView style={styles.container} edges={['top']}>
         <ChatHeader
-          conversationName="Contact"
-          conversationType="direct"
+          conversationName={conversation?.display_name || 'Contact'}
+          conversationType={conversation?.type || 'direct'}
           isOnline={false}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
@@ -746,7 +757,7 @@ export const ChatScreen: React.FC = () => {
                   Nom
                 </Text>
                 <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  Contact
+                  {conversation?.display_name || 'Contact'}
                 </Text>
               </View>
               <View style={styles.infoSection}>
@@ -754,17 +765,19 @@ export const ChatScreen: React.FC = () => {
                   Type
                 </Text>
                 <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  Conversation directe
+                  {conversation?.type === 'group' ? 'Groupe' : 'Conversation directe'}
                 </Text>
               </View>
-              <View style={styles.infoSection}>
-                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                  Statut
-                </Text>
-                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  Hors ligne
-                </Text>
-              </View>
+              {conversation?.type === 'direct' && (
+                <View style={styles.infoSection}>
+                  <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
+                    Statut
+                  </Text>
+                  <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
+                    Hors ligne
+                  </Text>
+                </View>
+              )}
               <View style={styles.infoSection}>
                 <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
                   Messages

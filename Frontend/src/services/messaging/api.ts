@@ -558,7 +558,15 @@ export const messagingAPI = {
   async getConversation(id: string): Promise<Conversation> {
     await mockDelay(400);
     
-    throw new Error('Not implemented');
+    // Get conversation from mock conversations list
+    const conversations = await this.getConversations();
+    const conversation = conversations.find(c => c.id === id);
+    
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+    
+    return conversation;
   },
 
   /**
