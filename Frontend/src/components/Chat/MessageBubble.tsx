@@ -134,7 +134,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 {' '}édité
               </Text>
             ) : null}
-            <DeliveryStatus status={message.status || 'sent'} />
+            {message.status ? <DeliveryStatus status={message.status} /> : null}
           </View>
         </LinearGradient>
       );
