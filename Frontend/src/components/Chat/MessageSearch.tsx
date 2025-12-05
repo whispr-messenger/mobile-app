@@ -2,7 +2,7 @@
  * MessageSearch - Search bar for messages in conversation
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -31,7 +31,15 @@ export const MessageSearch: React.FC<MessageSearchProps> = ({
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
+  // Reset query when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setQuery('');
+    }
+  }, [visible]);
+
   const handleSearch = (text: string) => {
+    console.log('[MessageSearch] Text changed:', text);
     setQuery(text);
     onSearch(text);
   };

@@ -593,7 +593,9 @@ export const ChatScreen: React.FC = () => {
 
   // Handle search
   const handleSearch = useCallback((query: string) => {
+    console.log('[ChatScreen] handleSearch called with query:', query);
     setSearchQuery(query);
+    
     if (query.trim()) {
       try {
         const results = messages.filter(msg => {
@@ -603,25 +605,30 @@ export const ChatScreen: React.FC = () => {
           if (!msg.content) return false;
           return msg.content.toLowerCase().includes(query.toLowerCase());
         });
+        
+        console.log('[ChatScreen] Search results found:', results.length);
         setSearchResults(results);
         setCurrentSearchIndex(0);
         
-        // Scroll to first result
+        // Scroll to first result after a short delay to ensure list is rendered
         if (results.length > 0 && flatListRef.current) {
-          const firstResultIndex = messagesWithSeparators.findIndex(
-            item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
-          );
-          if (firstResultIndex !== -1) {
-            try {
-              flatListRef.current.scrollToIndex({
-                index: firstResultIndex,
-                animated: true,
-                viewPosition: 0.5,
-              });
-            } catch (error) {
-              console.warn(`[ChatScreen] Error scrolling to search result: ${error}`);
+          setTimeout(() => {
+            const firstResultIndex = messagesWithSeparators.findIndex(
+              item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
+            );
+            
+            if (firstResultIndex !== -1 && flatListRef.current) {
+              try {
+                flatListRef.current.scrollToIndex({
+                  index: firstResultIndex,
+                  animated: true,
+                  viewPosition: 0.5,
+                });
+              } catch (error) {
+                console.warn(`[ChatScreen] Error scrolling to search result: ${error}`);
+              }
             }
-          }
+          }, 100);
         }
       } catch (error) {
         console.error('[ChatScreen] Error in search:', error);
