@@ -1,0 +1,2 @@
+export { ContactsScreen } from './ContactsScreen';
+
