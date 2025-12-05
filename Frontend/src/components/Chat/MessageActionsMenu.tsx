@@ -19,6 +19,8 @@ interface MessageActionsMenuProps {
   onEdit?: () => void;
   onDelete?: (deleteForEveryone: boolean) => void;
   onReact?: () => void;
+  onPin?: () => void;
+  isPinned?: boolean;
 }
 
 export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
@@ -30,6 +32,8 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   onEdit,
   onDelete,
   onReact,
+  onPin,
+  isPinned = false,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -118,6 +122,29 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                   Modifier
                 </Text>
               </TouchableOpacity>
+            )}
+
+            {onPin && (
+              <>
+                <View style={styles.separator} />
+                <TouchableOpacity
+                  style={styles.actionItem}
+                  onPress={() => {
+                    onPin();
+                    onClose();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={isPinned ? 'pin' : 'pin-outline'}
+                    size={20}
+                    color={colors.primary.main}
+                  />
+                  <Text style={[styles.actionText, { color: colors.text.light }]}>
+                    {isPinned ? 'Désépingler' : 'Épingler'}
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
 
             {canDelete && onDelete && (
