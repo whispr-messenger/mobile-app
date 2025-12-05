@@ -15,6 +15,8 @@ import { SecurityKeysScreen } from '../screens/Security/SecurityKeysScreen';
 import { TwoFactorAuthScreen } from '../screens/Security/TwoFactorAuthScreen';
 import { ConversationsListScreen } from '../screens/Chat/ConversationsListScreen';
 import { ChatScreen } from '../screens/Chat/ChatScreen';
+import { ContactsScreen } from '../screens/Contacts/ContactsScreen';
+import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -27,6 +29,8 @@ export type AuthStackParamList = {
   TwoFactorAuth: undefined;
   ConversationsList: undefined;
   Chat: { conversationId: string };
+  Contacts: undefined;
+  BlockedUsers: undefined;
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -65,6 +69,8 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen name="ConversationsList" component={ConversationsListScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="Contacts" component={ContactsScreen} />
+      <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
     </Stack.Navigator>
   );
 };
