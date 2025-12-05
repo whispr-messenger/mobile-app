@@ -130,11 +130,6 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                 <TouchableOpacity
                   style={styles.actionItem}
                   onPress={() => {
-                    console.log('[MessageActionsMenu] Pin action pressed:', {
-                      messageId: message?.id,
-                      isPinned,
-                      action: isPinned ? 'unpin' : 'pin',
-                    });
                     onPin();
                     onClose();
                   }}

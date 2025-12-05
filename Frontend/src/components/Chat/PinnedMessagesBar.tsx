@@ -24,15 +24,7 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  console.log('[PinnedMessagesBar] Rendering with pinned messages:', {
-    count: pinnedMessages.length,
-    messageIds: pinnedMessages.map(m => m.id),
-  });
-
-  if (pinnedMessages.length === 0) {
-    console.log('[PinnedMessagesBar] No pinned messages, not rendering');
-    return null;
-  }
+  if (pinnedMessages.length === 0) return null;
 
   return (
     <LinearGradient
