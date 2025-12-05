@@ -108,13 +108,9 @@ export const ChatScreen: React.FC = () => {
   });
 
   const loadPinnedMessages = useCallback(async () => {
-    console.log('[ChatScreen] Loading pinned messages for conversation:', conversationId);
     try {
       const pinned = await messagingAPI.getPinnedMessages(conversationId);
-      console.log('[ChatScreen] Pinned messages loaded:', {
-        count: pinned.length,
-        messageIds: pinned.map(m => m.id),
-      });
+      console.log(`[ChatScreen] Pinned messages loaded: ${pinned.length}`);
       setPinnedMessages(pinned);
     } catch (error) {
       console.error('[ChatScreen] Error loading pinned messages:', error);
@@ -455,44 +451,22 @@ export const ChatScreen: React.FC = () => {
   }, [messages]);
 
   const scrollToMessage = useCallback((messageId: string) => {
-    console.log('[ChatScreen] scrollToMessage called:', {
-      messageId,
-      totalItems: messagesWithSeparators.length,
-    });
-    
     const index = messagesWithSeparators.findIndex(
       item => !(item as any).type && (item as MessageWithRelations).id === messageId
     );
     
-    console.log('[ChatScreen] Message index found:', {
-      messageId,
-      index,
-      found: index !== -1,
-    });
-    
     if (index !== -1 && flatListRef.current) {
       try {
-        console.log('[ChatScreen] Attempting to scroll to index:', index);
         flatListRef.current.scrollToIndex({
           index,
           animated: true,
           viewPosition: 0.5,
         });
-        console.log('[ChatScreen] Scroll command executed successfully');
       } catch (error) {
-        console.error('[ChatScreen] Error scrolling to message:', {
-          error,
-          messageId,
-          index,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        });
+        console.error(`[ChatScreen] Error scrolling to message ${messageId}:`, error);
       }
     } else {
-      console.warn('[ChatScreen] Cannot scroll to message:', {
-        messageId,
-        index,
-        flatListRefExists: !!flatListRef.current,
-      });
+      console.warn(`[ChatScreen] Cannot scroll to message ${messageId} (index: ${index})`);
     }
   }, [messagesWithSeparators]);
 
@@ -504,15 +478,9 @@ export const ChatScreen: React.FC = () => {
   );
 
   const handleMessageLongPress = useCallback((message: MessageWithRelations) => {
-    console.log('[ChatScreen] Message long pressed:', {
-      messageId: message.id,
-      messageType: message.message_type,
-      isPinned: pinnedMessages.some(m => m.id === message.id),
-    });
     setSelectedMessage(message);
     setShowActionsMenu(true);
-    console.log('[ChatScreen] Actions menu opened');
-  }, [pinnedMessages]);
+  }, []);
 
   const handleEditMessage = useCallback(() => {
     if (selectedMessage) {
@@ -573,78 +541,43 @@ export const ChatScreen: React.FC = () => {
   }, [selectedMessage]);
 
   const handlePinMessage = useCallback(async () => {
-    if (!selectedMessage) {
-      console.warn('[ChatScreen] handlePinMessage called but no message selected');
-      return;
-    }
-
-    console.log('[ChatScreen] handlePinMessage called:', {
-      messageId: selectedMessage.id,
-      conversationId,
-      currentPinnedCount: pinnedMessages.length,
-    });
+    if (!selectedMessage) return;
 
     try {
       const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
-      console.log('[ChatScreen] Message pin status:', {
-        messageId: selectedMessage.id,
-        isCurrentlyPinned,
-        action: isCurrentlyPinned ? 'unpin' : 'pin',
-      });
+      const action = isCurrentlyPinned ? 'unpin' : 'pin';
       
       if (isCurrentlyPinned) {
-        console.log('[ChatScreen] Unpinning message...');
         await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
-        console.log('[ChatScreen] Message successfully unpinned:', selectedMessage.id);
       } else {
-        console.log('[ChatScreen] Pinning message...');
         await messagingAPI.pinMessage(conversationId, selectedMessage.id);
-        console.log('[ChatScreen] Message successfully pinned:', selectedMessage.id);
       }
       
-      // Reload pinned messages
-      console.log('[ChatScreen] Reloading pinned messages...');
+      console.log(`[ChatScreen] Message ${action}ned: ${selectedMessage.id}`);
       await loadPinnedMessages();
-      console.log('[ChatScreen] Pinned messages reloaded');
       
-      // Update message in list
-      setMessages(prev => {
-        const updated = prev.map(msg =>
+      setMessages(prev =>
+        prev.map(msg =>
           msg.id === selectedMessage.id
             ? { ...msg, is_pinned: !isCurrentlyPinned }
             : msg
-        );
-        console.log('[ChatScreen] Message list updated with new pin status');
-        return updated;
-      });
+        )
+      );
     } catch (error) {
-      console.error('[ChatScreen] Error pinning/unpinning message:', {
-        error,
-        messageId: selectedMessage.id,
-        conversationId,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      });
+      const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
+      console.error(`[ChatScreen] Error ${isCurrentlyPinned ? 'unpinning' : 'pinning'} message:`, error);
     }
   }, [selectedMessage, conversationId, pinnedMessages, loadPinnedMessages]);
 
   const handlePinnedMessagePress = useCallback(
     (messageId: string) => {
-      console.log('[ChatScreen] Pinned message pressed:', {
-        messageId,
-        totalMessages: messages.length,
-        pinnedMessagesCount: pinnedMessages.length,
-      });
-      
-      const messageExists = messages.some(m => m.id === messageId);
-      if (!messageExists) {
-        console.warn('[ChatScreen] Pinned message not found in current messages:', messageId);
+      if (!messages.some(m => m.id === messageId)) {
+        console.warn(`[ChatScreen] Pinned message not found: ${messageId}`);
         return;
       }
-      
-      console.log('[ChatScreen] Scrolling to pinned message...');
       scrollToMessage(messageId);
     },
-    [scrollToMessage, messages, pinnedMessages]
+    [scrollToMessage, messages]
   );
 
   const handleReactionSelectFromPicker = useCallback(
@@ -762,7 +695,7 @@ export const ChatScreen: React.FC = () => {
       }
 
       const isSent = message.sender_id === userId;
-      const isHighlighted = searchQuery.trim() && searchResults.some(r => r.id === message.id);
+      const isHighlighted = Boolean(searchQuery.trim() && searchResults.some(r => r.id === message.id));
       
       return (
         <MessageBubble
@@ -807,14 +740,8 @@ export const ChatScreen: React.FC = () => {
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar
             pinnedMessages={pinnedMessages}
-            onMessagePress={(messageId) => {
-              console.log('[ChatScreen] PinnedMessagesBar message pressed:', messageId);
-              handlePinnedMessagePress(messageId);
-            }}
-            onClose={() => {
-              console.log('[ChatScreen] PinnedMessagesBar closed');
-              setShowPinnedBar(false);
-            }}
+            onMessagePress={handlePinnedMessagePress}
+            onClose={() => setShowPinnedBar(false)}
           />
         )}
         <KeyboardAvoidingView
