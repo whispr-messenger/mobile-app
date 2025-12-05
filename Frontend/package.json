@@ -19,6 +19,7 @@
     "@react-navigation/stack": "^7.4.8",
     "expo": "~54.0.0",
     "expo-contacts": "~15.0.11",
+    "expo-crypto": "^15.0.8",
     "expo-haptics": "~15.0.7",
     "expo-image-picker": "^17.0.8",
     "expo-linear-gradient": "^15.0.7",
