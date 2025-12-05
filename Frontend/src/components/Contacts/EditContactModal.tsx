@@ -274,9 +274,9 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
               <Ionicons
                 name="ban-outline"
                 size={20}
-                color={colors.ui.warning}
+                color={colors.primary.main}
               />
-              <Text style={[styles.actionButtonText, { color: colors.ui.warning }]}>
+              <Text style={[styles.actionButtonText, { color: colors.primary.main }]}>
                 Bloquer l'utilisateur
               </Text>
             </TouchableOpacity>
@@ -287,9 +287,9 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
               <Ionicons
                 name="trash-outline"
                 size={20}
-                color={colors.ui.error}
+                color={colors.primary.dark}
               />
-              <Text style={[styles.actionButtonText, { color: colors.ui.error }]}>
+              <Text style={[styles.actionButtonText, { color: colors.primary.dark }]}>
                 Supprimer le contact
               </Text>
             </TouchableOpacity>
@@ -397,10 +397,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   blockButton: {
-    backgroundColor: 'rgba(240, 72, 130, 0.1)',
+    backgroundColor: 'rgba(254, 122, 92, 0.15)',
   },
   deleteButton: {
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    backgroundColor: 'rgba(249, 102, 69, 0.15)',
   },
   actionButtonText: {
     fontSize: 16,
