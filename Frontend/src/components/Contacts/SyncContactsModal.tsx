@@ -25,6 +25,7 @@ import { contactsAPI } from '../../services/contacts/api';
 import { Avatar } from '../Chat/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { normalizePhoneToE164, hashPhoneNumber } from '../../utils/phoneUtils';
 
 interface SyncContactsModalProps {
   visible: boolean;
