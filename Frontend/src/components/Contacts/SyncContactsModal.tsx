@@ -56,16 +56,31 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
     try {
       setLoading(true);
       
-      // Request permission
-      const { status } = await Contacts.requestPermissionsAsync();
+      // Check current permission status first
+      const { status: currentStatus } = await Contacts.getPermissionsAsync();
       
-      if (status !== 'granted') {
+      // If permission was denied, don't ask again
+      if (currentStatus === 'denied') {
         Alert.alert(
-          'Permission requise',
-          'L\'accès aux contacts est nécessaire pour synchroniser vos contacts.',
+          'Permission refusée',
+          'L\'accès aux contacts a été refusé. Vous pouvez l\'activer dans les paramètres de l\'application.',
           [{ text: 'OK', onPress: onClose }],
         );
         return;
+      }
+      
+      // Request permission only if not already granted
+      if (currentStatus !== 'granted') {
+        const { status } = await Contacts.requestPermissionsAsync();
+        
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission requise',
+            'L\'accès aux contacts est nécessaire pour synchroniser vos contacts.',
+            [{ text: 'OK', onPress: onClose }],
+          );
+          return;
+        }
       }
 
       // Load contacts
