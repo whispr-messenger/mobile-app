@@ -210,6 +210,30 @@ export const ContactsScreen: React.FC = () => {
               Synchroniser
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+            ]}
+            onPress={() => {
+              // @ts-ignore - navigation type will be fixed later
+              navigation.navigate('BlockedUsers');
+            }}
+          >
+            <Ionicons
+              name="ban-outline"
+              size={16}
+              color={themeColors.text.secondary}
+            />
+            <Text
+              style={[
+                styles.filterText,
+                { color: themeColors.text.secondary },
+              ]}
+            >
+              Bloqués
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Contacts List */}

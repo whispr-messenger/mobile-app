@@ -23,6 +23,7 @@ import { contactsAPI } from '../../services/contacts/api';
 import { Avatar } from '../Chat/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { useNavigation } from '@react-navigation/native';
 
 interface EditContactModalProps {
   visible: boolean;
@@ -42,6 +43,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
   const [saving, setSaving] = useState(false);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+  const navigation = useNavigation();
 
   useEffect(() => {
     if (contact) {
@@ -233,10 +235,53 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
             </View>
           </View>
 
-          {/* Delete Button */}
-          <View style={styles.deleteSection}>
+          {/* Actions */}
+          <View style={styles.actionsSection}>
             <TouchableOpacity
-              style={styles.deleteButton}
+              style={[styles.actionButton, styles.blockButton]}
+              onPress={async () => {
+                if (!contact?.contact_user) return;
+                Alert.alert(
+                  'Bloquer l\'utilisateur',
+                  'Êtes-vous sûr de vouloir bloquer cet utilisateur ?',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    {
+                      text: 'Bloquer',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          await contactsAPI.blockUser(contact.contact_user!.id);
+                          Alert.alert('Succès', 'Utilisateur bloqué', [
+                            {
+                              text: 'OK',
+                              onPress: () => {
+                                onContactUpdated();
+                                handleClose();
+                              },
+                            },
+                          ]);
+                        } catch (error: any) {
+                          console.error('[EditContactModal] Error blocking user:', error);
+                          Alert.alert('Erreur', error.message || 'Impossible de bloquer l\'utilisateur');
+                        }
+                      },
+                    },
+                  ],
+                );
+              }}
+            >
+              <Ionicons
+                name="ban-outline"
+                size={20}
+                color={colors.ui.warning}
+              />
+              <Text style={[styles.actionButtonText, { color: colors.ui.warning }]}>
+                Bloquer l'utilisateur
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
               onPress={handleDelete}
             >
               <Ionicons
@@ -244,7 +289,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                 size={20}
                 color={colors.ui.error}
               />
-              <Text style={[styles.deleteButtonText, { color: colors.ui.error }]}>
+              <Text style={[styles.actionButtonText, { color: colors.ui.error }]}>
                 Supprimer le contact
               </Text>
             </TouchableOpacity>
@@ -337,21 +382,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  deleteSection: {
+  actionsSection: {
     marginTop: 'auto',
     paddingHorizontal: 16,
     paddingBottom: 32,
+    gap: 12,
   },
-  deleteButton: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
     gap: 8,
   },
-  deleteButtonText: {
+  blockButton: {
+    backgroundColor: 'rgba(240, 72, 130, 0.1)',
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+  actionButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
