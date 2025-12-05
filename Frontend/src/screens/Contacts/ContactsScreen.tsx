@@ -21,6 +21,7 @@ import { Contact, ContactSearchParams } from '../../types/contact';
 import { contactsAPI } from '../../services/contacts/api';
 import { ContactItem } from '../../components/Contacts/ContactItem';
 import { AddContactModal } from '../../components/Contacts/AddContactModal';
+import { EditContactModal } from '../../components/Contacts/EditContactModal';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 
@@ -33,6 +34,7 @@ export const ContactsScreen: React.FC = () => {
   const [sortBy, setSortBy] = useState<ContactSearchParams['sort']>('name');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -74,8 +76,7 @@ export const ContactsScreen: React.FC = () => {
 
   // Handle contact long press
   const handleContactLongPress = useCallback((contact: Contact) => {
-    // TODO: Show action menu (edit, delete, block)
-    console.log('[ContactsScreen] Contact long pressed:', contact.id);
+    setEditingContact(contact);
   }, []);
 
   // Filtered and sorted contacts
@@ -232,6 +233,14 @@ export const ContactsScreen: React.FC = () => {
             visible={showAddModal}
             onClose={() => setShowAddModal(false)}
             onContactAdded={loadContacts}
+          />
+
+          {/* Edit Contact Modal */}
+          <EditContactModal
+            visible={!!editingContact}
+            contact={editingContact}
+            onClose={() => setEditingContact(null)}
+            onContactUpdated={loadContacts}
           />
         </SafeAreaView>
       </LinearGradient>
