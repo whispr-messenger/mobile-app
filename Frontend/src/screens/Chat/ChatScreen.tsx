@@ -595,29 +595,38 @@ export const ChatScreen: React.FC = () => {
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     if (query.trim()) {
-      const results = messages.filter(msg => {
-        if (msg.message_type === 'system') return false;
-        return msg.content?.toLowerCase().includes(query.toLowerCase());
-      });
-      setSearchResults(results);
-      setCurrentSearchIndex(0);
-      
-      // Scroll to first result
-      if (results.length > 0 && flatListRef.current) {
-        const firstResultIndex = messagesWithSeparators.findIndex(
-          item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
-        );
-        if (firstResultIndex !== -1) {
-          try {
-            flatListRef.current.scrollToIndex({
-              index: firstResultIndex,
-              animated: true,
-              viewPosition: 0.5,
-            });
-          } catch (error) {
-            // Ignore scroll errors
+      try {
+        const results = messages.filter(msg => {
+          // Skip system messages and deleted messages
+          if (msg.message_type === 'system' || msg.is_deleted) return false;
+          // Check if message has content and matches query
+          if (!msg.content) return false;
+          return msg.content.toLowerCase().includes(query.toLowerCase());
+        });
+        setSearchResults(results);
+        setCurrentSearchIndex(0);
+        
+        // Scroll to first result
+        if (results.length > 0 && flatListRef.current) {
+          const firstResultIndex = messagesWithSeparators.findIndex(
+            item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
+          );
+          if (firstResultIndex !== -1) {
+            try {
+              flatListRef.current.scrollToIndex({
+                index: firstResultIndex,
+                animated: true,
+                viewPosition: 0.5,
+              });
+            } catch (error) {
+              console.warn(`[ChatScreen] Error scrolling to search result: ${error}`);
+            }
           }
         }
+      } catch (error) {
+        console.error('[ChatScreen] Error in search:', error);
+        setSearchResults([]);
+        setCurrentSearchIndex(0);
       }
     } else {
       setSearchResults([]);
@@ -626,45 +635,65 @@ export const ChatScreen: React.FC = () => {
   }, [messages, messagesWithSeparators]);
 
   const handleSearchNext = useCallback(() => {
-    if (currentSearchIndex < searchResults.length - 1) {
-      const newIndex = currentSearchIndex + 1;
-      setCurrentSearchIndex(newIndex);
-      const result = searchResults[newIndex];
-      const resultIndex = messagesWithSeparators.findIndex(
-        item => !(item as any).type && (item as MessageWithRelations).id === result.id
-      );
-      if (resultIndex !== -1 && flatListRef.current) {
-        try {
-          flatListRef.current.scrollToIndex({
-            index: resultIndex,
-            animated: true,
-            viewPosition: 0.5,
-          });
-        } catch (error) {
-          // Ignore scroll errors
+    if (currentSearchIndex < searchResults.length - 1 && searchResults.length > 0) {
+      try {
+        const newIndex = currentSearchIndex + 1;
+        setCurrentSearchIndex(newIndex);
+        const result = searchResults[newIndex];
+        if (!result) {
+          console.warn('[ChatScreen] Search result not found at index:', newIndex);
+          return;
         }
+        const resultIndex = messagesWithSeparators.findIndex(
+          item => !(item as any).type && (item as MessageWithRelations).id === result.id
+        );
+        if (resultIndex !== -1 && flatListRef.current) {
+          try {
+            flatListRef.current.scrollToIndex({
+              index: resultIndex,
+              animated: true,
+              viewPosition: 0.5,
+            });
+          } catch (error) {
+            console.warn(`[ChatScreen] Error scrolling to next search result: ${error}`);
+          }
+        } else {
+          console.warn(`[ChatScreen] Search result not found in messages list: ${result.id}`);
+        }
+      } catch (error) {
+        console.error('[ChatScreen] Error in handleSearchNext:', error);
       }
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
   const handleSearchPrevious = useCallback(() => {
-    if (currentSearchIndex > 0) {
-      const newIndex = currentSearchIndex - 1;
-      setCurrentSearchIndex(newIndex);
-      const result = searchResults[newIndex];
-      const resultIndex = messagesWithSeparators.findIndex(
-        item => !(item as any).type && (item as MessageWithRelations).id === result.id
-      );
-      if (resultIndex !== -1 && flatListRef.current) {
-        try {
-          flatListRef.current.scrollToIndex({
-            index: resultIndex,
-            animated: true,
-            viewPosition: 0.5,
-          });
-        } catch (error) {
-          // Ignore scroll errors
+    if (currentSearchIndex > 0 && searchResults.length > 0) {
+      try {
+        const newIndex = currentSearchIndex - 1;
+        setCurrentSearchIndex(newIndex);
+        const result = searchResults[newIndex];
+        if (!result) {
+          console.warn('[ChatScreen] Search result not found at index:', newIndex);
+          return;
         }
+        const resultIndex = messagesWithSeparators.findIndex(
+          item => !(item as any).type && (item as MessageWithRelations).id === result.id
+        );
+        if (resultIndex !== -1 && flatListRef.current) {
+          try {
+            flatListRef.current.scrollToIndex({
+              index: resultIndex,
+              animated: true,
+              viewPosition: 0.5,
+            });
+          } catch (error) {
+            console.warn(`[ChatScreen] Error scrolling to previous search result: ${error}`);
+          }
+        } else {
+          console.warn(`[ChatScreen] Search result not found in messages list: ${result.id}`);
+        }
+      } catch (error) {
+        console.error('[ChatScreen] Error in handleSearchPrevious:', error);
       }
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);

@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
@@ -145,4 +145,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
 });
+
+
+
 
