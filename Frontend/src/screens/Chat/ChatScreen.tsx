@@ -536,6 +536,44 @@ export const ChatScreen: React.FC = () => {
     }
   }, [selectedMessage]);
 
+  const handlePinMessage = useCallback(async () => {
+    if (!selectedMessage) return;
+
+    try {
+      const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
+      
+      if (isCurrentlyPinned) {
+        await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
+        console.log('[ChatScreen] Message unpinned:', selectedMessage.id);
+      } else {
+        await messagingAPI.pinMessage(conversationId, selectedMessage.id);
+        console.log('[ChatScreen] Message pinned:', selectedMessage.id);
+      }
+      
+      // Reload pinned messages
+      await loadPinnedMessages();
+      
+      // Update message in list
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === selectedMessage.id
+            ? { ...msg, is_pinned: !isCurrentlyPinned }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error('[ChatScreen] Error pinning/unpinning message:', error);
+    }
+  }, [selectedMessage, conversationId, pinnedMessages, loadPinnedMessages]);
+
+  const handlePinnedMessagePress = useCallback(
+    (messageId: string) => {
+      console.log('[ChatScreen] Pinned message pressed:', messageId);
+      scrollToMessage(messageId);
+    },
+    [scrollToMessage]
+  );
+
   const handleReactionSelectFromPicker = useCallback(
     async (emoji: string) => {
       if (reactionPickerMessageId) {
@@ -693,6 +731,13 @@ export const ChatScreen: React.FC = () => {
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
         />
+        {showPinnedBar && pinnedMessages.length > 0 && (
+          <PinnedMessagesBar
+            pinnedMessages={pinnedMessages}
+            onMessagePress={handlePinnedMessagePress}
+            onClose={() => setShowPinnedBar(false)}
+          />
+        )}
         <KeyboardAvoidingView
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -745,6 +790,7 @@ export const ChatScreen: React.FC = () => {
         visible={showActionsMenu}
         message={selectedMessage}
         isSent={selectedMessage?.sender_id === userId}
+        isPinned={pinnedMessages.some(m => m.id === selectedMessage?.id)}
         onClose={() => {
           setShowActionsMenu(false);
           setSelectedMessage(null);
@@ -753,6 +799,7 @@ export const ChatScreen: React.FC = () => {
         onEdit={handleEditMessage}
         onDelete={handleDeleteMessage}
         onReact={handleStartReaction}
+        onPin={handlePinMessage}
       />
       {showReactionPicker && (
         <ReactionPicker
