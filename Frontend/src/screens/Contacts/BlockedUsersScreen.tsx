@@ -189,7 +189,7 @@ export const BlockedUsersScreen: React.FC = () => {
               Aucun utilisateur bloqué
             </Text>
             <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
-              Les utilisateurs que vous bloquez n'apparaîtront pas ici
+              Les utilisateurs que vous bloquez apparaîtront ici
             </Text>
           </View>
         ) : (
