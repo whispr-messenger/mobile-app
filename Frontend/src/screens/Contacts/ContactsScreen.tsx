@@ -22,6 +22,7 @@ import { contactsAPI } from '../../services/contacts/api';
 import { ContactItem } from '../../components/Contacts/ContactItem';
 import { AddContactModal } from '../../components/Contacts/AddContactModal';
 import { EditContactModal } from '../../components/Contacts/EditContactModal';
+import { SyncContactsModal } from '../../components/Contacts/SyncContactsModal';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 
@@ -34,6 +35,7 @@ export const ContactsScreen: React.FC = () => {
   const [sortBy, setSortBy] = useState<ContactSearchParams['sort']>('name');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -187,6 +189,27 @@ export const ContactsScreen: React.FC = () => {
               Favoris
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+            ]}
+            onPress={() => setShowSyncModal(true)}
+          >
+            <Ionicons
+              name="sync"
+              size={16}
+              color={themeColors.text.secondary}
+            />
+            <Text
+              style={[
+                styles.filterText,
+                { color: themeColors.text.secondary },
+              ]}
+            >
+              Synchroniser
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Contacts List */}
@@ -241,6 +264,13 @@ export const ContactsScreen: React.FC = () => {
             contact={editingContact}
             onClose={() => setEditingContact(null)}
             onContactUpdated={loadContacts}
+          />
+
+          {/* Sync Contacts Modal */}
+          <SyncContactsModal
+            visible={showSyncModal}
+            onClose={() => setShowSyncModal(false)}
+            onContactsSynced={loadContacts}
           />
         </SafeAreaView>
       </LinearGradient>
