@@ -49,7 +49,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
     if (visible) {
       requestPermissionAndLoad();
     } else {
-      // Reset state when modal closes
+      // Reset state when modal closes (but keep dismissed contacts)
       setMatches([]);
       setSelectedContacts(new Set());
     }
@@ -146,6 +146,16 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
       } else {
         newSet.add(userId);
       }
+      return newSet;
+    });
+  };
+
+  const handleDismiss = (userId: string) => {
+    setDismissedContacts(prev => new Set(prev).add(userId));
+    setMatches(prev => prev.filter(match => match.user.id !== userId));
+    setSelectedContacts(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(userId);
       return newSet;
     });
   };
