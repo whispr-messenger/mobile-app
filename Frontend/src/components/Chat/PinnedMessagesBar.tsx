@@ -24,7 +24,15 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  if (pinnedMessages.length === 0) return null;
+  console.log('[PinnedMessagesBar] Rendering with pinned messages:', {
+    count: pinnedMessages.length,
+    messageIds: pinnedMessages.map(m => m.id),
+  });
+
+  if (pinnedMessages.length === 0) {
+    console.log('[PinnedMessagesBar] No pinned messages, not rendering');
+    return null;
+  }
 
   return (
     <LinearGradient
@@ -55,7 +63,10 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
             <TouchableOpacity
               key={message.id}
               style={styles.pinnedItem}
-              onPress={() => onMessagePress(message.id)}
+              onPress={() => {
+                console.log('[PinnedMessagesBar] Pinned message item pressed:', message.id);
+                onMessagePress(message.id);
+              }}
               activeOpacity={0.7}
             >
               <Text
@@ -112,4 +123,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+
+
 
