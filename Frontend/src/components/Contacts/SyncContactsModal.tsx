@@ -13,6 +13,8 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -63,8 +65,26 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
       if (currentStatus === 'denied') {
         Alert.alert(
           'Permission refusée',
-          'L\'accès aux contacts a été refusé. Vous pouvez l\'activer dans les paramètres de l\'application.',
-          [{ text: 'OK', onPress: onClose }],
+          'L\'accès aux contacts a été refusé. Pour activer la synchronisation, allez dans les paramètres de l\'application et autorisez l\'accès aux contacts.',
+          [
+            { text: 'Annuler', style: 'cancel', onPress: onClose },
+            {
+              text: 'Ouvrir les paramètres',
+              onPress: async () => {
+                try {
+                  if (Platform.OS === 'ios') {
+                    await Linking.openURL('app-settings:');
+                  } else {
+                    await Linking.openSettings();
+                  }
+                } catch (error) {
+                  console.error('[SyncContactsModal] Error opening settings:', error);
+                  Alert.alert('Erreur', 'Impossible d\'ouvrir les paramètres');
+                }
+                onClose();
+              },
+            },
+          ],
         );
         return;
       }
