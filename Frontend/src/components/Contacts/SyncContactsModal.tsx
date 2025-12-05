@@ -505,6 +505,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
+  matchActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dismissButton: {
+    padding: 4,
+  },
   footer: {
     paddingHorizontal: 16,
     paddingVertical: 16,
