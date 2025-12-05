@@ -109,27 +109,63 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
       });
 
-      // Filter contacts with phone numbers
-      const phoneContacts: PhoneContact[] = data
-        .filter(contact => contact.phoneNumbers && contact.phoneNumbers.length > 0)
-        .map(contact => {
-          const phoneNumber = contact.phoneNumbers?.[0]?.number || '';
-          // Normalize phone number (remove spaces, dashes, etc.)
-          const normalized = phoneNumber.replace(/[\s\-\(\)]/g, '');
-          
-          // Simple hash simulation (in real app, would use proper hash)
-          const phoneHash = normalized; // Simplified for mock
-          
-          return {
-            name: contact.name || 'Contact',
-            phoneNumber: normalized,
-            phoneHash,
-          };
-        });
+      // Filter contacts with phone numbers and normalize
+      const phoneContactsWithNumbers: Array<{
+        name: string;
+        phoneNumber: string;
+        normalized: string;
+      }> = [];
 
-      // Match with users
+      for (const contact of data) {
+        if (contact.phoneNumbers && contact.phoneNumbers.length > 0) {
+          for (const phone of contact.phoneNumbers) {
+            if (phone.number) {
+              const normalized = normalizePhoneToE164(phone.number);
+              phoneContactsWithNumbers.push({
+                name: contact.name || 'Contact',
+                phoneNumber: phone.number,
+                normalized,
+              });
+            }
+          }
+        }
+      }
+
+      // Check limit of 1000 phone numbers per request (spec requirement)
+      if (phoneContactsWithNumbers.length > 1000) {
+        Alert.alert(
+          'Limite dépassée',
+          `Vous avez ${phoneContactsWithNumbers.length} contacts avec numéros. Seuls les 1000 premiers seront traités.`,
+          [{ text: 'OK' }],
+        );
+      }
+
+      // Limit to 1000 as per specifications
+      const limitedContacts = phoneContactsWithNumbers.slice(0, 1000);
+
+      // Hash phone numbers according to specifications
+      const phoneHashes = await Promise.all(
+        limitedContacts.map(contact => hashPhoneNumber(contact.normalized))
+      );
+
+      // Create PhoneContact objects with only hashes (no plain phone numbers)
+      const phoneContacts: PhoneContact[] = limitedContacts.map((contact, index) => ({
+        name: contact.name,
+        phoneHash: phoneHashes[index],
+        // Don't include phoneNumber in production - only hash is sent
+        // phoneNumber is kept only for display purposes in mock
+        phoneNumber: contact.phoneNumber, // For mock display only
+      }));
+
+      // Match with users (API receives only hashes)
       const matched = await contactsAPI.importPhoneContacts(phoneContacts);
-      setMatches(matched);
+      
+      // Filter out dismissed contacts (ne plus suggérer)
+      const filteredMatches = matched.filter(
+        match => !dismissedContacts.has(match.user.id)
+      );
+      
+      setMatches(filteredMatches);
     } catch (error) {
       console.error('[SyncContactsModal] Error loading contacts:', error);
       Alert.alert('Erreur', 'Impossible de charger les contacts');
@@ -248,13 +284,26 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
             @{user.username}
           </Text>
         </View>
-        {isSelected && (
-          <Ionicons
-            name="checkmark-circle"
-            size={24}
-            color={colors.primary.main}
-          />
-        )}
+        <View style={styles.matchActions}>
+          {isSelected && (
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={colors.primary.main}
+            />
+          )}
+          <TouchableOpacity
+            onPress={() => handleDismiss(user.id)}
+            style={styles.dismissButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name="close-circle-outline"
+              size={20}
+              color={themeColors.text.tertiary}
+            />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   };
