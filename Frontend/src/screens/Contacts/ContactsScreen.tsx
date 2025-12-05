@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Contact, ContactSearchParams } from '../../types/contact';
 import { contactsAPI } from '../../services/contacts/api';
 import { ContactItem } from '../../components/Contacts/ContactItem';
+import { AddContactModal } from '../../components/Contacts/AddContactModal';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 
@@ -31,6 +32,7 @@ export const ContactsScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<ContactSearchParams['sort']>('name');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -117,7 +119,10 @@ export const ContactsScreen: React.FC = () => {
           <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
             Contacts
           </Text>
-          <TouchableOpacity style={styles.addButton}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setShowAddModal(true)}
+          >
             <Ionicons
               name="add"
               size={24}
@@ -219,12 +224,19 @@ export const ContactsScreen: React.FC = () => {
               />
             }
             contentContainerStyle={styles.listContent}
+            />
+          )}
+
+          {/* Add Contact Modal */}
+          <AddContactModal
+            visible={showAddModal}
+            onClose={() => setShowAddModal(false)}
+            onContactAdded={loadContacts}
           />
-        )}
-      </SafeAreaView>
-    </LinearGradient>
-  );
-};
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  };
 
 const styles = StyleSheet.create({
   gradientContainer: {
