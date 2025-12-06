@@ -793,5 +793,43 @@ export const messagingAPI = {
     
     return mockStore.getAttachments(messageId);
   },
+
+  /**
+   * GET /api/v1/users/:id
+   * Get user information by ID
+   */
+  async getUserInfo(userId: string): Promise<{ id: string; display_name: string; username?: string } | null> {
+    await mockDelay(100);
+    
+    // Mock user data
+    const mockUsers: Record<string, { id: string; display_name: string; username?: string }> = {
+      'user-1': { id: 'user-1', display_name: 'Vous', username: 'vous' },
+      'user-2': { id: 'user-2', display_name: 'Elon Musk', username: 'elon' },
+      'user-3': { id: 'user-3', display_name: 'Bill Gates', username: 'bill' },
+      'user-4': { id: 'user-4', display_name: 'Marie Curie', username: 'marie' },
+      'user-5': { id: 'user-5', display_name: 'Albert Einstein', username: 'albert' },
+    };
+    
+    return mockUsers[userId] || { id: userId, display_name: 'Utilisateur', username: undefined };
+  },
+
+  /**
+   * GET /api/v1/conversations/:id/members
+   * Get conversation members (for groups)
+   */
+  async getConversationMembers(conversationId: string): Promise<Array<{ id: string; display_name: string; username?: string }>> {
+    await mockDelay(200);
+    
+    // Mock members based on conversation
+    const mockMembers: Record<string, Array<{ id: string; display_name: string; username?: string }>> = {
+      'conv-2': [
+        { id: 'user-2', display_name: 'Elon Musk', username: 'elon' },
+        { id: 'user-3', display_name: 'Bill Gates', username: 'bill' },
+        { id: 'user-4', display_name: 'Marie Curie', username: 'marie' },
+      ],
+    };
+    
+    return mockMembers[conversationId] || [];
+  },
 };
 
