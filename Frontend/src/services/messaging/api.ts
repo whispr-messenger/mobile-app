@@ -11,6 +11,9 @@ const API_BASE_URL = 'https://api.whispr.local/api/v1';
 // Mock delay to simulate network
 const mockDelay = (ms: number = 500) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Store for dynamically created conversations
+const createdConversations: Conversation[] = [];
+
 // Generate mock messages for a conversation
 const generateMockMessages = (conversationId: string, count: number = 50): Message[] => {
   const now = new Date();
@@ -181,7 +184,7 @@ export const messagingAPI = {
     
     // Mock data - realistic conversations with names and avatars
     const now = new Date();
-    const mockConversations: Conversation[] = [
+    const baseMockConversations: Conversation[] = [
       {
         id: 'conv-1',
         type: 'direct',
@@ -548,7 +551,21 @@ export const messagingAPI = {
       },
     ];
     
-    return mockConversations;
+    // Merge with dynamically created conversations
+    const allConversations = [...baseMockConversations, ...createdConversations];
+    
+    // Apply filters
+    let filtered = allConversations;
+    if (!params?.include_archived) {
+      filtered = filtered.filter(conv => !conv.is_archived);
+    }
+    
+    // Apply pagination
+    const offset = params?.offset || 0;
+    const limit = params?.limit || 50;
+    const paginated = filtered.slice(offset, offset + limit);
+    
+    return paginated;
   },
 
   /**
@@ -830,6 +847,93 @@ export const messagingAPI = {
     };
     
     return mockMembers[conversationId] || [];
+  },
+
+  /**
+   * POST /api/v1/conversations
+   * Create a direct conversation with a user
+   */
+  async createDirectConversation(otherUserId: string): Promise<Conversation> {
+    await mockDelay(500);
+    
+    // Check if conversation already exists
+    const existingConversations = mockStore.getConversations();
+    const existing = existingConversations.find(conv => 
+      conv.type === 'direct' && 
+      conv.metadata?.other_user_id === otherUserId
+    );
+    
+    if (existing) {
+      return existing;
+    }
+    
+    // Get user info for display name
+    const userInfo = await this.getUserInfo(otherUserId);
+    const displayName = userInfo?.display_name || 'Contact';
+    
+    // Create new conversation
+    const now = new Date();
+    const conversationId = `conv-${Date.now()}`;
+    
+    const newConversation: Conversation = {
+      id: conversationId,
+      type: 'direct',
+      metadata: { other_user_id: otherUserId },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      is_active: true,
+      is_pinned: false,
+      is_muted: false,
+      is_archived: false,
+      display_name: displayName,
+      avatar_url: undefined,
+      last_message: undefined,
+      unread_count: 0,
+    };
+    
+    createdConversations.push(newConversation);
+    return newConversation;
+  },
+
+  /**
+   * POST /api/v1/groups
+   * Create a group conversation
+   * Note: In production, this should first create the group via groups API, then create the conversation
+   */
+  async createGroupConversation(
+    name: string,
+    memberIds: string[],
+    description?: string,
+    photoUri?: string
+  ): Promise<Conversation> {
+    await mockDelay(800);
+    
+    // Create new group conversation
+    const now = new Date();
+    const conversationId = `conv-group-${Date.now()}`;
+    
+    const newConversation: Conversation = {
+      id: conversationId,
+      type: 'group',
+      metadata: { 
+        name,
+        description: description || undefined,
+        member_count: memberIds.length + 1, // +1 for creator
+      },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      is_active: true,
+      is_pinned: false,
+      is_muted: false,
+      is_archived: false,
+      display_name: name,
+      avatar_url: photoUri || undefined,
+      last_message: undefined,
+      unread_count: 0,
+    };
+    
+    createdConversations.push(newConversation);
+    return newConversation;
   },
 };
 
