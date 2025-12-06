@@ -1,13 +1,19 @@
 {
-  "name": "whispr_frontend",
-  "license": "0BSD",
+  "name": "whispr-mobile",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:android": "expo build:android",
+    "build:ios": "expo build:ios",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "expo": "~53.0.20",
@@ -16,7 +22,8 @@
     "react-native": "0.79.5"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "typescript": "^5.3.3"
   },
   "private": true
 }
