@@ -214,7 +214,8 @@ export const messagingAPI = {
       {
         id: 'conv-2',
         type: 'group',
-        metadata: { name: 'Whispr Security Team' },
+        external_group_id: 'group-security-team',
+        metadata: { name: 'Whispr Security Team', group_id: 'group-security-team' },
         created_at: new Date(now.getTime() - 86400000 * 5).toISOString(),
         updated_at: new Date(now.getTime() - 7200000).toISOString(),
         is_active: true,
@@ -266,7 +267,8 @@ export const messagingAPI = {
       {
         id: 'conv-4',
         type: 'group',
-        metadata: { name: 'CTF Team 2025' },
+        external_group_id: 'group-ctf-team',
+        metadata: { name: 'CTF Team 2025', group_id: 'group-ctf-team' },
         created_at: new Date(now.getTime() - 86400000 * 7).toISOString(),
         updated_at: new Date(now.getTime() - 3600000 * 2).toISOString(),
         is_active: true,
@@ -292,7 +294,8 @@ export const messagingAPI = {
       {
         id: 'conv-5',
         type: 'group',
-        metadata: { name: 'DevOps Engineers' },
+        metadata: { name: 'DevOps Engineers', group_id: 'group-devops' },
+        external_group_id: 'group-devops',
         created_at: new Date(now.getTime() - 86400000 * 10).toISOString(),
         updated_at: new Date(now.getTime() - 86400000 * 2).toISOString(),
         is_active: true,
@@ -318,7 +321,8 @@ export const messagingAPI = {
       {
         id: 'conv-6',
         type: 'group',
-        metadata: { name: 'Hackathon 2025' },
+        metadata: { name: 'Hackathon 2025', group_id: 'group-hackathon' },
+        external_group_id: 'group-hackathon',
         created_at: new Date(now.getTime() - 86400000 * 15).toISOString(),
         updated_at: new Date(now.getTime() - 3600000 * 5).toISOString(),
         is_active: true,
@@ -500,7 +504,8 @@ export const messagingAPI = {
       {
         id: 'conv-13',
         type: 'group',
-        metadata: { name: 'Crypto Enthusiasts' },
+        metadata: { name: 'Crypto Enthusiasts', group_id: 'group-crypto' },
+        external_group_id: 'group-crypto',
         created_at: new Date(now.getTime() - 86400000 * 12).toISOString(),
         updated_at: new Date(now.getTime() - 18000000).toISOString(),
         is_active: true,
@@ -912,13 +917,16 @@ export const messagingAPI = {
     const now = new Date();
     const conversationId = `conv-group-${Date.now()}`;
     
+    const groupId = `group-${Date.now()}`;
     const newConversation: Conversation = {
       id: conversationId,
       type: 'group',
+      external_group_id: groupId,
       metadata: { 
         name,
         description: description || undefined,
-        member_count: memberIds.length + 1, // +1 for creator
+        member_count: memberIds.length + 1,
+        group_id: groupId,
       },
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
