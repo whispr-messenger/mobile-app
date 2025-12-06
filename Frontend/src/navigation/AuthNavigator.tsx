@@ -18,6 +18,7 @@ import { ChatScreen } from '../screens/Chat/ChatScreen';
 import { ContactsScreen } from '../screens/Contacts/ContactsScreen';
 import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
+import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -33,6 +34,7 @@ export type AuthStackParamList = {
   Contacts: undefined;
   BlockedUsers: undefined;
   GroupDetails: { groupId: string; conversationId: string };
+  GroupManagement: { groupId: string; conversationId: string };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -74,6 +76,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Contacts" component={ContactsScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
+      <Stack.Screen name="GroupManagement" component={GroupManagementScreen} />
     </Stack.Navigator>
   );
 };

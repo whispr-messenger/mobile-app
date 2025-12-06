@@ -111,9 +111,11 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleManageGroup = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // TODO: Navigate to group management screen (WHISPR-213)
-    Alert.alert('Info', 'Écran de gestion à venir (WHISPR-213)');
-  }, []);
+    navigation.navigate('GroupManagement', {
+      groupId,
+      conversationId,
+    });
+  }, [navigation, groupId, conversationId]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     opacity: headerOpacity.value,
