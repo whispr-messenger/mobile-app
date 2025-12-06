@@ -22,11 +22,14 @@ import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { countries, searchCountries } from '../../data/countries';
+import { useTheme } from '../../context/ThemeContext';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Registration'>;
 
 export const RegistrationScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
+  const themeColors = getThemeColors();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+33');
   const [countryFlag, setCountryFlag] = useState('🇫🇷');
@@ -78,7 +81,7 @@ export const RegistrationScreen: React.FC = () => {
     const cleanNumber = phoneNumber.replace(/\s/g, '');
     
     if (cleanNumber.length < 10) {
-      Alert.alert('Erreur', 'Veuillez entrer un numéro valide (minimum 10 chiffres)');
+      Alert.alert(getLocalizedText('notif.error'), getLocalizedText('auth.phoneMinLength'));
       return;
     }
 
@@ -97,7 +100,7 @@ export const RegistrationScreen: React.FC = () => {
       }, 1500);
     } catch (error) {
       setLoading(false);
-      Alert.alert('Erreur', 'Une erreur est survenue');
+      Alert.alert(getLocalizedText('notif.error'), getLocalizedText('auth.errorConnection'));
     }
   };
 
@@ -108,7 +111,7 @@ export const RegistrationScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={[colors.background.dark, colors.secondary.darker, colors.secondary.dark]}
+      colors={themeColors.background.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -133,15 +136,15 @@ export const RegistrationScreen: React.FC = () => {
 
           {/* Title */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Whispr</Text>
-            <Text style={styles.subtitle}>
-              Sécurisé. Privé. Simple.
+            <Text style={[styles.title, { color: themeColors.text.primary, fontSize: getFontSize('xxxl') }]}>Whispr</Text>
+            <Text style={[styles.subtitle, { color: themeColors.text.secondary, fontSize: getFontSize('base') }]}>
+              {getLocalizedText('auth.tagline')}
             </Text>
           </View>
 
           {/* Phone Input */}
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Votre numéro de téléphone</Text>
+            <Text style={[styles.label, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>{getLocalizedText('auth.phone')}</Text>
             
             <View style={styles.phoneInputContainer}>
               {/* Country Code */}
@@ -149,7 +152,7 @@ export const RegistrationScreen: React.FC = () => {
                 style={styles.countryCodeButton}
                 onPress={() => setShowCountryPicker(!showCountryPicker)}
               >
-                <Text style={styles.countryCodeText}>{countryFlag} {countryCode}</Text>
+                    <Text style={[styles.countryCodeText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>{countryFlag} {countryCode}</Text>
               </TouchableOpacity>
 
               {/* Phone Number */}
@@ -161,17 +164,17 @@ export const RegistrationScreen: React.FC = () => {
                   onChangeText={(text) => setPhoneNumber(formatPhoneNumber(text))}
                   maxLength={14} // 0X XX XX XX XX with spaces
                   containerStyle={styles.inputContainer}
-                  style={[styles.phoneNumberInput, { color: colors.text.primary }]}
+                  style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
                 />
               </View>
             </View>
 
             {/* Country Picker */}
             {showCountryPicker && (
-              <View style={styles.countryPicker}>
+              <View style={[styles.countryPicker, { backgroundColor: themeColors.background.secondary }]}>
                 {/* Search Input */}
                 <Input
-                  placeholder="Rechercher un pays..."
+                  placeholder={getLocalizedText('auth.searchCountry')}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   containerStyle={styles.searchContainer}
@@ -191,30 +194,30 @@ export const RegistrationScreen: React.FC = () => {
                         setSearchQuery('');
                       }}
                     >
-                      <Text style={styles.countryOptionText}>
+                      <Text style={[styles.countryOptionText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>
                         {country.flag} {country.name} {country.code}
                       </Text>
                     </TouchableOpacity>
                   ))}
                   
                   {filteredCountries.length === 0 && (
-                    <Text style={styles.noResultsText}>
-                      Aucun pays trouvé
+                    <Text style={[styles.noResultsText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
+                      {getLocalizedText('auth.noCountryFound')}
                     </Text>
                   )}
                 </ScrollView>
               </View>
             )}
 
-            <Text style={styles.helperText}>
-              Nous vous enverrons un code de vérification par SMS
+            <Text style={[styles.helperText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
+              {getLocalizedText('auth.smsCode')}
             </Text>
           </View>
 
           {/* Continue Button */}
           <View style={styles.buttonContainer}>
             <Button
-              title="Continuer"
+              title={getLocalizedText('auth.continue')}
               variant="primary"
               size="large"
               onPress={handleContinue}
@@ -228,15 +231,14 @@ export const RegistrationScreen: React.FC = () => {
           <TouchableOpacity 
             style={styles.loginLink}
             onPress={() => {
-              Alert.alert(
-                'Connexion',
-                'Fonctionnalité de connexion à implémenter',
-                [{ text: 'OK' }]
-              );
+              navigation.navigate('Login');
             }}
           >
-            <Text style={styles.loginLinkText}>
-              Déjà un compte ? <Text style={styles.loginLinkBold}>Se connecter</Text>
+            <Text style={[styles.loginLinkText, { color: themeColors.text.secondary, fontSize: getFontSize('base') }]}>
+              {getLocalizedText('auth.dejaCompte')}{' '}
+              <Text style={[styles.loginLinkBold, { color: themeColors.primary }]}>
+                {getLocalizedText('auth.seConnecter')}
+              </Text>
             </Text>
           </TouchableOpacity>
         </Animated.View>

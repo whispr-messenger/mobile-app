@@ -24,6 +24,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
+import { useTheme } from '../../context/ThemeContext';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'ProfileSetup'>;
 type RoutePropType = RouteProp<AuthStackParamList, 'ProfileSetup'>;
@@ -32,6 +33,8 @@ export const ProfileSetupScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
   const { userId, token } = route.params;
+  const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
+  const themeColors = getThemeColors();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -205,7 +208,7 @@ export const ProfileSetupScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={[colors.background.dark, colors.secondary.darker, colors.secondary.dark]}
+      colors={themeColors.background.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}

@@ -225,6 +225,60 @@ export class AuthService {
 
     return { isValid: true };
   }
+
+  /**
+   * Déconnexion de l'utilisateur
+   */
+  async logout(): Promise<{ success: boolean; message?: string }> {
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      
+      // Supprimer les tokens et données d'authentification
+      await AsyncStorage.multiRemove([
+        'whispr.auth.token',
+        'whispr.auth.refreshToken',
+        'whispr.auth.userId',
+        'whispr.profile.v1',
+      ]);
+      
+      console.log('✅ Déconnexion réussie');
+      return {
+        success: true,
+        message: 'Déconnexion réussie'
+      };
+    } catch (error) {
+      console.error('❌ Erreur déconnexion:', error);
+      return {
+        success: false,
+        message: 'Erreur lors de la déconnexion'
+      };
+    }
+  }
+
+  /**
+   * Suppression du compte utilisateur
+   */
+  async deleteAccount(): Promise<{ success: boolean; message?: string }> {
+    try {
+      // TODO: Appel API réel vers user-service pour supprimer le compte
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      
+      // Supprimer toutes les données locales
+      await AsyncStorage.clear();
+      
+      console.log('✅ Compte supprimé avec succès');
+      return {
+        success: true,
+        message: 'Compte supprimé avec succès'
+      };
+    } catch (error) {
+      console.error('❌ Erreur suppression compte:', error);
+      return {
+        success: false,
+        message: 'Erreur lors de la suppression du compte'
+      };
+    }
+  }
 }
 
 export default AuthService;
