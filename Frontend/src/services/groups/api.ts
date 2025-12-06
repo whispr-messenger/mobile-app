@@ -245,22 +245,38 @@ export const groupsAPI = {
    * POST /api/v1/groups/{groupId}/members
    * Add members to group
    */
-  async addMembers(groupId: string, userIds: string[]): Promise<GroupMember[]> {
+  async addMembers(groupId: string, userIds: string[], memberInfo?: Array<{ userId: string; displayName: string; username?: string; avatarUrl?: string }>): Promise<GroupMember[]> {
     await mockDelay(500);
     initializeMockData(groupId, undefined);
     
-    const newMembers: GroupMember[] = userIds.map((userId, index) => ({
-      id: `member-${Date.now()}-${userId}-${index}`,
-      user_id: userId,
-      display_name: `User ${userId}`,
-      username: `user_${userId}`,
-      role: 'member',
-      joined_at: new Date().toISOString(),
-      is_active: true,
-    }));
+    const newMembers: GroupMember[] = userIds.map((userId, index) => {
+      const info = memberInfo?.find(m => m.userId === userId);
+      return {
+        id: `member-${Date.now()}-${userId}-${index}`,
+        user_id: userId,
+        display_name: info?.displayName || `User ${userId}`,
+        username: info?.username || `user_${userId}`,
+        avatar_url: info?.avatarUrl,
+        role: 'member' as const,
+        joined_at: new Date().toISOString(),
+        is_active: true,
+      };
+    });
 
     mockMembers[groupId] = [...(mockMembers[groupId] || []), ...newMembers];
     mockStats[groupId].memberCount = mockMembers[groupId].length;
+
+    const logEntry: GroupLog = {
+      id: `log-${Date.now()}`,
+      action_type: 'member_added',
+      actor_id: 'user-1',
+      actor_name: 'Vous',
+      timestamp: new Date().toISOString(),
+      metadata: {
+        members_added: newMembers.map(m => ({ id: m.user_id, name: m.display_name })),
+      },
+    };
+    mockLogs[groupId] = [logEntry, ...(mockLogs[groupId] || [])];
 
     return newMembers;
   },
