@@ -3,51 +3,42 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
-import { Message } from '../../types/messaging';
+import { MessageWithRelations } from '../../types/messaging';
 
 interface MessageActionsMenuProps {
   visible: boolean;
-  message: Message | null;
+  message: MessageWithRelations | null;
   isSent: boolean;
+  isPinned: boolean;
   onClose: () => void;
   onReply?: () => void;
   onEdit?: () => void;
   onDelete?: (deleteForEveryone: boolean) => void;
   onReact?: () => void;
   onPin?: () => void;
-  isPinned?: boolean;
 }
 
 export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   visible,
   message,
   isSent,
+  isPinned,
   onClose,
   onReply,
   onEdit,
   onDelete,
   onReact,
   onPin,
-  isPinned = false,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  if (!message) return null;
-
-  // Check if message can be edited (within 24 hours)
-  const messageAge = Date.now() - new Date(message.sent_at).getTime();
-  const maxEditAge = 24 * 60 * 60 * 1000; // 24 hours
-  const canEdit = isSent && messageAge < maxEditAge && !message.is_deleted;
-
-  // Check if message can be deleted (within 48 hours)
-  const maxDeleteAge = 48 * 60 * 60 * 1000; // 48 hours
-  const canDelete = isSent && messageAge < maxDeleteAge && !message.is_deleted;
+  if (!visible || !message) return null;
 
   const handleDelete = (deleteForEveryone: boolean) => {
     onDelete?.(deleteForEveryone);
@@ -108,7 +99,7 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
               </TouchableOpacity>
             )}
 
-            {canEdit && onEdit && (
+            {isSent && onEdit && (
               <TouchableOpacity
                 style={styles.actionItem}
                 onPress={() => {
@@ -125,29 +116,26 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
             )}
 
             {onPin && (
-              <>
-                <View style={styles.separator} />
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => {
-                    onPin();
-                    onClose();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isPinned ? 'pin' : 'pin-outline'}
-                    size={20}
-                    color={colors.primary.main}
-                  />
-                  <Text style={[styles.actionText, { color: colors.text.light }]}>
-                    {isPinned ? 'Désépingler' : 'Épingler'}
-                  </Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity
+                style={styles.actionItem}
+                onPress={() => {
+                  onPin();
+                  onClose();
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={isPinned ? "pin" : "pin-outline"} 
+                  size={20} 
+                  color={colors.primary.main} 
+                />
+                <Text style={[styles.actionText, { color: colors.text.light }]}>
+                  {isPinned ? 'Désépingler' : 'Épingler'}
+                </Text>
+              </TouchableOpacity>
             )}
 
-            {canDelete && onDelete && (
+            {onDelete && (
               <>
                 <View style={styles.separator} />
                 <TouchableOpacity
@@ -155,21 +143,23 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                   onPress={() => handleDelete(false)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="trash-outline" size={20} color={colors.text.tertiary} />
-                  <Text style={[styles.actionText, { color: colors.text.tertiary }]}>
+                  <Ionicons name="trash-outline" size={20} color={colors.ui.error} />
+                  <Text style={[styles.actionText, styles.dangerText]}>
                     Supprimer pour moi
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionItem}
-                  onPress={() => handleDelete(true)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="trash" size={20} color={colors.ui.error} />
-                  <Text style={[styles.actionText, styles.dangerText]}>
-                    Supprimer pour tous
-                  </Text>
-                </TouchableOpacity>
+                {isSent && (
+                  <TouchableOpacity
+                    style={styles.actionItem}
+                    onPress={() => handleDelete(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="trash" size={20} color={colors.ui.error} />
+                    <Text style={[styles.actionText, styles.dangerText]}>
+                      Supprimer pour tous
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
 

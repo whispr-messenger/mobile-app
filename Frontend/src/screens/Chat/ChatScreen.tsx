@@ -40,6 +40,7 @@ export const ChatScreen: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [typingUsersNames, setTypingUsersNames] = useState<Record<string, string>>({});
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessageWithRelations | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
@@ -53,6 +54,7 @@ export const ChatScreen: React.FC = () => {
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [conversationMembers, setConversationMembers] = useState<Array<{ id: string; display_name: string; username?: string }>>([]);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -98,7 +100,17 @@ export const ChatScreen: React.FC = () => {
       if (typingUserId !== userId) {
         setTypingUsers(prev => {
           if (typing) {
-            return prev.includes(typingUserId) ? prev : [...prev, typingUserId];
+            if (prev.includes(typingUserId)) return prev;
+            // Fetch user name when user starts typing
+            messagingAPI.getUserInfo(typingUserId).then(userInfo => {
+              if (userInfo) {
+                setTypingUsersNames(prevNames => ({
+                  ...prevNames,
+                  [typingUserId]: userInfo.display_name,
+                }));
+              }
+            });
+            return [...prev, typingUserId];
           } else {
             return prev.filter(id => id !== typingUserId);
           }
@@ -128,6 +140,16 @@ export const ChatScreen: React.FC = () => {
         type: conv.type,
       });
       setConversation(conv);
+      
+      // Load members if it's a group
+      if (conv.type === 'group') {
+        try {
+          const members = await messagingAPI.getConversationMembers(conversationId);
+          setConversationMembers(members);
+        } catch (error) {
+          console.error('[ChatScreen] Error loading members:', error);
+        }
+      }
     } catch (error) {
       console.error('[ChatScreen] Error loading conversation:', error);
     }
@@ -251,7 +273,7 @@ export const ChatScreen: React.FC = () => {
   }, [messages, loadingMore, hasMore, loadMessages]);
 
   const handleSendMessage = useCallback(
-    async (content: string, replyToId?: string) => {
+    async (content: string, replyToId?: string, mentions?: string[]) => {
       console.log('[ChatScreen] Sending message:', {
         content: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
         replyToId,
@@ -742,6 +764,7 @@ export const ChatScreen: React.FC = () => {
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
+          searchQuery={searchQuery}
         />
       );
     },
@@ -814,7 +837,9 @@ export const ChatScreen: React.FC = () => {
                 <ActivityIndicator size="small" color={themeColors.primary} />
               </View>
             ) : typingUsers.length > 0 ? (
-              <TypingIndicator />
+              <TypingIndicator
+                userNames={typingUsers.map(id => typingUsersNames[id] || 'Quelqu\'un')}
+              />
             ) : null
           }
         />
@@ -826,6 +851,8 @@ export const ChatScreen: React.FC = () => {
           onCancelReply={() => setReplyingTo(null)}
           editingMessage={editingMessage}
           onCancelEdit={() => setEditingMessage(null)}
+          conversationType={conversation?.type || 'direct'}
+          members={conversationMembers}
         />
       </KeyboardAvoidingView>
       <MessageActionsMenu

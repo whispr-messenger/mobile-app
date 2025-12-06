@@ -16,6 +16,7 @@ import { ReactionBar } from './ReactionBar';
 import { ReplyPreview } from './ReplyPreview';
 import { ReactionPicker } from './ReactionPicker';
 import { MediaMessage } from './MediaMessage';
+import { FormattedText } from '../../utils/textFormatter';
 
 interface MessageBubbleProps {
   message: MessageWithRelations;
@@ -25,6 +26,7 @@ interface MessageBubbleProps {
   onReplyPress?: (messageId: string) => void;
   onLongPress?: () => void;
   isHighlighted?: boolean;
+  searchQuery?: string;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -35,6 +37,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReplyPress,
   onLongPress,
   isHighlighted = false,
+  searchQuery,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -115,14 +118,30 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             />
           ) : null}
           {displayContent ? (
-            <Text
-              style={[
-                styles.sentText,
-                message.is_deleted && message.delete_for_everyone && styles.deletedText,
-              ]}
-            >
-              {displayContent}
-            </Text>
+            message.is_deleted && message.delete_for_everyone ? (
+              <Text
+                style={[
+                  styles.sentText,
+                  styles.deletedText,
+                ]}
+              >
+                {displayContent}
+              </Text>
+            ) : (
+              <FormattedText
+                text={displayContent}
+                style={[
+                  styles.sentText,
+                  { color: colors.text.light },
+                ]}
+                boldStyle={{ color: colors.text.light }}
+                italicStyle={{ color: colors.text.light }}
+                codeStyle={{ 
+                  color: colors.text.light,
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                }}
+              />
+            )
           ) : null}
           <View style={styles.footer}>
             <Text style={styles.timestamp}>
@@ -165,15 +184,36 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           />
         ) : null}
         {displayContent ? (
-          <Text
-            style={[
-              styles.receivedText,
-              { color: themeColors.text.primary },
-              message.is_deleted && message.delete_for_everyone && styles.deletedText,
-            ]}
-          >
-            {displayContent}
-          </Text>
+          message.is_deleted && message.delete_for_everyone ? (
+            <Text
+              style={[
+                styles.receivedText,
+                { color: themeColors.text.primary },
+                styles.deletedText,
+              ]}
+            >
+              {displayContent}
+            </Text>
+          ) : (
+            <FormattedText
+              text={displayContent}
+              style={[
+                styles.receivedText,
+                { color: themeColors.text.primary },
+              ]}
+              boldStyle={{ color: themeColors.text.primary }}
+              italicStyle={{ color: themeColors.text.primary }}
+              codeStyle={{ 
+                color: themeColors.text.primary,
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              }}
+              searchQuery={searchQuery}
+              highlightStyle={{ 
+                backgroundColor: colors.primary.main,
+                color: colors.text.light,
+              }}
+            />
+          )
         ) : null}
         <View style={styles.footer}>
         <Text style={[styles.timestamp, { color: themeColors.text.tertiary }]}>
