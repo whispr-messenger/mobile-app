@@ -336,5 +336,58 @@ export const groupsAPI = {
 
     return mockGroups[groupId];
   },
+
+  /**
+   * POST /api/v1/groups/{groupId}/leave
+   * Leave group
+   */
+  async leaveGroup(groupId: string, userId: string = 'user-1'): Promise<void> {
+    await mockDelay(500);
+    initializeMockData(groupId, undefined);
+    
+    const adminCount = mockMembers[groupId].filter(m => m.role === 'admin').length;
+    const userMember = mockMembers[groupId].find(m => m.user_id === userId);
+    
+    if (userMember?.role === 'admin' && adminCount <= 1) {
+      throw new Error('Cannot leave group as the last admin. Transfer admin role first or delete the group.');
+    }
+    
+    mockMembers[groupId] = mockMembers[groupId].filter(m => m.user_id !== userId);
+    mockStats[groupId].memberCount = mockMembers[groupId].length;
+    
+    const logEntry: GroupLog = {
+      id: `log-${Date.now()}`,
+      action_type: 'member_removed',
+      actor_id: userId,
+      actor_name: 'Vous',
+      timestamp: new Date().toISOString(),
+      metadata: { left_group: true },
+    };
+    mockLogs[groupId] = [logEntry, ...(mockLogs[groupId] || [])];
+  },
+
+  /**
+   * DELETE /api/v1/groups/{groupId}
+   * Delete group
+   */
+  async deleteGroup(groupId: string): Promise<void> {
+    await mockDelay(500);
+    initializeMockData(groupId, undefined);
+    
+    if (mockGroups[groupId]) {
+      mockGroups[groupId].is_active = false;
+      mockGroups[groupId].updated_at = new Date().toISOString();
+    }
+    
+    const logEntry: GroupLog = {
+      id: `log-${Date.now()}`,
+      action_type: 'group_updated',
+      actor_id: 'user-1',
+      actor_name: 'Vous',
+      timestamp: new Date().toISOString(),
+      metadata: { deleted: true },
+    };
+    mockLogs[groupId] = [logEntry, ...(mockLogs[groupId] || [])];
+  },
 };
 
