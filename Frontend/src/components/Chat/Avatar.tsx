@@ -7,6 +7,10 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../theme/colors';
 
+// Extract color values for StyleSheet.create() to avoid runtime resolution issues
+const TEXT_LIGHT_COLOR = colors.text.light;
+const BACKGROUND_PRIMARY_COLOR = colors.background.primary;
+
 interface AvatarProps {
   uri?: string;
   name?: string;
@@ -87,7 +91,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   initials: {
-    color: colors.text.light,
+    color: TEXT_LIGHT_COLOR,
     fontWeight: '600',
   },
   onlineBadge: {
@@ -95,7 +99,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     borderWidth: 2,
-    borderColor: colors.background.primary,
+    borderColor: BACKGROUND_PRIMARY_COLOR,
   },
 });
 

@@ -11,6 +11,11 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 
+// Extract color values for StyleSheet.create() to avoid runtime resolution issues
+const TEXT_LIGHT_COLOR = colors.text.light;
+const PRIMARY_MAIN_COLOR = colors.primary.main;
+const GRADIENT_APP_COLORS = colors.background.gradient.app;
+
 interface TabItem {
   name: string;
   icon?: keyof typeof Ionicons.glyphMap;
@@ -47,7 +52,7 @@ export const BottomTabBar: React.FC = () => {
   return (
     <SafeAreaView edges={['bottom']} style={styles.container}>
       <LinearGradient
-        colors={colors.background.gradient.app}
+        colors={GRADIENT_APP_COLORS}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientBackground}
@@ -84,7 +89,7 @@ export const BottomTabBar: React.FC = () => {
                 <View style={[
                   styles.badge, 
                   { 
-                    backgroundColor: colors.primary.main,
+                    backgroundColor: PRIMARY_MAIN_COLOR,
                     borderColor: 'transparent',
                   }
                 ]}>
@@ -107,14 +112,14 @@ export const BottomTabBar: React.FC = () => {
                   <Ionicons
                     name={tab.icon}
                     size={24}
-                    color={active ? colors.primary.main : 'rgba(255, 255, 255, 0.6)'}
+                    color={active ? PRIMARY_MAIN_COLOR : 'rgba(255, 255, 255, 0.6)'}
                   />
                 ) : null}
               </View>
               <Text style={[
                 styles.tabLabel, 
                 { 
-                  color: active ? colors.primary.main : 'rgba(255, 255, 255, 0.7)',
+                  color: active ? PRIMARY_MAIN_COLOR : 'rgba(255, 255, 255, 0.7)',
                   fontWeight: active ? '600' : '500',
                 }
               ]}>
@@ -211,7 +216,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   badgeText: {
-    color: colors.text.light,
+    color: TEXT_LIGHT_COLOR,
     fontSize: 10,
     fontWeight: '600',
   },
