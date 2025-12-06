@@ -281,17 +281,23 @@ export const GroupManagementScreen: React.FC = () => {
   }, [groupId, isAdmin, loadGroupData]);
 
   const handleTransferAdmin = useCallback((member: GroupMember) => {
-    if (!isAdmin || member.user_id === CURRENT_USER_ID || member.role === 'admin') return;
+    // Permettre le transfert même si le membre est déjà admin (pour récupérer les droits)
+    if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
+    const isTransferringToAdmin = member.role === 'admin';
+    const message = isTransferringToAdmin
+      ? `Voulez-vous récupérer les droits d'administration depuis ${member.display_name} ?`
+      : `Voulez-vous transférer les droits d'administration à ${member.display_name} ? Vous deviendrez membre du groupe.`;
+    
     Alert.alert(
-      'Transférer l\'administration',
-      `Voulez-vous transférer les droits d'administration à ${member.display_name} ? Vous deviendrez membre du groupe.`,
+      isTransferringToAdmin ? 'Récupérer l\'administration' : 'Transférer l\'administration',
+      message,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Transférer',
+          text: isTransferringToAdmin ? 'Récupérer' : 'Transférer',
           style: 'destructive',
           onPress: async () => {
             try {
@@ -299,7 +305,7 @@ export const GroupManagementScreen: React.FC = () => {
               await groupsAPI.transferAdmin(groupId, member.user_id);
               await loadGroupData();
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Succès', 'L\'administration a été transférée avec succès');
+              Alert.alert('Succès', isTransferringToAdmin ? 'Vous avez récupéré les droits d\'administration' : 'L\'administration a été transférée avec succès');
             } catch (error) {
               logger.error('GroupManagementScreen', 'Error transferring admin', error);
               Alert.alert('Erreur', 'Impossible de transférer l\'administration');
@@ -585,6 +591,7 @@ export const GroupManagementScreen: React.FC = () => {
   const renderMembers = () => {
     const currentUserMember = members.find(m => m.user_id === CURRENT_USER_ID);
     const otherMembers = members.filter(m => m.user_id !== CURRENT_USER_ID);
+    const hasOtherAdmins = otherMembers.some(m => m.role === 'admin');
 
     return (
       <AnimatedView
@@ -611,6 +618,18 @@ export const GroupManagementScreen: React.FC = () => {
             </TouchableOpacity>
           )}
         </View>
+
+        {!isAdmin && hasOtherAdmins && (
+          <AnimatedView 
+            style={styles.infoBanner}
+            entering={FadeInDown.delay(250).duration(400)}
+          >
+            <Ionicons name="information-circle-outline" size={20} color={colors.secondary.light} />
+            <Text style={styles.infoBannerText}>
+              Pour récupérer les droits d'administration, demandez à un administrateur de vous les redonner.
+            </Text>
+          </AnimatedView>
+        )}
 
         {currentUserMember && (
           <AnimatedView entering={SlideInRight.delay(100)}>
@@ -659,27 +678,25 @@ export const GroupManagementScreen: React.FC = () => {
               </View>
               {isAdmin && (
                 <View style={styles.memberActions}>
-                  {member.role === 'admin' ? (
-                    <View style={styles.adminBadge}>
-                      <Ionicons name="shield-checkmark" size={16} color={colors.primary.main} />
-                    </View>
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => handleTransferAdmin(member)}
-                        style={styles.actionButton}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="shield-outline" size={20} color={colors.secondary.main} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveMember(member)}
-                        style={styles.actionButton}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="person-remove-outline" size={20} color={colors.ui.error} />
-                      </TouchableOpacity>
-                    </>
+                  <TouchableOpacity
+                    onPress={() => handleTransferAdmin(member)}
+                    style={styles.actionButton}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons 
+                      name={member.role === 'admin' ? "shield" : "shield-outline"} 
+                      size={20} 
+                      color={member.role === 'admin' ? colors.primary.main : colors.secondary.main} 
+                    />
+                  </TouchableOpacity>
+                  {member.role !== 'admin' && (
+                    <TouchableOpacity
+                      onPress={() => handleRemoveMember(member)}
+                      style={styles.actionButton}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="person-remove-outline" size={20} color={colors.ui.error} />
+                    </TouchableOpacity>
                   )}
                 </View>
               )}
@@ -706,9 +723,13 @@ export const GroupManagementScreen: React.FC = () => {
           colors={colors.background.gradient.app}
           style={StyleSheet.absoluteFillObject}
         />
-        <View style={styles.modalHeader}>
+        <Animated.View 
+          style={styles.modalHeader}
+          entering={FadeIn.duration(200)}
+        >
           <TouchableOpacity
             onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowAddMembersModal(false);
               setSelectedContacts(new Set());
               setSearchQuery('');
@@ -718,7 +739,9 @@ export const GroupManagementScreen: React.FC = () => {
           >
             <Ionicons name="close" size={28} color={colors.text.light} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Ajouter des membres</Text>
+          <View style={styles.modalTitleContainer}>
+            <Text style={styles.modalTitle} numberOfLines={1}>Ajouter des membres</Text>
+          </View>
           <TouchableOpacity
             onPress={handleConfirmAddMembers}
             disabled={selectedContacts.size === 0 || addingMembers}
@@ -733,7 +756,7 @@ export const GroupManagementScreen: React.FC = () => {
               </Text>
             )}
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color={withOpacity(colors.text.light, 0.7)} style={styles.searchIcon} />
@@ -760,11 +783,10 @@ export const GroupManagementScreen: React.FC = () => {
               const displayName = item.nickname || user?.first_name || 'Contact';
 
               return (
-                <AnimatedTouchableOpacity
+                <TouchableOpacity
                   style={styles.contactItem}
                   onPress={() => toggleContactSelection(item.id)}
                   activeOpacity={0.7}
-                  entering={FadeInDown.delay(index * 30).duration(300)}
                 >
                   <Avatar
                     userId={user?.id || ''}
@@ -790,7 +812,7 @@ export const GroupManagementScreen: React.FC = () => {
                       <View style={styles.checkboxUnselected} />
                     )}
                   </View>
-                </AnimatedTouchableOpacity>
+                </TouchableOpacity>
               );
             }}
             ListEmptyComponent={
@@ -1077,7 +1099,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    paddingTop: 20,
+    minHeight: 56,
   },
   modalCloseButton: {
     width: 40,
@@ -1086,18 +1110,27 @@ const styles = StyleSheet.create({
     backgroundColor: withOpacity(colors.background.darkCard, 0.3),
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+  },
+  modalTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 12,
   },
   modalTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
-    flex: 1,
     textAlign: 'center',
-    marginHorizontal: 16,
   },
   modalConfirmButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   modalConfirmText: {
     color: colors.text.light,
@@ -1177,5 +1210,20 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: withOpacity(colors.text.light, 0.5),
     marginTop: 16,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: withOpacity(colors.secondary.main, 0.15),
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: withOpacity(colors.text.light, 0.8),
+    lineHeight: 20,
   },
 });
