@@ -8,6 +8,8 @@ web-build/
 expo-env.d.ts
 
 # Native
+ios/
+android/
 .kotlin/
 *.orig.*
 *.jks
@@ -33,3 +35,9 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# VSCode settings with sensitive data
+.vscode/settings.json
+
+# Local testing guides
+*TESTING_GUIDE*.md
