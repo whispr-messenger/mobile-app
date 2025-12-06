@@ -444,12 +444,15 @@ export const ConversationsListScreen: React.FC = () => {
       <NewConversationModal
         visible={showNewConversationModal}
         onClose={() => setShowNewConversationModal(false)}
-        onConversationCreated={(conversationId) => {
+        onConversationCreated={async (conversationId) => {
           setShowNewConversationModal(false);
-          // Reload conversations
-          loadConversations();
-          // Navigate to the new conversation
-          navigation.navigate('Chat', { conversationId });
+          // Reload conversations first to ensure the new conversation is in the list
+          await loadConversations();
+          // Small delay to ensure state is updated
+          setTimeout(() => {
+            // Navigate to the new conversation
+            navigation.navigate('Chat', { conversationId });
+          }, 100);
         }}
       />
     </LinearGradient>
