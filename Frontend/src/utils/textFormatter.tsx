@@ -5,6 +5,11 @@
 
 import React from 'react';
 import { Text, TextStyle, StyleSheet } from 'react-native';
+import { colors } from '../theme/colors';
+
+// Extract color values for StyleSheet.create() to avoid runtime resolution issues
+const PRIMARY_MAIN_COLOR = colors.primary.main;
+const TEXT_LIGHT_COLOR = colors.text.light;
 
 interface FormattedTextProps {
   text: string;
@@ -12,6 +17,8 @@ interface FormattedTextProps {
   boldStyle?: TextStyle;
   italicStyle?: TextStyle;
   codeStyle?: TextStyle;
+  searchQuery?: string;
+  highlightStyle?: TextStyle;
 }
 
 interface TextSegment {
@@ -175,8 +182,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   highlight: {
-    backgroundColor: colors.primary.main,
-    color: colors.text.light,
+    backgroundColor: PRIMARY_MAIN_COLOR,
+    color: TEXT_LIGHT_COLOR,
     paddingHorizontal: 2,
     borderRadius: 3,
   },
