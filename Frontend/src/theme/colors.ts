@@ -25,13 +25,15 @@ export const colors = {
     primary: '#FFFFFF',   // Fond blanc
     secondary: '#F6F6F6', // Gris très clair
     tertiary: '#ABABAB',  // Gris moyen
-    dark: '#000000',      // Noir (mode sombre)
-    darkCard: '#220D12',  // Fond card mode sombre
+    dark: '#0A0E27',      // Noir très sombre (comme Telegram)
+    darkCard: '#1A1F3A',  // Fond card mode sombre
     
     // Gradients
     gradient: {
-      primary: ['#111F4B', '#6774BD', '#FE7A5C'],  // Bleu foncé → Bleu → Orange
-      secondary: ['#25233B', '#5F5367'],           // Violet foncé → Violet
+      // EXACT Whispr/Telegram-like gradient: navy → violet → coral
+      auth: ['#0B1124', '#3C2E7C', '#FE7A5C'],
+      app: ['#0B1124', '#3C2E7C', '#FE7A5C'],
+      unreadAction: ['#6774BD', '#FE7A5C'],
     }
   },
 
