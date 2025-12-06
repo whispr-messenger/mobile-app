@@ -165,8 +165,7 @@ export const VerificationScreen: React.FC = () => {
           setLoading(false);
           
           if (isLogin) {
-            // Pour la connexion, aller directement au profil
-                 console.log('✅ Code correct, navigation selon isLogin=', isLogin);
+            // Pour la connexion, aller directement à la home page (ConversationsList)
                  Alert.alert(
               getLocalizedText('auth.loginSuccess'),
               getLocalizedText('auth.welcome'),
@@ -174,10 +173,7 @@ export const VerificationScreen: React.FC = () => {
                 {
                   text: getLocalizedText('auth.continue'),
                   onPress: () => {
-                    navigation.navigate('Profile', { 
-                      userId: 'demo-user-id',
-                      token: 'demo-token'
-                    });
+                    navigation.navigate('ConversationsList');
                   }
                 }
               ]
@@ -202,7 +198,6 @@ export const VerificationScreen: React.FC = () => {
           }
         } else {
                  setLoading(false);
-                 console.log('❌ Code incorrect saisi:', fullCode);
           setError(getLocalizedText('auth.codeIncorrect'));
           shakeInputs();
           setCode(['', '', '', '', '', '']);

@@ -80,7 +80,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
     createdAt: '2024-01-15T10:30:00Z',
   });
   useEffect(() => {
-    console.log('👤 State profile initialisé:', profile);
   }, []);
   
   const [isEditing, setIsEditing] = useState(false);
@@ -115,21 +114,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
-          console.log('📦 Profil chargé depuis stockage local');
           setProfile(prev => ({ ...prev, ...parsed }));
           return;
         }
       } catch (e) {
-        console.log('⚠️ Impossible de lire le profil local:', e);
       }
 
       if (!params?.firstName && !params?.lastName) {
         try {
-          console.log('⬇️ Chargement profil via UserService...');
           const service = UserService.getInstance();
           const res = await service.getProfile();
           if (res.success && res.profile) {
-            console.log('✅ Profil API:', res.profile);
             setProfile(prev => ({
               ...prev,
               firstName: res.profile.firstName,
@@ -141,10 +136,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
               createdAt: res.profile.createdAt || prev.createdAt,
             }));
           } else {
-            console.log('⚠️ Profil API indisponible:', res.message);
           }
         } catch (e) {
-          console.log('❌ Erreur chargement profil:', e);
         }
       }
     };
@@ -169,7 +162,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       });
 
       if (!result.canceled && result.assets[0]) {
-        console.log('🖼️ Image sélectionnée:', result.assets[0].uri);
         setProfile(prev => ({
           ...prev,
           profilePicture: result.assets[0].uri,
@@ -256,9 +248,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       await new Promise(resolve => setTimeout(resolve, 1500));
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-        console.log('📦 Profil sauvegardé en local');
       } catch (e) {
-        console.log('⚠️ Impossible d\'écrire le profil local:', e);
       }
       
       setIsEditing(false);
@@ -326,6 +316,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
     navigation.navigate('Settings');
   };
 
+  // Handle home navigation (ConversationsList)
+  const handleHomePress = () => {
+    navigation.navigate('ConversationsList');
+  };
+
   // Handle back navigation
   const handleBackPress = () => {
     if (isEditing) {
@@ -371,9 +366,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
             <Text style={styles.headerTitle}>Profil</Text>
             
             {!isEditing ? (
-              <TouchableOpacity onPress={handleSettingsPress} style={styles.settingsButton}>
-                <Text style={styles.settingsButtonText}>⚙️</Text>
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity onPress={handleHomePress} style={styles.homeButton}>
+                  <Ionicons name="chatbubbles" size={24} color={colors.text.light} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSettingsPress} style={styles.settingsButton}>
+                  <Text style={styles.settingsButtonText}>⚙️</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <TouchableOpacity onPress={() => setIsEditing(false)} style={styles.cancelButton}>
                 <Text style={styles.cancelButtonText}>Annuler</Text>
@@ -610,6 +610,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  homeButton: {
+    padding: spacing.sm,
   },
   settingsButton: {
     padding: spacing.sm,

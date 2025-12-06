@@ -157,7 +157,6 @@ export const ProfileSetupScreen: React.FC = () => {
       // Simulate
       setTimeout(() => {
         setLoading(false);
-        console.log('👤 ProfileSetup terminé, navigation vers Profile avec:', {
           userId: route.params.userId,
           token: route.params.token,
           firstName,
@@ -170,15 +169,8 @@ export const ProfileSetupScreen: React.FC = () => {
           [{ 
             text: 'Continuer',
             onPress: () => {
-              // Navigation vers ProfileScreen avec données
-              navigation.navigate('Profile', {
-                userId: route.params.userId,
-                token: route.params.token,
-                firstName,
-                lastName,
-                profilePicture: profilePhoto,
-                phoneNumber: '+33 07 12 34 56 78', // TODO: injecter vrai numéro saisi si dispo
-              });
+              // Navigation vers ConversationsList (home page)
+              navigation.navigate('ConversationsList');
             }
           }]
         );

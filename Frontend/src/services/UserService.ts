@@ -64,7 +64,6 @@ export class UserService {
    */
   async getProfile(): Promise<{ success: boolean; profile?: UserProfile; message?: string }> {
     try {
-      console.log('👤 Récupération du profil utilisateur...');
       
       // TODO: Real API call
       // const response = await fetch(`${this.baseUrl}/users/me`, {
@@ -93,13 +92,12 @@ export class UserService {
         updatedAt: '2024-01-15T10:30:00Z',
       };
 
-      console.log('✅ Profil récupéré avec succès');
       return {
         success: true,
         profile: mockProfile,
       };
     } catch (error) {
-      console.error('❌ Erreur récupération profil:', error);
+      console.error('Erreur récupération profil:', error);
       return {
         success: false,
         message: 'Impossible de récupérer le profil',
@@ -136,13 +134,12 @@ export class UserService {
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      console.log('✅ Profil mis à jour avec succès');
       return {
         success: true,
         message: 'Profil mis à jour avec succès',
       };
     } catch (error) {
-      console.error('❌ Erreur mise à jour profil:', error);
+      console.error('Erreur mise à jour profil:', error);
       return {
         success: false,
         message: 'Impossible de mettre à jour le profil',
@@ -168,13 +165,12 @@ export class UserService {
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      console.log('✅ Photo de profil mise à jour avec succès');
       return {
         success: true,
         message: 'Photo de profil mise à jour avec succès',
       };
     } catch (error) {
-      console.error('❌ Erreur mise à jour photo:', error);
+      console.error('Erreur mise à jour photo:', error);
       return {
         success: false,
         message: 'Impossible de mettre à jour la photo de profil',
@@ -187,7 +183,6 @@ export class UserService {
    */
   async updateUsername(username: string): Promise<UpdateProfileResponse> {
     try {
-      console.log('👤 Mise à jour du nom d\'utilisateur:', username);
       
       // Validation username
       const validation = this.validateUsername(username);
@@ -211,13 +206,12 @@ export class UserService {
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      console.log('✅ Nom d\'utilisateur mis à jour avec succès');
       return {
         success: true,
         message: 'Nom d\'utilisateur mis à jour avec succès',
       };
     } catch (error) {
-      console.error('❌ Erreur mise à jour username:', error);
+      console.error('Erreur mise à jour username:', error);
       return {
         success: false,
         message: 'Impossible de mettre à jour le nom d\'utilisateur',
@@ -245,13 +239,12 @@ export class UserService {
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      console.log('✅ Paramètres de confidentialité mis à jour avec succès');
       return {
         success: true,
         message: 'Paramètres de confidentialité mis à jour avec succès',
       };
     } catch (error) {
-      console.error('❌ Erreur mise à jour confidentialité:', error);
+      console.error('Erreur mise à jour confidentialité:', error);
       return {
         success: false,
         message: 'Impossible de mettre à jour les paramètres de confidentialité',
@@ -264,7 +257,6 @@ export class UserService {
    */
   async changePhoneNumber(newPhoneNumber: string): Promise<UpdateProfileResponse> {
     try {
-      console.log('📱 Changement de numéro de téléphone:', newPhoneNumber);
       
       // Validation phone number
       const validation = this.validatePhoneNumber(newPhoneNumber);
@@ -288,13 +280,12 @@ export class UserService {
       // Simulation d'un délai réseau
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      console.log('✅ Numéro de téléphone mis à jour avec succès');
       return {
         success: true,
         message: 'Numéro de téléphone mis à jour avec succès',
       };
     } catch (error) {
-      console.error('❌ Erreur changement numéro:', error);
+      console.error('Erreur changement numéro:', error);
       return {
         success: false,
         message: 'Impossible de changer le numéro de téléphone',

@@ -387,15 +387,15 @@ const lightThemeColors: ThemeColors = {
   secondary: '#6774BD',
   error: '#FF3B30',
   success: '#21C004',
-  warning: '#FF9500',
+  warning: '#F04882',
   info: '#6774BD',
 };
 
 const darkThemeColors: ThemeColors = {
   background: {
-    primary: '#0A0E27',
-    secondary: '#1A1F3A',
-    tertiary: '#212135',
+    primary: '#0B1124', // Dark navy from gradient
+    secondary: '#1A1F3A', // Dark card color
+    tertiary: '#212135', // Dark tertiary
     gradient: ['#0B1124', '#3C2E7C', '#FE7A5C'],
   },
   text: {
@@ -407,7 +407,7 @@ const darkThemeColors: ThemeColors = {
   secondary: '#6774BD',
   error: '#FF3B30',
   success: '#21C004',
-  warning: '#FF9500',
+  warning: '#F04882',
   info: '#6774BD',
 };
 
@@ -447,7 +447,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setSettings(parsed);
         }
       } catch (error) {
-        console.error('❌ Error loading settings:', error);
+        console.error('Error loading settings:', error);
       } finally {
         setIsLoaded(true);
       }
@@ -461,9 +461,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setSettings(updated);
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      console.log('✅ Settings updated:', updated);
     } catch (error) {
-      console.error('❌ Error saving settings:', error);
+      console.error('Error saving settings:', error);
     }
   };
 
