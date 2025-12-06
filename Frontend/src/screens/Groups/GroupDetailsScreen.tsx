@@ -620,12 +620,19 @@ export const GroupDetailsScreen: React.FC = () => {
             entering={FadeInDown.delay(200).duration(300)}
           >
             <View style={styles.actionButtonContent}>
-              <Ionicons name="exit-outline" size={22} color={colors.ui.warning} />
-              <Text style={[styles.actionButtonText, { color: colors.ui.warning }]}>
+              <View style={styles.actionIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  style={styles.actionIconGradient}
+                >
+                  <Ionicons name="exit-outline" size={20} color={colors.text.light} />
+                </LinearGradient>
+              </View>
+              <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
                 Quitter le groupe
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.5)} />
+            <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.4)} />
           </AnimatedTouchableOpacity>
           {isAdmin && (
             <AnimatedTouchableOpacity
@@ -638,12 +645,19 @@ export const GroupDetailsScreen: React.FC = () => {
               entering={FadeInDown.delay(250).duration(300)}
             >
               <View style={styles.actionButtonContent}>
-                <Ionicons name="trash-outline" size={22} color={colors.ui.error} />
-                <Text style={[styles.actionButtonText, { color: colors.ui.error }]}>
+                <View style={[styles.actionIconContainer, styles.actionIconContainerDanger]}>
+                  <LinearGradient
+                    colors={[colors.ui.error, '#E02D20']}
+                    style={styles.actionIconGradient}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.text.light} />
+                  </LinearGradient>
+                </View>
+                <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
                   Supprimer le groupe
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.5)} />
+              <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.4)} />
             </AnimatedTouchableOpacity>
           )}
         </View>
@@ -685,7 +699,14 @@ export const GroupDetailsScreen: React.FC = () => {
             style={styles.modalGradient}
           >
             <View style={styles.modalHeader}>
-              <Ionicons name="exit-outline" size={32} color={colors.ui.warning} />
+              <View style={styles.modalIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  style={styles.modalIconGradient}
+                >
+                  <Ionicons name="exit-outline" size={28} color={colors.text.light} />
+                </LinearGradient>
+              </View>
               <Text style={styles.modalTitle}>Quitter le groupe</Text>
               <Text style={styles.modalDescription}>
                 {isLastAdmin
@@ -695,7 +716,7 @@ export const GroupDetailsScreen: React.FC = () => {
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
+                style={styles.modalButtonCancel}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowLeaveModal(false);
@@ -705,16 +726,26 @@ export const GroupDetailsScreen: React.FC = () => {
                 <Text style={styles.modalButtonCancelText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
+                style={styles.modalButtonConfirm}
                 onPress={handleLeaveGroup}
                 disabled={leaving}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                {leaving ? (
-                  <ActivityIndicator size="small" color={colors.text.light} />
-                ) : (
-                  <Text style={styles.modalButtonConfirmText}>Quitter</Text>
-                )}
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalButtonGradient}
+                >
+                  {leaving ? (
+                    <ActivityIndicator size="small" color={colors.text.light} />
+                  ) : (
+                    <>
+                      <Ionicons name="exit-outline" size={18} color={colors.text.light} style={styles.modalButtonIcon} />
+                      <Text style={styles.modalButtonConfirmText}>Quitter</Text>
+                    </>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -740,7 +771,14 @@ export const GroupDetailsScreen: React.FC = () => {
             style={styles.modalGradient}
           >
             <View style={styles.modalHeader}>
-              <Ionicons name="trash-outline" size={32} color={colors.ui.error} />
+              <View style={[styles.modalIconContainer, styles.modalIconContainerDanger]}>
+                <LinearGradient
+                  colors={[colors.ui.error, '#E02D20']}
+                  style={styles.modalIconGradient}
+                >
+                  <Ionicons name="trash-outline" size={28} color={colors.text.light} />
+                </LinearGradient>
+              </View>
               <Text style={styles.modalTitle}>Supprimer le groupe</Text>
               <Text style={styles.modalDescription}>
                 Êtes-vous sûr de vouloir supprimer "{groupDetails?.name}" ? Cette action est irréversible après 7 jours. Tous les membres seront retirés et toutes les données seront supprimées.
@@ -748,7 +786,7 @@ export const GroupDetailsScreen: React.FC = () => {
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
+                style={styles.modalButtonCancel}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowDeleteModal(false);
@@ -758,16 +796,26 @@ export const GroupDetailsScreen: React.FC = () => {
                 <Text style={styles.modalButtonCancelText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonDelete]}
+                style={styles.modalButtonDelete}
                 onPress={handleDeleteGroup}
                 disabled={deleting}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                {deleting ? (
-                  <ActivityIndicator size="small" color={colors.text.light} />
-                ) : (
-                  <Text style={styles.modalButtonDeleteText}>Supprimer</Text>
-                )}
+                <LinearGradient
+                  colors={[colors.ui.error, '#E02D20']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalButtonGradient}
+                >
+                  {deleting ? (
+                    <ActivityIndicator size="small" color={colors.text.light} />
+                  ) : (
+                    <>
+                      <Ionicons name="trash-outline" size={18} color={colors.text.light} style={styles.modalButtonIcon} />
+                      <Text style={styles.modalButtonDeleteText}>Supprimer</Text>
+                    </>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -788,7 +836,7 @@ export const GroupDetailsScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <AnimatedView
-            style={styles.modalContainer}
+            style={styles.modalContainerLarge}
             entering={FadeInDown.duration(300).springify()}
           >
             <LinearGradient
@@ -796,40 +844,59 @@ export const GroupDetailsScreen: React.FC = () => {
               style={styles.modalGradient}
             >
               <View style={styles.modalHeader}>
-                <Ionicons name="shield-outline" size={32} color={colors.secondary.main} />
+                <View style={[styles.modalIconContainer, styles.modalIconContainerInfo]}>
+                  <LinearGradient
+                    colors={[colors.secondary.main, colors.secondary.medium]}
+                    style={styles.modalIconGradient}
+                  >
+                    <Ionicons name="shield-checkmark" size={28} color={colors.text.light} />
+                  </LinearGradient>
+                </View>
                 <Text style={styles.modalTitle}>Transférer l'administration</Text>
                 <Text style={styles.modalDescription}>
                   Vous êtes le dernier administrateur. Sélectionnez un membre à qui transférer l'administration, ou le groupe sera supprimé.
                 </Text>
               </View>
               <ScrollView style={styles.membersList} showsVerticalScrollIndicator={false}>
-                {nonAdminMembers.map((member, index) => (
-                  <AnimatedTouchableOpacity
-                    key={member.id}
-                    style={styles.memberSelectItem}
-                    onPress={() => handleTransferAndLeave(member.user_id)}
-                    activeOpacity={0.7}
-                    entering={FadeInDown.delay(index * 50).duration(300)}
-                  >
-                    <Avatar
-                      uri={member.avatar_url}
-                      name={member.display_name}
-                      size={50}
-                      showOnlineBadge={false}
-                    />
-                    <View style={styles.memberSelectInfo}>
-                      <Text style={styles.memberSelectName}>{member.display_name}</Text>
-                      {member.username && (
-                        <Text style={styles.memberSelectUsername}>@{member.username}</Text>
-                      )}
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.5)} />
-                  </AnimatedTouchableOpacity>
-                ))}
+                {nonAdminMembers.length === 0 ? (
+                  <View style={styles.emptyMembersContainer}>
+                    <Ionicons name="people-outline" size={48} color={withOpacity(colors.text.light, 0.3)} />
+                    <Text style={styles.emptyMembersText}>Aucun membre disponible</Text>
+                  </View>
+                ) : (
+                  nonAdminMembers.map((member, index) => (
+                    <AnimatedTouchableOpacity
+                      key={member.id}
+                      style={styles.memberSelectItem}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        handleTransferAndLeave(member.user_id);
+                      }}
+                      activeOpacity={0.7}
+                      entering={FadeInDown.delay(index * 50).duration(300)}
+                    >
+                      <Avatar
+                        uri={member.avatar_url}
+                        name={member.display_name}
+                        size={50}
+                        showOnlineBadge={false}
+                      />
+                      <View style={styles.memberSelectInfo}>
+                        <Text style={styles.memberSelectName}>{member.display_name}</Text>
+                        {member.username && (
+                          <Text style={styles.memberSelectUsername}>@{member.username}</Text>
+                        )}
+                      </View>
+                      <View style={styles.memberSelectArrow}>
+                        <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.secondary.light, 0.7)} />
+                      </View>
+                    </AnimatedTouchableOpacity>
+                  ))
+                )}
               </ScrollView>
               <View style={styles.modalActions}>
                 <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  style={styles.modalButtonCancel}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowTransferAdminModal(false);
@@ -1224,23 +1291,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: withOpacity(colors.background.darkCard, 0.3),
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
   actionButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     flex: 1,
+  },
+  actionIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  actionIconContainerDanger: {
+    // Style spécifique pour le danger
+  },
+  actionIconGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionButtonText: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -1248,92 +1331,173 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: 400,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalContainerLarge: {
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
   modalGradient: {
-    padding: 24,
+    padding: 28,
   },
   modalHeader: {
     alignItems: 'center',
     marginBottom: 24,
   },
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  modalIconContainerDanger: {
+    // Style spécifique pour le danger
+  },
+  modalIconContainerInfo: {
+    // Style spécifique pour l'info
+  },
+  modalIconGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalTitle: {
-    fontSize: typography.fontSize.xxl,
+    fontSize: typography.fontSize.xxxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
-    marginTop: 16,
     marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   modalDescription: {
-    fontSize: typography.fontSize.base,
-    color: withOpacity(colors.text.light, 0.8),
+    fontSize: typography.fontSize.md,
+    color: withOpacity(colors.text.light, 0.75),
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
+    paddingHorizontal: 8,
   },
   modalActions: {
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
   },
-  modalButton: {
+  modalButtonCancel: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  modalButtonCancel: {
-    backgroundColor: withOpacity(colors.background.darkCard, 0.5),
+    backgroundColor: withOpacity(colors.background.darkCard, 0.6),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.divider, 0.2),
   },
   modalButtonConfirm: {
-    backgroundColor: colors.ui.warning,
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary.main,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   modalButtonDelete: {
-    backgroundColor: colors.ui.error,
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.ui.error,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modalButtonIcon: {
+    marginRight: 4,
   },
   modalButtonCancelText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semiBold,
-    color: colors.text.light,
+    color: withOpacity(colors.text.light, 0.9),
+    letterSpacing: 0.3,
   },
   modalButtonConfirmText: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
+    letterSpacing: 0.3,
   },
   modalButtonDeleteText: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
+    letterSpacing: 0.3,
   },
   membersList: {
-    maxHeight: 300,
-    marginBottom: 16,
+    maxHeight: 320,
+    marginBottom: 20,
   },
   memberSelectItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    borderRadius: 12,
-    marginBottom: 8,
+    backgroundColor: withOpacity(colors.background.darkCard, 0.4),
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.divider, 0.1),
   },
   memberSelectInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
   },
   memberSelectName: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semiBold,
     color: colors.text.light,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   memberSelectUsername: {
     fontSize: typography.fontSize.sm,
-    color: withOpacity(colors.text.light, 0.6),
+    color: withOpacity(colors.text.light, 0.65),
+    fontWeight: typography.fontWeight.regular,
+  },
+  memberSelectArrow: {
+    marginLeft: 8,
+  },
+  emptyMembersContainer: {
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyMembersText: {
+    fontSize: typography.fontSize.md,
+    color: withOpacity(colors.text.light, 0.5),
+    marginTop: 16,
+    fontWeight: typography.fontWeight.medium,
   },
 });
 
