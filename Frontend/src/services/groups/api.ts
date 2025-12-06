@@ -240,5 +240,101 @@ export const groupsAPI = {
     initializeMockData(groupId, undefined);
     return mockSettings[groupId];
   },
+
+  /**
+   * POST /api/v1/groups/{groupId}/members
+   * Add members to group
+   */
+  async addMembers(groupId: string, userIds: string[], memberInfo?: Array<{ userId: string; displayName: string; username?: string; avatarUrl?: string }>): Promise<GroupMember[]> {
+    await mockDelay(500);
+    initializeMockData(groupId, undefined);
+    
+    const newMembers: GroupMember[] = userIds.map((userId, index) => {
+      const info = memberInfo?.find(m => m.userId === userId);
+      return {
+        id: `member-${Date.now()}-${userId}-${index}`,
+        user_id: userId,
+        display_name: info?.displayName || `User ${userId}`,
+        username: info?.username || `user_${userId}`,
+        avatar_url: info?.avatarUrl,
+        role: 'member' as const,
+        joined_at: new Date().toISOString(),
+        is_active: true,
+      };
+    });
+
+    mockMembers[groupId] = [...(mockMembers[groupId] || []), ...newMembers];
+    mockStats[groupId].memberCount = mockMembers[groupId].length;
+
+    const logEntry: GroupLog = {
+      id: `log-${Date.now()}`,
+      action_type: 'member_added',
+      actor_id: 'user-1',
+      actor_name: 'Vous',
+      timestamp: new Date().toISOString(),
+      metadata: {
+        members_added: newMembers.map(m => ({ id: m.user_id, name: m.display_name })),
+      },
+    };
+    mockLogs[groupId] = [logEntry, ...(mockLogs[groupId] || [])];
+
+    return newMembers;
+  },
+
+  /**
+   * DELETE /api/v1/groups/{groupId}/members/{memberId}
+   * Remove member from group
+   */
+  async removeMember(groupId: string, memberId: string): Promise<void> {
+    await mockDelay(400);
+    initializeMockData(groupId, undefined);
+    
+    mockMembers[groupId] = mockMembers[groupId].filter(m => m.id !== memberId);
+    mockStats[groupId].memberCount = mockMembers[groupId].length;
+  },
+
+  /**
+   * POST /api/v1/groups/{groupId}/admin/{userId}
+   * Transfer admin rights
+   */
+  async transferAdmin(groupId: string, userId: string): Promise<void> {
+    await mockDelay(500);
+    initializeMockData(groupId, undefined);
+    
+    mockMembers[groupId] = mockMembers[groupId].map(m => {
+      if (m.user_id === userId) {
+        return { ...m, role: 'admin' as const };
+      }
+      if (m.role === 'admin') {
+        return { ...m, role: 'member' as const };
+      }
+      return m;
+    });
+
+    const adminCount = mockMembers[groupId].filter(m => m.role === 'admin').length;
+    mockStats[groupId].adminCount = adminCount;
+  },
+
+  /**
+   * PUT /api/v1/groups/{groupId}
+   * Update group details
+   */
+  async updateGroup(
+    groupId: string,
+    updates: { name?: string; description?: string; picture_url?: string }
+  ): Promise<GroupDetails> {
+    await mockDelay(500);
+    initializeMockData(groupId, undefined);
+    
+    if (mockGroups[groupId]) {
+      mockGroups[groupId] = {
+        ...mockGroups[groupId],
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    return mockGroups[groupId];
+  },
 };
 
