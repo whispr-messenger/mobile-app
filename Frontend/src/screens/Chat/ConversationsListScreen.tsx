@@ -19,6 +19,7 @@ import { SwipeableConversationItem } from '../../components/Chat/SwipeableConver
 import { EmptyState } from '../../components/Chat/EmptyState';
 import { ConversationSkeleton } from '../../components/Chat/SkeletonLoader';
 import { BottomTabBar } from '../../components/Navigation/BottomTabBar';
+import { NewConversationModal } from '../../components/Chat/NewConversationModal';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
@@ -39,6 +40,7 @@ export const ConversationsListScreen: React.FC = () => {
     message: '',
     type: 'info',
   });
+  const [showNewConversationModal, setShowNewConversationModal] = useState(false);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -309,8 +311,8 @@ export const ConversationsListScreen: React.FC = () => {
           <Text style={[styles.headerTitle, { color: colors.text.light }]}>Chats</Text>
           <TouchableOpacity
             onPress={() => {
-              // TODO: Navigate to new conversation
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowNewConversationModal(true);
             }}
             style={styles.headerButton}
           >
@@ -438,6 +440,18 @@ export const ConversationsListScreen: React.FC = () => {
         />
         <BottomTabBar />
       </SafeAreaView>
+
+      <NewConversationModal
+        visible={showNewConversationModal}
+        onClose={() => setShowNewConversationModal(false)}
+        onConversationCreated={(conversationId) => {
+          setShowNewConversationModal(false);
+          // Reload conversations
+          loadConversations();
+          // Navigate to the new conversation
+          navigation.navigate('Chat', { conversationId });
+        }}
+      />
     </LinearGradient>
   );
 };
