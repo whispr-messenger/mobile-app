@@ -51,13 +51,31 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   }));
 
   const formattedTime = useMemo(() => {
-    if (!conversation.last_message) return '';
-    const date = new Date(conversation.last_message.sent_at);
+    let date: Date;
+    
+    if (conversation.last_message?.sent_at) {
+      date = new Date(conversation.last_message.sent_at);
+    } else if (conversation.updated_at) {
+      date = new Date(conversation.updated_at);
+    } else if (conversation.created_at) {
+      date = new Date(conversation.created_at);
+    } else {
+      return 'Maintenant';
+    }
+    
     const now = new Date();
     const diffTime = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
     
-    // Today: show time
+    if (diffMinutes < 1) {
+      return 'Maintenant';
+    }
+    
+    if (diffMinutes < 60) {
+      return `${diffMinutes}min`;
+    }
+    
     if (diffDays === 0) {
       return date.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
@@ -65,18 +83,16 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       });
     }
     
-    // This week: show day name
     if (diffDays < 7) {
       const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' });
       return dayName || '';
     }
     
-    // Older: show date
     return date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
     });
-  }, [conversation.last_message?.sent_at]);
+  }, [conversation.last_message?.sent_at, conversation.updated_at, conversation.created_at]);
 
   const getBadgeColor = useMemo(() => {
     const count = conversation.unread_count || 0;

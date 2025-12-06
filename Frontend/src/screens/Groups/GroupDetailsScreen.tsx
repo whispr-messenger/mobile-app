@@ -165,7 +165,7 @@ export const GroupDetailsScreen: React.FC = () => {
           <Image source={{ uri: groupDetails.picture_url }} style={styles.groupPhoto} />
         ) : (
           <View style={[styles.groupPhotoPlaceholder, { backgroundColor: colors.background.darkCard }]}>
-            <Ionicons name="people" size={48} color={colors.text.secondary} />
+            <Ionicons name="people" size={48} color={withOpacity(colors.text.light, 0.5)} />
           </View>
         )}
       </View>
@@ -173,7 +173,7 @@ export const GroupDetailsScreen: React.FC = () => {
         {groupDetails?.name || 'Groupe'}
       </Text>
       {groupDetails?.description && (
-        <Text style={[styles.groupDescription, { color: colors.text.secondary }]}>
+        <Text style={[styles.groupDescription, { color: withOpacity(colors.text.light, 0.7) }]}>
           {groupDetails.description}
         </Text>
       )}
@@ -212,13 +212,13 @@ export const GroupDetailsScreen: React.FC = () => {
               <Ionicons
                 name={tab.icon as any}
                 size={18}
-                color={isActive ? colors.text.light : colors.text.secondary}
+                color={isActive ? colors.text.light : withOpacity(colors.text.light, 0.6)}
               />
               <Text
                 style={[
                   styles.tabLabel,
                   {
-                    color: isActive ? colors.text.light : colors.text.secondary,
+                    color: isActive ? colors.text.light : withOpacity(colors.text.light, 0.6),
                     fontWeight: isActive ? typography.fontWeight.semiBold : typography.fontWeight.regular,
                   },
                 ]}
@@ -237,8 +237,8 @@ export const GroupDetailsScreen: React.FC = () => {
       <View style={styles.infoCard}>
         <View style={[styles.infoRow, { borderBottomColor: withOpacity(colors.ui.divider, 0.3) }]}>
           <View style={styles.infoRowLeft}>
-            <Ionicons name="calendar-outline" size={20} color={colors.text.secondary} />
-            <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>Créé le</Text>
+            <Ionicons name="calendar-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
+            <Text style={[styles.infoLabel, { color: withOpacity(colors.text.light, 0.7) }]}>Créé le</Text>
           </View>
           <Text style={[styles.infoValue, { color: colors.text.light }]}>
             {groupDetails?.created_at
@@ -252,8 +252,8 @@ export const GroupDetailsScreen: React.FC = () => {
         </View>
         <View style={[styles.infoRow, { borderBottomColor: withOpacity(colors.ui.divider, 0.3) }]}>
           <View style={styles.infoRowLeft}>
-            <Ionicons name="time-outline" size={20} color={colors.text.secondary} />
-            <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>Dernière activité</Text>
+            <Ionicons name="time-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
+            <Text style={[styles.infoLabel, { color: withOpacity(colors.text.light, 0.7) }]}>Dernière activité</Text>
           </View>
           <Text style={[styles.infoValue, { color: colors.text.light }]}>
             {stats?.lastActivity
@@ -266,8 +266,8 @@ export const GroupDetailsScreen: React.FC = () => {
         </View>
         <View style={styles.infoRow}>
           <View style={styles.infoRowLeft}>
-            <Ionicons name="chatbubbles-outline" size={20} color={colors.text.secondary} />
-            <Text style={[styles.infoLabel, { color: colors.text.secondary }]}>Messages</Text>
+            <Ionicons name="chatbubbles-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
+            <Text style={[styles.infoLabel, { color: withOpacity(colors.text.light, 0.7) }]}>Messages</Text>
           </View>
           <Text style={[styles.infoValue, { color: colors.text.light }]}>
             {stats?.messageCount || 0}
@@ -284,7 +284,7 @@ export const GroupDetailsScreen: React.FC = () => {
           <Text style={[styles.sectionTitle, { color: colors.text.light }]}>
             Membres ({members.length})
           </Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.text.secondary }]}>
+          <Text style={[styles.sectionSubtitle, { color: withOpacity(colors.text.light, 0.7) }]}>
             {stats?.adminCount || 0} administrateur{stats && stats.adminCount > 1 ? 's' : ''}
           </Text>
         </View>
@@ -323,11 +323,11 @@ export const GroupDetailsScreen: React.FC = () => {
                 )}
               </View>
               {member.username && (
-                <Text style={[styles.memberUsername, { color: colors.text.secondary }]}>
+                <Text style={[styles.memberUsername, { color: withOpacity(colors.text.light, 0.7) }]}>
                   @{member.username}
                 </Text>
               )}
-              <Text style={[styles.memberJoined, { color: colors.text.tertiary }]}>
+              <Text style={[styles.memberJoined, { color: withOpacity(colors.text.light, 0.5) }]}>
                 Rejoint le {new Date(member.joined_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
               </Text>
             </View>
@@ -356,7 +356,7 @@ export const GroupDetailsScreen: React.FC = () => {
             <Text style={[styles.statValue, { color: colors.text.light }]}>
               {stats?.memberCount || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.text.secondary }]}>Membres</Text>
+            <Text style={[styles.statLabel, { color: withOpacity(colors.text.light, 0.7) }]}>Membres</Text>
           </Animated.View>
 
           <Animated.View
@@ -374,7 +374,7 @@ export const GroupDetailsScreen: React.FC = () => {
             <Text style={[styles.statValue, { color: colors.text.light }]}>
               {stats?.adminCount || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.text.secondary }]}>Admins</Text>
+            <Text style={[styles.statLabel, { color: withOpacity(colors.text.light, 0.7) }]}>Admins</Text>
           </Animated.View>
 
           <Animated.View
@@ -392,7 +392,7 @@ export const GroupDetailsScreen: React.FC = () => {
             <Text style={[styles.statValue, { color: colors.text.light }]}>
               {stats?.messageCount || 0}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.text.secondary }]}>Messages</Text>
+            <Text style={[styles.statLabel, { color: withOpacity(colors.text.light, 0.7) }]}>Messages</Text>
           </Animated.View>
         </View>
       </View>
@@ -404,8 +404,8 @@ export const GroupDetailsScreen: React.FC = () => {
       <View style={styles.historyCard}>
         {logs.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="time-outline" size={48} color={colors.text.tertiary} />
-            <Text style={[styles.emptyText, { color: colors.text.secondary }]}>
+            <Ionicons name="time-outline" size={48} color={withOpacity(colors.text.light, 0.5)} />
+            <Text style={[styles.emptyText, { color: withOpacity(colors.text.light, 0.7) }]}>
               Aucun historique disponible
             </Text>
           </View>
@@ -449,10 +449,10 @@ export const GroupDetailsScreen: React.FC = () => {
                     ? 'Administration transférée'
                     : 'Paramètres modifiés'}
                 </Text>
-                <Text style={[styles.logActor, { color: colors.text.secondary }]}>
+                <Text style={[styles.logActor, { color: withOpacity(colors.text.light, 0.7) }]}>
                   par {log.actor_name}
                 </Text>
-                <Text style={[styles.logTime, { color: colors.text.tertiary }]}>
+                <Text style={[styles.logTime, { color: withOpacity(colors.text.light, 0.5) }]}>
                   {new Date(log.timestamp).toLocaleDateString('fr-FR', {
                     day: 'numeric',
                     month: 'short',
@@ -477,10 +477,10 @@ export const GroupDetailsScreen: React.FC = () => {
           </Text>
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="chatbubble-outline" size={20} color={colors.text.secondary} />
+              <Ionicons name="chatbubble-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
               <Text style={[styles.settingLabel, { color: colors.text.light }]}>Envoi de messages</Text>
             </View>
-            <Text style={[styles.settingValue, { color: colors.text.secondary }]}>
+            <Text style={[styles.settingValue, { color: withOpacity(colors.text.light, 0.7) }]}>
               {settings?.message_permission === 'all_members'
                 ? 'Tous les membres'
                 : settings?.message_permission === 'moderators_plus'
@@ -490,10 +490,10 @@ export const GroupDetailsScreen: React.FC = () => {
           </View>
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="image-outline" size={20} color={colors.text.secondary} />
+              <Ionicons name="image-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
               <Text style={[styles.settingLabel, { color: colors.text.light }]}>Envoi de médias</Text>
             </View>
-            <Text style={[styles.settingValue, { color: colors.text.secondary }]}>
+            <Text style={[styles.settingValue, { color: withOpacity(colors.text.light, 0.7) }]}>
               {settings?.media_permission === 'all_members'
                 ? 'Tous les membres'
                 : settings?.media_permission === 'moderators_plus'
@@ -508,10 +508,10 @@ export const GroupDetailsScreen: React.FC = () => {
           </Text>
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="shield-outline" size={20} color={colors.text.secondary} />
+              <Ionicons name="shield-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
               <Text style={[styles.settingLabel, { color: colors.text.light }]}>Niveau de modération</Text>
             </View>
-            <Text style={[styles.settingValue, { color: colors.text.secondary }]}>
+            <Text style={[styles.settingValue, { color: withOpacity(colors.text.light, 0.7) }]}>
               {settings?.moderation_level === 'light'
                 ? 'Léger'
                 : settings?.moderation_level === 'medium'
@@ -521,7 +521,7 @@ export const GroupDetailsScreen: React.FC = () => {
           </View>
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="filter-outline" size={20} color={colors.text.secondary} />
+              <Ionicons name="filter-outline" size={20} color={withOpacity(colors.text.light, 0.7)} />
               <Text style={[styles.settingLabel, { color: colors.text.light }]}>Filtre de contenu</Text>
             </View>
             <View style={[styles.toggleBadge, { backgroundColor: settings?.content_filter_enabled ? colors.primary.main : colors.background.tertiary }]}>
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   infoRowLeft: {
     flexDirection: 'row',
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
