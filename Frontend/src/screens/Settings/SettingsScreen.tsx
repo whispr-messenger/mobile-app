@@ -109,7 +109,7 @@ export const SettingsScreen: React.FC = () => {
         setSelectedPrivacyItem(null);
       }
     } catch (error) {
-      console.error('❌ Error updating setting:', error);
+      console.error('Error updating setting:', error);
     }
   };
 

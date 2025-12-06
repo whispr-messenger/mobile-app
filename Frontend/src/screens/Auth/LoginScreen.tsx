@@ -144,15 +144,10 @@ export const LoginScreen: React.FC = () => {
   };
 
   const handleLogin = async () => {
-    console.log('🚀 Début de la connexion...');
-    console.log('📱 Numéro saisi:', phoneNumber);
-    console.log('🌍 Code pays:', countryCode);
-    
     // Clear previous errors
     setError('');
     
     if (!phoneNumber.trim()) {
-      console.log('❌ Erreur: Numéro vide');
       setError(getLocalizedText('auth.enterPhone'));
       shakeInput();
       return;
@@ -160,10 +155,8 @@ export const LoginScreen: React.FC = () => {
 
     // Validation du format de numéro (plus flexible)
     const cleanNumber = phoneNumber.replace(/\s/g, '');
-    console.log('🔢 Numéro nettoyé:', cleanNumber);
     
     if (cleanNumber.length < 10) {
-      console.log('❌ Erreur: Numéro trop court');
       setError(getLocalizedText('auth.phoneMinLength'));
       shakeInput();
       return;
@@ -171,14 +164,12 @@ export const LoginScreen: React.FC = () => {
 
     // Validation du format français
     if (!cleanNumber.match(/^0[1-9]\d{8}$/)) {
-      console.log('❌ Erreur: Format invalide');
       setError(getLocalizedText('auth.phoneInvalidFormat'));
       shakeInput();
       return;
     }
 
     setLoading(true);
-    console.log('⏳ Envoi du code de vérification...');
     
     try {
       const authService = AuthService.getInstance();
@@ -187,23 +178,17 @@ export const LoginScreen: React.FC = () => {
         number: cleanNumber
       };
       
-      console.log('📞 Données envoyées:', phoneData);
-      
       // Utilisation de la méthode loginRequest pour la connexion
       const result = await authService.loginRequest(phoneData);
-      
-      console.log('📨 Résultat:', result);
       
       setLoading(false);
       
       if (result.success) {
-        console.log('✅ Code envoyé avec succès, navigation vers VerificationScreen');
         navigation.navigate('Verification', { 
           phoneNumber: countryCode + ' ' + phoneNumber,
           isLogin: true // Flag pour distinguer login vs registration
         });
       } else {
-        console.log('❌ Échec de l\'envoi:', result.message);
         Alert.alert(getLocalizedText('notif.error'), result.message || getLocalizedText('auth.errorConnection'));
       }
     } catch (error) {
