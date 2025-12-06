@@ -857,7 +857,7 @@ export const messagingAPI = {
     await mockDelay(500);
     
     // Check if conversation already exists
-    const existingConversations = mockStore.getConversations();
+    const existingConversations = await this.getConversations();
     const existing = existingConversations.find(conv => 
       conv.type === 'direct' && 
       conv.metadata?.other_user_id === otherUserId
