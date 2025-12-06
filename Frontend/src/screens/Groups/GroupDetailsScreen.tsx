@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -43,6 +44,8 @@ const AnimatedView = Animated.createAnimatedComponent(View);
 
 type GroupDetailsScreenRouteProp = StackScreenProps<AuthStackParamList, 'GroupDetails'>['route'];
 
+const CURRENT_USER_ID = 'user-1';
+
 export const GroupDetailsScreen: React.FC = () => {
   const route = useRoute<GroupDetailsScreenRouteProp>();
   const navigation = useNavigation();
@@ -56,6 +59,11 @@ export const GroupDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'stats' | 'history' | 'settings'>('info');
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTransferAdminModal, setShowTransferAdminModal] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -111,11 +119,76 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleManageGroup = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate('GroupManagement', {
+    (navigation as any).navigate('GroupManagement', {
       groupId,
       conversationId,
     });
   }, [navigation, groupId, conversationId]);
+
+  const currentUserMember = members.find(m => m.user_id === CURRENT_USER_ID);
+  const isAdmin = currentUserMember?.role === 'admin';
+  const adminCount = members.filter(m => m.role === 'admin').length;
+  const isLastAdmin = isAdmin && adminCount === 1;
+  const otherMembers = members.filter(m => m.user_id !== CURRENT_USER_ID);
+
+  const handleLeaveGroup = useCallback(async () => {
+    if (isLastAdmin) {
+      setShowLeaveModal(false);
+      setShowTransferAdminModal(true);
+      return;
+    }
+
+    try {
+      setLeaving(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      (navigation as any).navigate('ConversationsList');
+    } catch (error: any) {
+      logger.error('GroupDetailsScreen', 'Error leaving group', error);
+      Alert.alert('Erreur', error.message || 'Impossible de quitter le groupe');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setLeaving(false);
+      setShowLeaveModal(false);
+    }
+  }, [groupId, isLastAdmin, navigation]);
+
+  const handleDeleteGroup = useCallback(async () => {
+    try {
+      setDeleting(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      await groupsAPI.deleteGroup(groupId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Succès', 'Le groupe a été supprimé');
+      (navigation as any).navigate('ConversationsList');
+    } catch (error) {
+      logger.error('GroupDetailsScreen', 'Error deleting group', error);
+      Alert.alert('Erreur', 'Impossible de supprimer le groupe');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  }, [groupId, navigation]);
+
+  const handleTransferAndLeave = useCallback(async (newAdminId: string) => {
+    try {
+      setLeaving(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await groupsAPI.transferAdmin(groupId, newAdminId);
+      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      (navigation as any).navigate('ConversationsList');
+    } catch (error: any) {
+      logger.error('GroupDetailsScreen', 'Error transferring and leaving', error);
+      Alert.alert('Erreur', error.message || 'Impossible de transférer et quitter le groupe');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setLeaving(false);
+      setShowTransferAdminModal(false);
+    }
+  }, [groupId, navigation]);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     opacity: headerOpacity.value,
@@ -533,6 +606,47 @@ export const GroupDetailsScreen: React.FC = () => {
             </View>
           </View>
         </View>
+        <View style={styles.settingsSection}>
+          <Text style={[styles.settingsSectionTitle, { color: colors.text.light }]}>
+            Actions
+          </Text>
+          <AnimatedTouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setShowLeaveModal(true);
+            }}
+            activeOpacity={0.7}
+            entering={FadeInDown.delay(200).duration(300)}
+          >
+            <View style={styles.actionButtonContent}>
+              <Ionicons name="exit-outline" size={22} color={colors.ui.warning} />
+              <Text style={[styles.actionButtonText, { color: colors.ui.warning }]}>
+                Quitter le groupe
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.5)} />
+          </AnimatedTouchableOpacity>
+          {isAdmin && (
+            <AnimatedTouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                setShowDeleteModal(true);
+              }}
+              activeOpacity={0.7}
+              entering={FadeInDown.delay(250).duration(300)}
+            >
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="trash-outline" size={22} color={colors.ui.error} />
+                <Text style={[styles.actionButtonText, { color: colors.ui.error }]}>
+                  Supprimer le groupe
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.5)} />
+            </AnimatedTouchableOpacity>
+          )}
+        </View>
       </View>
     </Animated.View>
   );
@@ -552,6 +666,199 @@ export const GroupDetailsScreen: React.FC = () => {
       default:
         return renderInfoTab();
     }
+  };
+
+  const renderLeaveModal = () => (
+    <Modal
+      visible={showLeaveModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowLeaveModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <AnimatedView
+          style={styles.modalContainer}
+          entering={FadeInDown.duration(300).springify()}
+        >
+          <LinearGradient
+            colors={[colors.background.darkCard, colors.background.dark]}
+            style={styles.modalGradient}
+          >
+            <View style={styles.modalHeader}>
+              <Ionicons name="exit-outline" size={32} color={colors.ui.warning} />
+              <Text style={styles.modalTitle}>Quitter le groupe</Text>
+              <Text style={styles.modalDescription}>
+                {isLastAdmin
+                  ? 'Vous êtes le dernier administrateur. Vous devez transférer l\'administration avant de quitter le groupe, sinon le groupe sera supprimé.'
+                  : `Êtes-vous sûr de vouloir quitter "${groupDetails?.name}" ? Vous ne recevrez plus les messages de ce groupe.`}
+              </Text>
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowLeaveModal(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalButtonCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleLeaveGroup}
+                disabled={leaving}
+                activeOpacity={0.7}
+              >
+                {leaving ? (
+                  <ActivityIndicator size="small" color={colors.text.light} />
+                ) : (
+                  <Text style={styles.modalButtonConfirmText}>Quitter</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </AnimatedView>
+      </View>
+    </Modal>
+  );
+
+  const renderDeleteModal = () => (
+    <Modal
+      visible={showDeleteModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowDeleteModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <AnimatedView
+          style={styles.modalContainer}
+          entering={FadeInDown.duration(300).springify()}
+        >
+          <LinearGradient
+            colors={[colors.background.darkCard, colors.background.dark]}
+            style={styles.modalGradient}
+          >
+            <View style={styles.modalHeader}>
+              <Ionicons name="trash-outline" size={32} color={colors.ui.error} />
+              <Text style={styles.modalTitle}>Supprimer le groupe</Text>
+              <Text style={styles.modalDescription}>
+                Êtes-vous sûr de vouloir supprimer "{groupDetails?.name}" ? Cette action est irréversible après 7 jours. Tous les membres seront retirés et toutes les données seront supprimées.
+              </Text>
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowDeleteModal(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalButtonCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonDelete]}
+                onPress={handleDeleteGroup}
+                disabled={deleting}
+                activeOpacity={0.7}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={colors.text.light} />
+                ) : (
+                  <Text style={styles.modalButtonDeleteText}>Supprimer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </AnimatedView>
+      </View>
+    </Modal>
+  );
+
+  const renderTransferAdminModal = () => {
+    const nonAdminMembers = otherMembers.filter(m => m.role !== 'admin');
+    
+    return (
+      <Modal
+        visible={showTransferAdminModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTransferAdminModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <AnimatedView
+            style={styles.modalContainer}
+            entering={FadeInDown.duration(300).springify()}
+          >
+            <LinearGradient
+              colors={[colors.background.darkCard, colors.background.dark]}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalHeader}>
+                <Ionicons name="shield-outline" size={32} color={colors.secondary.main} />
+                <Text style={styles.modalTitle}>Transférer l'administration</Text>
+                <Text style={styles.modalDescription}>
+                  Vous êtes le dernier administrateur. Sélectionnez un membre à qui transférer l'administration, ou le groupe sera supprimé.
+                </Text>
+              </View>
+              <ScrollView style={styles.membersList} showsVerticalScrollIndicator={false}>
+                {nonAdminMembers.map((member, index) => (
+                  <AnimatedTouchableOpacity
+                    key={member.id}
+                    style={styles.memberSelectItem}
+                    onPress={() => handleTransferAndLeave(member.user_id)}
+                    activeOpacity={0.7}
+                    entering={FadeInDown.delay(index * 50).duration(300)}
+                  >
+                    <Avatar
+                      uri={member.avatar_url}
+                      name={member.display_name}
+                      size={50}
+                      showOnlineBadge={false}
+                    />
+                    <View style={styles.memberSelectInfo}>
+                      <Text style={styles.memberSelectName}>{member.display_name}</Text>
+                      {member.username && (
+                        <Text style={styles.memberSelectUsername}>@{member.username}</Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={withOpacity(colors.text.light, 0.5)} />
+                  </AnimatedTouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowTransferAdminModal(false);
+                    Alert.alert(
+                      'Attention',
+                      'Si vous quittez sans transférer l\'administration, le groupe sera supprimé.',
+                      [
+                        { text: 'Annuler', style: 'cancel' },
+                        {
+                          text: 'Quitter quand même',
+                          style: 'destructive',
+                          onPress: () => {
+                            setShowTransferAdminModal(false);
+                            setShowLeaveModal(true);
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalButtonCancelText}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </AnimatedView>
+        </View>
+      </Modal>
+    );
   };
 
   if (loading) {
@@ -597,6 +904,9 @@ export const GroupDetailsScreen: React.FC = () => {
           {renderTabs()}
           <View style={styles.contentContainer}>{renderContent()}</View>
         </ScrollView>
+        {renderLeaveModal()}
+        {renderDeleteModal()}
+        {renderTransferAdminModal()}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -907,6 +1217,123 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  actionButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  actionButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  modalGradient: {
+    padding: 24,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text.light,
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: typography.fontSize.base,
+    color: withOpacity(colors.text.light, 0.8),
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: withOpacity(colors.background.darkCard, 0.5),
+  },
+  modalButtonConfirm: {
+    backgroundColor: colors.ui.warning,
+  },
+  modalButtonDelete: {
+    backgroundColor: colors.ui.error,
+  },
+  modalButtonCancelText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
+  },
+  modalButtonConfirmText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
+  },
+  modalButtonDeleteText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
+  },
+  membersList: {
+    maxHeight: 300,
+    marginBottom: 16,
+  },
+  memberSelectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: withOpacity(colors.background.darkCard, 0.3),
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  memberSelectInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  memberSelectName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text.light,
+    marginBottom: 2,
+  },
+  memberSelectUsername: {
+    fontSize: typography.fontSize.sm,
+    color: withOpacity(colors.text.light, 0.6),
   },
 });
 
