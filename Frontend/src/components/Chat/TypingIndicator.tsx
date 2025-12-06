@@ -1,18 +1,24 @@
 /**
- * TypingIndicator - Animated typing indicator with 3 dots
+ * TypingIndicator - Animated typing indicator with user name
  */
 
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence } from 'react-native-reanimated';
 import Animated from 'react-native-reanimated';
 import { colors } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
+import { Avatar } from './Avatar';
 
 interface TypingIndicatorProps {
   userName?: string;
+  userNames?: string[];
+  avatarUrl?: string;
 }
 
-export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName }) => {
+export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName, userNames, avatarUrl }) => {
+  const { getThemeColors } = useTheme();
+  const themeColors = getThemeColors();
   const dot1Y = useSharedValue(0);
   const dot2Y = useSharedValue(0);
   const dot3Y = useSharedValue(0);
@@ -49,13 +55,43 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName }) =>
     transform: [{ translateY: dot3Y.value }],
   }));
 
+  // Determine display text
+  const getDisplayText = () => {
+    if (userNames && userNames.length > 0) {
+      if (userNames.length === 1) {
+        return `${userNames[0]} est en train d'écrire`;
+      } else if (userNames.length === 2) {
+        return `${userNames[0]} et ${userNames[1]} sont en train d'écrire`;
+      } else {
+        return `${userNames.length} personnes sont en train d'écrire`;
+      }
+    }
+    if (userName) {
+      return `${userName} est en train d'écrire`;
+    }
+    return "Quelqu'un est en train d'écrire";
+  };
+
+  const displayName = userName || (userNames && userNames.length > 0 ? userNames[0] : undefined);
+
   return (
     <View style={styles.container}>
-      {userName && <View style={styles.avatar} />}
-      <View style={styles.bubble}>
-        <Animated.View style={[styles.dot, dot1Style]} />
-        <Animated.View style={[styles.dot, dot2Style]} />
-        <Animated.View style={[styles.dot, dot3Style]} />
+      <Avatar
+        size={32}
+        uri={avatarUrl}
+        name={displayName || 'User'}
+        showOnlineBadge={false}
+        isOnline={false}
+      />
+      <View style={[styles.bubble, { backgroundColor: 'rgba(26, 31, 58, 0.6)' }]}>
+        <Text style={[styles.text, { color: themeColors.text.secondary }]}>
+          {getDisplayText()}
+        </Text>
+        <View style={styles.dotsContainer}>
+          <Animated.View style={[styles.dot, dot1Style, { backgroundColor: themeColors.text.tertiary }]} />
+          <Animated.View style={[styles.dot, dot2Style, { backgroundColor: themeColors.text.tertiary }]} />
+          <Animated.View style={[styles.dot, dot3Style, { backgroundColor: themeColors.text.tertiary }]} />
+        </View>
       </View>
     </View>
   );
@@ -68,28 +104,32 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     marginHorizontal: 16,
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.secondary.light,
-    marginRight: 8,
-  },
   bubble: {
     flexDirection: 'row',
-    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
     borderBottomLeftRadius: 4,
+    marginLeft: 8,
+  },
+  text: {
+    fontSize: 13,
+    marginRight: 6,
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.text.tertiary,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginHorizontal: 2,
   },
 });
+
+
+
 
 

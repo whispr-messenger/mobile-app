@@ -38,3 +38,6 @@ yarn-error.*
 
 # VSCode settings with sensitive data
 .vscode/settings.json
+
+# Local testing guides
+*TESTING_GUIDE*.md
