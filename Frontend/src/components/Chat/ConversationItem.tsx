@@ -172,7 +172,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               />
             )}
           </View>
-          {conversation.unread_count && conversation.unread_count > 0 && getBadgeColor && (
+          {conversation.unread_count && conversation.unread_count > 0 && getBadgeColor ? (
             <View
               style={[
                 styles.unreadBadge,
@@ -183,7 +183,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 {conversation.unread_count > 99 ? '99+' : String(conversation.unread_count)}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
       </View>
     </TouchableOpacity>

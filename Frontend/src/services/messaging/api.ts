@@ -4,11 +4,168 @@
  */
 
 import { Conversation, Message } from '../../types/messaging';
+import { mockStore } from './mockStore';
 
 const API_BASE_URL = 'https://api.whispr.local/api/v1';
 
 // Mock delay to simulate network
 const mockDelay = (ms: number = 500) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Generate mock messages for a conversation
+const generateMockMessages = (conversationId: string, count: number = 50): Message[] => {
+  const now = new Date();
+  const messages: Message[] = [];
+  const users = ['user-1', 'user-2'];
+  const sampleTexts = [
+    'Salut ! Comment ça va ?',
+    'Ça va bien merci !',
+    'Quoi de neuf ?',
+    'Rien de spécial, et toi ?',
+    'Super ! On se voit bientôt ?',
+    'Oui, avec plaisir !',
+    'Parfait, à bientôt alors 😊',
+    'À plus !',
+    'Hey, tu as vu le dernier film ?',
+    'Non pas encore, il est bien ?',
+    'Oui excellent, je te le recommande !',
+    'Ok je vais le regarder ce weekend',
+    'Tu veux qu\'on y aille ensemble ?',
+    'Avec plaisir !',
+    'Parfait, je te contacte demain',
+    'Ok super !',
+    'Bonjour, comment allez-vous ?',
+    'Très bien merci, et vous ?',
+    'Parfait, merci !',
+    'Quel temps fait-il chez vous ?',
+    'Il fait beau ici, et chez toi ?',
+    'Pareil, super journée !',
+    'Tu as fini le projet ?',
+    'Oui, enfin ! Ça m\'a pris du temps',
+    'Bravo ! Tu as fait du bon travail',
+    'Merci beaucoup !',
+    'De rien, c\'est mérité',
+    'On fait quoi ce soir ?',
+    'Je ne sais pas, tu as une idée ?',
+    'On pourrait aller au cinéma',
+    'Bonne idée !',
+    'Ok je réserve les places',
+    'Parfait, merci !',
+  ];
+
+  // Sample images for media messages
+  const sampleImages = [
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=300&fit=crop',
+  ];
+
+  // Add system message at the beginning (oldest)
+  messages.push({
+    id: `sys-${conversationId}-join`,
+    conversation_id: conversationId,
+    sender_id: 'system',
+    message_type: 'system' as const,
+    content: 'Vous avez rejoint la conversation',
+    metadata: {},
+    client_random: 0,
+    sent_at: new Date(now.getTime() - (count * 1800000)).toISOString(), // Oldest message
+    is_deleted: false,
+    delete_for_everyone: false,
+  });
+
+  for (let i = 0; i < count; i++) {
+    const senderId = users[i % users.length];
+    const textIndex = i % sampleTexts.length;
+    const hoursAgo = Math.floor(i / 2); // Messages espacés de 30 min
+    const minutesOffset = (i % 2) * 30;
+    const messageId = `msg-${conversationId}-${i}`;
+    const sentAt = new Date(now.getTime() - (hoursAgo * 3600000) - (minutesOffset * 60000));
+    
+    // Add system message every 20 messages (user joined/left)
+    if (i > 0 && i % 20 === 0) {
+      messages.push({
+        id: `sys-${conversationId}-${i}`,
+        conversation_id: conversationId,
+        sender_id: 'system',
+        message_type: 'system' as const,
+        content: i % 40 === 0 ? 'Un utilisateur a rejoint la conversation' : 'Un utilisateur a quitté la conversation',
+        metadata: {},
+        client_random: 0,
+        sent_at: sentAt.toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+      });
+    }
+
+    // Add media message every 8 messages
+    if (i > 0 && i % 8 === 0) {
+      const imageIndex = Math.floor(i / 8) % sampleImages.length;
+      messages.push({
+        id: messageId,
+        conversation_id: conversationId,
+        sender_id: senderId,
+        message_type: 'media' as const,
+        content: 'Photo',
+        metadata: {
+          media_type: 'image',
+          media_url: sampleImages[imageIndex],
+          thumbnail_url: sampleImages[imageIndex],
+        },
+        client_random: 10000 + i,
+        sent_at: sentAt.toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+      });
+
+      // Add attachment to mockStore for this media message
+      const attachmentId = `att-${messageId}`;
+      mockStore.addAttachment(messageId, {
+        id: attachmentId,
+        message_id: messageId,
+        media_id: `media-${messageId}`,
+        media_type: 'image' as const,
+        metadata: {
+          filename: `photo-${i}.jpg`,
+          size: 245760, // ~240 KB
+          mime_type: 'image/jpeg',
+          media_url: sampleImages[imageIndex],
+          thumbnail_url: sampleImages[imageIndex],
+        },
+        created_at: sentAt.toISOString(),
+      });
+    } else {
+      // Regular text message
+      messages.push({
+        id: messageId,
+        conversation_id: conversationId,
+        sender_id: senderId,
+        message_type: 'text' as const,
+        content: sampleTexts[textIndex],
+        metadata: {},
+        client_random: 10000 + i,
+        sent_at: sentAt.toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+        // Add reply_to_id for some messages
+        reply_to_id: i > 5 && i % 7 === 0 ? `msg-${conversationId}-${i - 3}` : undefined,
+        // Add edited_at for some messages
+        edited_at: i > 10 && i % 11 === 0 ? new Date(sentAt.getTime() + 60000).toISOString() : undefined,
+      });
+    }
+
+    // Add some mock reactions to messages
+    if (i > 3 && i % 5 === 0) {
+      const reactions = ['❤️', '👍', '😂'];
+      reactions.forEach((emoji, idx) => {
+        mockStore.addReaction(messageId, `user-${(idx % 2) + 1}`, emoji);
+      });
+    }
+  }
+
+  return messages.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+};
 
 export const messagingAPI = {
   /**
@@ -401,7 +558,15 @@ export const messagingAPI = {
   async getConversation(id: string): Promise<Conversation> {
     await mockDelay(400);
     
-    throw new Error('Not implemented');
+    // Get conversation from mock conversations list
+    const conversations = await this.getConversations();
+    const conversation = conversations.find(c => c.id === id);
+    
+    if (!conversation) {
+      throw new Error('Conversation not found');
+    }
+    
+    return conversation;
   },
 
   /**
@@ -418,36 +583,44 @@ export const messagingAPI = {
   ): Promise<Message[]> {
     await mockDelay(500);
     
-    // Mock messages
-    const now = new Date();
-    const mockMessages: Message[] = [
-      {
-        id: 'msg-1',
-        conversation_id: conversationId,
-        sender_id: 'user-2',
-        message_type: 'text',
-        content: 'Salut ! Comment ça va ?',
-        metadata: {},
-        client_random: 12345,
-        sent_at: new Date(now.getTime() - 3600000).toISOString(),
-        is_deleted: false,
-        delete_for_everyone: false,
-      },
-      {
-        id: 'msg-2',
-        conversation_id: conversationId,
-        sender_id: 'user-1',
-        message_type: 'text',
-        content: 'Ça va bien merci !',
-        metadata: {},
-        client_random: 12346,
-        sent_at: new Date(now.getTime() - 3300000).toISOString(),
-        is_deleted: false,
-        delete_for_everyone: false,
-      },
-    ];
-    
-    return mockMessages;
+    // Get or generate mock messages
+    let allMessages = mockStore.getMessages(conversationId);
+    if (allMessages.length === 0) {
+      allMessages = generateMockMessages(conversationId, 50);
+      mockStore.setMessages(conversationId, allMessages);
+    }
+
+    const limit = params?.limit || 50;
+    let filteredMessages = [...allMessages];
+
+    // Filter by before timestamp (for pagination - older messages)
+    if (params?.before) {
+      const beforeDate = new Date(params.before);
+      filteredMessages = filteredMessages.filter(
+        msg => new Date(msg.sent_at) < beforeDate
+      );
+    }
+
+    // Filter by after timestamp (for new messages)
+    if (params?.after) {
+      const afterDate = new Date(params.after);
+      filteredMessages = filteredMessages.filter(
+        msg => new Date(msg.sent_at) > afterDate
+      );
+    }
+
+    // Filter out deleted messages (unless delete_for_everyone is false)
+    filteredMessages = filteredMessages.filter(
+      msg => !msg.is_deleted || !msg.delete_for_everyone
+    );
+
+    // Sort by sent_at descending (newest first)
+    filteredMessages.sort((a, b) => 
+      new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime()
+    );
+
+    // Limit results
+    return filteredMessages.slice(0, limit);
   },
 
   /**
@@ -461,11 +634,164 @@ export const messagingAPI = {
       message_type: 'text' | 'media' | 'system';
       client_random: number;
       metadata?: Record<string, any>;
+      reply_to_id?: string;
     }
   ): Promise<Message> {
     await mockDelay(300);
     
-    throw new Error('Not implemented');
+    const newMessage: Message = {
+      id: `msg-${conversationId}-${Date.now()}`,
+      conversation_id: conversationId,
+      sender_id: 'user-1', // Mock user ID
+      message_type: message.message_type,
+      content: message.content,
+      metadata: message.metadata || {},
+      client_random: message.client_random,
+      sent_at: new Date().toISOString(),
+      is_deleted: false,
+      delete_for_everyone: false,
+      reply_to_id: message.reply_to_id,
+    };
+
+    mockStore.addMessage(conversationId, newMessage);
+    return newMessage;
+  },
+
+  /**
+   * PUT /api/v1/messages/:id
+   * Edit a message
+   */
+  async editMessage(
+    messageId: string,
+    conversationId: string,
+    newContent: string
+  ): Promise<Message> {
+    await mockDelay(300);
+    
+    const messages = mockStore.getMessages(conversationId);
+    const message = messages.find(m => m.id === messageId);
+    
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    // Check if message can be edited (within 24 hours)
+    const messageAge = Date.now() - new Date(message.sent_at).getTime();
+    const maxEditAge = 24 * 60 * 60 * 1000; // 24 hours
+    
+    if (messageAge > maxEditAge) {
+      throw new Error('Message too old to edit');
+    }
+
+    const updatedMessage: Message = {
+      ...message,
+      content: newContent,
+      edited_at: new Date().toISOString(),
+    };
+
+    mockStore.updateMessage(conversationId, messageId, updatedMessage);
+    return updatedMessage;
+  },
+
+  /**
+   * DELETE /api/v1/messages/:id
+   * Delete a message
+   */
+  async deleteMessage(
+    messageId: string,
+    conversationId: string,
+    deleteForEveryone: boolean
+  ): Promise<void> {
+    await mockDelay(300);
+    
+    mockStore.deleteMessage(conversationId, messageId, deleteForEveryone);
+  },
+
+  /**
+   * POST /api/v1/messages/:id/reactions
+   * Add or toggle a reaction
+   */
+  async addReaction(
+    messageId: string,
+    userId: string,
+    reaction: string
+  ): Promise<void> {
+    await mockDelay(200);
+    
+    mockStore.addReaction(messageId, userId, reaction);
+  },
+
+  /**
+   * DELETE /api/v1/messages/:id/reactions/:reaction
+   * Remove a reaction
+   */
+  async removeReaction(
+    messageId: string,
+    userId: string,
+    reaction: string
+  ): Promise<void> {
+    await mockDelay(200);
+    
+    mockStore.removeReaction(messageId, userId, reaction);
+  },
+
+  /**
+   * GET /api/v1/messages/:id/reactions
+   * Get reactions for a message
+   */
+  async getMessageReactions(messageId: string) {
+    await mockDelay(200);
+    
+    const reactions = mockStore.getReactions(messageId);
+    const summary = mockStore.getReactionSummary(messageId);
+    
+    return {
+      reactions,
+      summary,
+    };
+  },
+
+  /**
+   * POST /api/v1/messages/:id/pin
+   * Pin a message
+   */
+  async pinMessage(conversationId: string, messageId: string): Promise<void> {
+    await mockDelay(200);
+    
+    mockStore.pinMessage(conversationId, messageId);
+  },
+
+  /**
+   * DELETE /api/v1/messages/:id/pin
+   * Unpin a message
+   */
+  async unpinMessage(conversationId: string, messageId: string): Promise<void> {
+    await mockDelay(200);
+    
+    mockStore.unpinMessage(conversationId, messageId);
+  },
+
+  /**
+   * GET /api/v1/conversations/:id/pins
+   * Get pinned messages for a conversation
+   */
+  async getPinnedMessages(conversationId: string): Promise<Message[]> {
+    await mockDelay(300);
+    
+    const pinnedIds = mockStore.getPinnedMessages(conversationId);
+    const allMessages = mockStore.getMessages(conversationId);
+    
+    return allMessages.filter(msg => pinnedIds.includes(msg.id));
+  },
+
+  /**
+   * GET /api/v1/messages/:id/attachments
+   * Get attachments for a message
+   */
+  async getAttachments(messageId: string) {
+    await mockDelay(200);
+    
+    return mockStore.getAttachments(messageId);
   },
 };
 
