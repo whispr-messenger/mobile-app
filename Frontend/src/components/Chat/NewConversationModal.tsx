@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+import { colors, withOpacity } from '../../theme/colors';
 import { Contact } from '../../types/contact';
 import { contactsAPI } from '../../services/contacts/api';
 import { messagingAPI } from '../../services/messaging/api';
@@ -267,16 +267,16 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   // Render type selection screen
   const renderTypeSelection = () => (
     <View style={styles.typeSelectionContainer}>
-      <Text style={[styles.screenTitle, { color: themeColors.text.primary }]}>
+      <Text style={[styles.screenTitle, { color: colors.text.light }]}>
         Nouvelle conversation
       </Text>
-      <Text style={[styles.screenSubtitle, { color: themeColors.text.secondary }]}>
+      <Text style={[styles.screenSubtitle, { color: colors.text.secondary }]}>
         Choisissez le type de conversation
       </Text>
 
       <View style={styles.typeButtonsContainer}>
         <TouchableOpacity
-          style={[styles.typeButton, { backgroundColor: themeColors.background.secondary }]}
+          style={[styles.typeButton, { backgroundColor: colors.background.darkCard }]}
           onPress={() => handleTypeSelect('direct')}
           activeOpacity={0.7}
         >
@@ -288,16 +288,16 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           >
             <Ionicons name="person" size={32} color={colors.text.light} />
           </LinearGradient>
-          <Text style={[styles.typeButtonTitle, { color: themeColors.text.primary }]}>
+          <Text style={[styles.typeButtonTitle, { color: colors.text.light }]}>
             Conversation directe
           </Text>
-          <Text style={[styles.typeButtonSubtitle, { color: themeColors.text.secondary }]}>
+          <Text style={[styles.typeButtonSubtitle, { color: colors.text.secondary }]}>
             Discuter avec un contact
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.typeButton, { backgroundColor: themeColors.background.secondary }]}
+          style={[styles.typeButton, { backgroundColor: colors.background.darkCard }]}
           onPress={() => handleTypeSelect('group')}
           activeOpacity={0.7}
         >
@@ -309,10 +309,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           >
             <Ionicons name="people" size={32} color={colors.text.light} />
           </LinearGradient>
-          <Text style={[styles.typeButtonTitle, { color: themeColors.text.primary }]}>
+          <Text style={[styles.typeButtonTitle, { color: colors.text.light }]}>
             Groupe
           </Text>
-          <Text style={[styles.typeButtonSubtitle, { color: themeColors.text.secondary }]}>
+          <Text style={[styles.typeButtonSubtitle, { color: colors.text.secondary }]}>
             Créer un groupe de discussion
           </Text>
         </TouchableOpacity>
@@ -323,22 +323,22 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   // Render direct conversation screen
   const renderDirectConversation = () => (
     <View style={styles.contentContainer}>
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.ui.divider }]}>
         <TouchableOpacity onPress={() => setConversationType(null)} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+          <Ionicons name="arrow-back" size={24} color={colors.text.light} />
         </TouchableOpacity>
-        <Text style={[styles.screenTitle, { color: themeColors.text.primary }]}>
+        <Text style={[styles.screenTitle, { color: colors.text.light }]}>
           Nouvelle conversation
         </Text>
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={themeColors.text.secondary} style={styles.searchIcon} />
+      <View style={[styles.searchContainer, { backgroundColor: colors.background.darkCard }]}>
+        <Ionicons name="search" size={20} color={colors.text.secondary} style={styles.searchIcon} />
         <TextInput
-          style={[styles.searchInput, { color: themeColors.text.primary }]}
+          style={[styles.searchInput, { color: colors.text.light }]}
           placeholder="Rechercher un contact..."
-          placeholderTextColor={themeColors.text.tertiary}
+          placeholderTextColor={colors.text.tertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -361,8 +361,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               <TouchableOpacity
                 style={[
                   styles.contactItem,
-                  { backgroundColor: themeColors.background.secondary },
-                  isSelected && { backgroundColor: colors.primary.main + '20' },
+                  { backgroundColor: colors.background.darkCard },
+                  isSelected && { backgroundColor: withOpacity(colors.primary.main, 0.2) },
                 ]}
                 onPress={() => handleContactSelect(item)}
                 activeOpacity={0.7}
@@ -374,11 +374,11 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   showOnlineBadge={false}
                 />
                 <View style={styles.contactInfo}>
-                  <Text style={[styles.contactName, { color: themeColors.text.primary }]}>
+                  <Text style={[styles.contactName, { color: colors.text.light }]}>
                     {displayName}
                   </Text>
                   {user?.username && (
-                    <Text style={[styles.contactUsername, { color: themeColors.text.secondary }]}>
+                    <Text style={[styles.contactUsername, { color: colors.text.secondary }]}>
                       @{user.username}
                     </Text>
                   )}
@@ -391,7 +391,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+              <Text style={[styles.emptyText, { color: colors.text.secondary }]}>
                 Aucun contact trouvé
               </Text>
             </View>
@@ -426,11 +426,11 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
     return (
       <View style={styles.contentContainer}>
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: colors.ui.divider }]}>
           <TouchableOpacity onPress={() => setConversationType(null)} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <Ionicons name="arrow-back" size={24} color={colors.text.light} />
           </TouchableOpacity>
-          <Text style={[styles.screenTitle, { color: themeColors.text.primary }]}>
+          <Text style={[styles.screenTitle, { color: colors.text.light }]}>
             Nouveau groupe
           </Text>
           <View style={styles.placeholder} />
@@ -447,8 +447,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               {groupPhoto ? (
                 <Image source={{ uri: groupPhoto }} style={styles.groupPhoto} />
               ) : (
-                <View style={[styles.photoPlaceholder, { backgroundColor: themeColors.background.secondary }]}>
-                  <Ionicons name="camera" size={40} color={themeColors.text.secondary} />
+                <View style={[styles.photoPlaceholder, { backgroundColor: colors.background.darkCard }]}>
+                  <Ionicons name="camera" size={40} color={colors.text.secondary} />
                 </View>
               )}
               <View style={[styles.photoOverlay, { backgroundColor: colors.primary.main }]}>
@@ -468,22 +468,22 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
           {/* Group Name */}
           <View style={styles.inputSection}>
-            <Text style={[styles.inputLabel, { color: themeColors.text.primary }]}>
+            <Text style={[styles.inputLabel, { color: colors.text.light }]}>
               Nom du groupe *
             </Text>
             <TextInput
               style={[
                 styles.input,
                 { 
-                  backgroundColor: themeColors.background.secondary,
-                  color: themeColors.text.primary,
+                  backgroundColor: colors.background.darkCard,
+                  color: colors.text.light,
                   borderColor: groupName.trim().length > 0 && groupName.trim().length < 3
                     ? colors.ui.error
                     : 'transparent',
                 },
               ]}
               placeholder="Nom du groupe (3-100 caractères)"
-              placeholderTextColor={themeColors.text.tertiary}
+              placeholderTextColor={colors.text.tertiary}
               value={groupName}
               onChangeText={setGroupName}
               maxLength={100}
@@ -493,14 +493,14 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 Le nom doit contenir au moins 3 caractères
               </Text>
             )}
-            <Text style={[styles.helperText, { color: themeColors.text.secondary }]}>
+            <Text style={[styles.helperText, { color: colors.text.secondary }]}>
               {groupName.length}/100
             </Text>
           </View>
 
           {/* Group Description */}
           <View style={styles.inputSection}>
-            <Text style={[styles.inputLabel, { color: themeColors.text.primary }]}>
+            <Text style={[styles.inputLabel, { color: colors.text.light }]}>
               Description (optionnel)
             </Text>
             <TextInput
@@ -508,19 +508,19 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 styles.input,
                 styles.textArea,
                 { 
-                  backgroundColor: themeColors.background.secondary,
-                  color: themeColors.text.primary,
+                  backgroundColor: colors.background.darkCard,
+                  color: colors.text.light,
                 },
               ]}
               placeholder="Description du groupe (max 500 caractères)"
-              placeholderTextColor={themeColors.text.tertiary}
+              placeholderTextColor={colors.text.tertiary}
               value={groupDescription}
               onChangeText={setGroupDescription}
               multiline
               numberOfLines={3}
               maxLength={500}
             />
-            <Text style={[styles.helperText, { color: themeColors.text.secondary }]}>
+            <Text style={[styles.helperText, { color: colors.text.secondary }]}>
               {groupDescription.length}/500
             </Text>
           </View>
@@ -528,15 +528,15 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           {/* Members Selection */}
           <View style={styles.membersSection}>
             <View style={styles.membersHeader}>
-              <Text style={[styles.inputLabel, { color: themeColors.text.primary }]}>
+              <Text style={[styles.inputLabel, { color: colors.text.light }]}>
                 Membres ({selectedMembers.size}/50)
               </Text>
-              <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color={themeColors.text.secondary} style={styles.searchIcon} />
+              <View style={[styles.searchContainer, { backgroundColor: colors.background.darkCard }]}>
+                <Ionicons name="search" size={20} color={colors.text.secondary} style={styles.searchIcon} />
                 <TextInput
-                  style={[styles.searchInput, { color: themeColors.text.primary }]}
+                  style={[styles.searchInput, { color: colors.text.light }]}
                   placeholder="Rechercher des contacts..."
-                  placeholderTextColor={themeColors.text.tertiary}
+                  placeholderTextColor={colors.text.tertiary}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
@@ -593,8 +593,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                     <TouchableOpacity
                       style={[
                         styles.contactItem,
-                        { backgroundColor: themeColors.background.secondary },
-                        isSelected && { backgroundColor: colors.primary.main + '20' },
+                        { backgroundColor: colors.background.darkCard },
+                        isSelected && { backgroundColor: withOpacity(colors.primary.main, 0.2) },
                       ]}
                       onPress={() => handleMemberToggle(item)}
                       activeOpacity={0.7}
@@ -606,11 +606,11 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         showOnlineBadge={false}
                       />
                       <View style={styles.contactInfo}>
-                        <Text style={[styles.contactName, { color: themeColors.text.primary }]}>
+                        <Text style={[styles.contactName, { color: colors.text.light }]}>
                           {displayName}
                         </Text>
                         {user?.username && (
-                          <Text style={[styles.contactUsername, { color: themeColors.text.secondary }]}>
+                          <Text style={[styles.contactUsername, { color: colors.text.secondary }]}>
                             @{user.username}
                           </Text>
                         )}
@@ -618,14 +618,14 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                       {isSelected ? (
                         <Ionicons name="checkmark-circle" size={24} color={colors.primary.main} />
                       ) : (
-                        <View style={[styles.checkbox, { borderColor: themeColors.text.tertiary }]} />
+                        <View style={[styles.checkbox, { borderColor: colors.text.tertiary }]} />
                       )}
                     </TouchableOpacity>
                   );
                 }}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
-                    <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+                    <Text style={[styles.emptyText, { color: colors.text.secondary }]}>
                       Aucun contact trouvé
                     </Text>
                   </View>
@@ -643,7 +643,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               backgroundColor: 
                 groupName.trim().length >= 3 && selectedMembers.size > 0
                   ? colors.primary.main
-                  : themeColors.background.tertiary,
+                  : colors.background.tertiary,
             },
           ]}
           onPress={handleCreate}
@@ -669,21 +669,32 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <SafeAreaView 
-        style={[styles.container, { backgroundColor: themeColors.background.primary }]}
-        edges={['top']}
+      <LinearGradient
+        colors={colors.background.gradient.app}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientContainer}
       >
-        {!conversationType && renderTypeSelection()}
-        {conversationType === 'direct' && renderDirectConversation()}
-        {conversationType === 'group' && renderGroupCreation()}
-      </SafeAreaView>
+        <SafeAreaView 
+          style={styles.container}
+          edges={['top']}
+        >
+          {!conversationType && renderTypeSelection()}
+          {conversationType === 'direct' && renderDirectConversation()}
+          {conversationType === 'group' && renderGroupCreation()}
+        </SafeAreaView>
+      </LinearGradient>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   typeSelectionContainer: {
     flex: 1,
@@ -751,7 +762,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   searchIcon: {
     marginRight: 8,
