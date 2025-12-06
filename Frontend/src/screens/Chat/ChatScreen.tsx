@@ -693,12 +693,17 @@ export const ChatScreen: React.FC = () => {
 
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === 'group') {
+      // Ensure modal is closed before navigating
+      setShowInfoModal(false);
       const groupId = conversation.external_group_id || conversation.metadata?.group_id || conversation.id;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      navigation.navigate('GroupDetails', {
-        groupId,
-        conversationId: conversation.id,
-      });
+      // Use setTimeout to ensure modal is closed before navigation
+      setTimeout(() => {
+        navigation.navigate('GroupDetails', {
+          groupId,
+          conversationId: conversation.id,
+        });
+      }, 0);
     } else {
       setShowInfoModal(true);
     }
@@ -860,7 +865,7 @@ export const ChatScreen: React.FC = () => {
         onPrevious={handleSearchPrevious}
       />
       <Modal
-        visible={showInfoModal}
+        visible={showInfoModal && conversation?.type !== 'group'}
         transparent
         animationType="slide"
         onRequestClose={() => {
