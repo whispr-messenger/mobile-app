@@ -6,8 +6,9 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
@@ -34,6 +35,7 @@ type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route']
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
+  const navigation = useNavigation();
   const { conversationId } = route.params;
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
@@ -690,8 +692,17 @@ export const ChatScreen: React.FC = () => {
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
   const handleInfoPress = useCallback(() => {
-    setShowInfoModal(true);
-  }, [conversation]);
+    if (conversation?.type === 'group') {
+      const groupId = conversation.external_group_id || conversation.metadata?.group_id || conversation.id;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      navigation.navigate('GroupDetails', {
+        groupId,
+        conversationId: conversation.id,
+      });
+    } else {
+      setShowInfoModal(true);
+    }
+  }, [conversation, navigation]);
 
   const renderItem = useCallback(
     ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
