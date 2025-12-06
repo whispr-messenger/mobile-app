@@ -27,7 +27,7 @@ import { PinnedMessagesBar } from '../../components/Chat/PinnedMessagesBar';
 import { EmptyChatState } from '../../components/Chat/EmptyChatState';
 import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
-import { colors } from '../../theme/colors';
+import { colors, withOpacity } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '../../utils/logger';
 
@@ -693,12 +693,17 @@ export const ChatScreen: React.FC = () => {
 
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === 'group') {
+      // Ensure modal is closed before navigating
+      setShowInfoModal(false);
       const groupId = conversation.external_group_id || conversation.metadata?.group_id || conversation.id;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      navigation.navigate('GroupDetails', {
-        groupId,
-        conversationId: conversation.id,
-      });
+      // Use setTimeout to ensure modal is closed before navigation
+      setTimeout(() => {
+        navigation.navigate('GroupDetails', {
+          groupId,
+          conversationId: conversation.id,
+        });
+      }, 0);
     } else {
       setShowInfoModal(true);
     }
@@ -860,65 +865,72 @@ export const ChatScreen: React.FC = () => {
         onPrevious={handleSearchPrevious}
       />
       <Modal
-        visible={showInfoModal}
+        visible={showInfoModal && conversation?.type !== 'group'}
         transparent
         animationType="slide"
         onRequestClose={() => {
           setShowInfoModal(false);
         }}
-        onShow={() => {
-        }}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.background.primary }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: themeColors.text.primary }]}>
-                Informations de la conversation
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowInfoModal(false);
-                }}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color={themeColors.text.primary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <View style={[styles.infoSection, { borderBottomWidth: 0, marginBottom: 0 }]}>
-                <Avatar
-                  size={80}
-                  uri={conversation?.avatar_url}
-                  name={conversation?.display_name || 'Contact'}
-                  showOnlineBadge={conversation?.type === 'direct'}
-                  isOnline={false}
-                />
-                <Text style={[styles.infoValue, { color: themeColors.text.primary, marginTop: 16, fontSize: 22 }]}>
-                  {conversation?.display_name || 'Contact'}
+          <View style={styles.modalContent}>
+            <LinearGradient
+              colors={colors.background.gradient.app}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  Informations de la conversation
                 </Text>
-                {conversation?.type === 'direct' && (
-                  <Text style={[styles.infoLabel, { color: themeColors.text.secondary, marginTop: 4, textTransform: 'none', fontSize: 14 }]}>
-                    Hors ligne
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowInfoModal(false);
+                  }}
+                  style={styles.closeButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={24} color={colors.text.light} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.infoSectionMain}>
+                  <Avatar
+                    size={80}
+                    uri={conversation?.avatar_url}
+                    name={conversation?.display_name || 'Contact'}
+                    showOnlineBadge={conversation?.type === 'direct'}
+                    isOnline={false}
+                  />
+                  <Text style={styles.infoName}>
+                    {conversation?.display_name || 'Contact'}
                   </Text>
-                )}
-              </View>
-              <View style={styles.infoSection}>
-                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                  Type
-                </Text>
-                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  {conversation?.type === 'group' ? 'Groupe' : 'Conversation directe'}
-                </Text>
-              </View>
-              <View style={styles.infoSection}>
-                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                  Messages
-                </Text>
-                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  {messages.length} message{messages.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-            </ScrollView>
+                  {conversation?.type === 'direct' && (
+                    <Text style={styles.infoStatus}>
+                      Hors ligne
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.infoSection}>
+                  <Text style={styles.infoLabel}>
+                    TYPE
+                  </Text>
+                  <Text style={styles.infoValue}>
+                    {conversation?.type === 'group' ? 'Groupe' : 'Conversation directe'}
+                  </Text>
+                </View>
+                <View style={styles.infoSection}>
+                  <Text style={styles.infoLabel}>
+                    MESSAGES
+                  </Text>
+                  <Text style={styles.infoValue}>
+                    {messages.length} message{messages.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+              </ScrollView>
+            </LinearGradient>
           </View>
         </View>
       </Modal>
@@ -946,59 +958,95 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '85%',
-    backgroundColor: 'rgba(26, 31, 58, 0.95)',
+    overflow: 'hidden',
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    borderLeftColor: 'rgba(255, 255, 255, 0.05)',
-    borderRightColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopColor: withOpacity(colors.primary.main, 0.2),
+    borderLeftColor: withOpacity(colors.primary.main, 0.1),
+    borderRightColor: withOpacity(colors.primary.main, 0.1),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  modalGradient: {
+    flex: 1,
+    paddingBottom: 20,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  closeButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  modalBody: {
-    padding: 20,
-  },
-  infoSection: {
-    marginBottom: 28,
+    paddingHorizontal: 24,
+    paddingTop: 24,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: withOpacity(colors.ui.divider, 0.2),
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    color: colors.text.light,
+    flex: 1,
+  },
+  closeButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: withOpacity(colors.background.dark, 0.4),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.divider, 0.2),
+  },
+  modalBody: {
+    padding: 24,
+  },
+  infoSectionMain: {
+    alignItems: 'center',
+    marginBottom: 32,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.15),
+  },
+  infoName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text.light,
+    marginTop: 16,
+    letterSpacing: -0.5,
+  },
+  infoStatus: {
+    fontSize: 14,
+    color: withOpacity(colors.text.light, 0.6),
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  infoSection: {
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
   infoLabel: {
     fontSize: 11,
-    marginBottom: 8,
+    marginBottom: 10,
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    opacity: 0.6,
+    letterSpacing: 1.2,
+    color: withOpacity(colors.text.light, 0.5),
+    fontWeight: '600',
   },
   infoValue: {
     fontSize: 17,
-    fontWeight: '500',
+    fontWeight: '600',
+    color: colors.text.light,
+    letterSpacing: 0.2,
   },
 });
