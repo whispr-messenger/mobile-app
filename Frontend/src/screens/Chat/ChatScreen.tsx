@@ -6,8 +6,9 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { StackScreenProps } from '@react-navigation/stack';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
@@ -28,11 +29,13 @@ import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { logger } from '../../utils/logger';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
+  const navigation = useNavigation();
   const { conversationId } = route.params;
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
@@ -122,23 +125,16 @@ export const ChatScreen: React.FC = () => {
   const loadPinnedMessages = useCallback(async () => {
     try {
       const pinned = await messagingAPI.getPinnedMessages(conversationId);
-      console.log(`[ChatScreen] Pinned messages loaded: ${pinned.length}`);
       setPinnedMessages(pinned);
     } catch (error) {
-      console.error('[ChatScreen] Error loading pinned messages:', error);
+      logger.error('ChatScreen', 'Error loading pinned messages', error);
       setPinnedMessages([]);
     }
   }, [conversationId]);
 
   const loadConversation = useCallback(async () => {
-    console.log('[ChatScreen] Loading conversation:', conversationId);
     try {
       const conv = await messagingAPI.getConversation(conversationId);
-      console.log('[ChatScreen] Conversation loaded:', {
-        id: conv.id,
-        name: conv.display_name,
-        type: conv.type,
-      });
       setConversation(conv);
       
       // Load members if it's a group
@@ -147,17 +143,15 @@ export const ChatScreen: React.FC = () => {
           const members = await messagingAPI.getConversationMembers(conversationId);
           setConversationMembers(members);
         } catch (error) {
-          console.error('[ChatScreen] Error loading members:', error);
+          logger.error('ChatScreen', 'Error loading members', error);
         }
       }
     } catch (error) {
-      console.error('[ChatScreen] Error loading conversation:', error);
+      logger.error('ChatScreen', 'Error loading conversation', error);
     }
   }, [conversationId]);
 
   useEffect(() => {
-    console.log('[ChatScreen] Component mounted/updated, conversationId:', conversationId);
-    
     // Load data
     loadConversation();
     loadMessages();
@@ -166,21 +160,14 @@ export const ChatScreen: React.FC = () => {
     // Join conversation channel
     const channel = joinConversationChannel(conversationId);
     conversationChannelRef.current = channel;
-    console.log('[ChatScreen] Joined conversation channel:', conversationId);
 
     return () => {
-      console.log('[ChatScreen] Component unmounting, leaving channel:', conversationId);
       channel?.leave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, joinConversationChannel]);
 
   const loadMessages = useCallback(async (before?: string) => {
-    console.log('[ChatScreen] Loading messages:', {
-      conversationId,
-      before: before || 'initial load',
-      limit: 50,
-    });
     try {
       if (before) {
         setLoadingMore(true);
@@ -191,10 +178,6 @@ export const ChatScreen: React.FC = () => {
       const data = await messagingAPI.getMessages(conversationId, {
         limit: 50,
         before,
-      });
-      console.log('[ChatScreen] Messages loaded:', {
-        count: data.length,
-        before: before || 'initial',
       });
 
       // Load reactions and enrich messages
@@ -242,18 +225,16 @@ export const ChatScreen: React.FC = () => {
         // Loading older messages - append to end
         setMessages(prev => {
           const newMessages = [...prev, ...messagesWithRelations];
-          console.log('[ChatScreen] Older messages appended, total:', newMessages.length);
           return newMessages;
         });
         setHasMore(messagesWithRelations.length === 50);
       } else {
         // Initial load
-        console.log('[ChatScreen] Initial messages set, count:', messagesWithRelations.length);
         setMessages(messagesWithRelations);
         setHasMore(messagesWithRelations.length === 50);
       }
     } catch (error) {
-      console.error('[ChatScreen] Error loading messages:', error);
+      logger.error('ChatScreen', 'Error loading messages', error);
       if (!before) {
         setMessages([]);
       }
@@ -274,24 +255,17 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMessage = useCallback(
     async (content: string, replyToId?: string, mentions?: string[]) => {
-      console.log('[ChatScreen] Sending message:', {
-        content: content.substring(0, 50) + (content.length > 50 ? '...' : ''),
-        replyToId,
-        editing: !!editingMessage,
-      });
       // Stop typing indicator
       sendTyping(conversationId, false);
 
       // If editing, update the message
       if (editingMessage) {
-        console.log('[ChatScreen] Editing message:', editingMessage.id);
         try {
           const updated = await messagingAPI.editMessage(
             editingMessage.id,
             conversationId,
             content
           );
-          console.log('[ChatScreen] Message edited successfully');
           setMessages(prev =>
             prev.map(msg =>
               msg.id === editingMessage.id
@@ -301,7 +275,7 @@ export const ChatScreen: React.FC = () => {
           );
           setEditingMessage(null);
         } catch (error) {
-          console.error('[ChatScreen] Error editing message:', error);
+          logger.error('ChatScreen', 'Error editing message', error);
         }
         return;
       }
@@ -323,12 +297,10 @@ export const ChatScreen: React.FC = () => {
         reply_to: replyingTo || undefined,
       };
 
-      console.log('[ChatScreen] Adding optimistic message:', tempMessage.id);
       setMessages(prev => [tempMessage, ...prev]);
       setReplyingTo(null);
 
       // Send via WebSocket
-      console.log('[ChatScreen] Sending via WebSocket');
       wsSendMessage(conversationId, content, 'text', tempMessage.client_random);
     },
     [conversationId, userId, wsSendMessage, sendTyping, editingMessage, replyingTo]
@@ -336,11 +308,6 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMedia = useCallback(
     async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => {
-      console.log('[ChatScreen] Sending media:', {
-        type,
-        uri: uri.substring(0, 50) + '...',
-        replyToId,
-      });
       // Stop typing indicator
       sendTyping(conversationId, false);
 
@@ -410,7 +377,7 @@ export const ChatScreen: React.FC = () => {
           )
         );
       } catch (error) {
-        console.error('Error sending media:', error);
+        logger.error('ChatScreen', 'Error sending media', error);
         // Update message status to failed
         setMessages(prev =>
           prev.map(msg =>
@@ -439,7 +406,7 @@ export const ChatScreen: React.FC = () => {
           )
         );
       } catch (error) {
-        console.error('Error adding reaction:', error);
+        logger.error('ChatScreen', 'Error adding reaction', error);
       }
     },
     [userId]
@@ -485,10 +452,10 @@ export const ChatScreen: React.FC = () => {
           viewPosition: 0.5,
         });
       } catch (error) {
-        console.error(`[ChatScreen] Error scrolling to message ${messageId}:`, error);
+        logger.error('ChatScreen', `Error scrolling to message ${messageId}`, error);
       }
     } else {
-      console.warn(`[ChatScreen] Cannot scroll to message ${messageId} (index: ${index})`);
+      logger.warn('ChatScreen', `Cannot scroll to message ${messageId} (index: ${index})`);
     }
   }, [messagesWithSeparators]);
 
@@ -541,7 +508,7 @@ export const ChatScreen: React.FC = () => {
           setMessages(prev => prev.filter(msg => msg.id !== selectedMessage.id));
         }
       } catch (error) {
-        console.error('Error deleting message:', error);
+        logger.error('ChatScreen', 'Error deleting message', error);
       }
     },
     [selectedMessage, conversationId]
@@ -575,7 +542,6 @@ export const ChatScreen: React.FC = () => {
         await messagingAPI.pinMessage(conversationId, selectedMessage.id);
       }
       
-      console.log(`[ChatScreen] Message ${action}ned: ${selectedMessage.id}`);
       await loadPinnedMessages();
       
       setMessages(prev =>
@@ -587,14 +553,14 @@ export const ChatScreen: React.FC = () => {
       );
     } catch (error) {
       const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
-      console.error(`[ChatScreen] Error ${isCurrentlyPinned ? 'unpinning' : 'pinning'} message:`, error);
+      logger.error('ChatScreen', `Error ${isCurrentlyPinned ? 'unpinning' : 'pinning'} message`, error);
     }
   }, [selectedMessage, conversationId, pinnedMessages, loadPinnedMessages]);
 
   const handlePinnedMessagePress = useCallback(
     (messageId: string) => {
       if (!messages.some(m => m.id === messageId)) {
-        console.warn(`[ChatScreen] Pinned message not found: ${messageId}`);
+        logger.warn('ChatScreen', `Pinned message not found: ${messageId}`);
         return;
       }
       scrollToMessage(messageId);
@@ -615,7 +581,6 @@ export const ChatScreen: React.FC = () => {
 
   // Handle search
   const handleSearch = useCallback((query: string) => {
-    console.log('[ChatScreen] handleSearch called with query:', query);
     setSearchQuery(query);
     
     if (query.trim()) {
@@ -628,7 +593,6 @@ export const ChatScreen: React.FC = () => {
           return msg.content.toLowerCase().includes(query.toLowerCase());
         });
         
-        console.log('[ChatScreen] Search results found:', results.length);
         setSearchResults(results);
         setCurrentSearchIndex(0);
         
@@ -647,13 +611,13 @@ export const ChatScreen: React.FC = () => {
                   viewPosition: 0.5,
                 });
               } catch (error) {
-                console.warn(`[ChatScreen] Error scrolling to search result: ${error}`);
+                logger.warn('ChatScreen', 'Error scrolling to search result', error);
               }
             }
           }, 100);
         }
       } catch (error) {
-        console.error('[ChatScreen] Error in search:', error);
+        logger.error('ChatScreen', 'Error in search', error);
         setSearchResults([]);
         setCurrentSearchIndex(0);
       }
@@ -670,7 +634,7 @@ export const ChatScreen: React.FC = () => {
         setCurrentSearchIndex(newIndex);
         const result = searchResults[newIndex];
         if (!result) {
-          console.warn('[ChatScreen] Search result not found at index:', newIndex);
+          logger.warn('ChatScreen', `Search result not found at index: ${newIndex}`);
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
@@ -684,13 +648,13 @@ export const ChatScreen: React.FC = () => {
               viewPosition: 0.5,
             });
           } catch (error) {
-            console.warn(`[ChatScreen] Error scrolling to next search result: ${error}`);
+            logger.warn('ChatScreen', 'Error scrolling to next search result', error);
           }
         } else {
-          console.warn(`[ChatScreen] Search result not found in messages list: ${result.id}`);
+          logger.warn('ChatScreen', `Search result not found in messages list: ${result.id}`);
         }
       } catch (error) {
-        console.error('[ChatScreen] Error in handleSearchNext:', error);
+        logger.error('ChatScreen', 'Error in handleSearchNext', error);
       }
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
@@ -702,7 +666,7 @@ export const ChatScreen: React.FC = () => {
         setCurrentSearchIndex(newIndex);
         const result = searchResults[newIndex];
         if (!result) {
-          console.warn('[ChatScreen] Search result not found at index:', newIndex);
+          logger.warn('ChatScreen', `Search result not found at index: ${newIndex}`);
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
@@ -716,27 +680,29 @@ export const ChatScreen: React.FC = () => {
               viewPosition: 0.5,
             });
           } catch (error) {
-            console.warn(`[ChatScreen] Error scrolling to previous search result: ${error}`);
+            logger.warn('ChatScreen', 'Error scrolling to previous search result', error);
           }
         } else {
-          console.warn(`[ChatScreen] Search result not found in messages list: ${result.id}`);
+          logger.warn('ChatScreen', `Search result not found in messages list: ${result.id}`);
         }
       } catch (error) {
-        console.error('[ChatScreen] Error in handleSearchPrevious:', error);
+        logger.error('ChatScreen', 'Error in handleSearchPrevious', error);
       }
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
   const handleInfoPress = useCallback(() => {
-    console.log('[ChatScreen] Info button pressed');
-    console.log('[ChatScreen] Current conversation:', {
-      id: conversation?.id,
-      name: conversation?.display_name,
-      type: conversation?.type,
-    });
-    setShowInfoModal(true);
-    console.log('[ChatScreen] Info modal opened');
-  }, [conversation]);
+    if (conversation?.type === 'group') {
+      const groupId = conversation.external_group_id || conversation.metadata?.group_id || conversation.id;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      navigation.navigate('GroupDetails', {
+        groupId,
+        conversationId: conversation.id,
+      });
+    } else {
+      setShowInfoModal(true);
+    }
+  }, [conversation, navigation]);
 
   const renderItem = useCallback(
     ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
@@ -898,11 +864,9 @@ export const ChatScreen: React.FC = () => {
         transparent
         animationType="slide"
         onRequestClose={() => {
-          console.log('[ChatScreen] Info modal closed (back button)');
           setShowInfoModal(false);
         }}
         onShow={() => {
-          console.log('[ChatScreen] Info modal shown');
         }}
       >
         <View style={styles.modalOverlay}>
@@ -913,7 +877,6 @@ export const ChatScreen: React.FC = () => {
               </Text>
               <TouchableOpacity
                 onPress={() => {
-                  console.log('[ChatScreen] Info modal close button clicked');
                   setShowInfoModal(false);
                 }}
                 style={styles.closeButton}
