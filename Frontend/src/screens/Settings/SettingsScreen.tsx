@@ -85,23 +85,31 @@ export const SettingsScreen: React.FC = () => {
   const handleSelect = async (type: 'theme' | 'language' | 'fontSize' | 'privacy', value: string) => {
     console.log(`🎯 Select ${type}:`, value);
     
-    if (type === 'theme') {
-      await updateSettings({ theme: value as 'light' | 'dark' | 'auto' });
-      setShowThemeModal(false);
-    } else if (type === 'language') {
-      await updateSettings({ language: value as 'fr' | 'en' });
-      setShowLanguageModal(false);
-    } else if (type === 'fontSize') {
-      await updateSettings({ fontSize: value as 'small' | 'medium' | 'large' });
-      setShowFontSizeModal(false);
-    } else if (type === 'privacy' && selectedPrivacyItem) {
-      try {
+    try {
+      if (type === 'theme') {
+        // Fermer le modal d'abord pour éviter les conflits de re-render
+        setShowThemeModal(false);
+        // Attendre un peu pour que le modal se ferme avant le changement de thème
+        setTimeout(async () => {
+          await updateSettings({ theme: value as 'light' | 'dark' | 'auto' });
+        }, 100);
+      } else if (type === 'language') {
+        setShowLanguageModal(false);
+        setTimeout(async () => {
+          await updateSettings({ language: value as 'fr' | 'en' });
+        }, 100);
+      } else if (type === 'fontSize') {
+        setShowFontSizeModal(false);
+        setTimeout(async () => {
+          await updateSettings({ fontSize: value as 'small' | 'medium' | 'large' });
+        }, 100);
+      } else if (type === 'privacy' && selectedPrivacyItem) {
         setPrivacySettings(prev => ({ ...prev, [selectedPrivacyItem]: value }));
         setShowPrivacyModal(false);
         setSelectedPrivacyItem(null);
-      } catch (error) {
-        console.error('❌ Error updating privacy setting:', error);
       }
+    } catch (error) {
+      console.error('❌ Error updating setting:', error);
     }
   };
 
@@ -279,15 +287,33 @@ export const SettingsScreen: React.FC = () => {
     options: { label: string; value: string }[];
     selectedValue: string;
     onSelect: (value: string) => void;
-  }) => (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View
-          style={[
-            styles.modalContent,
-            { backgroundColor: themeColors.background.primary },
-          ]}
+  }) => {
+    const handleSelect = (value: string) => {
+      if (selectedValue !== value) {
+        onSelect(value);
+      }
+    };
+
+    return (
+      <Modal 
+        visible={visible} 
+        transparent 
+        animationType="slide" 
+        onRequestClose={onClose}
+        statusBarTranslucent
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={onClose}
         >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View
+              style={[
+                styles.modalContent,
+                { backgroundColor: themeColors.background.primary },
+              ]}
+            >
           <Text
             style={[
               styles.modalTitle,
@@ -319,7 +345,8 @@ export const SettingsScreen: React.FC = () => {
                         : 'transparent',
                   },
                 ]}
-                onPress={() => onSelect(option.value)}
+                onPress={() => handleSelect(option.value)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
@@ -344,6 +371,7 @@ export const SettingsScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.modalCloseButton, { backgroundColor: themeColors.primary }]}
             onPress={onClose}
+            activeOpacity={0.8}
           >
             <Text
               style={[
@@ -354,10 +382,12 @@ export const SettingsScreen: React.FC = () => {
               {getLocalizedText('common.cancel')}
             </Text>
           </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
 
   return (
     <LinearGradient
@@ -370,6 +400,8 @@ export const SettingsScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        removeClippedSubviews={false}
       >
         <View style={styles.header}>
           <TouchableOpacity
@@ -603,34 +635,12 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => navigation.navigate('SecurityKeys' as never)}
             icon="key-outline"
           />
-          <View style={styles.settingItem}>
-            <View style={styles.settingItemLeft}>
-              <View style={styles.settingTextContainer}>
-                <Text
-                  style={[
-                    styles.settingLabel,
-                    { color: themeColors.text.primary, fontSize: getFontSize('base') },
-                  ]}
-                >
-                  Two-factor authentication
-                </Text>
-                <Text
-                  style={[
-                    styles.settingSubtitle,
-                    { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
-                  ]}
-                >
-                  Secure your account
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={securitySettings.twoFactorAuth}
-              onValueChange={(value) => handleToggle('security', 'twoFactorAuth', value)}
-              trackColor={{ false: themeColors.text.tertiary, true: themeColors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
+          <SettingItem
+            label={getLocalizedText('twoFactor.title')}
+            subtitle={getLocalizedText('twoFactor.authenticationSubtitle')}
+            onPress={() => navigation.navigate('TwoFactorAuth' as never)}
+            icon="shield-checkmark-outline"
+          />
           <View style={styles.settingItem}>
             <View style={styles.settingItemLeft}>
               <View style={styles.settingTextContainer}>
