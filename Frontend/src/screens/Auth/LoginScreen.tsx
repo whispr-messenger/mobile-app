@@ -25,12 +25,15 @@ import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { countries, searchCountries } from '../../data/countries';
-import { AuthService } from '../../services/AuthService';
+import AuthService from '../../services/AuthService';
+import { useTheme } from '../../context/ThemeContext';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
+  const themeColors = getThemeColors();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+33');
   const [countryFlag, setCountryFlag] = useState('🇫🇷');
@@ -150,7 +153,7 @@ export const LoginScreen: React.FC = () => {
     
     if (!phoneNumber.trim()) {
       console.log('❌ Erreur: Numéro vide');
-      setError('Veuillez entrer votre numéro de téléphone');
+      setError(getLocalizedText('auth.enterPhone'));
       shakeInput();
       return;
     }
@@ -161,7 +164,7 @@ export const LoginScreen: React.FC = () => {
     
     if (cleanNumber.length < 10) {
       console.log('❌ Erreur: Numéro trop court');
-      setError('Le numéro de téléphone doit contenir au moins 10 chiffres');
+      setError(getLocalizedText('auth.phoneMinLength'));
       shakeInput();
       return;
     }
@@ -169,7 +172,7 @@ export const LoginScreen: React.FC = () => {
     // Validation du format français
     if (!cleanNumber.match(/^0[1-9]\d{8}$/)) {
       console.log('❌ Erreur: Format invalide');
-      setError('Format de numéro invalide (ex: 07 12 34 56 78)');
+      setError(getLocalizedText('auth.phoneInvalidFormat'));
       shakeInput();
       return;
     }
@@ -201,12 +204,12 @@ export const LoginScreen: React.FC = () => {
         });
       } else {
         console.log('❌ Échec de l\'envoi:', result.message);
-        Alert.alert('Erreur', result.message || 'Une erreur est survenue lors de la connexion');
+        Alert.alert(getLocalizedText('notif.error'), result.message || getLocalizedText('auth.errorConnection'));
       }
     } catch (error) {
       console.error('💥 Erreur inattendue:', error);
       setLoading(false);
-      Alert.alert('Erreur', 'Impossible d\'envoyer le code de vérification');
+      Alert.alert(getLocalizedText('notif.error'), getLocalizedText('auth.errorSendCode'));
     }
   };
 
@@ -217,7 +220,7 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={[colors.background.dark, colors.secondary.darker, colors.secondary.dark]}
+      colors={themeColors.background.gradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -242,9 +245,9 @@ export const LoginScreen: React.FC = () => {
 
           {/* Title */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Whispr</Text>
-            <Text style={styles.subtitle}>
-              Sécurisé. Privé. Simple.
+            <Text style={[styles.title, { color: themeColors.text.primary, fontSize: getFontSize('xxxl') }]}>Whispr</Text>
+            <Text style={[styles.subtitle, { color: themeColors.text.secondary, fontSize: getFontSize('base') }]}>
+              {getLocalizedText('auth.tagline')}
             </Text>
           </View>
 
@@ -277,9 +280,9 @@ export const LoginScreen: React.FC = () => {
             ]}>
               <Text style={[
                 styles.floatingLabel,
-                { color: error ? colors.ui.error : colors.text.light }
+                { color: error ? themeColors.error : themeColors.text.primary, fontSize: getFontSize('base') }
               ]}>
-                Votre numéro de téléphone
+                {getLocalizedText('auth.phone')}
               </Text>
             </Animated.View>
             
@@ -292,7 +295,7 @@ export const LoginScreen: React.FC = () => {
                 style={styles.countryCodeButton}
                 onPress={() => setShowCountryPicker(!showCountryPicker)}
               >
-                <Text style={styles.countryCodeText}>{countryFlag} {countryCode}</Text>
+                <Text style={[styles.countryCodeText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>{countryFlag} {countryCode}</Text>
               </TouchableOpacity>
 
               {/* Phone Number */}
@@ -318,7 +321,8 @@ export const LoginScreen: React.FC = () => {
                     styles.inputContainer,
                     error && styles.inputContainerError
                   ]}
-                  style={[styles.phoneNumberInput, { color: colors.text.primary }]}
+                  style={[styles.phoneNumberInput, { color: '#000000' }]}
+                  placeholderTextColor="rgba(0, 0, 0, 0.5)"
                 />
               </View>
             </View>
@@ -326,16 +330,16 @@ export const LoginScreen: React.FC = () => {
             {/* Error Message */}
             {error && (
               <Animated.View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
+                <Text style={[styles.errorText, { color: themeColors.error, fontSize: getFontSize('sm') }]}>{error}</Text>
               </Animated.View>
             )}
 
             {/* Country Picker */}
             {showCountryPicker && (
-              <View style={styles.countryPicker}>
+              <View style={[styles.countryPicker, { backgroundColor: themeColors.background.secondary }]}>
                 {/* Search Input */}
                 <Input
-                  placeholder="Rechercher un pays..."
+                  placeholder={getLocalizedText('auth.searchCountry')}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   containerStyle={styles.searchContainer}
@@ -356,30 +360,30 @@ export const LoginScreen: React.FC = () => {
                         setSearchQuery('');
                       }}
                     >
-                      <Text style={styles.countryOptionText}>
+                      <Text style={[styles.countryOptionText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>
                         {country.flag} {country.name} {country.code}
                       </Text>
                     </TouchableOpacity>
                   ))}
                   
                   {filteredCountries.length === 0 && (
-                    <Text style={styles.noResultsText}>
-                      Aucun pays trouvé
+                    <Text style={[styles.noResultsText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
+                      {getLocalizedText('auth.noCountryFound')}
                     </Text>
                   )}
                 </ScrollView>
               </View>
             )}
 
-            <Text style={styles.helperText}>
-              Nous vous enverrons un code de vérification par SMS
+            <Text style={[styles.helperText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
+              {getLocalizedText('auth.smsCode')}
             </Text>
           </Animated.View>
 
           {/* Continue Button */}
           <View style={styles.buttonContainer}>
             <Button
-              title="Se connecter"
+              title={getLocalizedText('auth.seConnecter')}
               variant="primary"
               size="large"
               onPress={handleLogin}
@@ -394,8 +398,11 @@ export const LoginScreen: React.FC = () => {
             style={styles.registrationLink}
             onPress={() => navigation.navigate('Registration')}
           >
-            <Text style={styles.registrationLinkText}>
-              Pas encore de compte ? <Text style={styles.registrationLinkBold}>Créer un compte</Text>
+            <Text style={[styles.registrationLinkText, { color: themeColors.text.secondary, fontSize: getFontSize('base') }]}>
+              {getLocalizedText('auth.pasEncoreCompte')}{' '}
+              <Text style={[styles.registrationLinkBold, { color: themeColors.primary }]}>
+                {getLocalizedText('auth.creerCompte')}
+              </Text>
             </Text>
           </TouchableOpacity>
         </Animated.View>

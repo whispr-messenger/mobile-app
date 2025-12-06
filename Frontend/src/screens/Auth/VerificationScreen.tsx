@@ -23,6 +23,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Logo, Button } from '../../components';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
+import { useTheme } from '../../context/ThemeContext';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Verification'>;
 type RoutePropType = RouteProp<AuthStackParamList, 'Verification'>;
@@ -31,6 +32,8 @@ export const VerificationScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
   const { phoneNumber, isLogin = false } = route.params || { phoneNumber: '', isLogin: false };
+  const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
+  const themeColors = getThemeColors();
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [timer, setTimer] = useState(120); // 2 minutes
@@ -165,11 +168,11 @@ export const VerificationScreen: React.FC = () => {
             // Pour la connexion, aller directement au profil
                  console.log('✅ Code correct, navigation selon isLogin=', isLogin);
                  Alert.alert(
-              'Connexion réussie ! ✅',
-              'Bienvenue sur Whispr',
+              getLocalizedText('auth.loginSuccess'),
+              getLocalizedText('auth.welcome'),
               [
                 {
-                  text: 'Continuer',
+                  text: getLocalizedText('auth.continue'),
                   onPress: () => {
                     navigation.navigate('Profile', { 
                       userId: 'demo-user-id',
@@ -182,11 +185,11 @@ export const VerificationScreen: React.FC = () => {
           } else {
             // Pour l'inscription, aller au setup du profil
             Alert.alert(
-              'Code vérifié ! ✅',
-              'Votre numéro est maintenant vérifié',
+              getLocalizedText('auth.codeVerified'),
+              getLocalizedText('auth.phoneVerified'),
               [
                 {
-                  text: 'Continuer',
+                  text: getLocalizedText('auth.continue'),
                   onPress: () => {
                     navigation.navigate('ProfileSetup', { 
                       userId: 'demo-user-id',
@@ -200,7 +203,7 @@ export const VerificationScreen: React.FC = () => {
         } else {
                  setLoading(false);
                  console.log('❌ Code incorrect saisi:', fullCode);
-          setError('Code incorrect');
+          setError(getLocalizedText('auth.codeIncorrect'));
           shakeInputs();
           setCode(['', '', '', '', '', '']);
           inputRefs.current[0]?.focus();
@@ -236,7 +239,7 @@ export const VerificationScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={[colors.background.dark, colors.secondary.darker, colors.secondary.dark]}
+      colors={themeColors.background.gradient as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -261,9 +264,9 @@ export const VerificationScreen: React.FC = () => {
 
           {/* Title */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Vérification</Text>
-            <Text style={styles.subtitle}>
-              Code envoyé au {phoneNumber}
+            <Text style={[styles.title, { color: themeColors.text.primary, fontSize: getFontSize('xxxl') }]}>{getLocalizedText('auth.verificationTitle')}</Text>
+            <Text style={[styles.subtitle, { color: themeColors.text.secondary, fontSize: getFontSize('base') }]}>
+              {getLocalizedText('auth.verificationSubtitle')} {phoneNumber}
             </Text>
             <Text style={styles.demoInfo}>
               💡 Code de démonstration : 123456
@@ -285,7 +288,9 @@ export const VerificationScreen: React.FC = () => {
             {code.map((digit, index) => (
               <TextInput
                 key={index}
-                ref={(ref) => (inputRefs.current[index] = ref)}
+                ref={(ref) => {
+                  if (ref) inputRefs.current[index] = ref;
+                }}
                 style={[
                   styles.codeInput,
                   digit && styles.codeInputFilled,
@@ -316,11 +321,11 @@ export const VerificationScreen: React.FC = () => {
           <View style={styles.timerContainer}>
             {canResend ? (
               <TouchableOpacity onPress={handleResendCode}>
-                <Text style={styles.resendText}>Renvoyer le code</Text>
+                <Text style={[styles.resendText, { color: themeColors.primary, fontSize: getFontSize('base') }]}>{getLocalizedText('auth.resendCode')}</Text>
               </TouchableOpacity>
             ) : (
               <Text style={styles.timerText}>
-                Renvoyer dans {formatTime(timer)}
+                {getLocalizedText('auth.resendIn')} {formatTime(timer)}
               </Text>
             )}
           </View>
@@ -328,7 +333,7 @@ export const VerificationScreen: React.FC = () => {
           {/* Verify Button */}
           <View style={styles.buttonContainer}>
             <Button
-              title="Vérifier"
+              title={getLocalizedText('auth.verify')}
               variant="primary"
               size="large"
               onPress={() => handleVerify()}
