@@ -695,7 +695,9 @@ export const GroupDetailsScreen: React.FC = () => {
           entering={FadeInDown.duration(300).springify()}
         >
           <LinearGradient
-            colors={[colors.background.darkCard, colors.background.dark]}
+            colors={colors.background.gradient.app}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={styles.modalGradient}
           >
             <View style={styles.modalHeader}>
@@ -767,7 +769,9 @@ export const GroupDetailsScreen: React.FC = () => {
           entering={FadeInDown.duration(300).springify()}
         >
           <LinearGradient
-            colors={[colors.background.darkCard, colors.background.dark]}
+            colors={colors.background.gradient.app}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={styles.modalGradient}
           >
             <View style={styles.modalHeader}>
@@ -840,7 +844,9 @@ export const GroupDetailsScreen: React.FC = () => {
             entering={FadeInDown.duration(300).springify()}
           >
             <LinearGradient
-              colors={[colors.background.darkCard, colors.background.dark]}
+              colors={colors.background.gradient.app}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={styles.modalGradient}
             >
               <View style={styles.modalHeader}>
@@ -1403,9 +1409,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: withOpacity(colors.background.darkCard, 0.6),
-    borderWidth: 1,
-    borderColor: withOpacity(colors.ui.divider, 0.2),
+    backgroundColor: withOpacity(colors.background.dark, 0.4),
+    borderWidth: 1.5,
+    borderColor: withOpacity(colors.ui.divider, 0.3),
   },
   modalButtonConfirm: {
     flex: 1,
@@ -1464,11 +1470,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: withOpacity(colors.background.darkCard, 0.4),
+    backgroundColor: withOpacity(colors.background.dark, 0.3),
     borderRadius: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: withOpacity(colors.ui.divider, 0.1),
+    borderColor: withOpacity(colors.secondary.main, 0.2),
   },
   memberSelectInfo: {
     flex: 1,
