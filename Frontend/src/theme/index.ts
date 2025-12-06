@@ -3,19 +3,23 @@
  * Central export for all design tokens
  */
 
-export { colors, withOpacity } from './colors';
-export { typography, textStyles } from './typography';
-export { spacing, borderRadius, shadows } from './spacing';
+import { colors, withOpacity } from './colors';
+import { typography, textStyles } from './typography';
+import { spacing, borderRadius, shadows } from './spacing';
+
+// Re-export individual modules
+export { colors, withOpacity };
+export { typography, textStyles };
+export { spacing, borderRadius, shadows };
 
 // Export complete theme object
 export const theme = {
-  colors: require('./colors').colors,
-  typography: require('./typography').typography,
-  textStyles: require('./typography').textStyles,
-  spacing: require('./spacing').spacing,
-  borderRadius: require('./spacing').borderRadius,
-  shadows: require('./spacing').shadows,
+  colors,
+  typography,
+  textStyles,
+  spacing,
+  borderRadius,
+  shadows,
 } as const;
 
 export type Theme = typeof theme;
-
