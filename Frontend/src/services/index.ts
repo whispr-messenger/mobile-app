@@ -1,3 +1,6 @@
-// Export all services from this file
-// Example: export { default as ApiService } from './api/ApiService';
-// Example: export { default as AuthService } from './auth/AuthService';
+/**
+ * Services exports
+ */
+
+export { AuthService } from './AuthService';
+export type { PhoneNumber, VerificationCode, UserProfile } from './AuthService';
