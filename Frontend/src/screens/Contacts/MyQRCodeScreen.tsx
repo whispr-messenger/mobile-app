@@ -18,7 +18,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { Circle, Path } from 'react-native-svg';
@@ -63,7 +64,7 @@ const buildSparkPath = (cx: number, cy: number, r: number) =>
   `;
 
 export const MyQRCodeScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const qrViewRef = useRef<View>(null);

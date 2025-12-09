@@ -29,7 +29,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SCAN_AREA_SIZE = Math.min(SCREEN_WIDTH - 64, 280);
 
 export const QRCodeScannerScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
