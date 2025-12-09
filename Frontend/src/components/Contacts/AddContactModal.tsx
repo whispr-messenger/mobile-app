@@ -194,35 +194,47 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
           {/* Search Bar */}
           <View style={styles.searchContainer}>
-            <View style={[styles.searchBar, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
-              <Ionicons
-                name="search-outline"
-                size={20}
-                color="rgba(255, 255, 255, 0.7)"
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text.light }]}
-                placeholder="Rechercher par nom d'utilisateur..."
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                value={searchQuery}
-                onChangeText={handleSearch}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => handleSearch('')}
-                  style={styles.clearButton}
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color="rgba(255, 255, 255, 0.7)"
-                  />
-                </TouchableOpacity>
-              )}
+            <View style={styles.searchRow}>
+              <View style={[styles.searchBar, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color="rgba(255, 255, 255, 0.7)"
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.text.light }]}
+                  placeholder="Rechercher par nom d'utilisateur..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={searchQuery}
+                  onChangeText={handleSearch}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => handleSearch('')}
+                    style={styles.clearButton}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color="rgba(255, 255, 255, 0.7)"
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[styles.qrScannerIconButton, { backgroundColor: colors.secondary.main }]}
+                onPress={() => {
+                  onClose();
+                  (navigation as any).navigate('QRCodeScanner');
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="qr-code-outline" size={22} color={colors.text.light} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -261,29 +273,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
                 Entrez un nom d'utilisateur pour commencer
               </Text>
-              
-              {/* QR Code Scanner Button */}
-              <View style={styles.qrScannerContainer}>
-                <View style={styles.divider}>
-                  <View style={[styles.dividerLine, { backgroundColor: themeColors.text.tertiary, opacity: 0.3 }]} />
-                  <Text style={[styles.dividerText, { color: themeColors.text.tertiary }]}>Ou</Text>
-                  <View style={[styles.dividerLine, { backgroundColor: themeColors.text.tertiary, opacity: 0.3 }]} />
-                </View>
-                
-                <TouchableOpacity
-                  style={[styles.qrScannerButton, { backgroundColor: colors.secondary.main }]}
-                  onPress={() => {
-                    onClose();
-                    (navigation as any).navigate('QRCodeScanner');
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="qr-code-outline" size={24} color={colors.text.light} />
-                  <Text style={[styles.qrScannerButtonText, { color: colors.text.light }]}>
-                    Scanner un QR code
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
           ) : (
             <FlatList
@@ -331,12 +320,25 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   searchBar: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  qrScannerIconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchIcon: {
     marginRight: 8,
