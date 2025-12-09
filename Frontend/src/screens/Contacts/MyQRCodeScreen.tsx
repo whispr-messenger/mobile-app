@@ -21,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
-import { Circle, Path, Defs, LinearGradient as SVGLinearGradient, Stop } from 'react-native-svg';
+import { Circle, Path } from 'react-native-svg';
 // Note: react-native-view-shot and expo-media-library will be installed if needed
 // For now, using Share API which is native
 import { useTheme } from '../../context/ThemeContext';
@@ -93,7 +93,7 @@ export const MyQRCodeScreen: React.FC = () => {
       const cx = x * pieceSize + pieceSize / 2;
       const cy = y * pieceSize + pieceSize / 2;
       const r = size / 2;
-      const fill = 'url(#qrGradient)';
+      const fill = 'url(#gradient)';
 
       const key = `${x}-${y}`;
 
@@ -325,14 +325,7 @@ export const MyQRCodeScreen: React.FC = () => {
                       }}
                       color={colors.primary.main}
                       renderCustomPieceItem={renderStylizedPiece}
-                    >
-                      <Defs>
-                        <SVGLinearGradient id="qrGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <Stop offset="0%" stopColor={qrGradientColors[0]} stopOpacity="1" />
-                          <Stop offset="100%" stopColor={qrGradientColors[1]} stopOpacity="1" />
-                        </SVGLinearGradient>
-                      </Defs>
-                    </QRCodeStyled>
+                    />
                   </View>
                 </LinearGradient>
               </View>
