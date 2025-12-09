@@ -173,14 +173,19 @@ export const ProfileSetupScreen: React.FC = () => {
       setLoading(false);
 
       if (result.success && result.data) {
+        // Après inscription réussie, l'utilisateur est connecté (tokens reçus)
+        // Rediriger vers la page de connexion pour qu'il se connecte manuellement
         Alert.alert(
           'Compte créé ! 🎉',
-          'Votre compte Whispr est prêt',
+          'Votre compte Whispr est prêt. Vous pouvez maintenant vous connecter.',
           [{ 
-            text: 'Continuer',
+            text: 'Se connecter',
             onPress: () => {
-              // Navigation vers ConversationsList (home page)
-              navigation.navigate('ConversationsList');
+              // Réinitialiser la stack et rediriger vers Login
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+              });
             }
           }]
         );
