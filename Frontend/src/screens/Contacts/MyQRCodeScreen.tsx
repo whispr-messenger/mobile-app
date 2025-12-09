@@ -65,14 +65,16 @@ const buildSparkPath = (cx: number, cy: number, r: number) =>
 
 export const MyQRCodeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
-  const navigationRef = useRef(navigation);
+  const navigationRef = useRef<NavigationProp<AuthStackParamList> | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const qrViewRef = useRef<View>(null);
 
   // Keep navigation ref updated
   useEffect(() => {
-    navigationRef.current = navigation;
+    if (navigation) {
+      navigationRef.current = navigation;
+    }
   }, [navigation]);
 
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
@@ -171,8 +173,14 @@ export const MyQRCodeScreen: React.FC = () => {
       if (!qrData) {
         console.error('[MyQRCode] Failed to generate QR code');
         Alert.alert('Erreur', 'Impossible de générer le QR code. Veuillez vous reconnecter.');
-        if (navigationRef.current && navigationRef.current.goBack) {
-          navigationRef.current.goBack();
+        try {
+          if (navigationRef.current?.goBack) {
+            navigationRef.current.goBack();
+          } else if (navigation?.goBack) {
+            navigation.goBack();
+          }
+        } catch (error) {
+          console.error('[MyQRCode] Error navigating back:', error);
         }
         return;
       }
@@ -277,8 +285,14 @@ export const MyQRCodeScreen: React.FC = () => {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
-              if (navigationRef.current && navigationRef.current.goBack) {
-                navigationRef.current.goBack();
+              try {
+                if (navigationRef.current?.goBack) {
+                  navigationRef.current.goBack();
+                } else if (navigation?.goBack) {
+                  navigation.goBack();
+                }
+              } catch (error) {
+                console.error('[MyQRCode] Error navigating back:', error);
               }
             }}
             style={styles.backButton}

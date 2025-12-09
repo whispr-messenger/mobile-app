@@ -31,13 +31,15 @@ const SCAN_AREA_SIZE = Math.min(SCREEN_WIDTH - 64, 280);
 
 export const QRCodeScannerScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
-  const navigationRef = useRef(navigation);
+  const navigationRef = useRef<NavigationProp<AuthStackParamList> | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
   // Keep navigation ref updated
   useEffect(() => {
-    navigationRef.current = navigation;
+    if (navigation) {
+      navigationRef.current = navigation;
+    }
   }, [navigation]);
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -218,8 +220,14 @@ export const QRCodeScannerScreen: React.FC = () => {
                     {
                       text: 'OK',
                       onPress: () => {
-                        if (navigationRef.current && navigationRef.current.goBack) {
-                          navigationRef.current.goBack();
+                        try {
+                          if (navigationRef.current?.goBack) {
+                            navigationRef.current.goBack();
+                          } else if (navigation?.goBack) {
+                            navigation.goBack();
+                          }
+                        } catch (error) {
+                          console.error('[QRScanner] Error navigating back:', error);
                         }
                       },
                     },
@@ -308,8 +316,14 @@ export const QRCodeScannerScreen: React.FC = () => {
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => {
-                if (navigationRef.current && navigationRef.current.goBack) {
-                  navigationRef.current.goBack();
+                try {
+                  if (navigationRef.current?.goBack) {
+                    navigationRef.current.goBack();
+                  } else if (navigation?.goBack) {
+                    navigation.goBack();
+                  }
+                } catch (error) {
+                  console.error('[QRScanner] Error navigating back:', error);
                 }
               }}
               style={styles.backButton}
