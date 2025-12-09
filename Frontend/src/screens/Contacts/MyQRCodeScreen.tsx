@@ -78,6 +78,9 @@ export const MyQRCodeScreen: React.FC = () => {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const buttonShareAnim = useRef(new Animated.Value(1)).current;
+  const buttonSaveAnim = useRef(new Animated.Value(1)).current;
+  const qrPulseAnim = useRef(new Animated.Value(1)).current;
 
   // QR code styling
   const qrGradientColors = useMemo(() => [colors.primary.main, colors.secondary.main], []);
@@ -133,6 +136,22 @@ export const MyQRCodeScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // QR code pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(qrPulseAnim, {
+          toValue: 1.02,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(qrPulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   }, []);
 
   const loadQRCode = async () => {
@@ -174,6 +193,20 @@ export const MyQRCodeScreen: React.FC = () => {
   const handleShare = async () => {
     if (!qrCodeData) return;
 
+    // Button press animation
+    Animated.sequence([
+      Animated.timing(buttonShareAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonShareAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     try {
       const result = await Share.share({
         message: `Ajoutez-moi sur Whispr en scannant mon QR code !\n\n${qrCodeData}`,
@@ -190,6 +223,20 @@ export const MyQRCodeScreen: React.FC = () => {
 
   const handleSaveToGallery = async () => {
     if (!qrCodeData) return;
+
+    // Button press animation
+    Animated.sequence([
+      Animated.timing(buttonSaveAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonSaveAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     try {
       // For now, use Share API to save/share QR code
@@ -271,7 +318,14 @@ export const MyQRCodeScreen: React.FC = () => {
               </View>
 
               {/* QR Code Card */}
-              <View style={styles.qrCard}>
+              <Animated.View
+                style={[
+                  styles.qrCard,
+                  {
+                    transform: [{ scale: qrPulseAnim }],
+                  },
+                ]}
+              >
                 <LinearGradient
                   colors={['#FFF3F0', '#FDDDEA']}
                   start={{ x: 0, y: 0 }}
@@ -332,27 +386,55 @@ export const MyQRCodeScreen: React.FC = () => {
 
               {/* Action Buttons */}
               <View style={styles.actionsContainer}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.shareButton]}
-                  onPress={handleShare}
-                  activeOpacity={0.8}
+                <Animated.View
+                  style={{
+                    flex: 1,
+                    transform: [{ scale: buttonShareAnim }],
+                  }}
                 >
-                  <Ionicons name="share-outline" size={20} color={colors.text.light} />
-                  <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
-                    Partager
-                  </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleShare}
+                    activeOpacity={0.9}
+                    style={styles.shareButtonContainer}
+                  >
+                    <LinearGradient
+                      colors={[colors.secondary.light, colors.secondary.main]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.actionButton, styles.shareButton]}
+                    >
+                      <Ionicons name="share-outline" size={20} color={colors.text.light} />
+                      <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
+                        Partager
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.saveButton]}
-                  onPress={handleSaveToGallery}
-                  activeOpacity={0.8}
+                <Animated.View
+                  style={{
+                    flex: 1,
+                    transform: [{ scale: buttonSaveAnim }],
+                  }}
                 >
-                  <Ionicons name="download-outline" size={20} color={colors.text.light} />
-                  <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
-                    Sauvegarder
-                  </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSaveToGallery}
+                    activeOpacity={0.9}
+                    style={styles.saveButtonContainer}
+                  >
+                    <LinearGradient
+                      colors={[colors.primary.light, colors.primary.main]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.actionButton, styles.saveButton]}
+                    >
+                      <Ionicons name="download-outline" size={20} color={colors.text.light} />
+                      <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
+                        Sauvegarder
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               </View>
 
               {/* Info Text */}
@@ -472,21 +554,41 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 24,
   },
+  shareButtonContainer: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.secondary.main,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  saveButtonContainer: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.primary.main,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     gap: 8,
   },
   shareButton: {
-    backgroundColor: colors.secondary.main,
+    backgroundColor: 'transparent',
   },
   saveButton: {
-    backgroundColor: colors.primary.main,
+    backgroundColor: 'transparent',
   },
   actionButtonText: {
     fontSize: 16,
