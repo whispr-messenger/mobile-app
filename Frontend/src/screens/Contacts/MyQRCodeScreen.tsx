@@ -397,17 +397,12 @@ export const MyQRCodeScreen: React.FC = () => {
                     activeOpacity={0.85}
                     style={styles.shareButtonContainer}
                   >
-                    <LinearGradient
-                      colors={[colors.secondary.medium, colors.secondary.dark]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={[styles.actionButton, styles.shareButton]}
-                    >
-                      <Ionicons name="share-outline" size={22} color={colors.text.light} />
-                      <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
+                    <View style={[styles.actionButton, styles.shareButton]}>
+                      <Ionicons name="share-outline" size={22} color={colors.secondary.light} />
+                      <Text style={[styles.actionButtonText, { color: colors.secondary.light }]}>
                         Partager
                       </Text>
-                    </LinearGradient>
+                    </View>
                   </TouchableOpacity>
                 </Animated.View>
 
@@ -590,7 +585,9 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   shareButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1.5,
+    borderColor: colors.secondary.light,
   },
   saveButton: {
     backgroundColor: 'transparent',
