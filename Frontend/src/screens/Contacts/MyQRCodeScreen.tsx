@@ -398,7 +398,7 @@ export const MyQRCodeScreen: React.FC = () => {
                     style={styles.shareButtonContainer}
                   >
                     <LinearGradient
-                      colors={[colors.secondary.medium, colors.secondary.dark]}
+                      colors={[colors.secondary.main, colors.secondary.medium]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={[styles.actionButton, styles.shareButton]}
