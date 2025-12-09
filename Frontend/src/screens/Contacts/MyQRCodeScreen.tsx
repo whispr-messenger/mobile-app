@@ -201,6 +201,7 @@ export const MyQRCodeScreen: React.FC = () => {
                 <View style={styles.qrContainer}>
                   <QRCodeStyled
                     data={qrCodeData}
+                    size={QR_SIZE - 48}
                     padding={20}
                     pieceSize={8}
                     color={colors.primary.main}
@@ -215,6 +216,16 @@ export const MyQRCodeScreen: React.FC = () => {
                     pieceBorderRadius={2}
                     isPiecesGlued={true}
                     errorCorrectionLevel="M"
+                    outerEyesOptions={{
+                      topLeft: { borderRadius: 12, stroke: colors.primary.main, strokeWidth: 3 },
+                      topRight: { borderRadius: 12, stroke: colors.primary.main, strokeWidth: 3 },
+                      bottomLeft: { borderRadius: 12, stroke: colors.primary.main, strokeWidth: 3 },
+                    }}
+                    innerEyesOptions={{
+                      topLeft: { borderRadius: 8, color: colors.primary.main },
+                      topRight: { borderRadius: 8, color: colors.primary.main },
+                      bottomLeft: { borderRadius: 8, color: colors.primary.main },
+                    }}
                   />
                 </View>
               </View>
