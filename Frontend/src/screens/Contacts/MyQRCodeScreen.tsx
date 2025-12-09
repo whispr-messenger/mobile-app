@@ -394,16 +394,16 @@ export const MyQRCodeScreen: React.FC = () => {
                 >
                   <TouchableOpacity
                     onPress={handleShare}
-                    activeOpacity={0.9}
+                    activeOpacity={0.85}
                     style={styles.shareButtonContainer}
                   >
                     <LinearGradient
-                      colors={[colors.secondary.light, colors.secondary.main]}
+                      colors={colors.background.gradient.unreadAction}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={[styles.actionButton, styles.shareButton]}
                     >
-                      <Ionicons name="share-outline" size={20} color={colors.text.light} />
+                      <Ionicons name="share-outline" size={22} color={colors.text.light} />
                       <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
                         Partager
                       </Text>
@@ -419,16 +419,16 @@ export const MyQRCodeScreen: React.FC = () => {
                 >
                   <TouchableOpacity
                     onPress={handleSaveToGallery}
-                    activeOpacity={0.9}
+                    activeOpacity={0.85}
                     style={styles.saveButtonContainer}
                   >
                     <LinearGradient
-                      colors={[colors.primary.light, colors.primary.main]}
+                      colors={[colors.primary.main, colors.primary.dark]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={[styles.actionButton, styles.saveButton]}
                     >
-                      <Ionicons name="download-outline" size={20} color={colors.text.light} />
+                      <Ionicons name="download-outline" size={22} color={colors.text.light} />
                       <Text style={[styles.actionButtonText, { color: colors.text.light }]}>
                         Sauvegarder
                       </Text>
@@ -507,21 +507,25 @@ const styles = StyleSheet.create({
   },
   userCard: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 36,
     paddingHorizontal: 24,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 6,
+    letterSpacing: 0.5,
   },
   userUsername: {
-    fontSize: 16,
-    marginBottom: 12,
+    fontSize: 17,
+    marginBottom: 14,
+    fontWeight: '500',
   },
   userDescription: {
-    fontSize: 14,
+    fontSize: 15,
     textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '400',
   },
   qrCard: {
     backgroundColor: colors.background.primary,
@@ -556,33 +560,34 @@ const styles = StyleSheet.create({
   },
   shareButtonContainer: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: colors.secondary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   saveButtonContainer: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: colors.primary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
   },
   actionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    gap: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    gap: 10,
+    minHeight: 56,
   },
   shareButton: {
     backgroundColor: 'transparent',
@@ -591,8 +596,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   infoContainer: {
     flexDirection: 'row',
