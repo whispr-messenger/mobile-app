@@ -23,6 +23,7 @@ import { contactsAPI } from '../../services/contacts/api';
 import { Avatar } from '../Chat/Avatar';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { useNavigation } from '@react-navigation/native';
 
 interface AddContactModalProps {
   visible: boolean;
@@ -35,6 +36,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   onClose,
   onContactAdded,
 }) => {
+  const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -259,6 +261,29 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
                 Entrez un nom d'utilisateur pour commencer
               </Text>
+              
+              {/* QR Code Scanner Button */}
+              <View style={styles.qrScannerContainer}>
+                <View style={styles.divider}>
+                  <View style={[styles.dividerLine, { backgroundColor: themeColors.text.tertiary, opacity: 0.3 }]} />
+                  <Text style={[styles.dividerText, { color: themeColors.text.tertiary }]}>Ou</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: themeColors.text.tertiary, opacity: 0.3 }]} />
+                </View>
+                
+                <TouchableOpacity
+                  style={[styles.qrScannerButton, { backgroundColor: colors.secondary.main }]}
+                  onPress={() => {
+                    onClose();
+                    (navigation as any).navigate('QRCodeScanner');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="qr-code-outline" size={24} color={colors.text.light} />
+                  <Text style={[styles.qrScannerButtonText, { color: colors.text.light }]}>
+                    Scanner un QR code
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <FlatList
@@ -349,6 +374,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  qrScannerContainer: {
+    width: '100%',
+    marginTop: 32,
+    paddingHorizontal: 16,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+  },
+  qrScannerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 12,
+  },
+  qrScannerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   resultsList: {
     paddingHorizontal: 16,
