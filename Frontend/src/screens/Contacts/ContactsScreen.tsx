@@ -122,16 +122,28 @@ export const ContactsScreen: React.FC = () => {
           <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
             Contacts
           </Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons
-              name="add"
-              size={24}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerActionButton}
+              onPress={() => navigation.navigate('MyQRCode' as never)}
+            >
+              <Ionicons
+                name="qr-code-outline"
+                size={24}
+                color={themeColors.text.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowAddModal(true)}
+            >
+              <Ionicons
+                name="add"
+                size={24}
+                color={themeColors.text.primary}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -323,6 +335,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 20,
     fontWeight: '600',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerActionButton: {
+    padding: 4,
   },
   addButton: {
     padding: 4,

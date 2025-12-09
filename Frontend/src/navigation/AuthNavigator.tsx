@@ -17,6 +17,7 @@ import { ConversationsListScreen } from '../screens/Chat/ConversationsListScreen
 import { ChatScreen } from '../screens/Chat/ChatScreen';
 import { ContactsScreen } from '../screens/Contacts/ContactsScreen';
 import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
+import { MyQRCodeScreen } from '../screens/Contacts/MyQRCodeScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
 import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 
@@ -33,6 +34,7 @@ export type AuthStackParamList = {
   Chat: { conversationId: string };
   Contacts: undefined;
   BlockedUsers: undefined;
+  MyQRCode: undefined;
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
 };
@@ -75,6 +77,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Contacts" component={ContactsScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
+      <Stack.Screen name="MyQRCode" component={MyQRCodeScreen} />
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
       <Stack.Screen name="GroupManagement" component={GroupManagementScreen} />
     </Stack.Navigator>
