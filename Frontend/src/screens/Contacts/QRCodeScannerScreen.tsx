@@ -17,13 +17,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { qrCodeService } from '../../services/qrCode/qrCodeService';
 import { contactsAPI } from '../../services/contacts/api';
 import { Avatar } from '../Chat/Avatar';
+import { AuthStackParamList } from '../../navigation/AuthNavigator';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SCAN_AREA_SIZE = Math.min(SCREEN_WIDTH - 64, 280);
