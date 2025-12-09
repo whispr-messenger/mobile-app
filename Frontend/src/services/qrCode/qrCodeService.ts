@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserService } from '../UserService';
 
 export interface QRCodeData {
   type: 'contact';
@@ -37,12 +38,26 @@ export class QRCodeService {
   }
 
   /**
-   * Get current user ID from storage
+   * Get current user ID from storage or profile
    */
   async getCurrentUserId(): Promise<string | null> {
     try {
+      // Try AsyncStorage first (for backward compatibility)
       const userId = await AsyncStorage.getItem('whispr.auth.userId');
-      return userId;
+      if (userId) {
+        return userId;
+      }
+
+      // Fallback: Get from UserService profile
+      const userService = UserService.getInstance();
+      const profileResult = await userService.getProfile();
+      if (profileResult.success && profileResult.profile?.id) {
+        // Store it for next time
+        await AsyncStorage.setItem('whispr.auth.userId', profileResult.profile.id);
+        return profileResult.profile.id;
+      }
+
+      return null;
     } catch (error) {
       console.error('[QRCodeService] Error getting user ID:', error);
       return null;
@@ -112,4 +127,5 @@ export class QRCodeService {
 }
 
 export const qrCodeService = QRCodeService.getInstance();
+
 
