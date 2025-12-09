@@ -31,8 +31,14 @@ const SCAN_AREA_SIZE = Math.min(SCREEN_WIDTH - 64, 280);
 
 export const QRCodeScannerScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
+  const navigationRef = useRef(navigation);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  // Keep navigation ref updated
+  useEffect(() => {
+    navigationRef.current = navigation;
+  }, [navigation]);
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -212,8 +218,8 @@ export const QRCodeScannerScreen: React.FC = () => {
                     {
                       text: 'OK',
                       onPress: () => {
-                        if (navigation && navigation.goBack) {
-                          navigation.goBack();
+                        if (navigationRef.current && navigationRef.current.goBack) {
+                          navigationRef.current.goBack();
                         }
                       },
                     },
@@ -302,8 +308,8 @@ export const QRCodeScannerScreen: React.FC = () => {
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => {
-                if (navigation && navigation.goBack) {
-                  navigation.goBack();
+                if (navigationRef.current && navigationRef.current.goBack) {
+                  navigationRef.current.goBack();
                 }
               }}
               style={styles.backButton}

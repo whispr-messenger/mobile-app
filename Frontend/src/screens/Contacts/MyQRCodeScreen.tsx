@@ -65,9 +65,15 @@ const buildSparkPath = (cx: number, cy: number, r: number) =>
 
 export const MyQRCodeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<AuthStackParamList>>();
+  const navigationRef = useRef(navigation);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const qrViewRef = useRef<View>(null);
+
+  // Keep navigation ref updated
+  useEffect(() => {
+    navigationRef.current = navigation;
+  }, [navigation]);
 
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,8 +171,8 @@ export const MyQRCodeScreen: React.FC = () => {
       if (!qrData) {
         console.error('[MyQRCode] Failed to generate QR code');
         Alert.alert('Erreur', 'Impossible de générer le QR code. Veuillez vous reconnecter.');
-        if (navigation && navigation.goBack) {
-          navigation.goBack();
+        if (navigationRef.current && navigationRef.current.goBack) {
+          navigationRef.current.goBack();
         }
         return;
       }
@@ -271,8 +277,8 @@ export const MyQRCodeScreen: React.FC = () => {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
-              if (navigation && navigation.goBack) {
-                navigation.goBack();
+              if (navigationRef.current && navigationRef.current.goBack) {
+                navigationRef.current.goBack();
               }
             }}
             style={styles.backButton}
