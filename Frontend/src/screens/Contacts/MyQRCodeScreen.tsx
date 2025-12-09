@@ -21,15 +21,46 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
+import { Circle, Path, Defs, LinearGradient as SVGLinearGradient, Stop } from 'react-native-svg';
 // Note: react-native-view-shot and expo-media-library will be installed if needed
 // For now, using Share API which is native
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { qrCodeService } from '../../services/qrCode/qrCodeService';
 import { UserService } from '../../services/UserService';
+import { useMemo, useCallback } from 'react';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const QR_SIZE = Math.min(SCREEN_WIDTH - 64, 280);
+
+// Shape path builders
+const buildStarPath = (cx: number, cy: number, r: number) =>
+  `
+    M ${cx} ${cy - r}
+    L ${cx + r * 0.35} ${cy - r * 0.25}
+    L ${cx + r} ${cy - r * 0.15}
+    L ${cx + r * 0.4} ${cy + r * 0.1}
+    L ${cx + r * 0.65} ${cy + r}
+    L ${cx} ${cy + r * 0.45}
+    L ${cx - r * 0.65} ${cy + r}
+    L ${cx - r * 0.4} ${cy + r * 0.1}
+    L ${cx - r} ${cy - r * 0.15}
+    L ${cx - r * 0.35} ${cy - r * 0.25}
+    Z
+  `;
+
+const buildSparkPath = (cx: number, cy: number, r: number) =>
+  `
+    M ${cx - r} ${cy - r * 0.2}
+    L ${cx - r * 0.2} ${cy - r}
+    L ${cx + r * 0.2} ${cy - r}
+    L ${cx + r} ${cy - r * 0.2}
+    L ${cx + r} ${cy + r * 0.2}
+    L ${cx + r * 0.2} ${cy + r}
+    L ${cx - r * 0.2} ${cy + r}
+    L ${cx - r} ${cy + r * 0.2}
+    Z
+  `;
 
 export const MyQRCodeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -47,6 +78,45 @@ export const MyQRCodeScreen: React.FC = () => {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  // QR code styling
+  const qrGradientColors = useMemo(() => [colors.primary.main, colors.secondary.main], []);
+  const qrShapes = useMemo(() => ['star', 'spark', 'diamond', 'dot'], []);
+
+  const renderStylizedPiece = useCallback(
+    ({ x, y, pieceSize, bitMatrix }: { x: number; y: number; pieceSize: number; bitMatrix: number[][] }) => {
+      if (!bitMatrix[y] || bitMatrix[y][x] === 0) {
+        return null;
+      }
+      const shape = qrShapes[(x + y) % qrShapes.length];
+      const size = pieceSize * 0.92;
+      const cx = x * pieceSize + pieceSize / 2;
+      const cy = y * pieceSize + pieceSize / 2;
+      const r = size / 2;
+      const fill = 'url(#qrGradient)';
+
+      const key = `${x}-${y}`;
+
+      switch (shape) {
+        case 'diamond':
+          return (
+            <Path
+              key={key}
+              d={`M ${cx} ${cy - r} L ${cx + r} ${cy} L ${cx} ${cy + r} L ${cx - r} ${cy} Z`}
+              fill={fill}
+            />
+          );
+        case 'spark':
+          return <Path key={key} d={buildSparkPath(cx, cy, r)} fill={fill} />;
+        case 'dot':
+          return <Circle key={key} cx={cx} cy={cy} r={r} fill={fill} />;
+        case 'star':
+        default:
+          return <Path key={key} d={buildStarPath(cx, cy, r)} fill={fill} />;
+      }
+    },
+    [qrShapes]
+  );
 
   useEffect(() => {
     loadQRCode();
@@ -202,44 +272,69 @@ export const MyQRCodeScreen: React.FC = () => {
 
               {/* QR Code Card */}
               <View style={styles.qrCard}>
-                <View style={styles.qrContainer}>
-                  <QRCodeStyled
-                    data={qrCodeData}
-                    size={QR_SIZE - 48}
-                    padding={20}
-                    pieceSize={6}
-                    pieceCornerType="square"
-                    isPiecesGlued={false}
-                    errorCorrectionLevel="M"
-                    color="#000000"
-                    backgroundColor="#FFFFFF"
-                    outerEyesOptions={{
-                      topLeft: { 
-                        borderRadius: 8, 
-                        stroke: '#000000', 
-                        strokeWidth: 2, 
-                        color: '#FFFFFF' 
-                      },
-                      topRight: { 
-                        borderRadius: 8, 
-                        stroke: '#000000', 
-                        strokeWidth: 2, 
-                        color: '#FFFFFF' 
-                      },
-                      bottomLeft: { 
-                        borderRadius: 8, 
-                        stroke: '#000000', 
-                        strokeWidth: 2, 
-                        color: '#FFFFFF' 
-                      },
-                    }}
-                    innerEyesOptions={{
-                      topLeft: { borderRadius: 4, color: '#000000' },
-                      topRight: { borderRadius: 4, color: '#000000' },
-                      bottomLeft: { borderRadius: 4, color: '#000000' },
-                    }}
-                  />
-                </View>
+                <LinearGradient
+                  colors={['#FFF3F0', '#FDDDEA']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.qrGradientContainer}
+                >
+                  <View style={styles.qrContainer}>
+                    <QRCodeStyled
+                      data={qrCodeData}
+                      size={QR_SIZE - 48}
+                      padding={20}
+                      pieceSize={8}
+                      pieceCornerType="rounded"
+                      pieceBorderRadius={60}
+                      pieceLiquidRadius={50}
+                      pieceScale={1.05}
+                      isPiecesGlued={true}
+                      errorCorrectionLevel="M"
+                      gradient={{
+                        type: 'linear',
+                        options: {
+                          colors: qrGradientColors,
+                          start: [0, 0],
+                          end: [1, 1],
+                        },
+                      }}
+                      outerEyesOptions={{
+                        topLeft: { 
+                          borderRadius: 24, 
+                          stroke: '#1D112F', 
+                          strokeWidth: 4, 
+                          color: '#FDF3EA' 
+                        },
+                        topRight: { 
+                          borderRadius: 24, 
+                          stroke: '#1D112F', 
+                          strokeWidth: 4, 
+                          color: '#FDF3EA' 
+                        },
+                        bottomLeft: { 
+                          borderRadius: 24, 
+                          stroke: '#1D112F', 
+                          strokeWidth: 4, 
+                          color: '#FDF3EA' 
+                        },
+                      }}
+                      innerEyesOptions={{
+                        topLeft: { borderRadius: 18, color: '#2D1935' },
+                        topRight: { borderRadius: 18, color: '#2D1935' },
+                        bottomLeft: { borderRadius: 18, color: '#2D1935' },
+                      }}
+                      color={colors.primary.main}
+                      renderCustomPieceItem={renderStylizedPiece}
+                    >
+                      <Defs>
+                        <SVGLinearGradient id="qrGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <Stop offset="0%" stopColor={qrGradientColors[0]} stopOpacity="1" />
+                          <Stop offset="100%" stopColor={qrGradientColors[1]} stopOpacity="1" />
+                        </SVGLinearGradient>
+                      </Defs>
+                    </QRCodeStyled>
+                  </View>
+                </LinearGradient>
               </View>
 
               {/* Action Buttons */}
@@ -356,20 +451,26 @@ const styles = StyleSheet.create({
   qrCard: {
     backgroundColor: colors.background.primary,
     borderRadius: 24,
-    padding: 24,
+    padding: 0,
     marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    overflow: 'hidden',
   },
-  qrContainer: {
-    width: QR_SIZE,
-    height: QR_SIZE,
+  qrGradientContainer: {
+    borderRadius: 24,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background.primary,
+  },
+  qrContainer: {
+    width: QR_SIZE - 48,
+    height: QR_SIZE - 48,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 16,
   },
   actionsContainer: {
