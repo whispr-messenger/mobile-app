@@ -68,16 +68,19 @@ export const MyQRCodeScreen: React.FC = () => {
   const loadQRCode = async () => {
     try {
       setLoading(true);
+      console.log('[MyQRCode] Loading QR code...');
 
       // Get current user ID and generate QR code
       const qrData = await qrCodeService.generateMyQRCode();
       if (!qrData) {
+        console.error('[MyQRCode] Failed to generate QR code');
         Alert.alert('Erreur', 'Impossible de générer le QR code. Veuillez vous reconnecter.');
         navigation.goBack();
         return;
       }
 
       setQrCodeData(qrData);
+      console.log('[MyQRCode] QR code generated successfully');
 
       // Load user profile for display
       const userService = UserService.getInstance();
@@ -88,9 +91,10 @@ export const MyQRCodeScreen: React.FC = () => {
           lastName: profileResult.profile.lastName,
           username: profileResult.profile.username,
         });
+        console.log('[MyQRCode] Profile loaded');
       }
     } catch (error) {
-      console.error('[MyQRCodeScreen] Error loading QR code:', error);
+      console.error('[MyQRCode] Error:', error);
       Alert.alert('Erreur', 'Impossible de charger le QR code');
     } finally {
       setLoading(false);
@@ -203,46 +207,36 @@ export const MyQRCodeScreen: React.FC = () => {
                     data={qrCodeData}
                     size={QR_SIZE - 48}
                     padding={20}
-                    pieceSize={8}
-                    pieceCornerType="rounded"
-                    pieceBorderRadius={4}
-                    pieceScale={1.0}
-                    isPiecesGlued={true}
+                    pieceSize={6}
+                    pieceCornerType="square"
+                    isPiecesGlued={false}
                     errorCorrectionLevel="M"
                     color="#000000"
                     backgroundColor="#FFFFFF"
-                    gradient={{
-                      type: 'linear',
-                      options: {
-                        colors: [colors.primary.main, colors.secondary.main],
-                        start: [0, 0],
-                        end: [1, 1],
-                      },
-                    }}
                     outerEyesOptions={{
                       topLeft: { 
-                        borderRadius: 16, 
-                        stroke: colors.primary.main, 
-                        strokeWidth: 4, 
+                        borderRadius: 8, 
+                        stroke: '#000000', 
+                        strokeWidth: 2, 
                         color: '#FFFFFF' 
                       },
                       topRight: { 
-                        borderRadius: 16, 
-                        stroke: colors.primary.main, 
-                        strokeWidth: 4, 
+                        borderRadius: 8, 
+                        stroke: '#000000', 
+                        strokeWidth: 2, 
                         color: '#FFFFFF' 
                       },
                       bottomLeft: { 
-                        borderRadius: 16, 
-                        stroke: colors.primary.main, 
-                        strokeWidth: 4, 
+                        borderRadius: 8, 
+                        stroke: '#000000', 
+                        strokeWidth: 2, 
                         color: '#FFFFFF' 
                       },
                     }}
                     innerEyesOptions={{
-                      topLeft: { borderRadius: 10, color: colors.primary.main },
-                      topRight: { borderRadius: 10, color: colors.primary.main },
-                      bottomLeft: { borderRadius: 10, color: colors.primary.main },
+                      topLeft: { borderRadius: 4, color: '#000000' },
+                      topRight: { borderRadius: 4, color: '#000000' },
+                      bottomLeft: { borderRadius: 4, color: '#000000' },
                     }}
                   />
                 </View>

@@ -2106,7 +2106,7 @@ balanced-match@^1.0.0:
   resolved "https://registry.npmjs.org/balanced-match/-/balanced-match-1.0.2.tgz"
   integrity sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==
 
-base64-js@^1.2.3, base64-js@^1.3.1, base64-js@^1.5.1:
+base64-js@^1.2.3, base64-js@^1.3.0, base64-js@^1.3.1, base64-js@^1.5.1:
   version "1.5.1"
   resolved "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz"
   integrity sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==
@@ -2837,6 +2837,20 @@ expo-asset@~12.0.9:
     "@expo/image-utils" "^0.8.7"
     expo-constants "~18.0.9"
 
+expo-barcode-scanner@^13.0.1:
+  version "13.0.1"
+  resolved "https://registry.npmjs.org/expo-barcode-scanner/-/expo-barcode-scanner-13.0.1.tgz"
+  integrity sha512-xBGLT1An2gpAMIQRTLU3oHydKohX8r8F9/ait1Fk9Vgd0GraFZbP4IiT7nHMlaw4H6E7Muucf7vXpGV6u7d4HQ==
+  dependencies:
+    expo-image-loader "~4.7.0"
+
+expo-camera@^17.0.10:
+  version "17.0.10"
+  resolved "https://registry.npmjs.org/expo-camera/-/expo-camera-17.0.10.tgz"
+  integrity sha512-w1RBw83mAGVk4BPPwNrCZyFop0VLiVSRE3c2V9onWbdFwonpRhzmB4drygG8YOUTl1H3wQvALJHyMPTbgsK1Jg==
+  dependencies:
+    invariant "^2.2.4"
+
 expo-constants@~18.0.9:
   version "18.0.9"
   resolved "https://registry.npmjs.org/expo-constants/-/expo-constants-18.0.9.tgz"
@@ -2844,6 +2858,18 @@ expo-constants@~18.0.9:
   dependencies:
     "@expo/config" "~12.0.9"
     "@expo/env" "~2.0.7"
+
+expo-contacts@~15.0.11:
+  version "15.0.11"
+  resolved "https://registry.npmjs.org/expo-contacts/-/expo-contacts-15.0.11.tgz"
+  integrity sha512-buKkoQuWJgVSEvR1Yloa5SvGC/ud7T2YeYDe0R7Aa0oz8pwQpjk3W7OoL3QrXIfYcuKTrIz6ffqC8lc3peaAyg==
+
+expo-crypto@^15.0.8:
+  version "15.0.8"
+  resolved "https://registry.npmjs.org/expo-crypto/-/expo-crypto-15.0.8.tgz"
+  integrity sha512-aF7A914TB66WIlTJvl5J6/itejfY78O7dq3ibvFltL9vnTALJ/7LYHvLT4fwmx9yUNS6ekLBtDGWivFWnj2Fcw==
+  dependencies:
+    base64-js "^1.3.0"
 
 expo-file-system@~19.0.16:
   version "19.0.16"
@@ -2861,6 +2887,11 @@ expo-haptics@~15.0.7:
   version "15.0.7"
   resolved "https://registry.npmjs.org/expo-haptics/-/expo-haptics-15.0.7.tgz"
   integrity sha512-7flWsYPrwjJxZ8x82RiJtzsnk1Xp9ahnbd9PhCy3NnsemyMApoWIEUr4waPqFr80DtiLZfhD9VMLL1CKa8AImQ==
+
+expo-image-loader@~4.7.0:
+  version "4.7.0"
+  resolved "https://registry.npmjs.org/expo-image-loader/-/expo-image-loader-4.7.0.tgz"
+  integrity sha512-cx+MxxsAMGl9AiWnQUzrkJMJH4eNOGlu7XkLGnAXSJrRoIiciGaKqzeaD326IyCTV+Z1fXvIliSgNW+DscvD8g==
 
 expo-image-loader@~6.0.0:
   version "6.0.0"
@@ -4068,9 +4099,9 @@ nested-error-stacks@~2.0.1:
   integrity sha512-SrQrok4CATudVzBS7coSz26QRSmlK9TzzoFbeKfcPBUFPjcQM9Rqvr/DlJkOrwI/0KcgvMub1n1g5Jt9EgRn4A==
 
 node-forge@^1.2.1, node-forge@^1.3.1:
-  version "1.3.1"
-  resolved "https://registry.npmjs.org/node-forge/-/node-forge-1.3.1.tgz"
-  integrity sha512-dPEtOeMvF9VMcYV/1Wb8CPoVAXtp6MKMlcbAt4ddqmGqUJ6fQZFXkNZNkNlfevtNkGtaSoXf/vNNNSvgrdXwtA==
+  version "1.3.3"
+  resolved "https://registry.npmjs.org/node-forge/-/node-forge-1.3.3.tgz"
+  integrity sha512-rLvcdSyRCyouf6jcOIPe/BgwG/d7hKjzMKOas33/pHEr6gbq18IK9zV7DiPvzsz0oBJPme6qr6H6kGZuI9/DZg==
 
 node-int64@^0.4.0:
   version "0.4.0"

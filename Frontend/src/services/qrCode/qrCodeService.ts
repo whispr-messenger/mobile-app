@@ -45,21 +45,24 @@ export class QRCodeService {
       // Try AsyncStorage first (for backward compatibility)
       const userId = await AsyncStorage.getItem('whispr.auth.userId');
       if (userId) {
+        console.log('[QRCode] User ID from storage');
         return userId;
       }
 
       // Fallback: Get from UserService profile
+      console.log('[QRCode] Fetching user ID from profile');
       const userService = UserService.getInstance();
       const profileResult = await userService.getProfile();
       if (profileResult.success && profileResult.profile?.id) {
-        // Store it for next time
         await AsyncStorage.setItem('whispr.auth.userId', profileResult.profile.id);
+        console.log('[QRCode] User ID retrieved from profile');
         return profileResult.profile.id;
       }
 
+      console.warn('[QRCode] No user ID found');
       return null;
     } catch (error) {
-      console.error('[QRCodeService] Error getting user ID:', error);
+      console.error('[QRCode] Error getting user ID:', error);
       return null;
     }
   }
@@ -72,7 +75,9 @@ export class QRCodeService {
     if (!userId) {
       return null;
     }
-    return this.generateContactQRCode(userId);
+    const qrData = this.generateContactQRCode(userId);
+    console.log('[QRCode] Generated QR code data');
+    return qrData;
   }
 
   /**
@@ -86,6 +91,7 @@ export class QRCodeService {
         const url = new URL(qrString);
         const userId = url.searchParams.get('userId');
         if (userId) {
+          console.log('[QRCode] Parsed URL scheme format');
           return {
             type: 'contact',
             userId,
@@ -97,6 +103,7 @@ export class QRCodeService {
       if (qrString.startsWith('{')) {
         const parsed = JSON.parse(qrString);
         if (parsed.type === 'contact' && parsed.userId) {
+          console.log('[QRCode] Parsed JSON format');
           return parsed as QRCodeData;
         }
       }
@@ -104,15 +111,17 @@ export class QRCodeService {
       // Try direct UUID format (fallback)
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(qrString.trim())) {
+        console.log('[QRCode] Parsed UUID format');
         return {
           type: 'contact',
           userId: qrString.trim(),
         };
       }
 
+      console.warn('[QRCode] Invalid QR code format');
       return null;
     } catch (error) {
-      console.error('[QRCodeService] Error parsing QR code:', error);
+      console.error('[QRCode] Parse error:', error);
       return null;
     }
   }

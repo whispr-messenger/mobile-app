@@ -78,11 +78,13 @@ export const QRCodeScannerScreen: React.FC = () => {
 
     setScanned(true);
     setProcessing(true);
+    console.log('[QRScanner] QR code scanned');
 
     try {
       // Parse QR code data
       const qrData = qrCodeService.parseQRCodeData(data);
       if (!qrData || qrData.type !== 'contact') {
+        console.warn('[QRScanner] Invalid QR code format');
         Alert.alert(
           'QR code invalide',
           'Ce QR code n\'est pas un code de contact Whispr.',
@@ -99,11 +101,14 @@ export const QRCodeScannerScreen: React.FC = () => {
         return;
       }
 
+      console.log('[QRScanner] Valid contact QR code, userId:', qrData.userId);
+
       const userId = qrData.userId;
 
       // Check if scanning own QR code
       const currentUserId = await qrCodeService.getCurrentUserId();
       if (userId === currentUserId) {
+        console.warn('[QRScanner] Attempted to scan own QR code');
         Alert.alert(
           'QR code personnel',
           'Vous ne pouvez pas vous ajouter vous-même comme contact.',
@@ -121,8 +126,7 @@ export const QRCodeScannerScreen: React.FC = () => {
       }
 
       // Search for user to get profile info
-      // Note: We'll need to add userId support to searchUsers or create a direct lookup
-      // For now, we'll try to get user info directly
+      console.log('[QRScanner] Searching for user:', userId);
       try {
         // Try to find user by ID in mock store (temporary solution)
         // In production, this would be a direct API call GET /api/v1/users/{userId}
@@ -132,6 +136,7 @@ export const QRCodeScannerScreen: React.FC = () => {
         const userResult = searchResults.find(r => r.user.id === userId);
         
         if (!userResult) {
+          console.warn('[QRScanner] User not found:', userId);
           Alert.alert(
             'Utilisateur introuvable',
             'Cet utilisateur n\'existe pas ou n\'est pas disponible.',
@@ -147,6 +152,8 @@ export const QRCodeScannerScreen: React.FC = () => {
           );
           return;
         }
+
+        console.log('[QRScanner] User found:', userResult.user.username);
 
         setUserProfile({
           id: userResult.user.id,
@@ -197,7 +204,9 @@ export const QRCodeScannerScreen: React.FC = () => {
               text: 'Ajouter',
               onPress: async () => {
                 try {
+                  console.log('[QRScanner] Adding contact:', userId);
                   await contactsAPI.addContact({ contactId: userId });
+                  console.log('[QRScanner] Contact added successfully');
                   Alert.alert('Succès', 'Contact ajouté avec succès', [
                     {
                       text: 'OK',
@@ -207,6 +216,7 @@ export const QRCodeScannerScreen: React.FC = () => {
                     },
                   ]);
                 } catch (error: any) {
+                  console.error('[QRScanner] Error adding contact:', error);
                   Alert.alert(
                     'Erreur',
                     error.message || 'Impossible d\'ajouter ce contact',
