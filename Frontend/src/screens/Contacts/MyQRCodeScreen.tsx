@@ -483,12 +483,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   shareButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: colors.secondary.main,
   },
   saveButton: {
-    backgroundColor: colors.secondary.main,
+    backgroundColor: colors.primary.main,
   },
   actionButtonText: {
     fontSize: 16,
