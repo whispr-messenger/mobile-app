@@ -35,9 +35,9 @@ export const QRCodeScannerScreen: React.FC = () => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  // Keep navigation ref updated
+  // Keep navigation ref updated - ensure navigation is valid
   useEffect(() => {
-    if (navigation) {
+    if (navigation && typeof navigation === 'object' && 'goBack' in navigation) {
       navigationRef.current = navigation;
     }
   }, [navigation]);
@@ -372,7 +372,17 @@ export const QRCodeScannerScreen: React.FC = () => {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              try {
+                if (navigationRef.current?.goBack) {
+                  navigationRef.current.goBack();
+                } else if (navigation?.goBack) {
+                  navigation.goBack();
+                }
+              } catch (error) {
+                console.error('[QRScanner] Error navigating back:', error);
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons

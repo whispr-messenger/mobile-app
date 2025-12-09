@@ -70,9 +70,9 @@ export const MyQRCodeScreen: React.FC = () => {
   const themeColors = getThemeColors();
   const qrViewRef = useRef<View>(null);
 
-  // Keep navigation ref updated
+  // Keep navigation ref updated - ensure navigation is valid
   useEffect(() => {
-    if (navigation) {
+    if (navigation && typeof navigation === 'object' && 'goBack' in navigation) {
       navigationRef.current = navigation;
     }
   }, [navigation]);
