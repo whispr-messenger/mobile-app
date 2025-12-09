@@ -211,7 +211,9 @@ export const QRCodeScannerScreen: React.FC = () => {
                     {
                       text: 'OK',
                       onPress: () => {
-                        navigation.goBack();
+                        if (navigation && navigation.goBack) {
+                          navigation.goBack();
+                        }
                       },
                     },
                   ]);
