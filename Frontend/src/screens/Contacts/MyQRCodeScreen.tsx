@@ -204,27 +204,45 @@ export const MyQRCodeScreen: React.FC = () => {
                     size={QR_SIZE - 48}
                     padding={20}
                     pieceSize={8}
-                    color={colors.primary.main}
+                    pieceCornerType="rounded"
+                    pieceBorderRadius={4}
+                    pieceScale={1.0}
+                    isPiecesGlued={true}
+                    errorCorrectionLevel="M"
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
                     gradient={{
                       type: 'linear',
                       options: {
-                        start: { x: 0, y: 0 },
-                        end: { x: 1, y: 1 },
                         colors: [colors.primary.main, colors.secondary.main],
+                        start: [0, 0],
+                        end: [1, 1],
                       },
                     }}
-                    pieceBorderRadius={2}
-                    isPiecesGlued={true}
-                    errorCorrectionLevel="M"
                     outerEyesOptions={{
-                      topLeft: { borderRadius: 12, stroke: colors.primary.main, strokeWidth: 3 },
-                      topRight: { borderRadius: 12, stroke: colors.primary.main, strokeWidth: 3 },
-                      bottomLeft: { borderRadius: 12, stroke: colors.primary.main, strokeWidth: 3 },
+                      topLeft: { 
+                        borderRadius: 16, 
+                        stroke: colors.primary.main, 
+                        strokeWidth: 4, 
+                        color: '#FFFFFF' 
+                      },
+                      topRight: { 
+                        borderRadius: 16, 
+                        stroke: colors.primary.main, 
+                        strokeWidth: 4, 
+                        color: '#FFFFFF' 
+                      },
+                      bottomLeft: { 
+                        borderRadius: 16, 
+                        stroke: colors.primary.main, 
+                        strokeWidth: 4, 
+                        color: '#FFFFFF' 
+                      },
                     }}
                     innerEyesOptions={{
-                      topLeft: { borderRadius: 8, color: colors.primary.main },
-                      topRight: { borderRadius: 8, color: colors.primary.main },
-                      bottomLeft: { borderRadius: 8, color: colors.primary.main },
+                      topLeft: { borderRadius: 10, color: colors.primary.main },
+                      topRight: { borderRadius: 10, color: colors.primary.main },
+                      bottomLeft: { borderRadius: 10, color: colors.primary.main },
                     }}
                   />
                 </View>
