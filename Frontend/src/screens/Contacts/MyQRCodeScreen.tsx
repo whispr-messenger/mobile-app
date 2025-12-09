@@ -382,7 +382,7 @@ export const MyQRCodeScreen: React.FC = () => {
                     />
                   </View>
                 </LinearGradient>
-              </View>
+              </Animated.View>
 
               {/* Action Buttons */}
               <View style={styles.actionsContainer}>
