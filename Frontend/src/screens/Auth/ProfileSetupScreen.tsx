@@ -25,6 +25,7 @@ import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { useTheme } from '../../context/ThemeContext';
+import { AuthService } from '../../services/auth';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'ProfileSetup'>;
 type RoutePropType = RouteProp<AuthStackParamList, 'ProfileSetup'>;
@@ -32,7 +33,7 @@ type RoutePropType = RouteProp<AuthStackParamList, 'ProfileSetup'>;
 export const ProfileSetupScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
-  const { userId, token } = route.params;
+  const { userId, token, verificationId } = route.params;
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
@@ -142,21 +143,36 @@ export const ProfileSetupScreen: React.FC = () => {
   };
 
   const handleContinue = async () => {
-    if (!firstName.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer votre prénom');
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert('Erreur', 'Veuillez entrer votre prénom et nom');
+      return;
+    }
+
+    if (!verificationId) {
+      Alert.alert('Erreur', 'Erreur: verificationId manquant');
       return;
     }
 
     setLoading(true);
 
     try {
-      // TODO: API call
-      // await userService.updateProfile({ firstName, lastName, photo: profilePhoto })
-      // await cryptoService.generateSignalKeys()
-      
-      // Simulate
-      setTimeout(() => {
-        setLoading(false);
+      // Finaliser l'inscription avec le profil
+      const result = await AuthService.register(
+        verificationId,
+        {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          profilePicture: profilePhoto || undefined,
+        },
+        {
+          name: 'Mobile Device',
+          type: 'mobile',
+        }
+      );
+
+      setLoading(false);
+
+      if (result.success && result.data) {
         Alert.alert(
           'Compte créé ! 🎉',
           'Votre compte Whispr est prêt',
@@ -168,10 +184,13 @@ export const ProfileSetupScreen: React.FC = () => {
             }
           }]
         );
-      }, 1500);
-    } catch (error) {
+      } else {
+        Alert.alert('Erreur', result.message || 'Impossible de créer le profil');
+      }
+    } catch (error: any) {
       setLoading(false);
-      Alert.alert('Erreur', 'Impossible de créer le profil');
+      console.error('Erreur création profil:', error);
+      Alert.alert('Erreur', error.message || 'Impossible de créer le profil');
     }
   };
 

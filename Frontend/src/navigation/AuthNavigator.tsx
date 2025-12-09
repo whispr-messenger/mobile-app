@@ -25,8 +25,8 @@ import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 export type AuthStackParamList = {
   Login: undefined;
   Registration: undefined;
-  Verification: { phoneNumber: string; isLogin?: boolean };
-  ProfileSetup: { userId: string; token: string };
+  Verification: { phoneNumber: string; isLogin?: boolean; verificationId?: string };
+  ProfileSetup: { userId: string; token: string; verificationId?: string };
   Profile: { userId?: string; token?: string; firstName?: string; lastName?: string; phoneNumber?: string; profilePicture?: string; username?: string; biography?: string };
   Settings: undefined;
   SecurityKeys: undefined;

@@ -23,6 +23,7 @@ import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { countries, searchCountries } from '../../data/countries';
 import { useTheme } from '../../context/ThemeContext';
+import { AuthService } from '../../services/auth';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Registration'>;
 
@@ -88,17 +89,27 @@ export const RegistrationScreen: React.FC = () => {
     setLoading(true);
     
     try {
-      // TODO: Appel API auth-service
-      // await authService.register({ phone: countryCode + phoneNumber })
+      const phoneData = {
+        countryCode: countryCode,
+        number: cleanNumber
+      };
       
-      // Simulate API call
-      setTimeout(() => {
-        setLoading(false);
+      // Demander le code de vérification pour l'inscription
+      const result = await AuthService.requestRegistrationVerification(phoneData);
+      
+      setLoading(false);
+      
+      if (result.success && result.verificationId) {
         navigation.navigate('Verification', { 
-          phoneNumber: countryCode + ' ' + phoneNumber 
+          phoneNumber: countryCode + ' ' + phoneNumber,
+          isLogin: false,
+          verificationId: result.verificationId
         });
-      }, 1500);
+      } else {
+        Alert.alert(getLocalizedText('notif.error'), result.message || getLocalizedText('auth.errorConnection'));
+      }
     } catch (error) {
+      console.error('💥 Erreur inattendue:', error);
       setLoading(false);
       Alert.alert(getLocalizedText('notif.error'), getLocalizedText('auth.errorConnection'));
     }

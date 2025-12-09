@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
-import AuthService from '../../services/AuthService';
+import { AuthService } from '../../services/auth';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();

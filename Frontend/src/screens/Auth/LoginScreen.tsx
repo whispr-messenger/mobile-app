@@ -25,7 +25,7 @@ import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { countries, searchCountries } from '../../data/countries';
-import AuthService from '../../services/AuthService';
+import { AuthService } from '../../services/auth';
 import { useTheme } from '../../context/ThemeContext';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Login'>;
@@ -172,21 +172,21 @@ export const LoginScreen: React.FC = () => {
     setLoading(true);
     
     try {
-      const authService = AuthService.getInstance();
       const phoneData = {
         countryCode: countryCode,
         number: cleanNumber
       };
       
-      // Utilisation de la méthode loginRequest pour la connexion
-      const result = await authService.loginRequest(phoneData);
+      // Demander le code de vérification pour la connexion
+      const result = await AuthService.requestLoginVerification(phoneData);
       
       setLoading(false);
       
-      if (result.success) {
+      if (result.success && result.verificationId) {
         navigation.navigate('Verification', { 
           phoneNumber: countryCode + ' ' + phoneNumber,
-          isLogin: true // Flag pour distinguer login vs registration
+          isLogin: true, // Flag pour distinguer login vs registration
+          verificationId: result.verificationId // Passer le verificationId
         });
       } else {
         Alert.alert(getLocalizedText('notif.error'), result.message || getLocalizedText('auth.errorConnection'));

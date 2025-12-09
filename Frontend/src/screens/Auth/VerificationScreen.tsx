@@ -24,6 +24,7 @@ import { Logo, Button } from '../../components';
 import { colors, spacing, typography, borderRadius } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { useTheme } from '../../context/ThemeContext';
+import { AuthService } from '../../services/auth';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Verification'>;
 type RoutePropType = RouteProp<AuthStackParamList, 'Verification'>;
@@ -31,7 +32,7 @@ type RoutePropType = RouteProp<AuthStackParamList, 'Verification'>;
 export const VerificationScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RoutePropType>();
-  const { phoneNumber, isLogin = false } = route.params || { phoneNumber: '', isLogin: false };
+  const { phoneNumber, isLogin = false, verificationId } = route.params || { phoneNumber: '', isLogin: false };
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
@@ -153,20 +154,33 @@ export const VerificationScreen: React.FC = () => {
       return;
     }
 
+    if (!verificationId) {
+      setError('Erreur: verificationId manquant');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // TODO: API call
-      // await authService.verify({ phone: phoneNumber, code: fullCode })
+      const codeData = { code: fullCode };
       
-      // Simulate API
-      setTimeout(() => {
-        if (fullCode === '123456') { // Demo code
-          setLoading(false);
+      // Vérifier le code selon le type (login ou registration)
+      const result = isLogin
+        ? await AuthService.confirmLoginVerification(verificationId, codeData)
+        : await AuthService.confirmRegistrationVerification(verificationId, codeData);
+      
+      if (result.success) {
+        setLoading(false);
+        
+        if (isLogin) {
+          // Pour la connexion, finaliser avec login
+          const loginResult = await AuthService.login(verificationId, {
+            name: 'Mobile Device',
+            type: 'mobile',
+          });
           
-          if (isLogin) {
-            // Pour la connexion, aller directement à la home page (ConversationsList)
-                 Alert.alert(
+          if (loginResult.success && loginResult.data) {
+            Alert.alert(
               getLocalizedText('auth.loginSuccess'),
               getLocalizedText('auth.welcome'),
               [
@@ -179,35 +193,39 @@ export const VerificationScreen: React.FC = () => {
               ]
             );
           } else {
-            // Pour l'inscription, aller au setup du profil
-            Alert.alert(
-              getLocalizedText('auth.codeVerified'),
-              getLocalizedText('auth.phoneVerified'),
-              [
-                {
-                  text: getLocalizedText('auth.continue'),
-                  onPress: () => {
-                    navigation.navigate('ProfileSetup', { 
-                      userId: 'demo-user-id',
-                      token: 'demo-token'
-                    });
-                  }
-                }
-              ]
-            );
+            Alert.alert(getLocalizedText('notif.error'), loginResult.message || 'Erreur lors de la connexion');
           }
         } else {
-                 setLoading(false);
-          setError(getLocalizedText('auth.codeIncorrect'));
-          shakeInputs();
-          setCode(['', '', '', '', '', '']);
-          inputRefs.current[0]?.focus();
+          // Pour l'inscription, aller au setup du profil
+          Alert.alert(
+            getLocalizedText('auth.codeVerified'),
+            getLocalizedText('auth.phoneVerified'),
+            [
+              {
+                text: getLocalizedText('auth.continue'),
+                onPress: () => {
+                  navigation.navigate('ProfileSetup', { 
+                    userId: verificationId, // Utiliser verificationId temporairement
+                    token: verificationId,
+                    verificationId: verificationId // Passer aussi pour register
+                  });
+                }
+              }
+            ]
+          );
         }
-      }, 1500);
-    } catch (error) {
+      } else {
+        setLoading(false);
+        setError(result.message || getLocalizedText('auth.codeIncorrect'));
+        shakeInputs();
+        setCode(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      }
+    } catch (error: any) {
       setLoading(false);
       shakeInputs();
-      Alert.alert('Erreur', 'Une erreur est survenue');
+      setError(error.message || 'Une erreur est survenue');
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue');
     }
   };
 
