@@ -300,7 +300,11 @@ export const QRCodeScannerScreen: React.FC = () => {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                if (navigation && navigation.goBack) {
+                  navigation.goBack();
+                }
+              }}
               style={styles.backButton}
             >
               <Ionicons
