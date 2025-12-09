@@ -164,7 +164,9 @@ export const MyQRCodeScreen: React.FC = () => {
       if (!qrData) {
         console.error('[MyQRCode] Failed to generate QR code');
         Alert.alert('Erreur', 'Impossible de générer le QR code. Veuillez vous reconnecter.');
-        navigation.goBack();
+        if (navigation && navigation.goBack) {
+          navigation.goBack();
+        }
         return;
       }
 
