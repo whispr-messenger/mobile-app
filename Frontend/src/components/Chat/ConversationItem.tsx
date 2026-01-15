@@ -52,7 +52,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
 
   const formattedTime = useMemo(() => {
     let date: Date;
-    
+
     if (conversation.last_message?.sent_at) {
       date = new Date(conversation.last_message.sent_at);
     } else if (conversation.updated_at) {
@@ -62,32 +62,32 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     } else {
       return 'Maintenant';
     }
-    
+
     const now = new Date();
     const diffTime = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const diffMinutes = Math.floor(diffTime / (1000 * 60));
-    
+
     if (diffMinutes < 1) {
       return 'Maintenant';
     }
-    
+
     if (diffMinutes < 60) {
       return `${diffMinutes}min`;
     }
-    
+
     if (diffDays === 0) {
       return date.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit',
       });
     }
-    
+
     if (diffDays < 7) {
       const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' });
       return dayName || '';
     }
-    
+
     return date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
@@ -113,13 +113,12 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <TouchableOpacity
         style={[
           styles.container,
-          { 
+          {
             backgroundColor: isItemSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
             borderBottomColor: 'rgba(255, 255, 255, 0.1)',
             overflow: 'hidden',
           },
         ]}
-        activeOpacity={0.7}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           onPress(conversation.id);
@@ -129,24 +128,37 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       <View style={styles.content}>
         {isEditMode && (
           <View style={styles.checkboxContainer}>
-            <View style={[
-              styles.checkbox,
-              isItemSelected && styles.checkboxSelected,
-              { borderColor: isItemSelected ? colors.primary.main : 'rgba(255, 255, 255, 0.5)' }
-            ]}>
+            <View
+              style={[
+                styles.checkbox,
+                isItemSelected && styles.checkboxSelected,
+                {
+                  borderColor: isItemSelected
+                    ? colors.primary.main
+                    : 'rgba(255, 255, 255, 0.5)',
+                },
+              ]}
+            >
               {isItemSelected && (
                 <Ionicons name="checkmark" size={16} color={colors.text.light} />
               )}
             </View>
           </View>
         )}
-        <Avatar
-          size={48}
-          uri={conversation.avatar_url}
-          name={conversation.display_name || (conversation.type === 'direct' ? 'Contact' : (conversation.metadata?.name || 'Group'))}
-          showOnlineBadge={conversation.type === 'direct'}
-          isOnline={false}
-        />
+        <View style={styles.avatarContainer}>
+          <Avatar
+            size={48}
+            uri={conversation.avatar_url}
+            name={
+              conversation.display_name ||
+              (conversation.type === 'direct'
+                ? 'Contact'
+                : conversation.metadata?.name || 'Group')
+            }
+            showOnlineBadge={conversation.type === 'direct'}
+            isOnline={conversation.type === 'direct'}
+          />
+        </View>
         <View style={styles.textContainer}>
           <View style={styles.nameRow}>
             <Text
@@ -180,15 +192,15 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               </Text>
             ) : null}
             {conversation.is_pinned && (
-              <Ionicons 
-                name="pin" 
-                size={14} 
-                color="rgba(255, 255, 255, 0.6)" 
+              <Ionicons
+                name="pin"
+                size={14}
+                color="rgba(255, 255, 255, 0.6)"
                 style={styles.pinIcon}
               />
             )}
           </View>
-          {conversation.unread_count && conversation.unread_count > 0 && getBadgeColor ? (
+          {conversation.unread_count ? (conversation.unread_count > 0 && getBadgeColor ? (
             <View
               style={[
                 styles.unreadBadge,
@@ -199,7 +211,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 {conversation.unread_count > 99 ? '99+' : String(conversation.unread_count)}
               </Text>
             </View>
-          ) : null}
+          ) : null) : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -301,4 +313,3 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
     prevIsSelected === nextIsSelected
   );
 });
-

@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,7 +45,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
-    
+
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -75,18 +76,25 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
     try {
       setAddingContactId(user.user.id);
-      await contactsAPI.addContact({
-        contactId: user.user.id,
-      });
-      Alert.alert('Succès', 'Contact ajouté avec succès', [
-        {
-          text: 'OK',
-          onPress: () => {
-            onContactAdded();
-            handleClose();
+      await contactsAPI.sendContactRequest(user.user.id);
+
+      console.log('[AddContactModal] Contact request sent successfully:', user.user.id);
+
+      if (Platform.OS === 'web') {
+        onContactAdded();
+        handleClose();
+        Alert.alert('Succès', 'Demande de contact envoyée');
+      } else {
+        Alert.alert('Succès', 'Demande de contact envoyée', [
+          {
+            text: 'OK',
+            onPress: () => {
+              onContactAdded();
+              handleClose();
+            },
           },
-        },
-      ]);
+        ]);
+      }
     } catch (error: any) {
       console.error('[AddContactModal] Error adding contact:', error);
       Alert.alert(
@@ -379,4 +387,3 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
-

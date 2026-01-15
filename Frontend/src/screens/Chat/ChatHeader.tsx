@@ -12,6 +12,7 @@ import { Avatar } from '../../components/Chat/Avatar';
 
 interface ChatHeaderProps {
   conversationName: string;
+  avatarUrl?: string;
   isOnline?: boolean;
   conversationType: 'direct' | 'group';
   onSearchPress?: () => void;
@@ -20,6 +21,7 @@ interface ChatHeaderProps {
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationName,
+  avatarUrl,
   isOnline = false,
   conversationType,
   onSearchPress,
@@ -48,6 +50,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </TouchableOpacity>
       <Avatar
         size={32}
+        uri={avatarUrl}
         name={conversationName}
         showOnlineBadge={conversationType === 'direct'}
         isOnline={isOnline}
@@ -134,5 +137,4 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
-
 

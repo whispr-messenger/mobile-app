@@ -1,25 +1,15 @@
-/**
- * Whispr AuthService
- * Service pour gérer l'authentification
- */
+import { Platform } from 'react-native';
+import { normalizePhoneToE164 } from '../utils/phoneUtils';
 
-export interface PhoneNumber {
-  countryCode: string;
-  number: string;
-}
-
-export interface VerificationCode {
-  code: string;
-}
-
-export interface UserProfile {
-  firstName: string;
-  lastName: string;
-  profilePicture?: string;
-}
+const API_BASE_URL =
+  Platform.OS === 'web'
+    ? 'http://localhost:4000/api/v1'
+    : 'https://api.whispr.local/api/v1';
 
 export class AuthService {
   private static instance: AuthService;
+  private currentUserId: string | null = null;
+  private currentUsername: string | null = null;
 
   private constructor() {}
 
@@ -30,189 +20,161 @@ export class AuthService {
     return AuthService.instance;
   }
 
-  /**
-   * Envoie un code de vérification par SMS pour l'inscription
-   */
-  async sendVerificationCode(phoneNumber: PhoneNumber): Promise<{ success: boolean; message?: string }> {
+  async updateCurrentUserPhone(newPhone: string): Promise<{ success: boolean; message?: string }> {
     try {
-      // TODO: Appel API réel vers auth-service
-      
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Pour le développement, on simule toujours un succès
-      return {
-        success: true,
-        message: 'Code de vérification envoyé'
-      };
-    } catch (error) {
-      console.error('Erreur envoi SMS:', error);
-      return {
-        success: false,
-        message: 'Erreur lors de l\'envoi du code'
-      };
-    }
-  }
-
-  /**
-   * Demande un code de vérification pour la connexion
-   */
-  async loginRequest(phoneNumber: PhoneNumber): Promise<{ success: boolean; message?: string }> {
-    try {
-      // TODO: Appel API réel vers auth-service /auth/login/verify/request
-      
-      // Validation du numéro
-      const validation = this.validatePhoneNumber(phoneNumber);
-      if (!validation.isValid) {
+      if (!this.currentUserId || !this.currentUsername) {
         return {
           success: false,
-          message: validation.error
+          message: 'Utilisateur non connecté'
         };
       }
-      
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Pour le développement, on simule toujours un succès
+
+      const trimmed = newPhone.trim();
+      if (!trimmed) {
+        return {
+          success: false,
+          message: 'Le numéro de téléphone est obligatoire'
+        };
+      }
+
+      const phoneE164 = normalizePhoneToE164(trimmed);
+
       return {
         success: true,
-        message: 'Code de vérification envoyé pour la connexion'
+        message: 'Numéro de téléphone mis à jour'
       };
     } catch (error) {
-      console.error('Erreur demande connexion:', error);
+      console.error('Erreur mise à jour téléphone:', error);
       return {
         success: false,
-        message: 'Erreur lors de la demande de connexion'
+        message: 'Erreur lors de la mise à jour du numéro'
       };
     }
   }
 
-  /**
-   * Vérifie le code SMS
-   */
-  async verifyCode(phoneNumber: PhoneNumber, code: VerificationCode): Promise<{ success: boolean; message?: string }> {
+  async register(credentials: { username: string; password: string; phone: string }): Promise<{ success: boolean; message?: string }> {
     try {
-      // TODO: Appel API réel vers auth-service
-      
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Pour le développement, on accepte le code "123456"
-      if (code.code === '123456') {
+      const username = credentials.username.trim();
+      const password = credentials.password.trim();
+      const phone = credentials.phone.trim();
+
+      if (!username || !password || !phone) {
         return {
-          success: true,
-          message: 'Code vérifié avec succès'
+          success: false,
+          message: 'Identifiants invalides'
         };
+      }
+
+      const phoneE164 = normalizePhoneToE164(phone);
+
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          phone: phoneE164,
+          password,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data || data.success !== true) {
+        const messageKey = data?.message;
+        let message = 'Erreur lors de l\'inscription';
+
+        if (messageKey === 'username_taken') {
+          message = 'Nom d’utilisateur déjà utilisé';
+        } else if (messageKey === 'phone_taken') {
+          message = 'Numéro de téléphone déjà utilisé';
+        } else if (messageKey === 'invalid_payload') {
+          message = 'Identifiants invalides';
+        }
+
+        return {
+          success: false,
+          message,
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Inscription réussie'
+      };
+    } catch (error) {
+      console.error('Erreur inscription:', error);
+      return {
+        success: false,
+        message: 'Erreur lors de l\'inscription'
+      };
+    }
+  }
+
+  async login(identifier: string, password: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const trimmedIdentifier = identifier.trim();
+      const trimmedPassword = password.trim();
+
+      if (!trimmedIdentifier || !trimmedPassword) {
+        return {
+          success: false,
+          message: 'Identifiants invalides'
+        };
+      }
+
+      const hasLetter = /[a-zA-Z]/.test(trimmedIdentifier);
+      let identifierForApi = trimmedIdentifier;
+
+      if (hasLetter) {
       } else {
+        identifierForApi = normalizePhoneToE164(trimmedIdentifier);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          identifier: identifierForApi,
+          password: trimmedPassword,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data || data.success !== true || !data.user_id) {
         return {
           success: false,
-          message: 'Code incorrect'
+          message: 'Identifiants invalides'
         };
       }
-    } catch (error) {
-      console.error('Erreur vérification:', error);
-      return {
-        success: false,
-        message: 'Erreur lors de la vérification'
-      };
-    }
-  }
 
-  /**
-   * Crée le profil utilisateur
-   */
-  async createProfile(phoneNumber: PhoneNumber, profile: UserProfile): Promise<{ success: boolean; message?: string }> {
-    try {
-      // TODO: Appel API réel vers user-service
-      
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      this.currentUserId = data.user_id;
+      this.currentUsername = data.username || trimmedIdentifier;
       return {
         success: true,
-        message: 'Profil créé avec succès'
+        message: 'Connexion réussie'
       };
     } catch (error) {
-      console.error('Erreur création profil:', error);
+      console.error('Erreur connexion:', error);
       return {
         success: false,
-        message: 'Erreur lors de la création du profil'
+        message: 'Erreur lors de la connexion'
       };
     }
   }
 
-  /**
-   * Valide un numéro de téléphone
-   */
-  validatePhoneNumber(phoneNumber: PhoneNumber): { isValid: boolean; error?: string } {
-    const { countryCode, number } = phoneNumber;
-    
-    if (!countryCode || !number) {
-      return {
-        isValid: false,
-        error: 'Veuillez saisir un numéro de téléphone'
-      };
+  getCurrentUser(): { userId: string; username: string } | null {
+    if (!this.currentUserId || !this.currentUsername) {
+      return null;
     }
-
-    // Validation basique du format
-    const cleanNumber = number.replace(/\s/g, '');
-    if (cleanNumber.length < 8) {
-      return {
-        isValid: false,
-        error: 'Le numéro de téléphone est trop court'
-      };
-    }
-
-    if (cleanNumber.length > 15) {
-      return {
-        isValid: false,
-        error: 'Le numéro de téléphone est trop long'
-      };
-    }
-
-    return { isValid: true };
-  }
-
-  /**
-   * Valide un code de vérification
-   */
-  validateVerificationCode(code: string): { isValid: boolean; error?: string } {
-    if (!code || code.length !== 6) {
-      return {
-        isValid: false,
-        error: 'Le code doit contenir 6 chiffres'
-      };
-    }
-
-    if (!/^\d{6}$/.test(code)) {
-      return {
-        isValid: false,
-        error: 'Le code ne doit contenir que des chiffres'
-      };
-    }
-
-    return { isValid: true };
-  }
-
-  /**
-   * Valide un profil utilisateur
-   */
-  validateProfile(profile: UserProfile): { isValid: boolean; error?: string } {
-    if (!profile.firstName || profile.firstName.trim().length < 2) {
-      return {
-        isValid: false,
-        error: 'Le prénom doit contenir au moins 2 caractères'
-      };
-    }
-
-    if (!profile.lastName || profile.lastName.trim().length < 2) {
-      return {
-        isValid: false,
-        error: 'Le nom doit contenir au moins 2 caractères'
-      };
-    }
-
-    return { isValid: true };
+    return {
+      userId: this.currentUserId,
+      username: this.currentUsername,
+    };
   }
 
   /**
@@ -221,7 +183,7 @@ export class AuthService {
   async logout(): Promise<{ success: boolean; message?: string }> {
     try {
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      
+
       // Supprimer les tokens et données d'authentification
       await AsyncStorage.multiRemove([
         'whispr.auth.token',
@@ -229,7 +191,7 @@ export class AuthService {
         'whispr.auth.userId',
         'whispr.profile.v1',
       ]);
-      
+
       return {
         success: true,
         message: 'Déconnexion réussie'
@@ -250,10 +212,10 @@ export class AuthService {
     try {
       // TODO: Appel API réel vers user-service pour supprimer le compte
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-      
+
       // Supprimer toutes les données locales
       await AsyncStorage.clear();
-      
+
       return {
         success: true,
         message: 'Compte supprimé avec succès'
@@ -269,4 +231,3 @@ export class AuthService {
 }
 
 export default AuthService;
-

@@ -68,7 +68,7 @@ export const MessageSearch: React.FC<MessageSearchProps> = ({
               <Ionicons name="search" size={20} color={themeColors.text.secondary} style={styles.searchIcon} />
               <TextInput
                 style={[styles.input, { color: themeColors.text.primary }]}
-                placeholder="Rechercher dans les messages..."
+                placeholder="Rechercher dans les messages"
                 placeholderTextColor={themeColors.text.tertiary}
                 value={query}
                 onChangeText={handleQueryChange}
@@ -211,5 +211,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-

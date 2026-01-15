@@ -7,8 +7,6 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { RegistrationScreen } from '../screens/Auth/RegistrationScreen';
-import { VerificationScreen } from '../screens/Auth/VerificationScreen';
-import { ProfileSetupScreen } from '../screens/Auth/ProfileSetupScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { SettingsScreen } from '../screens/Settings/SettingsScreen';
 import { SecurityKeysScreen } from '../screens/Security/SecurityKeysScreen';
@@ -23,8 +21,6 @@ import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 export type AuthStackParamList = {
   Login: undefined;
   Registration: undefined;
-  Verification: { phoneNumber: string; isLogin?: boolean };
-  ProfileSetup: { userId: string; token: string };
   Profile: { userId?: string; token?: string; firstName?: string; lastName?: string; phoneNumber?: string; profilePicture?: string; username?: string; biography?: string };
   Settings: undefined;
   SecurityKeys: undefined;
@@ -65,8 +61,6 @@ export const AuthNavigator: React.FC = () => {
     >
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Registration" component={RegistrationScreen} />
-      <Stack.Screen name="Verification" component={VerificationScreen} />
-      <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
@@ -82,6 +76,4 @@ export const AuthNavigator: React.FC = () => {
 };
 
 export default AuthNavigator;
-
-
 

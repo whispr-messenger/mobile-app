@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { createMockSocket, MockSocket } from '../services/messaging/websocket';
+import { createSocket, SocketConnection } from '../services/messaging/websocket';
 import { Conversation, Message } from '../types/messaging';
 
 interface UseWebSocketOptions {
@@ -13,15 +13,15 @@ interface UseWebSocketOptions {
   onConversationUpdate?: (conversation: Conversation) => void;
   onTyping?: (userId: string, typing: boolean) => void;
   onDeliveryStatus?: (messageId: string, status: string) => void;
+  onContactRequest?: (request: any) => void;
 }
 
 export const useWebSocket = (options: UseWebSocketOptions) => {
-  const socketRef = useRef<MockSocket | null>(null);
+  const socketRef = useRef<SocketConnection | null>(null);
   const userChannelRef = useRef<any>(null);
 
   useEffect(() => {
-    // Initialize socket
-    const socket = createMockSocket();
+    const socket = createSocket();
     socket.connect(options.userId, options.token);
     socketRef.current = socket;
 
@@ -38,6 +38,14 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       // Listen for delivery_status events
       userChannel.on('delivery_status', (data: { message_id: string; status: string }) => {
         options.onDeliveryStatus?.(data.message_id, data.status);
+      });
+
+      userChannel.on('conversation_updated', (data: { conversation: Conversation }) => {
+        options.onConversationUpdate?.(data.conversation);
+      });
+
+      userChannel.on('contact_request_created', (data: { request: any }) => {
+        options.onContactRequest?.(data.request);
       });
     });
 
@@ -75,25 +83,13 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
       const channel = socketRef.current.channel(`conversation:${conversationId}`);
       const random = clientRandom || Math.floor(Math.random() * 1000000);
-      
+
       channel.push('new_message', {
         conversation_id: conversationId,
         content,
         message_type: messageType,
         client_random: random,
       });
-
-      // Listen for reply to update message status
-      const replyKey = `${channel['topic']}:phx_reply`;
-      const replyHandler = (data: { status: string; response?: { message: Message } }) => {
-        if (data.status === 'ok' && data.response?.message) {
-          options.onNewMessage?.(data.response.message);
-        }
-        // Remove listener after handling
-        socketRef.current?.emit(replyKey, null);
-      };
-      
-      socketRef.current.on(replyKey, replyHandler);
     },
     [options]
   );
@@ -102,7 +98,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     if (!socketRef.current) return;
 
     const channel = socketRef.current.channel(`conversation:${conversationId}`);
-    channel.push(typing ? 'typing_start' : 'typing_stop', {});
+    channel.push('typing', { typing });
   }, []);
 
   const markAsRead = useCallback((conversationId: string, messageId: string) => {
@@ -118,8 +114,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     if (userChannelRef.current && socketRef.current?.isConnected()) {
       return userChannelRef.current;
     }
-    // Re-initialize if somehow disconnected (should be handled by useEffect)
-    const socket = createMockSocket();
+    const socket = createSocket();
     socket.connect(options.userId, options.token);
     socketRef.current = socket;
     const userChannel = socket.channel(`user:${options.userId}`);
@@ -131,9 +126,28 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       userChannel.on('delivery_status', (data: { message_id: string; status: string }) => {
         options.onDeliveryStatus?.(data.message_id, data.status);
       });
+
+      userChannel.on('conversation_updated', (data: { conversation: Conversation }) => {
+        options.onConversationUpdate?.(data.conversation);
+      });
+
+      userChannel.on('contact_request_created', (data: { request: any }) => {
+        options.onContactRequest?.(data.request);
+      });
+
+      userChannel.on('contact_request_updated', (data: { request: any }) => {
+        options.onContactRequest?.(data.request);
+      });
     });
     return userChannel;
-  }, [options.userId, options.token, options.onNewMessage, options.onDeliveryStatus]);
+  }, [
+    options.userId,
+    options.token,
+    options.onNewMessage,
+    options.onDeliveryStatus,
+    options.onConversationUpdate,
+    options.onContactRequest,
+  ]);
 
   return {
     joinUserChannel,
@@ -143,4 +157,3 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     markAsRead,
   };
 };
-
