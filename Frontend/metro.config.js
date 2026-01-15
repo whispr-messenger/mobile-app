@@ -14,5 +14,7 @@ config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 // Fix for CommonJS modules in nested node_modules
 config.resolver.unstable_enablePackageExports = false;
 
+config.resolver.assetExts.push("tflite");
+
 module.exports = config;
 

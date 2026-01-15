@@ -28,6 +28,7 @@ import { ChatHeader } from './ChatHeader';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { tfliteService } from "@/services/moderation/tflite.service";
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 
@@ -61,6 +62,16 @@ export const ChatScreen: React.FC = () => {
   // Mock user ID - TODO: Get from auth context
   const userId = 'user-1';
   const token = 'mock-token';
+
+  const [moderationModal, setModerationModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>(() => ({ visible: false, title: "", message: "" }));
+
+  const showModeration = (title: string, message: string) => {
+    setModerationModal({ visible: true, title, message });
+  };
 
   // WebSocket connection
   const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
@@ -321,6 +332,20 @@ export const ChatScreen: React.FC = () => {
       sendTyping(conversationId, false);
 
       try {
+        const threshold = 0.99;
+
+        const gate = await tfliteService.gate({ uri, threshold });
+
+        // gate.allowed === true => 放行
+        // gate.allowed === false => 拦截
+        if (!gate.allowed) {
+          showModeration(
+              "L'image a été bloquée.",
+              `Catégorie détectée：${gate.bestClass}\nConfiance：${(gate.bestProb * 100).toFixed(1)}%\nthreshold：${threshold}`
+          );
+          return;
+        }
+
         // Create optimistic message
         const tempMessage: MessageWithRelations = {
           id: `temp-${Date.now()}`,
@@ -777,72 +802,48 @@ export const ChatScreen: React.FC = () => {
         onNext={handleSearchNext}
         onPrevious={handleSearchPrevious}
       />
-      <Modal
-        visible={showInfoModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          console.log('[ChatScreen] Info modal closed (back button)');
-          setShowInfoModal(false);
-        }}
-        onShow={() => {
-          console.log('[ChatScreen] Info modal shown');
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.background.primary }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: themeColors.text.primary }]}>
-                Informations de la conversation
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  console.log('[ChatScreen] Info modal close button clicked');
-                  setShowInfoModal(false);
-                }}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color={themeColors.text.primary} />
-              </TouchableOpacity>
+        <Modal
+            visible={moderationModal.visible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setModerationModal(s => ({ ...s, visible: false }))}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: themeColors.background.primary }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: themeColors.text.primary }]}>
+                  {moderationModal.title}
+                </Text>
+                <TouchableOpacity
+                    onPress={() => setModerationModal(s => ({ ...s, visible: false }))}
+                    style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color={themeColors.text.primary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ padding: 20 }}>
+                <Text style={{ color: themeColors.text.primary, fontSize: 15, lineHeight: 22 }}>
+                  {moderationModal.message}
+                </Text>
+
+                <View style={{ height: 16 }} />
+
+                <TouchableOpacity
+                    onPress={() => setModerationModal(s => ({ ...s, visible: false }))}
+                    style={{
+                      paddingVertical: 12,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      backgroundColor: themeColors.primary,
+                    }}
+                >
+                  <Text style={{ color: "white", fontWeight: "700" }}>OK</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              <View style={[styles.infoSection, { borderBottomWidth: 0, marginBottom: 0 }]}>
-                <Avatar
-                  size={80}
-                  uri={conversation?.avatar_url}
-                  name={conversation?.display_name || 'Contact'}
-                  showOnlineBadge={conversation?.type === 'direct'}
-                  isOnline={false}
-                />
-                <Text style={[styles.infoValue, { color: themeColors.text.primary, marginTop: 16, fontSize: 22 }]}>
-                  {conversation?.display_name || 'Contact'}
-                </Text>
-                {conversation?.type === 'direct' && (
-                  <Text style={[styles.infoLabel, { color: themeColors.text.secondary, marginTop: 4, textTransform: 'none', fontSize: 14 }]}>
-                    Hors ligne
-                  </Text>
-                )}
-              </View>
-              <View style={styles.infoSection}>
-                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                  Type
-                </Text>
-                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  {conversation?.type === 'group' ? 'Groupe' : 'Conversation directe'}
-                </Text>
-              </View>
-              <View style={styles.infoSection}>
-                <Text style={[styles.infoLabel, { color: themeColors.text.secondary }]}>
-                  Messages
-                </Text>
-                <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
-                  {messages.length} message{messages.length > 1 ? 's' : ''}
-                </Text>
-              </View>
-            </ScrollView>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
