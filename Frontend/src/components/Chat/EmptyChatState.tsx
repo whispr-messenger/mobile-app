@@ -5,7 +5,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 
@@ -21,16 +20,6 @@ export const EmptyChatState: React.FC<EmptyChatStateProps> = ({
 
   return (
     <View style={styles.container}>
-      <View style={styles.iconContainer}>
-        <LinearGradient
-          colors={['#FFB07B', '#F04882']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.iconGradient}
-        >
-          <Ionicons name="chatbubbles-outline" size={48} color={colors.text.light} />
-        </LinearGradient>
-      </View>
       <Text style={[styles.title, { color: themeColors.text.primary }]}>
         Aucun message
       </Text>
@@ -70,4 +59,3 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
-

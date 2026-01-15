@@ -76,9 +76,21 @@ export interface UserSearchResult {
   is_blocked: boolean;
 }
 
+export type ContactRequestStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface ContactRequest {
+  id: string;
+  requester_id: string;
+  recipient_id: string;
+  status: ContactRequestStatus;
+  created_at: string;
+  updated_at: string;
+  requester_user?: User;
+  recipient_user?: User;
+}
+
 export interface PhoneContact {
   name: string;
   phoneNumber: string;
   phoneHash: string;
 }
-

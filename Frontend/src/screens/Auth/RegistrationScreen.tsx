@@ -21,7 +21,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
-import { countries, searchCountries } from '../../data/countries';
+import AuthService from '../../services/AuthService';
 import { useTheme } from '../../context/ThemeContext';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Registration'>;
@@ -30,12 +30,11 @@ export const RegistrationScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
+  const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+33');
-  const [countryFlag, setCountryFlag] = useState('🇫🇷');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
@@ -56,58 +55,56 @@ export const RegistrationScreen: React.FC = () => {
     ]).start();
   }, []);
 
-  const formatPhoneNumber = (text: string) => {
-    // Format français: 0X XX XX XX XX (10 chiffres)
-    const cleaned = text.replace(/\D/g, '');
-    
-    // Limiter à 10 chiffres maximum
-    const limited = cleaned.slice(0, 10);
-    
-    // Formatage: 0X XX XX XX XX
-    if (limited.length <= 2) {
-      return limited;
-    } else if (limited.length <= 4) {
-      return `${limited.slice(0, 2)} ${limited.slice(2)}`;
-    } else if (limited.length <= 6) {
-      return `${limited.slice(0, 2)} ${limited.slice(2, 4)} ${limited.slice(4)}`;
-    } else if (limited.length <= 8) {
-      return `${limited.slice(0, 2)} ${limited.slice(2, 4)} ${limited.slice(4, 6)} ${limited.slice(6)}`;
-    } else {
-      return `${limited.slice(0, 2)} ${limited.slice(2, 4)} ${limited.slice(4, 6)} ${limited.slice(6, 8)} ${limited.slice(8)}`;
-    }
-  };
-
   const handleContinue = async () => {
-    const cleanNumber = phoneNumber.replace(/\s/g, '');
-    
-    if (cleanNumber.length < 10) {
-      Alert.alert(getLocalizedText('notif.error'), getLocalizedText('auth.phoneMinLength'));
+    if (!username.trim()) {
+      Alert.alert(getLocalizedText('notif.error'), 'Veuillez entrer un nom d\'utilisateur');
       return;
     }
 
+    if (!phoneNumber.trim()) {
+      Alert.alert(getLocalizedText('notif.error'), 'Veuillez entrer un numéro de téléphone');
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert(getLocalizedText('notif.error'), 'Veuillez entrer un mot de passe');
+      return;
+    }
+
+    if (!confirmPassword.trim()) {
+      Alert.alert(getLocalizedText('notif.error'), 'Veuillez confirmer votre mot de passe');
+      return;
+    }
+
+    if (password.trim() !== confirmPassword.trim()) {
+      Alert.alert(getLocalizedText('notif.error'), 'Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    const cleanNumber = phoneNumber.replace(/\s/g, '');
+
     setLoading(true);
-    
+
     try {
-      // TODO: Appel API auth-service
-      // await authService.register({ phone: countryCode + phoneNumber })
-      
-      // Simulate API call
-      setTimeout(() => {
-        setLoading(false);
-        navigation.navigate('Verification', { 
-          phoneNumber: countryCode + ' ' + phoneNumber 
-        });
-      }, 1500);
+      const authService = AuthService.getInstance();
+      const result = await authService.register({
+        username: username.trim(),
+        password: password.trim(),
+        phone: cleanNumber,
+      });
+
+      setLoading(false);
+
+      if (result.success) {
+        navigation.navigate('Login');
+      } else {
+        Alert.alert(getLocalizedText('notif.error'), result.message || getLocalizedText('auth.errorConnection'));
+      }
     } catch (error) {
       setLoading(false);
       Alert.alert(getLocalizedText('notif.error'), getLocalizedText('auth.errorConnection'));
     }
   };
-
-  // Filtrer les pays selon la recherche
-  const filteredCountries = searchQuery 
-    ? searchCountries(searchQuery)
-    : countries; // Afficher tous les pays par défaut
 
   return (
     <LinearGradient
@@ -120,7 +117,7 @@ export const RegistrationScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.content,
             {
@@ -142,76 +139,53 @@ export const RegistrationScreen: React.FC = () => {
             </Text>
           </View>
 
-          {/* Phone Input */}
+          {/* Username */}
           <View style={styles.formContainer}>
-            <Text style={[styles.label, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>{getLocalizedText('auth.phone')}</Text>
-            
-            <View style={styles.phoneInputContainer}>
-              {/* Country Code */}
-              <TouchableOpacity 
-                style={styles.countryCodeButton}
-                onPress={() => setShowCountryPicker(!showCountryPicker)}
-              >
-                    <Text style={[styles.countryCodeText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>{countryFlag} {countryCode}</Text>
-              </TouchableOpacity>
+            <Text style={[styles.label, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>Nom d'utilisateur</Text>
+            <Input
+              placeholder="Username"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              containerStyle={styles.inputContainer}
+              style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
+            />
 
-              {/* Phone Number */}
-              <View style={styles.phoneInput}>
-                <Input
-                  placeholder={phoneNumber ? "" : "07 12 34 56 78"}
-                  keyboardType="phone-pad"
-                  value={phoneNumber}
-                  onChangeText={(text) => setPhoneNumber(formatPhoneNumber(text))}
-                  maxLength={14} // 0X XX XX XX XX with spaces
-                  containerStyle={styles.inputContainer}
-                  style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
-                />
-              </View>
-            </View>
-
-            {/* Country Picker */}
-            {showCountryPicker && (
-              <View style={[styles.countryPicker, { backgroundColor: themeColors.background.secondary }]}>
-                {/* Search Input */}
-                <Input
-                  placeholder={getLocalizedText('auth.searchCountry')}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  containerStyle={styles.searchContainer}
-                  style={styles.searchInput}
-                />
-                
-                {/* Countries List */}
-                <ScrollView style={styles.countriesList} nestedScrollEnabled>
-                  {filteredCountries.map((country) => (
-                    <TouchableOpacity
-                      key={country.id}
-                      style={styles.countryOption}
-                      onPress={() => {
-                        setCountryCode(country.code);
-                        setCountryFlag(country.flag);
-                        setShowCountryPicker(false);
-                        setSearchQuery('');
-                      }}
-                    >
-                      <Text style={[styles.countryOptionText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>
-                        {country.flag} {country.name} {country.code}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  
-                  {filteredCountries.length === 0 && (
-                    <Text style={[styles.noResultsText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
-                      {getLocalizedText('auth.noCountryFound')}
-                    </Text>
-                  )}
-                </ScrollView>
-              </View>
-            )}
-
-            <Text style={[styles.helperText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
-              {getLocalizedText('auth.smsCode')}
+            <Text style={[styles.label, { color: themeColors.text.primary, fontSize: getFontSize('base'), marginTop: spacing.lg }]}>
+              Numéro de téléphone
             </Text>
+            <Input
+              placeholder="07 12 34 56 78"
+              keyboardType="phone-pad"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              containerStyle={styles.inputContainer}
+              style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
+            />
+
+            <Text style={[styles.label, { color: themeColors.text.primary, fontSize: getFontSize('base'), marginTop: spacing.lg }]}>
+              Mot de passe
+            </Text>
+            <Input
+              placeholder="Mot de passe"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              containerStyle={styles.inputContainer}
+              style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
+            />
+
+            <Text style={[styles.label, { color: themeColors.text.primary, fontSize: getFontSize('base'), marginTop: spacing.lg }]}>
+              Confirmer le mot de passe
+            </Text>
+            <Input
+              placeholder="Confirmer le mot de passe"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              containerStyle={styles.inputContainer}
+              style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
+            />
           </View>
 
           {/* Continue Button */}
@@ -222,13 +196,13 @@ export const RegistrationScreen: React.FC = () => {
               size="large"
               onPress={handleContinue}
               loading={loading}
-              disabled={phoneNumber.replace(/\s/g, '').length < 10}
+              disabled={!username.trim() || !password.trim() || !confirmPassword.trim()}
               fullWidth
             />
           </View>
 
           {/* Login Link */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.loginLink}
             onPress={() => {
               navigation.navigate('Login');
@@ -379,5 +353,3 @@ const styles = StyleSheet.create({
 });
 
 export default RegistrationScreen;
-
-

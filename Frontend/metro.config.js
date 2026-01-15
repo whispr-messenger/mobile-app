@@ -1,4 +1,13 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
+if (!Array.prototype.toReversed) {
+  Object.defineProperty(Array.prototype, 'toReversed', {
+    value: function () {
+      return this.slice().reverse();
+    },
+    writable: true,
+    configurable: true,
+  });
+}
+
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
@@ -15,4 +24,3 @@ config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 config.resolver.unstable_enablePackageExports = false;
 
 module.exports = config;
-

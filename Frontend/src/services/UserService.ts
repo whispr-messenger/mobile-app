@@ -64,37 +64,9 @@ export class UserService {
    */
   async getProfile(): Promise<{ success: boolean; profile?: UserProfile; message?: string }> {
     try {
-      
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/users/me`, {
-      //   method: 'GET',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      // });
-
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Mock data
-      const mockProfile: UserProfile = {
-        id: 'demo-user-id',
-        firstName: 'John',
-        lastName: 'Doe',
-        username: 'johndoe',
-        phoneNumber: '+33 07 12 34 56 78',
-        biography: 'Développeur passionné par les technologies mobiles et la sécurité.',
-        profilePicture: undefined,
-        isOnline: true,
-        lastSeen: 'Maintenant',
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: '2024-01-15T10:30:00Z',
-      };
-
       return {
-        success: true,
-        profile: mockProfile,
+        success: false,
+        message: 'Profil non disponible (API non implémentée)',
       };
     } catch (error) {
       console.error('Erreur récupération profil:', error);
@@ -372,7 +344,6 @@ export class UserService {
     return { isValid: true };
   }
 }
-
 
 
 

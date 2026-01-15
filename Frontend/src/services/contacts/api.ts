@@ -1,9 +1,3 @@
-/**
- * Contacts API Service - Mock implementation
- * Based on backend REST API specifications
- * @see user-service/documentation/2_fonctional_specs/3_contact_management.md
- */
-
 import {
   Contact,
   AddContactDto,
@@ -15,249 +9,385 @@ import {
   UserSearchResult,
   BlockedUser,
   PhoneContact,
+  ContactRequest,
 } from '../../types/contact';
-import { mockStore } from './mockStore';
+import { Platform } from 'react-native';
+import AuthService from '../AuthService';
 
-const API_BASE_URL = 'https://api.whispr.local/api/v1';
+const API_BASE_URL =
+  Platform.OS === 'web'
+    ? 'http://localhost:4000/api/v1'
+    : 'https://api.whispr.local/api/v1';
 
-// Mock delay to simulate network
-const mockDelay = (ms: number = 500) => new Promise(resolve => setTimeout(resolve, ms));
+const getAuthHeaders = (): Record<string, string> => {
+  try {
+    const auth = AuthService.getInstance();
+    const current = auth.getCurrentUser();
+    if (current?.userId) {
+      return {
+        'X-User-Id': current.userId,
+      };
+    }
+  } catch {
+  }
+  return {};
+};
 
 export const contactsAPI = {
-  /**
-   * Get list of contacts with optional search and filters
-   * GET /api/v1/contacts
-   */
   async getContacts(params?: ContactSearchParams): Promise<{ contacts: Contact[]; total: number }> {
-    await mockDelay(300);
-    
-    let contacts = mockStore.getContacts();
-    
-    // Apply search filter
+    const query = new URLSearchParams();
+
     if (params?.search) {
-      const searchLower = params.search.toLowerCase();
-      contacts = contacts.filter(contact => {
-        const user = contact.contact_user;
-        if (!user) return false;
-        
-        const nickname = contact.nickname?.toLowerCase() || '';
-        const firstName = user.first_name?.toLowerCase() || '';
-        const lastName = user.last_name?.toLowerCase() || '';
-        const username = user.username?.toLowerCase() || '';
-        
-        return (
-          nickname.includes(searchLower) ||
-          firstName.includes(searchLower) ||
-          lastName.includes(searchLower) ||
-          username.includes(searchLower)
-        );
-      });
+      query.append('search', params.search);
     }
-    
-    // Apply favorites filter
-    if (params?.favorites) {
-      contacts = contacts.filter(c => c.is_favorite);
-    }
-    
-    // Apply sorting
     if (params?.sort) {
-      contacts.sort((a, b) => {
-        switch (params.sort) {
-          case 'name':
-            const nameA = a.nickname || a.contact_user?.first_name || a.contact_user?.username || '';
-            const nameB = b.nickname || b.contact_user?.first_name || b.contact_user?.username || '';
-            return nameA.localeCompare(nameB);
-          case 'added_at':
-            return new Date(b.added_at).getTime() - new Date(a.added_at).getTime();
-          case 'last_seen':
-            const lastSeenA = a.contact_user?.last_seen ? new Date(a.contact_user.last_seen).getTime() : 0;
-            const lastSeenB = b.contact_user?.last_seen ? new Date(b.contact_user.last_seen).getTime() : 0;
-            return lastSeenB - lastSeenA;
-          case 'favorites':
-            if (a.is_favorite && !b.is_favorite) return -1;
-            if (!a.is_favorite && b.is_favorite) return 1;
-            return 0;
-          default:
-            return 0;
-        }
-      });
+      query.append('sort', params.sort);
     }
-    
-    const total = contacts.length;
-    
-    // Apply pagination
-    const page = params?.page || 1;
-    const limit = params?.limit || 50;
-    const start = (page - 1) * limit;
-    const end = start + limit;
-    contacts = contacts.slice(start, end);
-    
+    if (params?.page !== undefined) {
+      query.append('page', String(params.page));
+    }
+    if (params?.limit !== undefined) {
+      query.append('limit', String(params.limit));
+    }
+    if (params?.favorites !== undefined) {
+      query.append('favorites', params.favorites ? 'true' : 'false');
+    }
+
+    const queryString = query.toString();
+    const url = `${API_BASE_URL}/contacts${queryString ? `?${queryString}` : ''}`;
+
+    const response = await fetch(url, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch contacts');
+    }
+
+    const data = await response.json();
+    const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+    const total =
+      typeof data.total === 'number'
+        ? data.total
+        : Array.isArray(data.contacts)
+        ? data.contacts.length
+        : 0;
+
     return { contacts, total };
   },
 
-  /**
-   * Get a single contact by ID
-   * GET /api/v1/contacts/{contactId}
-   */
   async getContact(contactId: string): Promise<Contact> {
-    await mockDelay(200);
-    
-    const contact = mockStore.getContact(contactId);
-    if (!contact) {
-      throw new Error('Contact not found');
-    }
-    
-    return contact;
-  },
-
-  /**
-   * Add a new contact
-   * POST /api/v1/contacts
-   */
-  async addContact(data: AddContactDto): Promise<Contact> {
-    await mockDelay(400);
-    
-    // Check if contact already exists
-    const existing = mockStore.getContacts().find(
-      c => c.contact_id === data.contactId
-    );
-    if (existing) {
-      throw new Error('Contact already exists');
-    }
-    
-    // Check if user exists
-    const user = mockStore.getUser(data.contactId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    
-    // Check if blocked
-    const isBlocked = mockStore.isBlocked(data.contactId);
-    if (isBlocked) {
-      throw new Error('Cannot add blocked user as contact');
-    }
-    
-    const contact = mockStore.addContact({
-      contactId: data.contactId,
-      nickname: data.nickname,
+    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
     });
-    
-    return contact;
+    if (!response.ok) {
+      throw new Error('Failed to fetch contact');
+    }
+    return response.json();
   },
 
-  /**
-   * Update a contact (nickname, favorite)
-   * PUT /api/v1/contacts/{contactId}
-   */
+  async addContact(data: AddContactDto): Promise<Contact> {
+    const response = await fetch(`${API_BASE_URL}/contacts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        contact_id: data.contactId,
+        nickname: data.nickname,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to add contact');
+    }
+
+    return response.json();
+  },
+
   async updateContact(contactId: string, data: UpdateContactDto): Promise<Contact> {
-    await mockDelay(300);
-    
-    const contact = mockStore.updateContact(contactId, data);
-    if (!contact) {
-      throw new Error('Contact not found');
+    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update contact');
     }
-    
-    return contact;
+
+    return response.json();
   },
 
-  /**
-   * Delete a contact
-   * DELETE /api/v1/contacts/{contactId}
-   */
   async deleteContact(contactId: string): Promise<void> {
-    await mockDelay(300);
-    
-    const success = mockStore.deleteContact(contactId);
-    if (!success) {
-      throw new Error('Contact not found');
+    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
+      method: 'DELETE',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete contact');
     }
   },
 
-  /**
-   * Get contact statistics
-   * GET /api/v1/contacts/stats
-   */
   async getContactStats(): Promise<ContactStats> {
-    await mockDelay(200);
-    
-    const contacts = mockStore.getContacts();
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    return {
-      total: contacts.length,
-      favorites: contacts.filter(c => c.is_favorite).length,
-      recently_added: contacts.filter(
-        c => new Date(c.added_at) > sevenDaysAgo
-      ).length,
-      recently_active: contacts.filter(
-        c => c.contact_user?.last_seen && new Date(c.contact_user.last_seen) > sevenDaysAgo
-      ).length,
-    };
+    const response = await fetch(`${API_BASE_URL}/contacts/stats`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch contact stats');
+    }
+
+    return response.json();
   },
 
-  /**
-   * Search for users to add as contacts
-   * GET /api/v1/users/search
-   */
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
-    await mockDelay(300);
-    
-    const results = mockStore.searchUsers(params);
-    return results;
+    const query = new URLSearchParams();
+
+    if (params.username) {
+      query.append('username', params.username);
+    }
+    if (params.phoneHash) {
+      query.append('phoneHash', params.phoneHash);
+    }
+
+    const queryString = query.toString();
+    const url = `${API_BASE_URL}/users/search${queryString ? `?${queryString}` : ''}`;
+
+    const response = await fetch(url, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to search users');
+    }
+
+    const data = await response.json();
+
+    const normalizeArray = (items: any[]): UserSearchResult[] => {
+      return items
+        .map((item) => {
+          if (!item) return null;
+
+          if (item.user && item.user.id) {
+            return {
+              user: item.user,
+              is_contact: !!item.is_contact,
+              is_blocked: !!item.is_blocked,
+            };
+          }
+
+          if (item.id && item.username) {
+            return {
+              user: {
+                id: item.id,
+                username: item.username,
+                phone_number: item.phone_number,
+                first_name: item.first_name,
+                last_name: item.last_name,
+                avatar_url: item.avatar_url || item.profile_picture,
+                last_seen: item.last_seen,
+                is_active: item.is_active ?? true,
+              },
+              is_contact: !!item.is_contact,
+              is_blocked: !!item.is_blocked,
+            };
+          }
+
+          return null;
+        })
+        .filter((item): item is UserSearchResult => item !== null);
+    };
+
+    if (Array.isArray(data)) {
+      return normalizeArray(data);
+    }
+
+    if (data && typeof data === 'object') {
+      if (Array.isArray((data as any).matches)) {
+        return normalizeArray((data as any).matches);
+      }
+
+      if (Array.isArray((data as any).results)) {
+        return normalizeArray((data as any).results);
+      }
+
+      if (Array.isArray((data as any).users)) {
+        return normalizeArray((data as any).users);
+      }
+
+      const single = normalizeArray([data]);
+      if (single.length > 0) {
+        return single;
+      }
+    }
+
+    return [];
   },
 
-  /**
-   * Import phone contacts
-   * POST /api/v1/contacts/import
-   */
   async importPhoneContacts(phoneContacts: PhoneContact[]): Promise<UserSearchResult[]> {
-    await mockDelay(500);
-    
-    // Simulate matching phone hashes with users
-    const matches = mockStore.matchPhoneContacts(phoneContacts);
-    return matches;
+    const response = await fetch(`${API_BASE_URL}/contacts/import`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(phoneContacts),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to import phone contacts');
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
-  /**
-   * Get list of blocked users
-   * GET /api/v1/contacts/blocked
-   */
+  async getContactRequests(): Promise<ContactRequest[]> {
+    const response = await fetch(`${API_BASE_URL}/contact_requests`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch contact requests');
+    }
+
+    const data = await response.json();
+    const requests = Array.isArray((data as any).requests) ? (data as any).requests : [];
+    return requests;
+  },
+
+  async sendContactRequest(recipientId: string): Promise<ContactRequest> {
+    const response = await fetch(`${API_BASE_URL}/contact_requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        recipient_id: recipientId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send contact request');
+    }
+
+    return response.json();
+  },
+
+  async acceptContactRequest(requestId: string): Promise<ContactRequest> {
+    const response = await fetch(
+      `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/accept`,
+      {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to accept contact request');
+    }
+
+    return response.json();
+  },
+
+  async refuseContactRequest(requestId: string): Promise<ContactRequest> {
+    const response = await fetch(
+      `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/refuse`,
+      {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to refuse contact request');
+    }
+
+    return response.json();
+  },
+
   async getBlockedUsers(page: number = 1, limit: number = 50): Promise<{ blocked: BlockedUser[]; total: number }> {
-    await mockDelay(200);
-    
-    const blocked = mockStore.getBlockedUsers();
-    const total = blocked.length;
-    
-    const start = (page - 1) * limit;
-    const end = start + limit;
-    const paginated = blocked.slice(start, end);
-    
-    return { blocked: paginated, total };
+    const query = new URLSearchParams();
+    query.append('page', String(page));
+    query.append('limit', String(limit));
+
+    const url = `${API_BASE_URL}/contacts/blocked?${query.toString()}`;
+    const response = await fetch(url, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch blocked users');
+    }
+
+    const data = await response.json();
+    const blocked = Array.isArray(data.blocked) ? data.blocked : [];
+    const total =
+      typeof data.total === 'number'
+        ? data.total
+        : Array.isArray(data.blocked)
+        ? data.blocked.length
+        : 0;
+
+    return { blocked, total };
   },
 
-  /**
-   * Block a user
-   * POST /api/v1/contacts/block/{userId}
-   */
   async blockUser(userId: string, data?: BlockUserDto): Promise<BlockedUser> {
-    await mockDelay(300);
-    
-    const blocked = mockStore.blockUser(userId, data?.reason);
-    return blocked;
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/block/${encodeURIComponent(userId)}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: data ? JSON.stringify(data) : undefined,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to block user');
+    }
+
+    return response.json();
   },
 
-  /**
-   * Unblock a user
-   * DELETE /api/v1/contacts/block/{userId}
-   */
   async unblockUser(userId: string): Promise<void> {
-    await mockDelay(300);
-    
-    const success = mockStore.unblockUser(userId);
-    if (!success) {
-      throw new Error('User not blocked');
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/block/${encodeURIComponent(userId)}`,
+      {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeaders(),
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to unblock user');
     }
   },
 };
-

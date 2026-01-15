@@ -152,9 +152,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
       const phoneContacts: PhoneContact[] = limitedContacts.map((contact, index) => ({
         name: contact.name,
         phoneHash: phoneHashes[index],
-        // Don't include phoneNumber in production - only hash is sent
-        // phoneNumber is kept only for display purposes in mock
-        phoneNumber: contact.phoneNumber, // For mock display only
+        phoneNumber: contact.phoneNumber,
       }));
 
       // Match with users (API receives only hashes)
@@ -534,4 +532,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

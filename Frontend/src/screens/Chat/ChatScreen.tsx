@@ -7,12 +7,12 @@ import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Pl
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { StackScreenProps } from '@react-navigation/stack';
+import { StackScreenProps, StackNavigationProp } from '@react-navigation/stack';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
+import AuthService from '../../services/AuthService';
 import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
-import { mockStore } from '../../services/messaging/mockStore';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { MessageBubble } from '../../components/Chat/MessageBubble';
 import { MessageInput } from '../../components/Chat/MessageInput';
@@ -32,10 +32,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { logger } from '../../utils/logger';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
+type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<ChatScreenNavigationProp>();
   const { conversationId } = route.params;
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
@@ -63,12 +64,12 @@ export const ChatScreen: React.FC = () => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  // Mock user ID - TODO: Get from auth context
-  const userId = 'user-1';
-  const token = 'mock-token';
+  const auth = AuthService.getInstance();
+  const currentUser = auth.getCurrentUser();
+  const userId = currentUser?.userId || '';
+  const token = currentUser ? `token-${currentUser.userId}` : '';
 
-  // WebSocket connection
-  const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
+  const { joinConversationChannel, markAsRead, sendTyping } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -120,6 +121,14 @@ export const ChatScreen: React.FC = () => {
         });
       }
     },
+    onConversationUpdate: (updatedConversation: Conversation) => {
+      if (updatedConversation.id === conversationId) {
+        setConversation(prev => {
+          if (!prev) return updatedConversation;
+          return { ...prev, ...updatedConversation };
+        });
+      }
+    },
   });
 
   const loadPinnedMessages = useCallback(async () => {
@@ -136,7 +145,7 @@ export const ChatScreen: React.FC = () => {
     try {
       const conv = await messagingAPI.getConversation(conversationId);
       setConversation(conv);
-      
+
       // Load members if it's a group
       if (conv.type === 'group') {
         try {
@@ -156,7 +165,7 @@ export const ChatScreen: React.FC = () => {
     loadConversation();
     loadMessages();
     loadPinnedMessages();
-    
+
     // Join conversation channel
     const channel = joinConversationChannel(conversationId);
     conversationChannelRef.current = channel;
@@ -165,7 +174,7 @@ export const ChatScreen: React.FC = () => {
       channel?.leave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, joinConversationChannel]);
+  }, [conversationId]);
 
   const loadMessages = useCallback(async (before?: string) => {
     try {
@@ -186,7 +195,7 @@ export const ChatScreen: React.FC = () => {
           .filter(msg => msg && (msg.content || msg.is_deleted || msg.message_type === 'media' || msg.message_type === 'system')) // Include all message types
           .map(async (msg) => {
             const status = (msg as any)?.status || 'sent' as const;
-            
+
             // Load reactions for this message
             let reactions = [];
             try {
@@ -280,7 +289,6 @@ export const ChatScreen: React.FC = () => {
         return;
       }
 
-      // Optimistic UI - add message immediately
       const tempMessage: MessageWithRelations = {
         id: `temp-${Date.now()}`,
         conversation_id: conversationId,
@@ -300,10 +308,42 @@ export const ChatScreen: React.FC = () => {
       setMessages(prev => [tempMessage, ...prev]);
       setReplyingTo(null);
 
-      // Send via WebSocket
-      wsSendMessage(conversationId, content, 'text', tempMessage.client_random);
+      try {
+        const sent = await messagingAPI.sendMessage(conversationId, {
+          content,
+          message_type: 'text',
+          client_random: tempMessage.client_random,
+          metadata: {},
+          reply_to_id: replyToId,
+        });
+
+        setMessages(prev => {
+          const next: MessageWithRelations[] = prev.map(m => {
+            if (m.id.startsWith('temp-') && m.client_random === tempMessage.client_random) {
+              const updated: MessageWithRelations = {
+                ...(sent as any),
+                status: 'sent',
+                reply_to: tempMessage.reply_to,
+              };
+              return updated;
+            }
+            return m;
+          });
+          return next;
+        });
+      } catch (error) {
+        logger.error('ChatScreen', 'Error sending message', error);
+        setMessages(prev => {
+          return prev.map(m => {
+            if (m.id === tempMessage.id) {
+              return { ...m, status: 'failed' };
+            }
+            return m;
+          });
+        });
+      }
     },
-    [conversationId, userId, wsSendMessage, sendTyping, editingMessage, replyingTo]
+    [conversationId, userId, sendTyping, editingMessage, replyingTo]
   );
 
   const handleSendMedia = useCallback(
@@ -350,7 +390,6 @@ export const ChatScreen: React.FC = () => {
         setMessages(prev => [tempMessage, ...prev]);
         setReplyingTo(null);
 
-        // Send via API (mock for now)
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: tempMessage.content,
           message_type: 'media',
@@ -359,9 +398,8 @@ export const ChatScreen: React.FC = () => {
           reply_to_id: replyToId,
         });
 
-        // Add attachment to mockStore
         if (tempMessage.attachments && tempMessage.attachments[0]) {
-          mockStore.addAttachment(sentMessage.id, tempMessage.attachments[0]);
+          await messagingAPI.addAttachment(sentMessage.id, tempMessage.attachments[0]);
         }
 
         // Update message with real ID
@@ -395,7 +433,7 @@ export const ChatScreen: React.FC = () => {
     async (messageId: string, emoji: string) => {
       try {
         await messagingAPI.addReaction(messageId, userId, emoji);
-        
+
         // Reload reactions and update local state
         const reactionData = await messagingAPI.getMessageReactions(messageId);
         setMessages(prev =>
@@ -443,7 +481,7 @@ export const ChatScreen: React.FC = () => {
     const index = messagesWithSeparators.findIndex(
       item => !(item as any).type && (item as MessageWithRelations).id === messageId
     );
-    
+
     if (index !== -1 && flatListRef.current) {
       try {
         flatListRef.current.scrollToIndex({
@@ -535,15 +573,15 @@ export const ChatScreen: React.FC = () => {
     try {
       const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
       const action = isCurrentlyPinned ? 'unpin' : 'pin';
-      
+
       if (isCurrentlyPinned) {
         await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
       } else {
         await messagingAPI.pinMessage(conversationId, selectedMessage.id);
       }
-      
+
       await loadPinnedMessages();
-      
+
       setMessages(prev =>
         prev.map(msg =>
           msg.id === selectedMessage.id
@@ -582,7 +620,7 @@ export const ChatScreen: React.FC = () => {
   // Handle search
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    
+
     if (query.trim()) {
       try {
         const results = messages.filter(msg => {
@@ -592,17 +630,17 @@ export const ChatScreen: React.FC = () => {
           if (!msg.content) return false;
           return msg.content.toLowerCase().includes(query.toLowerCase());
         });
-        
+
         setSearchResults(results);
         setCurrentSearchIndex(0);
-        
+
         // Scroll to first result after a short delay to ensure list is rendered
         if (results.length > 0 && flatListRef.current) {
           setTimeout(() => {
             const firstResultIndex = messagesWithSeparators.findIndex(
               item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
             );
-            
+
             if (firstResultIndex !== -1 && flatListRef.current) {
               try {
                 flatListRef.current.scrollToIndex({
@@ -717,7 +755,7 @@ export const ChatScreen: React.FC = () => {
       }
 
       const message = item as MessageWithRelations;
-      
+
       // Handle system messages
       if (message.message_type === 'system') {
         return <SystemMessage content={message.content} />;
@@ -725,7 +763,7 @@ export const ChatScreen: React.FC = () => {
 
       const isSent = message.sender_id === userId;
       const isHighlighted = Boolean(searchQuery.trim() && searchResults.some(r => r.id === message.id));
-      
+
       return (
         <MessageBubble
           message={message}
@@ -762,8 +800,9 @@ export const ChatScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={['top']}>
         <ChatHeader
           conversationName={conversation?.display_name || 'Contact'}
+          avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || 'direct'}
-          isOnline={false}
+          isOnline={conversation?.type === 'direct'}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
         />
@@ -779,41 +818,39 @@ export const ChatScreen: React.FC = () => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
-        <FlatList
-          ref={flatListRef}
-          data={messagesWithSeparators}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          inverted
-          contentContainerStyle={styles.listContent}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          initialNumToRender={15}
-          windowSize={10}
-          onEndReached={loadMoreMessages}
-          onEndReachedThreshold={0.3}
-          maintainVisibleContentPosition={{
-            minIndexForVisible: 0,
-          }}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={
-            !loading && messages.length === 0 ? (
-              <EmptyChatState conversationName="Contact" />
-            ) : null
-          }
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={themeColors.primary} />
-              </View>
-            ) : typingUsers.length > 0 ? (
+          <FlatList
+            ref={flatListRef}
+            data={messagesWithSeparators}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            inverted
+            contentContainerStyle={styles.listContent}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={15}
+            windowSize={10}
+            onEndReached={loadMoreMessages}
+            onEndReachedThreshold={0.3}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+            }}
+            keyboardShouldPersistTaps="handled"
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.loadingMore}>
+                  <ActivityIndicator size="small" color={themeColors.primary} />
+                </View>
+              ) : null
+            }
+          />
+          {typingUsers.length > 0 && (
+            <View style={styles.typingContainer}>
               <TypingIndicator
-                userNames={typingUsers.map(id => typingUsersNames[id] || 'Quelqu\'un')}
+                userNames={typingUsers.map(id => typingUsersNames[id] || "Quelqu'un")}
               />
-            ) : null
-          }
-        />
+            </View>
+          )}
         <MessageInput
           onSend={handleSendMessage}
           onSendMedia={handleSendMedia}
@@ -950,11 +987,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingVertical: 8,
+    paddingVertical: 16,
   },
   loadingMore: {
     paddingVertical: 16,
     alignItems: 'center',
+  },
+  typingContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   modalOverlay: {
     flex: 1,

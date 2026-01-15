@@ -1,123 +1,176 @@
-/**
- * WebSocket Service - Mock Phoenix Channels
- * Based on backend WebSocket specifications
- * Channels: user:{userId} and conversation:{conversationId}
- */
-
-import { Message } from '../../types/messaging';
-
 type EventCallback = (data: any) => void;
 
-class MockPhoenixSocket {
-  private channels: Map<string, MockChannel> = new Map();
-  private eventListeners: Map<string, EventCallback[]> = new Map();
-  private connected: boolean = false;
-  private userId?: string;
+type Channel = {
+  join: (params?: Record<string, any>) => Promise<{ status: string }>;
+  on: (event: string, callback: EventCallback) => void;
+  push: (event: string, payload: Record<string, any>) => void;
+  leave: () => void;
+};
+
+export class SocketConnection {
+  private socket: WebSocket | null = null;
+  private channels: Record<
+    string,
+    {
+      callbacks: Record<string, EventCallback[]>;
+      joined: boolean;
+    }
+  > = {};
+  private pendingTopics: Set<string> = new Set();
+
+  isConnected(): boolean {
+    return !!this.socket && this.socket.readyState === WebSocket.OPEN;
+  }
 
   connect(userId: string, token: string): void {
-    this.userId = userId;
-    this.connected = true;
-    
-    // Simulate connection delay
-    setTimeout(() => {
-      this.emit('connected', { user_id: userId });
-    }, 200);
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    const host = 'localhost';
+    const port = 4000;
+    const url = `ws://${host}:${port}/socket/websocket?user_id=${encodeURIComponent(
+      userId,
+    )}&token=${encodeURIComponent(token)}`;
+
+    this.socket = new WebSocket(url);
+
+    this.socket.onopen = () => {
+      const socket = this.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      this.pendingTopics.forEach((topic) => {
+        const joinMsg = {
+          topic,
+          event: 'phx_join',
+          payload: {},
+          ref: Date.now().toString(),
+        };
+
+        socket.send(JSON.stringify(joinMsg));
+
+        const channel = this.channels[topic];
+        if (channel) {
+          channel.joined = true;
+        }
+      });
+
+      this.pendingTopics.clear();
+    };
+
+    this.socket.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        if (msg.topic && msg.event === 'phx_reply' && msg.payload?.status === 'ok') {
+          const channel = this.channels[msg.topic];
+          if (channel) {
+            channel.joined = true;
+          }
+        }
+
+        if (msg.topic && msg.event && msg.event !== 'phx_reply') {
+          const channel = this.channels[msg.topic];
+          const cbs = channel?.callbacks[msg.event] || [];
+          cbs.forEach((cb) => cb(msg.payload));
+        }
+      } catch {
+        // ignore invalid messages
+      }
+    };
   }
 
   disconnect(): void {
-    this.connected = false;
-    this.channels.clear();
-    this.eventListeners.clear();
-  }
-
-  channel(topic: string): MockChannel {
-    if (!this.channels.has(topic)) {
-      this.channels.set(topic, new MockChannel(topic, this));
-    }
-    return this.channels.get(topic)!;
-  }
-
-  on(event: string, callback: EventCallback): void {
-    if (!this.eventListeners.has(event)) {
-      this.eventListeners.set(event, []);
-    }
-    this.eventListeners.get(event)!.push(callback);
-  }
-
-  emit(event: string, data: any): void {
-    const callbacks = this.eventListeners.get(event);
-    if (callbacks) {
-      callbacks.forEach(cb => cb(data));
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+      this.channels = {};
+      this.pendingTopics.clear();
     }
   }
 
-  isConnected(): boolean {
-    return this.connected;
+  channel(topic: string): Channel {
+    if (!this.channels[topic]) {
+      this.channels[topic] = {
+        callbacks: {},
+        joined: false,
+      };
+    }
+
+    const join = async (): Promise<{ status: string }> => {
+      if (!this.socket) {
+        this.pendingTopics.add(topic);
+        return { status: 'error' };
+      }
+
+      if (this.socket.readyState !== WebSocket.OPEN) {
+        this.pendingTopics.add(topic);
+        return { status: 'error' };
+      }
+
+      const joinMsg = {
+        topic,
+        event: 'phx_join',
+        payload: {},
+        ref: Date.now().toString(),
+      };
+
+      this.socket.send(JSON.stringify(joinMsg));
+
+      return { status: 'ok' };
+    };
+
+    const on = (event: string, callback: EventCallback): void => {
+      const channel = this.channels[topic];
+      if (!channel.callbacks[event]) {
+        channel.callbacks[event] = [];
+      }
+      channel.callbacks[event].push(callback);
+    };
+
+    const push = (event: string, payload: Record<string, any>): void => {
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const msg = {
+        topic,
+        event,
+        payload,
+        ref: Date.now().toString(),
+      };
+
+      this.socket.send(JSON.stringify(msg));
+    };
+
+    const leave = (): void => {
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const msg = {
+        topic,
+        event: 'phx_leave',
+        payload: {},
+        ref: Date.now().toString(),
+      };
+
+      this.socket.send(JSON.stringify(msg));
+      delete this.channels[topic];
+      this.pendingTopics.delete(topic);
+    };
+
+    return {
+      join,
+      on,
+      push,
+      leave,
+    };
   }
 }
 
-class MockChannel {
-  constructor(
-    private topic: string,
-    private socket: MockPhoenixSocket
-  ) {}
-
-  join(params?: Record<string, any>): Promise<{ status: string }> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ status: 'ok' });
-      }, 100);
-    });
-  }
-
-  on(event: string, callback: EventCallback): void {
-    // Store channel-specific listeners
-    const key = `${this.topic}:${event}`;
-    this.socket.on(key, callback);
-  }
-
-  push(event: string, payload: Record<string, any>): void {
-    // Simulate server response
-    if (event === 'new_message') {
-      setTimeout(() => {
-        // Mock successful response
-        this.socket.emit(`${this.topic}:phx_reply`, {
-          status: 'ok',
-          response: {
-            message: {
-              id: `msg-${Date.now()}`,
-              conversation_id: payload.conversation_id,
-              sender_id: this.socket['userId'],
-              content: payload.content,
-              message_type: payload.message_type,
-              sent_at: new Date().toISOString(),
-            },
-          },
-        });
-      }, 200);
-    } else if (event === 'typing_start' || event === 'typing_stop') {
-      // Broadcast typing events
-      this.socket.emit(`${this.topic}:user_typing`, {
-        user_id: this.socket['userId'],
-        typing: event === 'typing_start',
-      });
-    } else if (event === 'message_read') {
-      // Broadcast read receipt
-      this.socket.emit(`${this.topic}:delivery_status`, {
-        message_id: payload.message_id,
-        status: 'read',
-      });
-    }
-  }
-
-  leave(): void {
-    // Cleanup
-  }
-}
-
-export const createMockSocket = (): MockPhoenixSocket => {
-  return new MockPhoenixSocket();
+export const createSocket = (): SocketConnection => {
+  return new SocketConnection();
 };
-
-export type MockSocket = MockPhoenixSocket;
-

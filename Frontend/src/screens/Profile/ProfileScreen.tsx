@@ -28,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Logo, Button } from '../../components';
 import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
 import { UserService } from '../../services';
+import AuthService from '../../services/AuthService';
 
 // Types
 interface UserProfile {
@@ -108,7 +109,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
         useNativeDriver: true,
       }),
     ]).start();
-    // Charger depuis le stockage local, sinon depuis l'API mock si pas de params navigation
+    // Charger depuis le stockage local, sinon depuis l'API si pas de params navigation
     const loadProfile = async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
@@ -241,10 +242,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
     ]).start();
 
     try {
-      // TODO: API call to update profile
-      // await UserService.updateProfile(profile);
-      
-      // Simulate API delay
+      const authService = AuthService.getInstance();
+      const phoneUpdateResult = await authService.updateCurrentUserPhone(profile.phoneNumber);
+
+      if (!phoneUpdateResult.success) {
+        setLoading(false);
+        Alert.alert('Erreur', phoneUpdateResult.message || 'Impossible de mettre à jour le numéro de téléphone');
+        return;
+      }
+
       await new Promise(resolve => setTimeout(resolve, 1500));
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));

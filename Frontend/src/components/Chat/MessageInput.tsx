@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Text, Alert, FlatList, ScrollView } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Text, Alert, FlatList, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -31,7 +31,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
   onSendMedia,
   onTyping,
-  placeholder = 'Message...',
+  placeholder = '',
   replyingTo,
   onCancelReply,
   editingMessage,
@@ -44,6 +44,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -60,17 +61,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleTextChange = useCallback(
     (newText: string) => {
       setText(newText);
+      const trimmed = newText.trim();
 
       // Check for @ mentions (only in groups)
       if (conversationType === 'group' && members.length > 0) {
         const lastAtIndex = newText.lastIndexOf('@');
         const cursorPos = newText.length;
-        
+
         if (lastAtIndex !== -1) {
           // Check if @ is followed by space or is at the end
           const afterAt = newText.substring(lastAtIndex + 1);
           const spaceIndex = afterAt.indexOf(' ');
-          
+
           if (spaceIndex === -1 || spaceIndex === afterAt.length - 1) {
             // We're in a mention
             const query = spaceIndex === -1 ? afterAt : afterAt.substring(0, spaceIndex);
@@ -85,9 +87,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         }
       }
 
-      // Send typing_start on first keystroke
-      if (newText.length === 1 && !typingTimeoutRef.current) {
+      if (trimmed.length > 0 && !isTypingRef.current) {
         onTyping?.(true);
+        isTypingRef.current = true;
+      }
+
+      if (trimmed.length === 0 && isTypingRef.current) {
+        onTyping?.(false);
+        isTypingRef.current = false;
       }
 
       // Clear existing timeout
@@ -95,28 +102,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         clearTimeout(typingTimeoutRef.current);
       }
 
-      // Send typing_stop after 3 seconds of inactivity
-      typingTimeoutRef.current = setTimeout(() => {
-        onTyping?.(false);
-        typingTimeoutRef.current = null;
-      }, 3000);
+      if (trimmed.length > 0) {
+        typingTimeoutRef.current = setTimeout(() => {
+          onTyping?.(false);
+          isTypingRef.current = false;
+          typingTimeoutRef.current = null;
+        }, 3000);
+      }
     },
     [onTyping, conversationType, members]
   );
 
   const handleMentionSelect = useCallback((member: { id: string; display_name: string; username?: string }) => {
     if (mentionStartIndex === -1) return;
-    
+
     const beforeMention = text.substring(0, mentionStartIndex);
     const afterMention = text.substring(mentionStartIndex).replace(/@[^\s]*/, '');
     const mentionText = member.username ? `@${member.username} ` : `@${member.display_name} `;
     const newText = beforeMention + mentionText + afterMention;
-    
+
     setText(newText);
     setShowMentions(false);
     setMentionQuery('');
     setMentionStartIndex(-1);
-    
+
     // Focus back on input
     inputRef.current?.focus();
   }, [text, mentionStartIndex]);
@@ -124,7 +133,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleSend = useCallback(() => {
     if (text.trim()) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
+
       // Extract mentions from text
       const mentionRegex = /@(\w+)/g;
       const mentions: string[] = [];
@@ -136,7 +145,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           mentions.push(member.id);
         }
       }
-      
+
       onSend(text.trim(), replyingTo?.id, mentions.length > 0 ? mentions : undefined);
       setText('');
       setShowMentions(false);
@@ -152,7 +161,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       console.log('[MessageInput] Requesting media library permissions');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       console.log('[MessageInput] Permission status:', status);
-      
+
       if (status !== 'granted') {
         console.log('[MessageInput] Permission denied');
         Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
@@ -195,7 +204,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
       });
       Alert.alert(
-        'Erreur', 
+        'Erreur',
         `Impossible de sélectionner une image.${error?.message ? `\n\n${error.message}` : ''}`
       );
     }
@@ -261,15 +270,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             ]}
             value={text}
             onChangeText={handleTextChange}
+            onKeyPress={(event) => {
+              if (Platform.OS === 'web' && event.nativeEvent.key === 'Enter') {
+                if (typeof (event as any).preventDefault === 'function') {
+                  (event as any).preventDefault();
+                }
+                handleSend();
+              }
+            }}
             placeholder={
               editingMessage
-                ? 'Modifier le message...'
+                ? 'Modifier le message'
                 : replyingTo
-                ? 'Répondre...'
+                ? 'Répondre'
                 : placeholder
             }
             placeholderTextColor={themeColors.text.tertiary}
-            multiline
             maxLength={1000}
           />
           {showMentions && conversationType === 'group' && members.length > 0 && (
@@ -359,7 +375,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   attachButton: {
     marginRight: 8,
@@ -432,4 +448,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

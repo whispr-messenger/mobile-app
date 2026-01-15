@@ -1,8 +1,3 @@
-/**
- * ContactsScreen - Contacts list screen
- * Displays list of contacts with search and filters
- */
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
@@ -17,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Contact, ContactSearchParams } from '../../types/contact';
+import { Contact, ContactSearchParams, ContactRequest } from '../../types/contact';
 import { contactsAPI } from '../../services/contacts/api';
 import { ContactItem } from '../../components/Contacts/ContactItem';
 import { AddContactModal } from '../../components/Contacts/AddContactModal';
@@ -25,6 +20,10 @@ import { EditContactModal } from '../../components/Contacts/EditContactModal';
 import { SyncContactsModal } from '../../components/Contacts/SyncContactsModal';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import AuthService from '../../services/AuthService';
+import { useWebSocket } from '../../hooks/useWebSocket';
+
+declare module '@expo/vector-icons';
 
 export const ContactsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -37,8 +36,29 @@ export const ContactsScreen: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  const auth = AuthService.getInstance();
+  const currentUser = auth.getCurrentUser();
+  const userId = currentUser?.userId || '';
+  const token = currentUser ? `token-${currentUser.userId}` : '';
+
+  const { joinUserChannel } = useWebSocket({
+    userId,
+    token,
+    onContactRequest: (request: ContactRequest) => {
+      setContactRequests(prev => {
+        const exists = prev.some(r => r.id === request.id);
+        if (exists) {
+          return prev.map(r => (r.id === request.id ? request : r));
+        }
+        return [request, ...prev];
+      });
+    },
+  });
 
   // Load contacts
   const loadContacts = useCallback(async () => {
@@ -58,17 +78,68 @@ export const ContactsScreen: React.FC = () => {
     }
   }, [searchQuery, sortBy, showFavoritesOnly]);
 
+  const loadContactRequests = useCallback(async () => {
+    try {
+      setLoadingRequests(true);
+      const requests = await contactsAPI.getContactRequests();
+      setContactRequests(requests);
+    } catch (error) {
+      console.error('[ContactsScreen] Error loading contact requests:', error);
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!userId || !token) {
+      return;
+    }
+    joinUserChannel();
+  }, [userId, token, joinUserChannel]);
+
   // Initial load
   useEffect(() => {
     loadContacts();
-  }, [loadContacts]);
+    loadContactRequests();
+  }, [loadContacts, loadContactRequests]);
+
+  useEffect(() => {
+    if (!userId || !token) {
+      return;
+    }
+    joinUserChannel();
+  }, [userId, token, joinUserChannel]);
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadContacts();
+    await Promise.all([loadContacts(), loadContactRequests()]);
     setRefreshing(false);
-  }, [loadContacts]);
+  }, [loadContacts, loadContactRequests]);
+
+  const handleAcceptRequest = useCallback(
+    async (request: ContactRequest) => {
+      try {
+        await contactsAPI.acceptContactRequest(request.id);
+        await Promise.all([loadContacts(), loadContactRequests()]);
+      } catch (error) {
+        console.error('[ContactsScreen] Error accepting contact request:', error);
+      }
+    },
+    [loadContacts, loadContactRequests]
+  );
+
+  const handleRefuseRequest = useCallback(
+    async (request: ContactRequest) => {
+      try {
+        await contactsAPI.refuseContactRequest(request.id);
+        await loadContactRequests();
+      } catch (error) {
+        console.error('[ContactsScreen] Error refusing contact request:', error);
+      }
+    },
+    [loadContactRequests]
+  );
 
   // Handle contact press
   const handleContactPress = useCallback((contact: Contact) => {
@@ -85,6 +156,18 @@ export const ContactsScreen: React.FC = () => {
   const filteredContacts = useMemo(() => {
     return contacts;
   }, [contacts]);
+
+  const pendingRequests = useMemo(() => {
+    if (!userId) {
+      return [];
+    }
+
+    return contactRequests.filter(
+      (request) =>
+        request.status === 'pending' &&
+        (request.requester_id === userId || request.recipient_id === userId)
+    );
+  }, [contactRequests, userId]);
 
   const renderContact = useCallback(
     ({ item }: { item: Contact }) => (
@@ -236,6 +319,87 @@ export const ContactsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Contact Requests */}
+        {loadingRequests && pendingRequests.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+              Chargement des demandes...
+            </Text>
+          </View>
+        ) : pendingRequests.length > 0 ? (
+          <View style={styles.requestsContainer}>
+            <Text style={[styles.requestsTitle, { color: themeColors.text.primary }]}>
+              Demandes de contact
+            </Text>
+            {pendingRequests.map((request) => {
+              const isIncoming = request.recipient_id === userId;
+              const user = isIncoming ? request.requester_user : request.recipient_user;
+              const displayName =
+                user?.first_name || user?.username || 'Utilisateur';
+
+              return (
+                <View
+                  key={request.id}
+                  style={[
+                    styles.requestItem,
+                    { backgroundColor: themeColors.background.secondary },
+                  ]}
+                >
+                  <View style={styles.requestInfo}>
+                    <Text
+                      style={[styles.requestName, { color: themeColors.text.primary }]}
+                      numberOfLines={1}
+                    >
+                      {displayName}
+                    </Text>
+                    {user?.username && (
+                      <Text
+                        style={[
+                          styles.requestSubtitle,
+                          { color: themeColors.text.secondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        @{user.username}
+                      </Text>
+                    )}
+                  </View>
+                  {isIncoming && (
+                    <View style={styles.requestActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.requestButton,
+                          styles.requestAcceptButton,
+                        ]}
+                        onPress={() => handleAcceptRequest(request)}
+                      >
+                        <Ionicons
+                          name="checkmark"
+                          size={16}
+                          color={colors.text.light}
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.requestButton,
+                          styles.requestRefuseButton,
+                        ]}
+                        onPress={() => handleRefuseRequest(request)}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={16}
+                          color={colors.text.light}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
         {/* Contacts List */}
         {loading && contacts.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -279,7 +443,9 @@ export const ContactsScreen: React.FC = () => {
           <AddContactModal
             visible={showAddModal}
             onClose={() => setShowAddModal(false)}
-            onContactAdded={loadContacts}
+            onContactAdded={() => {
+              loadContactRequests();
+            }}
           />
 
           {/* Edit Contact Modal */}
@@ -390,5 +556,51 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
+  requestsContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  requestsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  requestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  requestInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  requestName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  requestSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  requestButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  requestAcceptButton: {
+    backgroundColor: colors.ui.success,
+  },
+  requestRefuseButton: {
+    backgroundColor: colors.ui.error,
+  },
 });
-

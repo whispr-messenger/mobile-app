@@ -24,7 +24,6 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import { Logo, Button, Input } from '../../components';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
-import { countries, searchCountries } from '../../data/countries';
 import AuthService from '../../services/AuthService';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -34,42 +33,21 @@ export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+33');
-  const [countryFlag, setCountryFlag] = useState('🇫🇷');
-  const [selectedCountry, setSelectedCountry] = useState(countries[0]);
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState('');
-  
+  const inputContainerStyle = error
+    ? { ...styles.inputContainer, ...styles.inputContainerError }
+    : styles.inputContainer;
+
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const logoAnim = useRef(new Animated.Value(1)).current;
   const labelAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
-
-  // Détection automatique du pays
-  useEffect(() => {
-    // Détection de la région (simulation - en production, utiliser expo-localization)
-    const detectCountry = () => {
-      // Simulation de détection basée sur la locale
-      const locale = Platform.OS === 'ios' ? 'fr_FR' : 'fr';
-      if (locale.includes('fr')) {
-        setCountryCode('+33');
-        setCountryFlag('🇫🇷');
-        setSelectedCountry(countries.find(c => c.code === '33') || countries[0]);
-      } else if (locale.includes('en')) {
-        setCountryCode('+44');
-        setCountryFlag('🇬🇧');
-        setSelectedCountry(countries.find(c => c.code === '44') || countries[0]);
-      }
-    };
-    
-    detectCountry();
-  }, []);
 
   React.useEffect(() => {
     // Entrance animations avec logo pulsant
@@ -113,7 +91,7 @@ export const LoginScreen: React.FC = () => {
       Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
-    
+
     // Vibration pour le feedback haptique
     if (Platform.OS === 'ios') {
       Vibration.vibrate(100);
@@ -129,65 +107,32 @@ export const LoginScreen: React.FC = () => {
     }).start();
   };
 
-  const formatPhoneNumber = (text: string) => {
-    // Remove all non-digits
-    const digits = text.replace(/\D/g, '');
-    
-    // Format as 0X XX XX XX XX (plus flexible)
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 4) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
-    if (digits.length <= 6) return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4)}`;
-    if (digits.length <= 8) return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6)}`;
-    if (digits.length <= 10) return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6, 8)} ${digits.slice(8)}`;
-    // Pour les numéros plus longs, on garde le format mais on limite
-    return `${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 6)} ${digits.slice(6, 8)} ${digits.slice(8, 10)}`;
-  };
-
   const handleLogin = async () => {
     // Clear previous errors
     setError('');
-    
-    if (!phoneNumber.trim()) {
-      setError(getLocalizedText('auth.enterPhone'));
+
+    if (!identifier.trim()) {
+      setError('Veuillez entrer votre nom d\'utilisateur ou numéro');
       shakeInput();
       return;
     }
 
-    // Validation du format de numéro (plus flexible)
-    const cleanNumber = phoneNumber.replace(/\s/g, '');
-    
-    if (cleanNumber.length < 10) {
-      setError(getLocalizedText('auth.phoneMinLength'));
-      shakeInput();
-      return;
-    }
-
-    // Validation du format français
-    if (!cleanNumber.match(/^0[1-9]\d{8}$/)) {
-      setError(getLocalizedText('auth.phoneInvalidFormat'));
+    if (!password.trim()) {
+      setError('Veuillez entrer votre mot de passe');
       shakeInput();
       return;
     }
 
     setLoading(true);
-    
+
     try {
       const authService = AuthService.getInstance();
-      const phoneData = {
-        countryCode: countryCode,
-        number: cleanNumber
-      };
-      
-      // Utilisation de la méthode loginRequest pour la connexion
-      const result = await authService.loginRequest(phoneData);
-      
+      const result = await authService.login(identifier.trim(), password.trim());
+
       setLoading(false);
-      
+
       if (result.success) {
-        navigation.navigate('Verification', { 
-          phoneNumber: countryCode + ' ' + phoneNumber,
-          isLogin: true // Flag pour distinguer login vs registration
-        });
+        navigation.navigate('ConversationsList');
       } else {
         Alert.alert(getLocalizedText('notif.error'), result.message || getLocalizedText('auth.errorConnection'));
       }
@@ -198,14 +143,9 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  // Filtrer les pays selon la recherche
-  const filteredCountries = searchQuery 
-    ? searchCountries(searchQuery)
-    : countries;
-
   return (
     <LinearGradient
-      colors={themeColors.background.gradient}
+      colors={themeColors.background.gradient as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.container}
@@ -214,7 +154,7 @@ export const LoginScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.content,
             {
@@ -236,14 +176,14 @@ export const LoginScreen: React.FC = () => {
             </Text>
           </View>
 
-          {/* Phone Input avec animations */}
-          <Animated.View 
+          {/* Identifiant et mot de passe */}
+          <Animated.View
             style={[
               styles.formContainer,
               { transform: [{ translateX: shakeAnim }] }
             ]}
           >
-            {/* Floating Label */}
+            {/* Label flottant pour l’identifiant */}
             <Animated.View style={[
               styles.floatingLabelContainer,
               {
@@ -263,35 +203,27 @@ export const LoginScreen: React.FC = () => {
                 ],
               },
             ]}>
-              <Text style={[
-                styles.floatingLabel,
-                { color: error ? themeColors.error : themeColors.text.primary, fontSize: getFontSize('base') }
-              ]}>
-                {getLocalizedText('auth.phone')}
+              <Text
+                style={[
+                  styles.floatingLabel,
+                  { color: error ? themeColors.error : themeColors.text.primary, fontSize: getFontSize('base') },
+                ]}
+              >
+                Identifiant (username ou téléphone)
               </Text>
             </Animated.View>
-            
+
             <View style={[
               styles.phoneInputContainer,
               error && styles.phoneInputContainerError
             ]}>
-              {/* Country Code */}
-              <TouchableOpacity 
-                style={styles.countryCodeButton}
-                onPress={() => setShowCountryPicker(!showCountryPicker)}
-              >
-                <Text style={[styles.countryCodeText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>{countryFlag} {countryCode}</Text>
-              </TouchableOpacity>
-
-              {/* Phone Number */}
               <View style={styles.phoneInput}>
                 <Input
-                  placeholder="07 12 34 56 78"
-                  keyboardType="phone-pad"
-                  value={phoneNumber}
+                  placeholder="Username ou numéro de téléphone"
+                  value={identifier}
                   onChangeText={(text) => {
-                    setPhoneNumber(formatPhoneNumber(text));
-                    setError(''); // Clear error on input
+                    setIdentifier(text);
+                    setError('');
                   }}
                   onFocus={() => {
                     setIsFocused(true);
@@ -301,11 +233,8 @@ export const LoginScreen: React.FC = () => {
                     setIsFocused(false);
                     animateLabel(false);
                   }}
-                  maxLength={20}
-                  containerStyle={[
-                    styles.inputContainer,
-                    error && styles.inputContainerError
-                  ]}
+                  autoCapitalize="none"
+                  containerStyle={inputContainerStyle}
                   style={[styles.phoneNumberInput, { color: '#000000' }]}
                   placeholderTextColor="rgba(0, 0, 0, 0.5)"
                 />
@@ -319,50 +248,23 @@ export const LoginScreen: React.FC = () => {
               </Animated.View>
             )}
 
-            {/* Country Picker */}
-            {showCountryPicker && (
-              <View style={[styles.countryPicker, { backgroundColor: themeColors.background.secondary }]}>
-                {/* Search Input */}
+            {/* Mot de passe */}
+            <View style={[styles.phoneInputContainer, { marginTop: spacing.md }]}>
+              <View style={styles.phoneInput}>
                 <Input
-                  placeholder={getLocalizedText('auth.searchCountry')}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  containerStyle={styles.searchContainer}
-                  style={styles.searchInput}
+                  placeholder="Mot de passe"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setError('');
+                  }}
+                  secureTextEntry
+                  containerStyle={inputContainerStyle}
+                  style={[styles.phoneNumberInput, { color: '#000000' }]}
+                  placeholderTextColor="rgba(0, 0, 0, 0.5)"
                 />
-                
-                {/* Countries List */}
-                <ScrollView style={styles.countriesList} nestedScrollEnabled>
-                  {filteredCountries.map((country) => (
-                    <TouchableOpacity
-                      key={country.id}
-                      style={styles.countryOption}
-                      onPress={() => {
-                        setCountryCode(country.code);
-                        setCountryFlag(country.flag);
-                        setSelectedCountry(country);
-                        setShowCountryPicker(false);
-                        setSearchQuery('');
-                      }}
-                    >
-                      <Text style={[styles.countryOptionText, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>
-                        {country.flag} {country.name} {country.code}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  
-                  {filteredCountries.length === 0 && (
-                    <Text style={[styles.noResultsText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
-                      {getLocalizedText('auth.noCountryFound')}
-                    </Text>
-                  )}
-                </ScrollView>
               </View>
-            )}
-
-            <Text style={[styles.helperText, { color: themeColors.text.secondary, fontSize: getFontSize('sm') }]}>
-              {getLocalizedText('auth.smsCode')}
-            </Text>
+            </View>
           </Animated.View>
 
           {/* Continue Button */}
@@ -373,13 +275,13 @@ export const LoginScreen: React.FC = () => {
               size="large"
               onPress={handleLogin}
               loading={loading}
-              disabled={phoneNumber.replace(/\s/g, '').length < 10 || loading}
+              disabled={(!identifier.trim() || !password.trim()) || loading}
               fullWidth
             />
           </View>
 
           {/* Registration Link */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.registrationLink}
             onPress={() => navigation.navigate('Registration')}
           >

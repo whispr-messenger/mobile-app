@@ -20,7 +20,7 @@ interface InputProps extends TextInputProps {
   helperText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
-  containerStyle?: ViewStyle;
+  containerStyle?: ViewStyle | ViewStyle[];
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -120,5 +120,4 @@ const styles = StyleSheet.create({
 });
 
 export default Input;
-
 
