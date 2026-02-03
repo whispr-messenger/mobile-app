@@ -1,10 +1,9 @@
 /**
- * MediaPickerScreen - Premium Media Selection Screen
- * WHISPR-252: Écran de sélection de médias avec design glassmorphism moderne
- * Surpasse l'esthétique de Telegram et Instagram
+ * MediaPickerScreen - Media selection screen
+ * WHISPR-252: Écran de sélection de médias (photos, vidéos, documents)
  */
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -15,8 +14,6 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,26 +26,17 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
-  withSequence,
-  withDelay,
   FadeIn,
   FadeOut,
-  ZoomIn,
-  ZoomOut,
-  runOnJS,
-  interpolate,
-  Extrapolate,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { typography, textStyles } from '../../theme/typography';
 import { spacing, borderRadius, shadows } from '../../theme/spacing';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLUMNS = 3;
-const ITEM_SIZE = (SCREEN_WIDTH - 48 - (GRID_COLUMNS - 1) * 12) / GRID_COLUMNS;
-const NEON_COLOR = '#FF6347'; // Neon coral
-const MESH_GRADIENT = ['#0A0E27', '#1A1F3A', '#2D1B4E', '#3C2E7C', '#4A3F8C']; // Bleu nuit → Violet profond
+const ITEM_SIZE = (SCREEN_WIDTH - 32 - (GRID_COLUMNS - 1) * 8) / GRID_COLUMNS;
 
 type MediaType = 'image' | 'video' | 'document';
 type TabType = 'gallery' | 'camera' | 'documents';
@@ -62,46 +50,11 @@ interface SelectedMedia {
   height?: number;
 }
 
-interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  scale: Animated.SharedValue<number>;
-  opacity: Animated.SharedValue<number>;
-}
-
 type MediaPickerScreenRouteProp = {
   params?: {
     conversationId?: string;
     onMediaSelected?: (media: SelectedMedia[]) => void;
   };
-};
-
-// Particle component for confirm button animation
-const Particle: React.FC<{ particle: Particle }> = ({ particle }) => {
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: particle.scale.value }],
-      opacity: particle.opacity.value,
-    };
-  });
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: 'absolute',
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: colors.primary.main,
-          left: particle.x,
-          top: particle.y,
-        },
-        animatedStyle,
-      ]}
-    />
-  );
 };
 
 export const MediaPickerScreen: React.FC = () => {
@@ -117,21 +70,9 @@ export const MediaPickerScreen: React.FC = () => {
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [particles, setParticles] = useState<Particle[]>([]);
 
   const tabAnimation = useSharedValue(0);
   const buttonScale = useSharedValue(1);
-  const confirmButtonY = useSharedValue(0);
-  const confirmButtonOpacity = useSharedValue(selectedMedia.length > 0 ? 1 : 0);
-
-  // Update confirm button visibility
-  useEffect(() => {
-    confirmButtonOpacity.value = withTiming(selectedMedia.length > 0 ? 1 : 0, { duration: 200 });
-    confirmButtonY.value = withSpring(selectedMedia.length > 0 ? 0 : 100, {
-      damping: 20,
-      stiffness: 300,
-    });
-  }, [selectedMedia.length]);
 
   // Request permissions on mount
   useEffect(() => {
@@ -154,21 +95,20 @@ export const MediaPickerScreen: React.FC = () => {
     }
   };
 
-  // Handle tab change with smooth animation
+  // Handle tab change with animation
   const handleTabChange = useCallback((tab: TabType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
     const tabIndex = tab === 'gallery' ? 0 : tab === 'camera' ? 1 : 2;
     tabAnimation.value = withSpring(tabIndex, {
-      damping: 20,
-      stiffness: 300,
-      mass: 0.8,
+      damping: 15,
+      stiffness: 150,
     });
   }, [tabAnimation]);
 
-  // Handle media selection with scale animation
+  // Handle media selection
   const handleSelectMedia = useCallback((media: SelectedMedia) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     const isSelected = selectedMedia.some(m => m.uri === media.uri);
     
@@ -302,56 +242,21 @@ export const MediaPickerScreen: React.FC = () => {
     }
   }, [buttonScale]);
 
-  // Create particles animation
-  const createParticles = useCallback(() => {
-    const newParticles: Particle[] = [];
-    const centerX = SCREEN_WIDTH - 80;
-    const centerY = SCREEN_HEIGHT - 100;
-
-    for (let i = 0; i < 12; i++) {
-      const angle = (Math.PI * 2 * i) / 12;
-      const distance = 40 + Math.random() * 20;
-      const particle: Particle = {
-        id: i,
-        x: centerX + Math.cos(angle) * distance,
-        y: centerY + Math.sin(angle) * distance,
-        scale: useSharedValue(0),
-        opacity: useSharedValue(1),
-      };
-
-      particle.scale.value = withSpring(1.5, { damping: 8, stiffness: 200 });
-      particle.opacity.value = withTiming(0, { duration: 600 });
-      particle.scale.value = withTiming(0, { duration: 600 });
-
-      newParticles.push(particle);
-    }
-
-    setParticles(newParticles);
-    setTimeout(() => setParticles([]), 600);
-  }, []);
-
-  // Handle confirm selection with particles
+  // Handle confirm selection
   const handleConfirm = useCallback(() => {
     if (selectedMedia.length === 0) {
       Alert.alert('Aucun média sélectionné', 'Veuillez sélectionner au moins un média');
       return;
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    createParticles();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onMediaSelected?.(selectedMedia);
+    navigation.goBack();
+  }, [selectedMedia, onMediaSelected, navigation]);
 
-    // Delay navigation to show particles
-    setTimeout(() => {
-      onMediaSelected?.(selectedMedia);
-      navigation.goBack();
-    }, 300);
-  }, [selectedMedia, onMediaSelected, navigation, createParticles]);
-
-  // Animated tab indicator (Pill style)
+  // Animated tab indicator
   const tabIndicatorStyle = useAnimatedStyle(() => {
-    const tabWidth = (SCREEN_WIDTH - 48) / 3;
-    const translateX = tabAnimation.value * tabWidth;
+    const translateX = tabAnimation.value * (SCREEN_WIDTH / 3);
     return {
       transform: [{ translateX }],
     };
@@ -364,85 +269,43 @@ export const MediaPickerScreen: React.FC = () => {
     };
   });
 
-  // Animated confirm button (floating)
-  const confirmButtonStyle = useAnimatedStyle(() => {
-    return {
-      opacity: confirmButtonOpacity.value,
-      transform: [{ translateY: confirmButtonY.value }],
-    };
-  });
-
-  // Render media item with glassmorphism and neon border
-  const MediaItemComponent: React.FC<{ item: SelectedMedia; index: number }> = ({ item, index }) => {
+  const renderMediaItem = ({ item, index }: { item: SelectedMedia; index: number }) => {
     const isSelected = selectedMedia.some(m => m.uri === item.uri);
-    const scale = useSharedValue(isSelected ? 0.95 : 1);
-    const borderOpacity = useSharedValue(isSelected ? 1 : 0);
-    const checkmarkScale = useSharedValue(isSelected ? 1 : 0);
-
-    useEffect(() => {
-      scale.value = withSpring(isSelected ? 0.95 : 1, {
-        damping: 15,
-        stiffness: 300,
-      });
-      borderOpacity.value = withTiming(isSelected ? 1 : 0, { duration: 200 });
-      
-      if (isSelected) {
-        checkmarkScale.value = withSequence(
-          withSpring(1.2, { damping: 8 }),
-          withSpring(1, { damping: 10 })
-        );
-      } else {
-        checkmarkScale.value = withSpring(0, { damping: 15 });
-      }
-    }, [isSelected]);
-
-    const itemStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ scale: scale.value }],
-        borderWidth: 2,
-        borderColor: withOpacity(NEON_COLOR, borderOpacity.value),
-      };
-    });
-
-    const checkmarkStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ scale: checkmarkScale.value }],
-        opacity: checkmarkScale.value,
-      };
-    });
-
+    
     return (
       <Animated.View
-        entering={FadeIn.delay(index * 30).springify()}
+        entering={FadeIn.delay(index * 50)}
         exiting={FadeOut}
-        style={[styles.mediaItemContainer]}
+        style={styles.mediaItemContainer}
       >
-        <Animated.View style={[styles.mediaItem, itemStyle]}>
+        <TouchableOpacity
+          style={styles.mediaItem}
+          onPress={() => handleSelectMedia(item)}
+          activeOpacity={0.8}
+        >
           <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} />
           {isSelected && (
             <Animated.View
-              style={[styles.selectedOverlay, checkmarkStyle]}
+              entering={FadeIn}
+              exiting={FadeOut}
+              style={styles.selectedOverlay}
             >
               <LinearGradient
                 colors={[colors.primary.main, colors.primary.dark]}
                 style={styles.selectedBadge}
               >
-                <Ionicons name="checkmark" size={18} color={colors.text.light} />
+                <Ionicons name="checkmark" size={20} color={colors.text.light} />
               </LinearGradient>
             </Animated.View>
           )}
           {item.type === 'video' && (
             <View style={styles.videoBadge}>
-              <Ionicons name="play-circle" size={14} color={colors.text.light} />
+              <Ionicons name="play-circle" size={16} color={colors.text.light} />
             </View>
           )}
-        </Animated.View>
+        </TouchableOpacity>
       </Animated.View>
     );
-  };
-
-  const renderMediaItem = ({ item, index }: { item: SelectedMedia; index: number }) => {
-    return <MediaItemComponent item={item} index={index} />;
   };
 
   const renderTabContent = () => {
@@ -467,7 +330,7 @@ export const MediaPickerScreen: React.FC = () => {
                     <ActivityIndicator color={colors.text.light} />
                   ) : (
                     <>
-                      <Ionicons name="images-outline" size={20} color={colors.text.light} />
+                      <Ionicons name="images-outline" size={22} color={colors.text.light} />
                       <Text style={styles.actionButtonText}>Ouvrir la galerie</Text>
                     </>
                   )}
@@ -482,7 +345,7 @@ export const MediaPickerScreen: React.FC = () => {
               style={styles.selectedContainer}
             >
               <View style={styles.selectedHeader}>
-                <Text style={styles.selectedCount}>
+                <Text style={[styles.selectedCount, { color: colors.text.light }]}>
                   {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
                 </Text>
               </View>
@@ -494,10 +357,6 @@ export const MediaPickerScreen: React.FC = () => {
                 contentContainerStyle={styles.mediaGrid}
                 scrollEnabled={true}
                 showsVerticalScrollIndicator={false}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-                initialNumToRender={9}
               />
             </Animated.View>
           )}
@@ -526,7 +385,7 @@ export const MediaPickerScreen: React.FC = () => {
                     <ActivityIndicator color={colors.text.light} />
                   ) : (
                     <>
-                      <Ionicons name="camera-outline" size={20} color={colors.text.light} />
+                      <Ionicons name="camera-outline" size={22} color={colors.text.light} />
                       <Text style={styles.actionButtonText}>Prendre une photo</Text>
                     </>
                   )}
@@ -541,7 +400,7 @@ export const MediaPickerScreen: React.FC = () => {
               style={styles.selectedContainer}
             >
               <View style={styles.selectedHeader}>
-                <Text style={styles.selectedCount}>
+                <Text style={[styles.selectedCount, { color: colors.text.light }]}>
                   {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
                 </Text>
               </View>
@@ -553,10 +412,6 @@ export const MediaPickerScreen: React.FC = () => {
                 contentContainerStyle={styles.mediaGrid}
                 scrollEnabled={true}
                 showsVerticalScrollIndicator={false}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                windowSize={5}
-                initialNumToRender={9}
               />
             </Animated.View>
           )}
@@ -584,7 +439,7 @@ export const MediaPickerScreen: React.FC = () => {
                   <ActivityIndicator color={colors.text.light} />
                 ) : (
                   <>
-                    <Ionicons name="document-text-outline" size={20} color={colors.text.light} />
+                    <Ionicons name="document-text-outline" size={22} color={colors.text.light} />
                     <Text style={styles.actionButtonText}>Sélectionner des documents</Text>
                   </>
                 )}
@@ -599,19 +454,19 @@ export const MediaPickerScreen: React.FC = () => {
             style={styles.selectedContainer}
           >
             <View style={styles.selectedHeader}>
-              <Text style={styles.selectedCount}>
+              <Text style={[styles.selectedCount, { color: colors.text.light }]}>
                 {selectedMedia.length} document{selectedMedia.length > 1 ? 's' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
               </Text>
             </View>
             <FlatList
               data={selectedMedia}
-              renderItem={({ item, index }) => (
+              renderItem={({ item }) => (
                 <Animated.View
-                  entering={FadeIn.delay(index * 50)}
-                  style={[styles.documentItem, { backgroundColor: withOpacity(colors.background.darkCard, 0.4) }]}
+                  entering={FadeIn}
+                  style={[styles.documentItem, { backgroundColor: withOpacity(colors.background.darkCard, 0.3) }]}
                 >
-                  <Ionicons name="document" size={24} color={colors.primary.main} />
-                  <Text style={styles.documentName} numberOfLines={1}>
+                  <Ionicons name="document" size={28} color={colors.primary.main} />
+                  <Text style={[styles.documentName, { color: colors.text.light }]} numberOfLines={1}>
                     {item.name}
                   </Text>
                 </Animated.View>
@@ -627,111 +482,134 @@ export const MediaPickerScreen: React.FC = () => {
   };
 
   return (
-    <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={MESH_GRADIENT}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientContainer}
-      >
-        <SafeAreaView style={styles.container} edges={['top']}>
-          {/* Glassmorphism Header */}
-          <View style={styles.headerGlass}>
-            <LinearGradient
-              colors={[withOpacity(colors.background.darkCard, 0.3), withOpacity(colors.background.darkCard, 0.1)]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.header}
+    <LinearGradient
+      colors={colors.background.gradient.app}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close" size={28} color={colors.text.light} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text.light }]}>
+            Sélectionner des médias
+          </Text>
+          <TouchableOpacity
+            onPress={handleConfirm}
+            style={styles.confirmButton}
+            disabled={selectedMedia.length === 0}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text
+              style={[
+                styles.confirmButtonText,
+                {
+                  color: selectedMedia.length > 0
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.4),
+                  fontWeight: selectedMedia.length > 0 ? typography.fontWeight.semiBold : typography.fontWeight.regular,
+                },
+              ]}
             >
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.closeButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={24} color={colors.text.light} />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>
-                Sélectionner des médias
-              </Text>
-              <View style={styles.placeholder} />
-            </LinearGradient>
-          </View>
+              Valider ({selectedMedia.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          {/* Pill Style Segmented Control */}
-          <View style={styles.segmentedContainer}>
-            <View style={styles.segmentedBackground}>
-              <Animated.View
-                style={[
-                  styles.segmentedIndicator,
-                  { backgroundColor: colors.primary.main },
-                  tabIndicatorStyle,
-                ]}
-              />
-              <View style={styles.segmentedButtons}>
-                {(['gallery', 'camera', 'documents'] as TabType[]).map((tab, index) => (
-                  <TouchableOpacity
-                    key={tab}
-                    style={styles.segmentedButton}
-                    onPress={() => handleTabChange(tab)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentedLabel,
-                        {
-                          color: activeTab === tab
-                            ? colors.text.light
-                            : withOpacity(colors.text.light, 0.6),
-                          fontWeight: activeTab === tab
-                            ? typography.fontWeight.semiBold
-                            : typography.fontWeight.regular,
-                        },
-                      ]}
-                    >
-                      {tab === 'gallery' ? 'Galerie' : tab === 'camera' ? 'Caméra' : 'Documents'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {/* Content */}
-          <View style={styles.content}>{renderTabContent()}</View>
-
-          {/* Floating Confirm Button with Particles */}
-          {particles.map(particle => (
-            <Particle key={particle.id} particle={particle} />
-          ))}
+        {/* Tabs */}
+        <View style={[styles.tabsContainer, { backgroundColor: 'transparent' }]}>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('gallery')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="images-outline"
+              size={20}
+              color={activeTab === 'gallery' ? colors.primary.main : withOpacity(colors.text.light, 0.5)}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: activeTab === 'gallery'
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.5),
+                  fontWeight: activeTab === 'gallery' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
+                },
+              ]}
+            >
+              Galerie
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('camera')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="camera-outline"
+              size={20}
+              color={activeTab === 'camera' ? colors.primary.main : withOpacity(colors.text.light, 0.5)}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: activeTab === 'camera'
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.5),
+                  fontWeight: activeTab === 'camera' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
+                },
+              ]}
+            >
+              Caméra
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('documents')}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="document-text-outline"
+              size={20}
+              color={activeTab === 'documents' ? colors.primary.main : withOpacity(colors.text.light, 0.5)}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: activeTab === 'documents'
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.5),
+                  fontWeight: activeTab === 'documents' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
+                },
+              ]}
+            >
+              Documents
+            </Text>
+          </TouchableOpacity>
           <Animated.View
             style={[
-              styles.confirmButtonContainer,
-              confirmButtonStyle,
+              styles.tabIndicator,
+              { backgroundColor: colors.primary.main },
+              tabIndicatorStyle,
             ]}
-            pointerEvents={selectedMedia.length > 0 ? 'auto' : 'none'}
-          >
-            <TouchableOpacity
-              onPress={handleConfirm}
-              style={styles.confirmButtonTouchable}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={[colors.primary.main, colors.primary.dark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.confirmButton}
-              >
-                <Text style={styles.confirmButtonText}>
-                  Valider ({selectedMedia.length})
-                </Text>
-                <Ionicons name="checkmark-circle" size={20} color={colors.text.light} />
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-        </SafeAreaView>
-      </LinearGradient>
-    </>
+          />
+        </View>
+
+        {/* Content */}
+        <View style={styles.content}>{renderTabContent()}</View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
@@ -743,86 +621,58 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  headerGlass: {
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: withOpacity(colors.text.light, 0.1),
-    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
+    backgroundColor: 'transparent',
   },
   closeButton: {
     padding: spacing.xs,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
     fontWeight: typography.fontWeight.semiBold,
-    fontSize: 18, // 18pt as specified
+    fontSize: typography.fontSize.lg,
     color: colors.text.light,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif-medium',
-      default: 'System',
-    }),
   },
-  placeholder: {
-    width: 40,
+  confirmButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
-  segmentedContainer: {
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.md,
+  confirmButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
   },
-  segmentedBackground: {
+  tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    borderRadius: borderRadius.full,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: withOpacity(colors.text.light, 0.1),
     position: 'relative',
-    overflow: 'hidden',
+    borderBottomWidth: 1,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
-  segmentedIndicator: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    width: (SCREEN_WIDTH - 48 - 8) / 3,
-    borderRadius: borderRadius.full,
-    ...shadows.sm,
-  },
-  segmentedButtons: {
+  tab: {
     flex: 1,
     flexDirection: 'row',
-    zIndex: 1,
-  },
-  segmentedButton: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    zIndex: 2,
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
   },
-  segmentedLabel: {
-    fontSize: 14, // 14pt as specified
+  tabLabel: {
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif-medium',
-      default: 'System',
-    }),
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    width: SCREEN_WIDTH / 3,
+    height: 3,
+    borderRadius: borderRadius.sm,
   },
   content: {
     flex: 1,
@@ -838,7 +688,7 @@ const styles = StyleSheet.create({
   actionButtonContainer: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    ...shadows.lg,
+    ...shadows.md,
   },
   actionButton: {
     flexDirection: 'row',
@@ -847,17 +697,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
     gap: spacing.sm,
-    minHeight: 52,
+    minHeight: 48,
   },
   actionButtonText: {
+    ...textStyles.button,
     color: colors.text.light,
-    fontSize: 14, // 14pt semi-bold as specified
+    fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semiBold,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif-medium',
-      default: 'System',
-    }),
   },
   selectedContainer: {
     flex: 1,
@@ -866,33 +712,29 @@ const styles = StyleSheet.create({
   selectedHeader: {
     marginBottom: spacing.md,
     paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
   selectedCount: {
-    fontSize: 13,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.text.light,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif-medium',
-      default: 'System',
-    }),
   },
   mediaGrid: {
-    gap: 12,
-    paddingBottom: spacing.xxl,
+    gap: spacing.sm,
+    paddingBottom: spacing.base,
   },
   mediaItemContainer: {
-    marginRight: 12,
-    marginBottom: 12,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   mediaItem: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    borderRadius: 16, // As specified
+    borderRadius: borderRadius.md,
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: withOpacity(colors.background.darkCard, 0.2),
-    ...shadows.md,
   },
   mediaThumbnail: {
     width: '100%',
@@ -901,25 +743,25 @@ const styles = StyleSheet.create({
   },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: withOpacity(colors.background.dark, 0.4),
+    backgroundColor: withOpacity(colors.background.dark, 0.5),
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectedBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadows.md,
+    ...shadows.sm,
   },
   videoBadge: {
     position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: withOpacity(colors.background.dark, 0.8),
+    bottom: spacing.xs,
+    right: spacing.xs,
+    backgroundColor: withOpacity(colors.background.dark, 0.7),
     borderRadius: borderRadius.md,
-    padding: 4,
+    padding: spacing.xs,
   },
   documentItem: {
     flexDirection: 'row',
@@ -928,48 +770,11 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     marginBottom: spacing.sm,
     gap: spacing.md,
-    borderWidth: 1,
-    borderColor: withOpacity(colors.text.light, 0.1),
   },
   documentName: {
     flex: 1,
-    fontSize: 13,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.regular,
     color: colors.text.light,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif',
-      default: 'System',
-    }),
-  },
-  confirmButtonContainer: {
-    position: 'absolute',
-    bottom: spacing.xl,
-    right: spacing.base,
-    zIndex: 1000,
-  },
-  confirmButtonTouchable: {
-    borderRadius: borderRadius.full,
-    overflow: 'hidden',
-    ...shadows.xl,
-  },
-  confirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    gap: spacing.sm,
-    minWidth: 140,
-  },
-  confirmButtonText: {
-    color: colors.text.light,
-    fontSize: 14, // 14pt semi-bold as specified
-    fontWeight: typography.fontWeight.semiBold,
-    fontFamily: Platform.select({
-      ios: 'System',
-      android: 'sans-serif-medium',
-      default: 'System',
-    }),
   },
 });
