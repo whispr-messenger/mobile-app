@@ -30,6 +30,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing, borderRadius, shadows } from '../../theme/spacing';
+import { MediaItem } from '../../types/media';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NUM_COLUMNS = 3;
@@ -42,6 +43,178 @@ interface MediaGalleryParams {
   mediaItems: MediaItem[];
   conversationId?: string;
 }
+
+// FilterButton component - separate component to use hooks
+interface FilterButtonProps {
+  filter: MediaFilter;
+  label: string;
+  icon: string;
+  isSelected: boolean;
+  count: number;
+  onPress: (filter: MediaFilter) => void;
+}
+
+const FilterButton: React.FC<FilterButtonProps> = ({
+  filter,
+  label,
+  icon,
+  isSelected,
+  count,
+  onPress,
+}) => {
+  const scale = useSharedValue(isSelected ? 1.05 : 1);
+  
+  useEffect(() => {
+    scale.value = withSpring(isSelected ? 1.05 : 1, { damping: 15, stiffness: 300 });
+  }, [isSelected, scale]);
+  
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      backgroundColor: withTiming(
+        isSelected ? colors.primary.main : withOpacity(colors.background.darkCard, 0.5),
+        { duration: 250 }
+      ),
+      transform: [{ scale: scale.value }],
+      borderWidth: withTiming(isSelected ? 0 : 1, { duration: 200 }),
+      borderColor: withTiming(
+        isSelected ? 'transparent' : withOpacity(colors.ui.divider, 0.3),
+        { duration: 200 }
+      ),
+    };
+  });
+
+  const iconAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotate: withTiming(isSelected ? '0deg' : '0deg', { duration: 200 }) }],
+      opacity: withTiming(isSelected ? 1 : 0.7, { duration: 200 }),
+    };
+  });
+
+  return (
+    <TouchableOpacity
+      onPress={() => onPress(filter)}
+      activeOpacity={0.9}
+      style={styles.filterButtonContainer}
+    >
+      <Animated.View style={[styles.filterButton, animatedStyle]}>
+        <Animated.View style={iconAnimatedStyle}>
+          <Ionicons
+            name={icon as any}
+            size={18}
+            color={isSelected ? colors.text.light : withOpacity(colors.text.light, 0.6)}
+          />
+        </Animated.View>
+        <Text
+          style={[
+            styles.filterButtonText,
+            {
+              color: isSelected ? colors.text.light : withOpacity(colors.text.light, 0.7),
+              fontWeight: isSelected ? typography.fontWeight.semiBold : typography.fontWeight.regular,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+        {count > 0 && (
+          <View style={[styles.filterBadge, { backgroundColor: withOpacity(colors.primary.main, 0.3) }]}>
+            <Text style={styles.filterBadgeText}>{count}</Text>
+          </View>
+        )}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+// MediaItemComponent - separate component to use hooks
+interface MediaItemComponentProps {
+  item: MediaItem;
+  index: number;
+  onPress: (index: number) => void;
+}
+
+const MediaItemComponent: React.FC<MediaItemComponentProps> = ({ item, index, onPress }) => {
+  const scale = useSharedValue(1);
+  
+  const handlePressIn = () => {
+    scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
+  };
+  
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+  };
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <TouchableOpacity
+      onPress={() => onPress(index)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      activeOpacity={1}
+      style={styles.mediaItemContainer}
+    >
+      <Animated.View
+        entering={FadeIn.delay(index * 20).duration(250)}
+        style={[styles.mediaItem, animatedStyle]}
+      >
+        {item.type === 'image' && (
+          <>
+            <Image
+              source={{ uri: item.thumbnailUri || item.uri }}
+              style={styles.mediaThumbnail}
+              resizeMode="cover"
+              cache="force-cache"
+            />
+            <View style={styles.imageOverlay} />
+          </>
+        )}
+        {item.type === 'video' && (
+          <View style={styles.videoThumbnailContainer}>
+            <Image
+              source={{ uri: item.thumbnailUri || item.uri }}
+              style={styles.mediaThumbnail}
+              resizeMode="cover"
+              cache="force-cache"
+            />
+            <View style={styles.videoOverlay}>
+              <Animated.View
+                entering={FadeIn.duration(200)}
+                style={styles.playIconContainer}
+              >
+                <Ionicons name="play" size={20} color={colors.text.light} />
+              </Animated.View>
+              {item.size && (
+                <View style={styles.videoDurationBadge}>
+                  <Ionicons name="time-outline" size={10} color={colors.text.light} />
+                  <Text style={styles.videoDurationText}>
+                    {item.size > 1000000 ? `${(item.size / 1000000).toFixed(1)}MB` : `${(item.size / 1000).toFixed(0)}KB`}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+        {item.type === 'file' && (
+          <View style={styles.fileThumbnailContainer}>
+            <View style={styles.fileIconWrapper}>
+              <Ionicons name="document-text" size={36} color={colors.primary.main} />
+            </View>
+            <Text style={styles.fileThumbnailText} numberOfLines={2}>
+              {item.filename || 'Fichier'}
+            </Text>
+            {item.size && (
+              <Text style={styles.fileSizeText}>
+                {item.size > 1000000 ? `${(item.size / 1000000).toFixed(1)} MB` : `${(item.size / 1000).toFixed(0)} KB`}
+              </Text>
+            )}
+          </View>
+        )}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
 
 type MediaGalleryScreenRouteProp = {
   params?: MediaGalleryParams;
@@ -97,175 +270,28 @@ export const MediaGalleryScreen: React.FC = () => {
     } as never);
   }, [filteredMedia, mediaItems, conversationId, navigation]);
 
-  // Render filter button with premium design
+  // Render filter button - now using component
   const renderFilterButton = (filter: MediaFilter, label: string, icon: string) => {
-    const isSelected = selectedFilter === filter;
-    const count = mediaCounts[filter];
-    const scale = useSharedValue(isSelected ? 1.05 : 1);
-    
-    useEffect(() => {
-      scale.value = withSpring(isSelected ? 1.05 : 1, { damping: 15, stiffness: 300 });
-    }, [isSelected, scale]);
-    
-    const animatedStyle = useAnimatedStyle(() => {
-      return {
-        backgroundColor: withTiming(
-          isSelected ? colors.primary.main : withOpacity(colors.background.darkCard, 0.5),
-          { duration: 250 }
-        ),
-        transform: [{ scale: scale.value }],
-        borderWidth: withTiming(isSelected ? 0 : 1, { duration: 200 }),
-        borderColor: withTiming(
-          isSelected ? 'transparent' : withOpacity(colors.ui.divider, 0.3),
-          { duration: 200 }
-        ),
-      };
-    });
-
-    const iconAnimatedStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ rotate: withTiming(isSelected ? '0deg' : '0deg', { duration: 200 }) }],
-        opacity: withTiming(isSelected ? 1 : 0.7, { duration: 200 }),
-      };
-    });
-
     return (
-      <TouchableOpacity
-        onPress={() => handleFilterSelect(filter)}
-        activeOpacity={0.9}
-        style={styles.filterButtonContainer}
-      >
-        <Animated.View style={[styles.filterButton, animatedStyle]}>
-          <Animated.View style={iconAnimatedStyle}>
-            <Ionicons
-              name={icon as any}
-              size={18}
-              color={isSelected ? colors.text.light : withOpacity(colors.text.light, 0.6)}
-            />
-          </Animated.View>
-          <Text
-            style={[
-              styles.filterButtonText,
-              {
-                color: isSelected ? colors.text.light : withOpacity(colors.text.light, 0.6),
-                fontWeight: isSelected ? typography.fontWeight.bold : typography.fontWeight.medium,
-                letterSpacing: isSelected ? typography.letterSpacing.wide : typography.letterSpacing.normal,
-              },
-            ]}
-          >
-            {label}
-          </Text>
-          {count > 0 && (
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              exiting={FadeOut.duration(150)}
-              style={[
-                styles.filterBadge,
-                {
-                  backgroundColor: isSelected
-                    ? withOpacity(colors.text.light, 0.25)
-                    : withOpacity(colors.primary.main, 0.3),
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterBadgeText,
-                  {
-                    color: isSelected ? colors.text.light : colors.primary.main,
-                    fontWeight: typography.fontWeight.bold,
-                  },
-                ]}
-              >
-                {count > 99 ? '99+' : count}
-              </Text>
-            </Animated.View>
-          )}
-        </Animated.View>
-      </TouchableOpacity>
+      <FilterButton
+        filter={filter}
+        label={label}
+        icon={icon}
+        isSelected={selectedFilter === filter}
+        count={mediaCounts[filter]}
+        onPress={handleFilterSelect}
+      />
     );
   };
 
-  // Render media item with premium animations
-  const renderMediaItem = ({ item, index }: { item: typeof filteredMedia[0]; index: number }) => {
-    const scale = useSharedValue(1);
-    
-    const handlePressIn = () => {
-      scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
-    };
-    
-    const handlePressOut = () => {
-      scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-    };
-    
-    const animatedStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: scale.value }],
-    }));
-
+  // Render media item - now using component
+  const renderMediaItem = ({ item, index }: { item: MediaItem; index: number }) => {
     return (
-      <TouchableOpacity
-        onPress={() => handleMediaPress(index)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={1}
-        style={styles.mediaItemContainer}
-      >
-        <Animated.View
-          entering={FadeIn.delay(index * 20).duration(250)}
-          style={[styles.mediaItem, animatedStyle]}
-        >
-          {item.type === 'image' && (
-            <>
-              <Image
-                source={{ uri: item.thumbnailUri || item.uri }}
-                style={styles.mediaThumbnail}
-                resizeMode="cover"
-              />
-              <View style={styles.imageOverlay} />
-            </>
-          )}
-          {item.type === 'video' && (
-            <View style={styles.videoThumbnailContainer}>
-              <Image
-                source={{ uri: item.thumbnailUri || item.uri }}
-                style={styles.mediaThumbnail}
-                resizeMode="cover"
-              />
-              <View style={styles.videoOverlay}>
-                <Animated.View
-                  entering={FadeIn.duration(200)}
-                  style={styles.playIconContainer}
-                >
-                  <Ionicons name="play" size={20} color={colors.text.light} />
-                </Animated.View>
-                {item.size && (
-                  <View style={styles.videoDurationBadge}>
-                    <Ionicons name="time-outline" size={10} color={colors.text.light} />
-                    <Text style={styles.videoDurationText}>
-                      {item.size > 1000000 ? `${(item.size / 1000000).toFixed(1)}MB` : `${(item.size / 1000).toFixed(0)}KB`}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-          {item.type === 'file' && (
-            <View style={styles.fileThumbnailContainer}>
-              <View style={styles.fileIconWrapper}>
-                <Ionicons name="document-text" size={36} color={colors.primary.main} />
-              </View>
-              <Text style={styles.fileThumbnailText} numberOfLines={2}>
-                {item.filename || 'Fichier'}
-              </Text>
-              {item.size && (
-                <Text style={styles.fileSizeText}>
-                  {item.size > 1000000 ? `${(item.size / 1000000).toFixed(1)} MB` : `${(item.size / 1000).toFixed(0)} KB`}
-                </Text>
-              )}
-            </View>
-          )}
-        </Animated.View>
-      </TouchableOpacity>
+      <MediaItemComponent
+        item={item}
+        index={index}
+        onPress={handleMediaPress}
+      />
     );
   };
 
