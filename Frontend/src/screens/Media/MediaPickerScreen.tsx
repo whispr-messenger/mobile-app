@@ -312,46 +312,51 @@ export const MediaPickerScreen: React.FC = () => {
     if (activeTab === 'gallery') {
       return (
         <View style={styles.tabContent}>
-          <Animated.View style={buttonScaleStyle}>
-            <TouchableOpacity
-              style={styles.actionButtonContainer}
-              onPress={handlePickFromGallery}
-              disabled={loading}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={[colors.primary.main, colors.primary.dark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.actionButton}
+          <View style={styles.actionSection}>
+            <Animated.View style={buttonScaleStyle}>
+              <TouchableOpacity
+                style={styles.actionButtonContainer}
+                onPress={handlePickFromGallery}
+                disabled={loading}
+                activeOpacity={0.9}
               >
-                {loading ? (
-                  <ActivityIndicator color={colors.text.light} />
-                ) : (
-                  <>
-                    <Ionicons name="images-outline" size={24} color={colors.text.light} />
-                    <Text style={styles.actionButtonText}>Ouvrir la galerie</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.actionButton}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.text.light} />
+                  ) : (
+                    <>
+                      <Ionicons name="images-outline" size={22} color={colors.text.light} />
+                      <Text style={styles.actionButtonText}>Ouvrir la galerie</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
           
           {selectedMedia.length > 0 && (
             <Animated.View
               entering={FadeIn}
               style={styles.selectedContainer}
             >
-              <Text style={[styles.selectedCount, { color: themeColors.text.secondary }]}>
-                {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
-              </Text>
+              <View style={styles.selectedHeader}>
+                <Text style={[styles.selectedCount, { color: themeColors.text.primary }]}>
+                  {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
+                </Text>
+              </View>
               <FlatList
                 data={selectedMedia}
                 renderItem={renderMediaItem}
                 keyExtractor={(item, index) => `${item.uri}-${index}`}
                 numColumns={GRID_COLUMNS}
                 contentContainerStyle={styles.mediaGrid}
-                scrollEnabled={false}
+                scrollEnabled={true}
+                showsVerticalScrollIndicator={false}
               />
             </Animated.View>
           )}
@@ -362,46 +367,51 @@ export const MediaPickerScreen: React.FC = () => {
     if (activeTab === 'camera') {
       return (
         <View style={styles.tabContent}>
-          <Animated.View style={buttonScaleStyle}>
-            <TouchableOpacity
-              style={styles.actionButtonContainer}
-              onPress={handleTakePhoto}
-              disabled={loading}
-              activeOpacity={0.9}
-            >
-              <LinearGradient
-                colors={[colors.primary.main, colors.primary.dark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.actionButton}
+          <View style={styles.actionSection}>
+            <Animated.View style={buttonScaleStyle}>
+              <TouchableOpacity
+                style={styles.actionButtonContainer}
+                onPress={handleTakePhoto}
+                disabled={loading}
+                activeOpacity={0.9}
               >
-                {loading ? (
-                  <ActivityIndicator color={colors.text.light} />
-                ) : (
-                  <>
-                    <Ionicons name="camera-outline" size={24} color={colors.text.light} />
-                    <Text style={styles.actionButtonText}>Prendre une photo</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.actionButton}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.text.light} />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={22} color={colors.text.light} />
+                      <Text style={styles.actionButtonText}>Prendre une photo</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
           
           {selectedMedia.length > 0 && (
             <Animated.View
               entering={FadeIn}
               style={styles.selectedContainer}
             >
-              <Text style={[styles.selectedCount, { color: themeColors.text.secondary }]}>
-                {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
-              </Text>
+              <View style={styles.selectedHeader}>
+                <Text style={[styles.selectedCount, { color: themeColors.text.primary }]}>
+                  {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
+                </Text>
+              </View>
               <FlatList
                 data={selectedMedia}
                 renderItem={renderMediaItem}
                 keyExtractor={(item, index) => `${item.uri}-${index}`}
                 numColumns={GRID_COLUMNS}
                 contentContainerStyle={styles.mediaGrid}
-                scrollEnabled={false}
+                scrollEnabled={true}
+                showsVerticalScrollIndicator={false}
               />
             </Animated.View>
           )}
@@ -411,39 +421,43 @@ export const MediaPickerScreen: React.FC = () => {
 
     return (
       <View style={styles.tabContent}>
-        <Animated.View style={buttonScaleStyle}>
-          <TouchableOpacity
-            style={styles.actionButtonContainer}
-            onPress={handlePickDocument}
-            disabled={loading}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={[colors.secondary.main, colors.secondary.medium]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.actionButton}
+        <View style={styles.actionSection}>
+          <Animated.View style={buttonScaleStyle}>
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
+              onPress={handlePickDocument}
+              disabled={loading}
+              activeOpacity={0.9}
             >
-              {loading ? (
-                <ActivityIndicator color={colors.text.light} />
-              ) : (
-                <>
-                  <Ionicons name="document-text-outline" size={24} color={colors.text.light} />
-                  <Text style={styles.actionButtonText}>Sélectionner des documents</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
+              <LinearGradient
+                colors={[colors.secondary.main, colors.secondary.medium]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.actionButton}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.text.light} />
+                ) : (
+                  <>
+                    <Ionicons name="document-text-outline" size={22} color={colors.text.light} />
+                    <Text style={styles.actionButtonText}>Sélectionner des documents</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
         
         {selectedMedia.length > 0 && (
           <Animated.View
             entering={FadeIn}
             style={styles.selectedContainer}
           >
-            <Text style={[styles.selectedCount, { color: themeColors.text.secondary }]}>
-              {selectedMedia.length} document{selectedMedia.length > 1 ? 's' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
-            </Text>
+            <View style={styles.selectedHeader}>
+              <Text style={[styles.selectedCount, { color: themeColors.text.primary }]}>
+                {selectedMedia.length} document{selectedMedia.length > 1 ? 's' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
+              </Text>
+            </View>
             <FlatList
               data={selectedMedia}
               renderItem={({ item }) => (
@@ -451,13 +465,15 @@ export const MediaPickerScreen: React.FC = () => {
                   entering={FadeIn}
                   style={[styles.documentItem, { backgroundColor: withOpacity(colors.background.darkCard, 0.3) }]}
                 >
-                  <Ionicons name="document" size={32} color={themeColors.primary} />
+                  <Ionicons name="document" size={28} color={themeColors.primary} />
                   <Text style={[styles.documentName, { color: themeColors.text.primary }]} numberOfLines={1}>
                     {item.name}
                   </Text>
                 </Animated.View>
               )}
               keyExtractor={(item, index) => `${item.uri}-${index}`}
+              scrollEnabled={true}
+              showsVerticalScrollIndicator={false}
             />
           </Animated.View>
         )}
@@ -480,9 +496,9 @@ export const MediaPickerScreen: React.FC = () => {
             style={styles.closeButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="close" size={28} color={themeColors.text.primary} />
+            <Ionicons name="close" size={28} color={themeColors.text.primary || colors.text.light} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+          <Text style={[styles.headerTitle, { color: themeColors.text.primary || colors.text.light }]}>
             Sélectionner des médias
           </Text>
           <TouchableOpacity
@@ -496,8 +512,9 @@ export const MediaPickerScreen: React.FC = () => {
                 styles.confirmButtonText,
                 {
                   color: selectedMedia.length > 0
-                    ? themeColors.primary
-                    : withOpacity(themeColors.text.tertiary, 0.5),
+                    ? themeColors.primary || colors.primary.main
+                    : withOpacity(themeColors.text.tertiary || colors.text.tertiary, 0.5),
+                  fontWeight: selectedMedia.length > 0 ? typography.fontWeight.semiBold : typography.fontWeight.regular,
                 },
               ]}
             >
@@ -621,6 +638,8 @@ const styles = StyleSheet.create({
     ...textStyles.h3,
     flex: 1,
     textAlign: 'center',
+    fontWeight: typography.fontWeight.semiBold,
+    fontSize: typography.fontSize.lg,
   },
   confirmButton: {
     paddingHorizontal: spacing.md,
@@ -657,41 +676,53 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: spacing.base,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.md,
   },
   tabContent: {
     flex: 1,
   },
+  actionSection: {
+    marginBottom: spacing.lg,
+  },
   actionButtonContainer: {
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
-    marginBottom: spacing.xl,
     ...shadows.md,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
-    gap: spacing.md,
-    minHeight: 56,
+    gap: spacing.sm,
+    minHeight: 48,
   },
   actionButtonText: {
     ...textStyles.button,
     color: colors.text.light,
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semiBold,
   },
   selectedContainer: {
     flex: 1,
-    marginTop: spacing.base,
+    marginTop: spacing.sm,
+  },
+  selectedHeader: {
+    marginBottom: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
   selectedCount: {
     ...textStyles.label,
-    marginBottom: spacing.md,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semiBold,
   },
   mediaGrid: {
     gap: spacing.sm,
+    paddingBottom: spacing.base,
   },
   mediaItemContainer: {
     marginRight: spacing.sm,
@@ -700,9 +731,10 @@ const styles = StyleSheet.create({
   mediaItem: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.md,
     overflow: 'hidden',
     position: 'relative',
+    backgroundColor: withOpacity(colors.background.darkCard, 0.2),
   },
   mediaThumbnail: {
     width: '100%',
