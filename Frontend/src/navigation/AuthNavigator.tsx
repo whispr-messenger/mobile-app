@@ -21,6 +21,8 @@ import { MyQRCodeScreen } from '../screens/Contacts/MyQRCodeScreen';
 import { QRCodeScannerScreen } from '../screens/Contacts/QRCodeScannerScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
 import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
+import { MediaViewerScreen } from '../screens/Media';
+import { MediaViewerParams } from '../types/media';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -39,6 +41,7 @@ export type AuthStackParamList = {
   QRCodeScanner: undefined;
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
+  MediaViewer: MediaViewerParams;
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -83,6 +86,14 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="QRCodeScanner" component={QRCodeScannerScreen} />
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
       <Stack.Screen name="GroupManagement" component={GroupManagementScreen} />
+      <Stack.Screen 
+        name="MediaViewer" 
+        component={MediaViewerScreen}
+        options={{
+          presentation: 'transparentModal',
+          animationTypeForReplace: 'push',
+        }}
+      />
     </Stack.Navigator>
   );
 };
