@@ -36,6 +36,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const navigation = useNavigation();
 
   const handleMediaPress = () => {
+    console.log('🖼️ [MediaMessage] Media pressed:', { type, filename, uri: uri.substring(0, 50) + '...' });
+    
     // If we have mediaItems, navigate to MediaViewer with all items
     // Otherwise, create a single-item array
     const items: MediaItem[] = mediaItems || [{
@@ -48,6 +50,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     }];
 
     const index = mediaItems ? initialIndex : 0;
+
+    console.log('🖼️ [MediaMessage] Navigating to MediaViewer:', {
+      itemsCount: items.length,
+      initialIndex: index,
+      conversationId,
+    });
 
     navigation.navigate('MediaViewer' as never, {
       mediaItems: items,

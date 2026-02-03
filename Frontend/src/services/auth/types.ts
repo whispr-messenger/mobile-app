@@ -102,3 +102,13 @@ export interface IAuthService {
   validateProfile(profile: UserProfile): { isValid: boolean; error?: string };
 }
 
+
+
+
+
+
+
+
+
+
+

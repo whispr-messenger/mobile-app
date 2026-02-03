@@ -712,6 +712,7 @@ export const ChatScreen: React.FC = () => {
         });
       }
     });
+    console.log('💬 [ChatScreen] Extracted media items:', mediaItems.length);
     return mediaItems;
   }, [messages]);
 

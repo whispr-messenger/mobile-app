@@ -55,6 +55,21 @@ export const MediaViewerScreen: React.FC = () => {
   const params = route.params as MediaViewerParams;
   const { mediaItems, initialIndex = 0, conversationId } = params || {};
 
+  // Log initial params
+  useEffect(() => {
+    console.log('📸 [MediaViewer] Screen opened');
+    console.log('📸 [MediaViewer] Media items count:', mediaItems?.length || 0);
+    console.log('📸 [MediaViewer] Initial index:', initialIndex);
+    console.log('📸 [MediaViewer] Conversation ID:', conversationId);
+    if (mediaItems && mediaItems.length > 0) {
+      console.log('📸 [MediaViewer] First media:', {
+        id: mediaItems[0].id,
+        type: mediaItems[0].type,
+        uri: mediaItems[0].uri.substring(0, 50) + '...',
+      });
+    }
+  }, []);
+
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [loading, setLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
@@ -95,6 +110,14 @@ export const MediaViewerScreen: React.FC = () => {
 
   // Reset zoom when changing media
   useEffect(() => {
+    console.log('📸 [MediaViewer] Media changed to index:', currentIndex);
+    if (currentMedia) {
+      console.log('📸 [MediaViewer] Current media:', {
+        id: currentMedia.id,
+        type: currentMedia.type,
+        filename: currentMedia.filename,
+      });
+    }
     scale.value = withSpring(1);
     savedScale.value = 1;
     translateX.value = withSpring(0);
@@ -106,6 +129,7 @@ export const MediaViewerScreen: React.FC = () => {
 
   // Handle image load
   const handleImageLoad = useCallback(() => {
+    console.log('📸 [MediaViewer] Image loaded successfully');
     setLoading(false);
   }, []);
 
@@ -154,8 +178,11 @@ export const MediaViewerScreen: React.FC = () => {
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
+      const currentScale = scale.value;
+      console.log('📸 [MediaViewer] Double tap - current scale:', currentScale);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (scale.value > 1) {
+        console.log('📸 [MediaViewer] Zooming out');
         scale.value = withSpring(1);
         savedScale.value = 1;
         translateX.value = withSpring(0);
@@ -163,6 +190,7 @@ export const MediaViewerScreen: React.FC = () => {
         savedTranslateX.value = 0;
         savedTranslateY.value = 0;
       } else {
+        console.log('📸 [MediaViewer] Zooming in to 2x');
         scale.value = withSpring(2);
         savedScale.value = 2;
       }
@@ -173,6 +201,7 @@ export const MediaViewerScreen: React.FC = () => {
     .activeOffsetX(-10)
     .onEnd((e) => {
       if (e.translationX < -50 && currentIndex < (mediaItems?.length || 0) - 1) {
+        console.log('📸 [MediaViewer] Swipe left - navigating to next media');
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setCurrentIndex(prev => prev + 1);
       }
@@ -182,6 +211,7 @@ export const MediaViewerScreen: React.FC = () => {
     .activeOffsetX(10)
     .onEnd((e) => {
       if (e.translationX > 50 && currentIndex > 0) {
+        console.log('📸 [MediaViewer] Swipe right - navigating to previous media');
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setCurrentIndex(prev => prev - 1);
       }
@@ -200,21 +230,27 @@ export const MediaViewerScreen: React.FC = () => {
 
   // Handle share
   const handleShare = useCallback(async () => {
-    if (!currentMedia) return;
+    if (!currentMedia) {
+      console.log('❌ [MediaViewer] Share failed - no current media');
+      return;
+    }
 
     try {
+      console.log('📤 [MediaViewer] Sharing media:', currentMedia.type, currentMedia.filename);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const isAvailable = await Sharing.isAvailableAsync();
       
       if (!isAvailable) {
+        console.log('❌ [MediaViewer] Sharing not available on this device');
         Alert.alert('Erreur', 'Le partage n\'est pas disponible sur cet appareil');
         return;
       }
 
       await Sharing.shareAsync(currentMedia.uri);
+      console.log('✅ [MediaViewer] Share successful');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error('[MediaViewer] Share error:', error);
+      console.error('❌ [MediaViewer] Share error:', error);
       Alert.alert('Erreur', 'Impossible de partager le média');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -222,9 +258,13 @@ export const MediaViewerScreen: React.FC = () => {
 
   // Handle download
   const handleDownload = useCallback(async () => {
-    if (!currentMedia) return;
+    if (!currentMedia) {
+      console.log('❌ [MediaViewer] Download failed - no current media');
+      return;
+    }
 
     try {
+      console.log('⬇️ [MediaViewer] Downloading media:', currentMedia.type, currentMedia.filename);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setLoading(true);
 
@@ -233,15 +273,19 @@ export const MediaViewerScreen: React.FC = () => {
       const fileExtension = filename.split('.').pop() || 'jpg';
       const downloadPath = `${FileSystem.documentDirectory}${filename}`;
 
+      console.log('⬇️ [MediaViewer] Download path:', downloadPath);
+      
       // Download file
       const { uri } = await FileSystem.downloadAsync(fileUri, downloadPath);
+      
+      console.log('✅ [MediaViewer] Download successful:', uri);
       
       // Save to media library (requires expo-media-library, but for now just show success)
       Alert.alert('Succès', 'Média téléchargé avec succès');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLoading(false);
     } catch (error) {
-      console.error('[MediaViewer] Download error:', error);
+      console.error('❌ [MediaViewer] Download error:', error);
       Alert.alert('Erreur', 'Impossible de télécharger le média');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setLoading(false);
@@ -250,11 +294,14 @@ export const MediaViewerScreen: React.FC = () => {
 
   // Handle video play/pause
   const handlePlayPause = useCallback(() => {
+    console.log('▶️ [MediaViewer] Video play/pause - current state:', isPlaying ? 'playing' : 'paused');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowControls(true);
     if (isPlaying) {
+      console.log('⏸️ [MediaViewer] Pausing video');
       videoRef.current?.pauseAsync();
     } else {
+      console.log('▶️ [MediaViewer] Playing video');
       videoRef.current?.playAsync();
     }
   }, [isPlaying]);
@@ -374,12 +421,16 @@ export const MediaViewerScreen: React.FC = () => {
   };
 
   if (!mediaItems || mediaItems.length === 0) {
+    console.log('⚠️ [MediaViewer] No media items to display');
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Aucun média à afficher</Text>
         <TouchableOpacity
           style={styles.closeButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            console.log('📸 [MediaViewer] Closing - no media');
+            navigation.goBack();
+          }}
         >
           <Ionicons name="close" size={28} color={colors.text.light} />
         </TouchableOpacity>
@@ -399,7 +450,10 @@ export const MediaViewerScreen: React.FC = () => {
             style={styles.header}
           >
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                console.log('📸 [MediaViewer] Close button pressed');
+                navigation.goBack();
+              }}
               style={styles.closeButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >

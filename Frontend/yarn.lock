@@ -2837,6 +2837,11 @@ expo-asset@~12.0.9:
     "@expo/image-utils" "^0.8.7"
     expo-constants "~18.0.9"
 
+expo-av@^16.0.8:
+  version "16.0.8"
+  resolved "https://registry.npmjs.org/expo-av/-/expo-av-16.0.8.tgz"
+  integrity sha512-cmVPftGR/ca7XBgs7R6ky36lF3OC0/MM/lpgX/yXqfv0jASTsh7AYX9JxHCwFmF+Z6JEB1vne9FDx4GiLcGreQ==
+
 expo-barcode-scanner@^13.0.1:
   version "13.0.1"
   resolved "https://registry.npmjs.org/expo-barcode-scanner/-/expo-barcode-scanner-13.0.1.tgz"
@@ -2871,10 +2876,10 @@ expo-crypto@^15.0.8:
   dependencies:
     base64-js "^1.3.0"
 
-expo-file-system@~19.0.16:
-  version "19.0.16"
-  resolved "https://registry.npmjs.org/expo-file-system/-/expo-file-system-19.0.16.tgz"
-  integrity sha512-9Ee6HpcUEfO7dOet/on9yAg7ysegBua35Q0oGrJzoRc+xW6IlTxoSFbmK8QhjA3MZpkukP3DhaiYENYOzkw9SQ==
+expo-file-system@^19.0.21, expo-file-system@~19.0.16:
+  version "19.0.21"
+  resolved "https://registry.npmjs.org/expo-file-system/-/expo-file-system-19.0.21.tgz"
+  integrity sha512-s3DlrDdiscBHtab/6W1osrjGL+C2bvoInPJD7sOwmxfJ5Woynv2oc+Fz1/xVXaE/V7HE/+xrHC/H45tu6lZzzg==
 
 expo-font@>=14.0.4, expo-font@~14.0.8:
   version "14.0.8"
@@ -2943,6 +2948,11 @@ expo-server@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmjs.org/expo-server/-/expo-server-1.0.0.tgz"
   integrity sha512-fAAI0ZXxayc2Rt5KfQjULv+TFreuLRZ+hdpc5TxZJ7CDpW1ZIqaVzELHh1rYTRVEBDFDiCBXtioS9WWTEAX+fg==
+
+expo-sharing@^14.0.8:
+  version "14.0.8"
+  resolved "https://registry.npmjs.org/expo-sharing/-/expo-sharing-14.0.8.tgz"
+  integrity sha512-A1pPr2iBrxypFDCWVAESk532HK+db7MFXbvO2sCV9ienaFXAk7lIBm6bkqgE6vzRd9O3RGdEGzYx80cYlc089Q==
 
 expo-status-bar@~2.2.3:
   version "2.2.3"

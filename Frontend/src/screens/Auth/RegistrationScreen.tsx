@@ -175,7 +175,7 @@ export const RegistrationScreen: React.FC = () => {
                   onChangeText={(text) => setPhoneNumber(formatPhoneNumber(text))}
                   maxLength={14} // 0X XX XX XX XX with spaces
                   containerStyle={styles.inputContainer}
-                  style={[styles.phoneNumberInput, { color: themeColors.text.primary }]}
+                  style={[styles.phoneNumberInput, { color: '#000000' }]}
                 />
               </View>
             </View>
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   },
   phoneNumberInput: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    color: colors.text.light,
+    color: '#000000',
     fontSize: typography.fontSize.lg,
     fontWeight: '600',
   },
