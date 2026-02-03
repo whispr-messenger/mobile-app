@@ -454,7 +454,7 @@ export const MediaPickerScreen: React.FC = () => {
             style={styles.selectedContainer}
           >
             <View style={styles.selectedHeader}>
-              <Text style={[styles.selectedCount, { color: themeColors.text.primary }]}>
+              <Text style={[styles.selectedCount, { color: colors.text.light }]}>
                 {selectedMedia.length} document{selectedMedia.length > 1 ? 's' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
               </Text>
             </View>
@@ -635,19 +635,19 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
   headerTitle: {
-    ...textStyles.h3,
     flex: 1,
     textAlign: 'center',
     fontWeight: typography.fontWeight.semiBold,
     fontSize: typography.fontSize.lg,
+    color: colors.text.light,
   },
   confirmButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
   confirmButtonText: {
-    ...textStyles.button,
     fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -664,8 +664,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   tabLabel: {
-    ...textStyles.label,
     fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
   },
   tabIndicator: {
     position: 'absolute',
@@ -716,9 +716,9 @@ const styles = StyleSheet.create({
     borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
   selectedCount: {
-    ...textStyles.label,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
   },
   mediaGrid: {
     gap: spacing.sm,
@@ -773,7 +773,8 @@ const styles = StyleSheet.create({
   },
   documentName: {
     flex: 1,
-    ...textStyles.body,
     fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.regular,
+    color: colors.text.light,
   },
 });
