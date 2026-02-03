@@ -98,72 +98,132 @@ export const MediaGalleryScreen: React.FC = () => {
     } as never);
   }, [filteredMedia, mediaItems, conversationId, navigation]);
 
-  // Render filter button
+  // Render filter button with premium design
   const renderFilterButton = (filter: MediaFilter, label: string, icon: string) => {
     const isSelected = selectedFilter === filter;
     const count = mediaCounts[filter];
+    const scale = useSharedValue(isSelected ? 1.05 : 1);
+    
+    React.useEffect(() => {
+      scale.value = withSpring(isSelected ? 1.05 : 1, { damping: 15, stiffness: 300 });
+    }, [isSelected]);
     
     const animatedStyle = useAnimatedStyle(() => {
       return {
         backgroundColor: withTiming(
-          isSelected ? colors.primary.main : withOpacity(colors.background.darkCard, 0.6),
+          isSelected ? colors.primary.main : withOpacity(colors.background.darkCard, 0.5),
+          { duration: 250 }
+        ),
+        transform: [{ scale: scale.value }],
+        borderWidth: withTiming(isSelected ? 0 : 1, { duration: 200 }),
+        borderColor: withTiming(
+          isSelected ? 'transparent' : withOpacity(colors.ui.divider, 0.3),
           { duration: 200 }
         ),
-        transform: [{ scale: withSpring(isSelected ? 1.05 : 1, { damping: 15 }) }],
+      };
+    });
+
+    const iconAnimatedStyle = useAnimatedStyle(() => {
+      return {
+        transform: [{ rotate: withTiming(isSelected ? '0deg' : '0deg', { duration: 200 }) }],
+        opacity: withTiming(isSelected ? 1 : 0.7, { duration: 200 }),
       };
     });
 
     return (
       <TouchableOpacity
         onPress={() => handleFilterSelect(filter)}
-        activeOpacity={0.8}
+        activeOpacity={0.9}
         style={styles.filterButtonContainer}
       >
         <Animated.View style={[styles.filterButton, animatedStyle]}>
-          <Ionicons
-            name={icon as any}
-            size={16}
-            color={isSelected ? colors.text.light : withOpacity(colors.text.light, 0.7)}
-          />
+          <Animated.View style={iconAnimatedStyle}>
+            <Ionicons
+              name={icon as any}
+              size={18}
+              color={isSelected ? colors.text.light : withOpacity(colors.text.light, 0.6)}
+            />
+          </Animated.View>
           <Text
             style={[
               styles.filterButtonText,
               {
-                color: isSelected ? colors.text.light : withOpacity(colors.text.light, 0.7),
-                fontWeight: isSelected ? typography.fontWeight.semiBold : typography.fontWeight.regular,
+                color: isSelected ? colors.text.light : withOpacity(colors.text.light, 0.6),
+                fontWeight: isSelected ? typography.fontWeight.bold : typography.fontWeight.medium,
+                letterSpacing: isSelected ? typography.letterSpacing.wide : typography.letterSpacing.normal,
               },
             ]}
           >
             {label}
           </Text>
           {count > 0 && (
-            <View style={[styles.filterBadge, { backgroundColor: withOpacity(colors.primary.main, 0.3) }]}>
-              <Text style={styles.filterBadgeText}>{count}</Text>
-            </View>
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(150)}
+              style={[
+                styles.filterBadge,
+                {
+                  backgroundColor: isSelected
+                    ? withOpacity(colors.text.light, 0.25)
+                    : withOpacity(colors.primary.main, 0.3),
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterBadgeText,
+                  {
+                    color: isSelected ? colors.text.light : colors.primary.main,
+                    fontWeight: typography.fontWeight.bold,
+                  },
+                ]}
+              >
+                {count > 99 ? '99+' : count}
+              </Text>
+            </Animated.View>
           )}
         </Animated.View>
       </TouchableOpacity>
     );
   };
 
-  // Render media item
+  // Render media item with premium animations
   const renderMediaItem = ({ item, index }: { item: typeof filteredMedia[0]; index: number }) => {
+    const scale = useSharedValue(1);
+    
+    const handlePressIn = () => {
+      scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
+    };
+    
+    const handlePressOut = () => {
+      scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+    };
+    
+    const animatedStyle = useAnimatedStyle(() => ({
+      transform: [{ scale: scale.value }],
+    }));
+
     return (
       <TouchableOpacity
         onPress={() => handleMediaPress(index)}
-        activeOpacity={0.9}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
         style={styles.mediaItemContainer}
       >
         <Animated.View
-          entering={FadeIn.delay(index * 30).duration(300)}
-          style={styles.mediaItem}
+          entering={FadeIn.delay(index * 20).duration(250)}
+          style={[styles.mediaItem, animatedStyle]}
         >
           {item.type === 'image' && (
-            <Image
-              source={{ uri: item.thumbnailUri || item.uri }}
-              style={styles.mediaThumbnail}
-              resizeMode="cover"
-            />
+            <>
+              <Image
+                source={{ uri: item.thumbnailUri || item.uri }}
+                style={styles.mediaThumbnail}
+                resizeMode="cover"
+              />
+              <View style={styles.imageOverlay} />
+            </>
           )}
           {item.type === 'video' && (
             <View style={styles.videoThumbnailContainer}>
@@ -173,18 +233,36 @@ export const MediaGalleryScreen: React.FC = () => {
                 resizeMode="cover"
               />
               <View style={styles.videoOverlay}>
-                <View style={styles.playIconContainer}>
-                  <Ionicons name="play" size={24} color={colors.text.light} />
-                </View>
+                <Animated.View
+                  entering={FadeIn.duration(200)}
+                  style={styles.playIconContainer}
+                >
+                  <Ionicons name="play" size={20} color={colors.text.light} />
+                </Animated.View>
+                {item.size && (
+                  <View style={styles.videoDurationBadge}>
+                    <Ionicons name="time-outline" size={10} color={colors.text.light} />
+                    <Text style={styles.videoDurationText}>
+                      {item.size > 1000000 ? `${(item.size / 1000000).toFixed(1)}MB` : `${(item.size / 1000).toFixed(0)}KB`}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           )}
           {item.type === 'file' && (
             <View style={styles.fileThumbnailContainer}>
-              <Ionicons name="document" size={32} color={colors.primary.main} />
-              <Text style={styles.fileThumbnailText} numberOfLines={1}>
+              <View style={styles.fileIconWrapper}>
+                <Ionicons name="document-text" size={36} color={colors.primary.main} />
+              </View>
+              <Text style={styles.fileThumbnailText} numberOfLines={2}>
                 {item.filename || 'Fichier'}
               </Text>
+              {item.size && (
+                <Text style={styles.fileSizeText}>
+                  {item.size > 1000000 ? `${(item.size / 1000000).toFixed(1)} MB` : `${(item.size / 1000).toFixed(0)} KB`}
+                </Text>
+              )}
             </View>
           )}
         </Animated.View>
@@ -282,16 +360,17 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
   },
   headerTitle: {
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
     letterSpacing: typography.letterSpacing.tight,
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.regular,
-    color: withOpacity(colors.text.light, 0.6),
+    fontWeight: typography.fontWeight.medium,
+    color: withOpacity(colors.text.light, 0.7),
     marginTop: spacing.xs / 2,
+    letterSpacing: typography.letterSpacing.normal,
   },
   headerRight: {
     width: 40,
@@ -312,11 +391,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md + 4,
     borderRadius: borderRadius.full,
-    gap: spacing.xs,
-    ...shadows.sm,
+    gap: spacing.sm,
+    ...shadows.md,
+    minHeight: 40,
   },
   filterButtonText: {
     fontSize: typography.fontSize.sm,
@@ -347,10 +427,12 @@ const styles = StyleSheet.create({
   mediaItem: {
     width: '100%',
     height: '100%',
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    ...shadows.md,
+    backgroundColor: withOpacity(colors.background.darkCard, 0.4),
+    ...shadows.lg,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.divider, 0.1),
   },
   mediaThumbnail: {
     width: '100%',
@@ -361,34 +443,75 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
   videoOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: withOpacity(colors.background.dark, 0.3),
+    backgroundColor: withOpacity(colors.background.dark, 0.25),
     justifyContent: 'center',
     alignItems: 'center',
   },
   playIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: withOpacity(colors.primary.main, 0.9),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: withOpacity(colors.primary.main, 0.95),
     justifyContent: 'center',
     alignItems: 'center',
-    paddingLeft: 2, // Offset for play icon
+    paddingLeft: 3, // Offset for play icon
+    ...shadows.lg,
+    borderWidth: 2,
+    borderColor: withOpacity(colors.text.light, 0.2),
+  },
+  videoDurationBadge: {
+    position: 'absolute',
+    bottom: spacing.xs,
+    right: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: withOpacity(colors.background.dark, 0.85),
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 4,
+  },
+  videoDurationText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
   },
   fileThumbnailContainer: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.sm,
-    backgroundColor: withOpacity(colors.background.darkCard, 0.5),
+    padding: spacing.md,
+    backgroundColor: withOpacity(colors.background.darkCard, 0.6),
+  },
+  fileIconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.md,
+    backgroundColor: withOpacity(colors.primary.main, 0.15),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   fileThumbnailText: {
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semiBold,
     color: colors.text.light,
     marginTop: spacing.xs,
+    textAlign: 'center',
+    letterSpacing: typography.letterSpacing.tight,
+  },
+  fileSizeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.regular,
+    color: withOpacity(colors.text.light, 0.6),
+    marginTop: 2,
     textAlign: 'center',
   },
   emptyContainer: {
