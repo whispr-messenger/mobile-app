@@ -271,19 +271,14 @@ export const MediaGalleryScreen: React.FC = () => {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // TODO: Navigate to MediaViewer when it's implemented
-    // For now, just log the press to avoid crash
-    console.log('[MediaGallery] Media item pressed:', item.id, 'index:', index);
-    
     // Find original index in all mediaItems
     const originalIndex = validMediaItems.findIndex(m => m && m.id === item.id);
     
-    // Temporarily disabled - MediaViewer not in navigator yet
-    // navigation.navigate('MediaViewer' as never, {
-    //   mediaItems,
-    //   initialIndex: originalIndex >= 0 ? originalIndex : index,
-    //   conversationId,
-    // } as never);
+    navigation.navigate('MediaViewer' as never, {
+      mediaItems: validMediaItems,
+      initialIndex: originalIndex >= 0 ? originalIndex : index,
+      conversationId,
+    } as never);
   }, [filteredMedia, validMediaItems, conversationId, navigation]);
 
   // Render filter button - now using component
