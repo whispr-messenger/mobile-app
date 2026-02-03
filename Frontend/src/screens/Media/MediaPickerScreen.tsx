@@ -256,7 +256,8 @@ export const MediaPickerScreen: React.FC = () => {
 
   // Animated tab indicator
   const tabIndicatorStyle = useAnimatedStyle(() => {
-    const translateX = tabAnimation.value * (SCREEN_WIDTH / 3);
+    const tabWidth = (SCREEN_WIDTH - spacing.base * 2) / 3;
+    const translateX = tabAnimation.value * tabWidth + spacing.base; // Centré avec padding
     return {
       transform: [{ translateX }],
     };
@@ -285,18 +286,20 @@ export const MediaPickerScreen: React.FC = () => {
         >
           <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} />
           {isSelected && (
-            <Animated.View
-              entering={FadeIn}
-              exiting={FadeOut}
-              style={styles.selectedOverlay}
-            >
-              <LinearGradient
-                colors={[colors.primary.main, colors.primary.dark]}
+            <>
+              <Animated.View
+                entering={FadeIn}
+                exiting={FadeOut}
+                style={styles.selectedOverlay}
+              />
+              <Animated.View
+                entering={FadeIn}
+                exiting={FadeOut}
                 style={styles.selectedBadge}
               >
-                <Ionicons name="checkmark" size={20} color={colors.text.light} />
-              </LinearGradient>
-            </Animated.View>
+                <Ionicons name="checkmark" size={16} color={colors.primary.main} />
+              </Animated.View>
+            </>
           )}
           {item.type === 'video' && (
             <View style={styles.videoBadge}>
@@ -370,24 +373,21 @@ export const MediaPickerScreen: React.FC = () => {
           <View style={styles.actionSection}>
             <Animated.View style={buttonScaleStyle}>
               <TouchableOpacity
-                style={styles.actionButtonContainer}
+                style={styles.cameraButtonContainer}
                 onPress={handleTakePhoto}
                 disabled={loading}
                 activeOpacity={0.9}
               >
                 <LinearGradient
-                  colors={[colors.primary.main, colors.primary.dark]}
+                  colors={[withOpacity(colors.primary.main, 0.8), withOpacity(colors.primary.dark, 0.9)]}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.actionButton}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cameraButton}
                 >
                   {loading ? (
                     <ActivityIndicator color={colors.text.light} />
                   ) : (
-                    <>
-                      <Ionicons name="camera-outline" size={22} color={colors.text.light} />
-                      <Text style={styles.actionButtonText}>Prendre une photo</Text>
-                    </>
+                    <Ionicons name="camera" size={28} color={colors.text.light} />
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -483,7 +483,7 @@ export const MediaPickerScreen: React.FC = () => {
 
   return (
     <LinearGradient
-      colors={colors.background.gradient.app}
+      colors={['#0A0E27', '#1A1F3A', '#2D1B4E']} // Dégradé plus lisse et sombre
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.gradientContainer}
@@ -514,7 +514,7 @@ export const MediaPickerScreen: React.FC = () => {
                   color: selectedMedia.length > 0
                     ? colors.primary.main
                     : withOpacity(colors.text.light, 0.4),
-                  fontWeight: selectedMedia.length > 0 ? typography.fontWeight.semiBold : typography.fontWeight.regular,
+                  fontWeight: selectedMedia.length > 0 ? typography.fontWeight.bold : typography.fontWeight.regular,
                 },
               ]}
             >
@@ -637,9 +637,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.medium, // Weight 500
     fontSize: typography.fontSize.lg,
     color: colors.text.light,
+    letterSpacing: typography.letterSpacing.tight,
   },
   confirmButton: {
     paddingHorizontal: spacing.md,
@@ -647,13 +648,15 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semiBold,
+    fontWeight: typography.fontWeight.bold, // Plus épais pour ressortir
+    color: colors.primary.main, // Couleur plus vive
   },
   tabsContainer: {
     flexDirection: 'row',
     position: 'relative',
-    borderBottomWidth: 1,
-    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
+    paddingHorizontal: spacing.base, // Plus d'espacement
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   tab: {
     flex: 1,
@@ -661,6 +664,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm, // Espacement horizontal entre les onglets
     gap: spacing.xs,
   },
   tabLabel: {
@@ -669,10 +673,11 @@ const styles = StyleSheet.create({
   },
   tabIndicator: {
     position: 'absolute',
-    bottom: 0,
-    width: SCREEN_WIDTH / 3,
-    height: 3,
-    borderRadius: borderRadius.sm,
+    bottom: spacing.sm,
+    width: (SCREEN_WIDTH - spacing.base * 2) / 3 - spacing.sm * 2, // Centré sous le texte avec padding
+    height: 2, // Plus fine (2px au lieu de 3px)
+    borderRadius: borderRadius.full, // Bords arrondis
+    alignSelf: 'center',
   },
   content: {
     flex: 1,
@@ -731,7 +736,7 @@ const styles = StyleSheet.create({
   mediaItem: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg, // 12px
     overflow: 'hidden',
     position: 'relative',
     backgroundColor: withOpacity(colors.background.darkCard, 0.2),
@@ -748,12 +753,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   selectedBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28, // Plus petit
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.text.light, // Fond blanc
+    borderWidth: 2, // Bordure blanche fine
+    borderColor: colors.text.light,
     ...shadows.sm,
+    position: 'absolute',
+    top: spacing.xs, // Décalage du bord
+    right: spacing.xs,
   },
   videoBadge: {
     position: 'absolute',
@@ -776,5 +787,19 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.regular,
     color: colors.text.light,
+  },
+  cameraButtonContainer: {
+    borderRadius: borderRadius.xxl, // 20px+
+    overflow: 'hidden',
+    alignSelf: 'center',
+    width: 80,
+    height: 80,
+    ...shadows.lg,
+  },
+  cameraButton: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
