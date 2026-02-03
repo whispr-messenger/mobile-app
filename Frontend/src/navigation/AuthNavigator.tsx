@@ -22,6 +22,7 @@ import { QRCodeScannerScreen } from '../screens/Contacts/QRCodeScannerScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
 import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 import { MediaGalleryScreen } from '../screens/Media/MediaGalleryScreen';
+import { MediaItem } from '../types/media';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -41,16 +42,7 @@ export type AuthStackParamList = {
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
   MediaGallery: {
-    mediaItems: Array<{
-      id: string;
-      uri: string;
-      type: 'image' | 'video' | 'file';
-      thumbnailUri?: string;
-      filename?: string;
-      size?: number;
-      messageId?: string;
-      mediaId?: string;
-    }>;
+    mediaItems: MediaItem[];
     conversationId?: string;
   };
 };
