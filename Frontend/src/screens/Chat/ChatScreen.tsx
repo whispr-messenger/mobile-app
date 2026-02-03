@@ -712,10 +712,6 @@ export const ChatScreen: React.FC = () => {
         });
       }
     });
-    // Log only when media count changes
-    if (mediaItems.length > 0) {
-      console.log('💬 [ChatScreen] Extracted media items:', mediaItems.length);
-    }
     return mediaItems;
   }, [messages]);
 

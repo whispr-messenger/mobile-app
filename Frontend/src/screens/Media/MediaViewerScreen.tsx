@@ -20,7 +20,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Image } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -295,7 +295,13 @@ export const MediaViewerScreen: React.FC = () => {
 
       const fileUri = currentMedia.uri;
       const filename = currentMedia.filename || `media_${Date.now()}.${currentMedia.type === 'image' ? 'jpg' : 'mp4'}`;
-      const downloadPath = `${FileSystem.documentDirectory}${filename}`;
+      
+      // Use documentDirectory or fallback to cacheDirectory if undefined
+      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory || '';
+      if (!baseDir) {
+        throw new Error('Aucun répertoire de stockage disponible');
+      }
+      const downloadPath = `${baseDir}${filename}`;
 
       console.log('⬇️ [MediaViewer] Download path:', downloadPath);
       
@@ -307,7 +313,7 @@ export const MediaViewerScreen: React.FC = () => {
         console.log('⬇️ [MediaViewer] Downloading from remote URL...');
         const { uri } = await FileSystem.downloadAsync(fileUri, downloadPath);
         console.log('✅ [MediaViewer] Download successful:', uri);
-        Alert.alert('Succès', `Média téléchargé dans: ${uri}`);
+        Alert.alert('Succès', `Média téléchargé avec succès`);
       } else {
         // Local file - copy to documents
         console.log('⬇️ [MediaViewer] Copying local file...');
@@ -316,7 +322,7 @@ export const MediaViewerScreen: React.FC = () => {
           to: downloadPath,
         });
         console.log('✅ [MediaViewer] Copy successful:', downloadPath);
-        Alert.alert('Succès', `Média copié dans: ${downloadPath}`);
+        Alert.alert('Succès', `Média copié avec succès`);
       }
       
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
