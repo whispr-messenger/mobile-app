@@ -753,6 +753,42 @@ export const ChatScreen: React.FC = () => {
     []
   );
 
+  // Extract all media items from messages
+  const allMediaItems = useMemo((): MediaItem[] => {
+    const mediaItems: MediaItem[] = [];
+    messages.forEach(msg => {
+      if (msg.attachments && msg.attachments.length > 0) {
+        msg.attachments.forEach(att => {
+          if (att.metadata?.media_url || att.metadata?.thumbnail_url) {
+            mediaItems.push({
+              id: att.id,
+              uri: att.metadata.media_url || att.metadata.thumbnail_url || '',
+              type: att.media_type,
+              thumbnailUri: att.metadata.thumbnail_url,
+              filename: att.metadata.filename,
+              size: att.metadata.size,
+              messageId: msg.id,
+              mediaId: att.media_id,
+              mimeType: att.metadata.mime_type,
+            });
+          }
+        });
+      }
+    });
+    return mediaItems;
+  }, [messages]);
+
+  // Handle gallery press - navigate to MediaGalleryScreen
+  const handleGalleryPress = useCallback(() => {
+    if (allMediaItems.length === 0) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    navigation.navigate('MediaGallery' as never, {
+      mediaItems: allMediaItems,
+      conversationId,
+    } as never);
+  }, [allMediaItems, conversationId, navigation]);
+
   return (
     <LinearGradient
       colors={colors.background.gradient.app}
