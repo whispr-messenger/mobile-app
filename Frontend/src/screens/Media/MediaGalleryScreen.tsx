@@ -175,6 +175,12 @@ const MediaItemComponent: React.FC<MediaItemComponentProps> = ({ item, index, on
               style={styles.mediaThumbnail}
               resizeMode="cover"
               cache="force-cache"
+              onError={(error) => {
+                console.error('[MediaGallery] Image load error for item', index, ':', error.nativeEvent?.error || 'unknown error');
+              }}
+              onLoad={() => {
+                console.log('[MediaGallery] Image loaded successfully for item', index);
+              }}
             />
             <View style={styles.imageOverlay} />
           </>
