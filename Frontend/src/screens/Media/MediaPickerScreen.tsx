@@ -345,7 +345,7 @@ export const MediaPickerScreen: React.FC = () => {
               style={styles.selectedContainer}
             >
               <View style={styles.selectedHeader}>
-                <Text style={[styles.selectedCount, { color: themeColors.text.primary }]}>
+                <Text style={[styles.selectedCount, { color: colors.text.light }]}>
                   {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
                 </Text>
               </View>
@@ -400,7 +400,7 @@ export const MediaPickerScreen: React.FC = () => {
               style={styles.selectedContainer}
             >
               <View style={styles.selectedHeader}>
-                <Text style={[styles.selectedCount, { color: themeColors.text.primary }]}>
+                <Text style={[styles.selectedCount, { color: colors.text.light }]}>
                   {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
                 </Text>
               </View>
@@ -465,8 +465,8 @@ export const MediaPickerScreen: React.FC = () => {
                   entering={FadeIn}
                   style={[styles.documentItem, { backgroundColor: withOpacity(colors.background.darkCard, 0.3) }]}
                 >
-                  <Ionicons name="document" size={28} color={themeColors.primary} />
-                  <Text style={[styles.documentName, { color: themeColors.text.primary }]} numberOfLines={1}>
+                  <Ionicons name="document" size={28} color={colors.primary.main} />
+                  <Text style={[styles.documentName, { color: colors.text.light }]} numberOfLines={1}>
                     {item.name}
                   </Text>
                 </Animated.View>
@@ -496,9 +496,9 @@ export const MediaPickerScreen: React.FC = () => {
             style={styles.closeButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="close" size={28} color={themeColors.text.primary || colors.text.light} />
+            <Ionicons name="close" size={28} color={colors.text.light} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary || colors.text.light }]}>
+          <Text style={[styles.headerTitle, { color: colors.text.light }]}>
             Sélectionner des médias
           </Text>
           <TouchableOpacity
@@ -512,8 +512,8 @@ export const MediaPickerScreen: React.FC = () => {
                 styles.confirmButtonText,
                 {
                   color: selectedMedia.length > 0
-                    ? themeColors.primary || colors.primary.main
-                    : withOpacity(themeColors.text.tertiary || colors.text.tertiary, 0.5),
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.4),
                   fontWeight: selectedMedia.length > 0 ? typography.fontWeight.semiBold : typography.fontWeight.regular,
                 },
               ]}
@@ -533,15 +533,15 @@ export const MediaPickerScreen: React.FC = () => {
             <Ionicons
               name="images-outline"
               size={20}
-              color={activeTab === 'gallery' ? themeColors.primary : withOpacity(themeColors.text.tertiary, 0.6)}
+              color={activeTab === 'gallery' ? colors.primary.main : withOpacity(colors.text.light, 0.5)}
             />
             <Text
               style={[
                 styles.tabLabel,
                 {
                   color: activeTab === 'gallery'
-                    ? themeColors.primary
-                    : withOpacity(themeColors.text.tertiary, 0.6),
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.5),
                   fontWeight: activeTab === 'gallery' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
                 },
               ]}
@@ -557,15 +557,15 @@ export const MediaPickerScreen: React.FC = () => {
             <Ionicons
               name="camera-outline"
               size={20}
-              color={activeTab === 'camera' ? themeColors.primary : withOpacity(themeColors.text.tertiary, 0.6)}
+              color={activeTab === 'camera' ? colors.primary.main : withOpacity(colors.text.light, 0.5)}
             />
             <Text
               style={[
                 styles.tabLabel,
                 {
                   color: activeTab === 'camera'
-                    ? themeColors.primary
-                    : withOpacity(themeColors.text.tertiary, 0.6),
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.5),
                   fontWeight: activeTab === 'camera' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
                 },
               ]}
@@ -581,15 +581,15 @@ export const MediaPickerScreen: React.FC = () => {
             <Ionicons
               name="document-text-outline"
               size={20}
-              color={activeTab === 'documents' ? themeColors.primary : withOpacity(themeColors.text.tertiary, 0.6)}
+              color={activeTab === 'documents' ? colors.primary.main : withOpacity(colors.text.light, 0.5)}
             />
             <Text
               style={[
                 styles.tabLabel,
                 {
                   color: activeTab === 'documents'
-                    ? themeColors.primary
-                    : withOpacity(themeColors.text.tertiary, 0.6),
+                    ? colors.primary.main
+                    : withOpacity(colors.text.light, 0.5),
                   fontWeight: activeTab === 'documents' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
                 },
               ]}
@@ -600,7 +600,7 @@ export const MediaPickerScreen: React.FC = () => {
           <Animated.View
             style={[
               styles.tabIndicator,
-              { backgroundColor: themeColors.primary },
+              { backgroundColor: colors.primary.main },
               tabIndicatorStyle,
             ]}
           />
