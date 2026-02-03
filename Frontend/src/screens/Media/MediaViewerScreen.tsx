@@ -71,10 +71,11 @@ export const MediaViewerScreen: React.FC = () => {
   }, []);
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start with false, show only if loading takes time
   const [showControls, setShowControls] = useState(true);
   const [videoStatus, setVideoStatus] = useState<AVPlaybackStatus | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Zoom and pan for images
   const scale = useSharedValue(1);
@@ -124,12 +125,46 @@ export const MediaViewerScreen: React.FC = () => {
     translateY.value = withSpring(0);
     savedTranslateX.value = 0;
     savedTranslateY.value = 0;
-    setLoading(true);
+    // Don't set loading to true immediately - let handleImageLoadStart manage it
+    setLoading(false);
+    // Clear any pending timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
   }, [currentIndex]);
+
+  // Handle image load start - show spinner only if loading takes more than 200ms
+  const handleImageLoadStart = useCallback(() => {
+    // Clear any existing timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    // Show spinner only after 200ms to avoid flickering for fast loads (cached images)
+    loadingTimeoutRef.current = setTimeout(() => {
+      setLoading(true);
+    }, 200);
+  }, []);
 
   // Handle image load
   const handleImageLoad = useCallback(() => {
     console.log('📸 [MediaViewer] Image loaded successfully');
+    // Clear timeout if image loads before spinner appears
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
+    setLoading(false);
+  }, []);
+
+  // Handle image load error
+  const handleImageError = useCallback(() => {
+    console.error('❌ [MediaViewer] Image load error');
+    // Clear timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
     setLoading(false);
   }, []);
 
@@ -380,7 +415,10 @@ export const MediaViewerScreen: React.FC = () => {
               style={styles.image}
               resizeMode="contain"
               onLoad={handleImageLoad}
-              onLoadStart={() => setLoading(true)}
+              onError={handleImageError}
+              onLoadStart={handleImageLoadStart}
+              // Optimize image loading - use cache when available
+              cache="force-cache"
             />
             {loading && (
               <View style={styles.loadingContainer}>
@@ -569,7 +607,7 @@ export const MediaViewerScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.dark,
+    backgroundColor: colors.background.dark, // Noir très sombre Whispr (#0A0E27) - comme Telegram
   },
   safeArea: {
     flex: 1,
@@ -583,7 +621,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.md,
-    backgroundColor: withOpacity(colors.background.dark, 0.9),
+    backgroundColor: withOpacity(colors.background.dark, 0.95),
     borderBottomWidth: 1,
     borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
