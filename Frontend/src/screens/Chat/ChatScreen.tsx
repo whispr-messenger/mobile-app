@@ -691,8 +691,8 @@ export const ChatScreen: React.FC = () => {
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
-  // Extract all media items from conversation for navigation
-  const getAllMediaItems = useCallback((): MediaItem[] => {
+  // Extract all media items from conversation for navigation (memoized to avoid recalculation)
+  const allMediaItems = useMemo((): MediaItem[] => {
     const mediaItems: MediaItem[] = [];
     messages.forEach((message) => {
       if (message.attachments && message.attachments.length > 0) {
@@ -712,15 +712,17 @@ export const ChatScreen: React.FC = () => {
         });
       }
     });
-    console.log('💬 [ChatScreen] Extracted media items:', mediaItems.length);
+    // Log only when media count changes
+    if (mediaItems.length > 0) {
+      console.log('💬 [ChatScreen] Extracted media items:', mediaItems.length);
+    }
     return mediaItems;
   }, [messages]);
 
   // Get media index for a specific message attachment
   const getMediaIndex = useCallback((messageId: string, attachmentId: string): number => {
-    const mediaItems = getAllMediaItems();
-    return mediaItems.findIndex(m => m.messageId === messageId && m.id === attachmentId);
-  }, [getAllMediaItems]);
+    return allMediaItems.findIndex(m => m.messageId === messageId && m.id === attachmentId);
+  }, [allMediaItems]);
 
   // TEST: Add test media button handler
   const handleAddTestMedia = useCallback(async () => {
@@ -817,12 +819,12 @@ export const ChatScreen: React.FC = () => {
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
-          mediaItems={getAllMediaItems()}
+          mediaItems={allMediaItems}
           conversationId={conversationId}
         />
       );
     },
-    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults, getAllMediaItems, conversationId]
+    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults, allMediaItems, conversationId]
   );
 
   const keyExtractor = useCallback(

@@ -237,7 +237,9 @@ export const MediaViewerScreen: React.FC = () => {
 
     try {
       console.log('📤 [MediaViewer] Sharing media:', currentMedia.type, currentMedia.filename);
+      console.log('📤 [MediaViewer] Media URI:', currentMedia.uri.substring(0, 100));
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
       const isAvailable = await Sharing.isAvailableAsync();
       
       if (!isAvailable) {
@@ -246,12 +248,34 @@ export const MediaViewerScreen: React.FC = () => {
         return;
       }
 
-      await Sharing.shareAsync(currentMedia.uri);
-      console.log('✅ [MediaViewer] Share successful');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Check if URI is a remote URL (http/https) - these cannot be shared directly
+      const isRemoteUrl = currentMedia.uri.startsWith('http://') || currentMedia.uri.startsWith('https://');
+      
+      if (isRemoteUrl) {
+        console.log('⚠️ [MediaViewer] Remote URL detected, downloading first...');
+        // For remote URLs, we need to download first
+        const downloadPath = `${FileSystem.cacheDirectory}share_${Date.now()}.${currentMedia.type === 'image' ? 'jpg' : 'mp4'}`;
+        
+        try {
+          const { uri: localUri } = await FileSystem.downloadAsync(currentMedia.uri, downloadPath);
+          console.log('✅ [MediaViewer] Downloaded to:', localUri);
+          await Sharing.shareAsync(localUri);
+          console.log('✅ [MediaViewer] Share successful');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (downloadError) {
+          console.error('❌ [MediaViewer] Download error:', downloadError);
+          Alert.alert('Erreur', 'Impossible de télécharger le média pour le partager. Les URLs distantes ne peuvent pas être partagées directement.');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+      } else {
+        // Local file, can be shared directly
+        await Sharing.shareAsync(currentMedia.uri);
+        console.log('✅ [MediaViewer] Share successful');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (error) {
       console.error('❌ [MediaViewer] Share error:', error);
-      Alert.alert('Erreur', 'Impossible de partager le média');
+      Alert.alert('Erreur', 'Impossible de partager le média. Les URLs distantes (comme Unsplash) ne peuvent pas être partagées directement.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }, [currentMedia]);
@@ -265,28 +289,46 @@ export const MediaViewerScreen: React.FC = () => {
 
     try {
       console.log('⬇️ [MediaViewer] Downloading media:', currentMedia.type, currentMedia.filename);
+      console.log('⬇️ [MediaViewer] Media URI:', currentMedia.uri.substring(0, 100));
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setLoading(true);
 
       const fileUri = currentMedia.uri;
       const filename = currentMedia.filename || `media_${Date.now()}.${currentMedia.type === 'image' ? 'jpg' : 'mp4'}`;
-      const fileExtension = filename.split('.').pop() || 'jpg';
       const downloadPath = `${FileSystem.documentDirectory}${filename}`;
 
       console.log('⬇️ [MediaViewer] Download path:', downloadPath);
       
-      // Download file
-      const { uri } = await FileSystem.downloadAsync(fileUri, downloadPath);
+      // Check if URI is a remote URL
+      const isRemoteUrl = fileUri.startsWith('http://') || fileUri.startsWith('https://');
       
-      console.log('✅ [MediaViewer] Download successful:', uri);
+      if (isRemoteUrl) {
+        // Download from remote URL
+        console.log('⬇️ [MediaViewer] Downloading from remote URL...');
+        const { uri } = await FileSystem.downloadAsync(fileUri, downloadPath);
+        console.log('✅ [MediaViewer] Download successful:', uri);
+        Alert.alert('Succès', `Média téléchargé dans: ${uri}`);
+      } else {
+        // Local file - copy to documents
+        console.log('⬇️ [MediaViewer] Copying local file...');
+        await FileSystem.copyAsync({
+          from: fileUri,
+          to: downloadPath,
+        });
+        console.log('✅ [MediaViewer] Copy successful:', downloadPath);
+        Alert.alert('Succès', `Média copié dans: ${downloadPath}`);
+      }
       
-      // Save to media library (requires expo-media-library, but for now just show success)
-      Alert.alert('Succès', 'Média téléchargé avec succès');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [MediaViewer] Download error:', error);
-      Alert.alert('Erreur', 'Impossible de télécharger le média');
+      const errorMessage = error?.message || 'Erreur inconnue';
+      console.error('❌ [MediaViewer] Error details:', errorMessage);
+      Alert.alert(
+        'Erreur', 
+        `Impossible de télécharger le média.\n\n${errorMessage}\n\nNote: Les URLs distantes peuvent nécessiter une connexion internet.`
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setLoading(false);
     }
@@ -312,6 +354,7 @@ export const MediaViewerScreen: React.FC = () => {
   }, []);
 
   // Combined gesture for images - use Simultaneous for pinch/pan, Race for navigation
+  // NOTE: Zoom only works for images, not videos
   const imageGesture = Gesture.Race(
     doubleTapGesture,
     Gesture.Simultaneous(pinchGesture, panGesture),
