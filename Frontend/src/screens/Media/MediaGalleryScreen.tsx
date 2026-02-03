@@ -363,10 +363,11 @@ export const MediaGalleryScreen: React.FC = () => {
             contentContainerStyle={styles.gridContent}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
-            removeClippedSubviews={true}
+            removeClippedSubviews={false}
             maxToRenderPerBatch={10}
             windowSize={10}
             initialNumToRender={12}
+            columnWrapperStyle={NUM_COLUMNS > 1 ? { marginHorizontal: -ITEM_GAP / 2 } : undefined}
           />
         ) : (
           <View style={styles.emptyContainer}>
@@ -470,13 +471,12 @@ const styles = StyleSheet.create({
     color: colors.text.light,
   },
   gridContent: {
-    padding: spacing.base,
+    padding: ITEM_GAP / 2,
   },
   mediaItemContainer: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    marginBottom: ITEM_GAP,
-    marginRight: ITEM_GAP,
+    margin: ITEM_GAP / 2,
   },
   mediaItem: {
     width: '100%',
