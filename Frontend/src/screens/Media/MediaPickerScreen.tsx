@@ -14,14 +14,11 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { StackScreenProps } from '@react-navigation/stack';
 import * as ImagePicker from 'expo-image-picker';
-// Document picker will be implemented with native file system access
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -29,10 +26,13 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  FadeIn,
+  FadeOut,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { AuthStackParamList } from '../../navigation/AuthNavigator';
+import { colors, withOpacity } from '../../theme/colors';
+import { typography, textStyles } from '../../theme/typography';
+import { spacing, borderRadius, shadows } from '../../theme/spacing';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLUMNS = 3;
@@ -68,11 +68,11 @@ export const MediaPickerScreen: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabType>('gallery');
   const [selectedMedia, setSelectedMedia] = useState<SelectedMedia[]>([]);
-  const [galleryImages, setGalleryImages] = useState<SelectedMedia[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   const tabAnimation = useSharedValue(0);
+  const buttonScale = useSharedValue(1);
 
   // Request permissions on mount
   useEffect(() => {
@@ -99,7 +99,11 @@ export const MediaPickerScreen: React.FC = () => {
   const handleTabChange = useCallback((tab: TabType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
-    tabAnimation.value = withSpring(tab === 'gallery' ? 0 : tab === 'camera' ? 1 : 2);
+    const tabIndex = tab === 'gallery' ? 0 : tab === 'camera' ? 1 : 2;
+    tabAnimation.value = withSpring(tabIndex, {
+      damping: 15,
+      stiffness: 150,
+    });
   }, [tabAnimation]);
 
   // Handle media selection
@@ -125,6 +129,9 @@ export const MediaPickerScreen: React.FC = () => {
     try {
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      buttonScale.value = withSpring(0.95, { damping: 10 }, () => {
+        buttonScale.value = withSpring(1);
+      });
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -153,7 +160,7 @@ export const MediaPickerScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [hasPermission]);
+  }, [hasPermission, buttonScale]);
 
   // Handle camera capture
   const handleTakePhoto = useCallback(async () => {
@@ -165,6 +172,9 @@ export const MediaPickerScreen: React.FC = () => {
     try {
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      buttonScale.value = withSpring(0.95, { damping: 10 }, () => {
+        buttonScale.value = withSpring(1);
+      });
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -193,15 +203,17 @@ export const MediaPickerScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [hasPermission]);
+  }, [hasPermission, buttonScale]);
 
   // Handle document picker
   const handlePickDocument = useCallback(async () => {
     try {
       setLoading(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      buttonScale.value = withSpring(0.95, { damping: 10 }, () => {
+        buttonScale.value = withSpring(1);
+      });
 
-      // Use ImagePicker for documents (will be replaced with proper document picker)
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsMultipleSelection: true,
@@ -228,7 +240,7 @@ export const MediaPickerScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [buttonScale]);
 
   // Handle confirm selection
   const handleConfirm = useCallback(() => {
@@ -250,32 +262,49 @@ export const MediaPickerScreen: React.FC = () => {
     };
   });
 
+  // Animated button scale
+  const buttonScaleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: buttonScale.value }],
+    };
+  });
+
   const renderMediaItem = ({ item, index }: { item: SelectedMedia; index: number }) => {
     const isSelected = selectedMedia.some(m => m.uri === item.uri);
     
     return (
-      <TouchableOpacity
-        style={styles.mediaItem}
-        onPress={() => handleSelectMedia(item)}
-        activeOpacity={0.8}
+      <Animated.View
+        entering={FadeIn.delay(index * 50)}
+        exiting={FadeOut}
+        style={styles.mediaItemContainer}
       >
-        <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} />
-        {isSelected && (
-          <View style={styles.selectedOverlay}>
-            <LinearGradient
-              colors={[colors.primary.main, colors.primary.dark]}
-              style={styles.selectedBadge}
+        <TouchableOpacity
+          style={styles.mediaItem}
+          onPress={() => handleSelectMedia(item)}
+          activeOpacity={0.8}
+        >
+          <Image source={{ uri: item.uri }} style={styles.mediaThumbnail} />
+          {isSelected && (
+            <Animated.View
+              entering={FadeIn}
+              exiting={FadeOut}
+              style={styles.selectedOverlay}
             >
-              <Ionicons name="checkmark" size={20} color={colors.text.light} />
-            </LinearGradient>
-          </View>
-        )}
-        {item.type === 'video' && (
-          <View style={styles.videoBadge}>
-            <Ionicons name="play-circle" size={16} color={colors.text.light} />
-          </View>
-        )}
-      </TouchableOpacity>
+              <LinearGradient
+                colors={[colors.primary.main, colors.primary.dark]}
+                style={styles.selectedBadge}
+              >
+                <Ionicons name="checkmark" size={20} color={colors.text.light} />
+              </LinearGradient>
+            </Animated.View>
+          )}
+          {item.type === 'video' && (
+            <View style={styles.videoBadge}>
+              <Ionicons name="play-circle" size={16} color={colors.text.light} />
+            </View>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -283,23 +312,36 @@ export const MediaPickerScreen: React.FC = () => {
     if (activeTab === 'gallery') {
       return (
         <View style={styles.tabContent}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: themeColors.primary }]}
-            onPress={handlePickFromGallery}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.text.light} />
-            ) : (
-              <>
-                <Ionicons name="images-outline" size={24} color={colors.text.light} />
-                <Text style={styles.actionButtonText}>Ouvrir la galerie</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <Animated.View style={buttonScaleStyle}>
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
+              onPress={handlePickFromGallery}
+              disabled={loading}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={[colors.primary.main, colors.primary.dark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.actionButton}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.text.light} />
+                ) : (
+                  <>
+                    <Ionicons name="images-outline" size={24} color={colors.text.light} />
+                    <Text style={styles.actionButtonText}>Ouvrir la galerie</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
           
           {selectedMedia.length > 0 && (
-            <View style={styles.selectedContainer}>
+            <Animated.View
+              entering={FadeIn}
+              style={styles.selectedContainer}
+            >
               <Text style={[styles.selectedCount, { color: themeColors.text.secondary }]}>
                 {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
               </Text>
@@ -311,7 +353,7 @@ export const MediaPickerScreen: React.FC = () => {
                 contentContainerStyle={styles.mediaGrid}
                 scrollEnabled={false}
               />
-            </View>
+            </Animated.View>
           )}
         </View>
       );
@@ -320,23 +362,36 @@ export const MediaPickerScreen: React.FC = () => {
     if (activeTab === 'camera') {
       return (
         <View style={styles.tabContent}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: themeColors.primary }]}
-            onPress={handleTakePhoto}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.text.light} />
-            ) : (
-              <>
-                <Ionicons name="camera-outline" size={24} color={colors.text.light} />
-                <Text style={styles.actionButtonText}>Prendre une photo</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <Animated.View style={buttonScaleStyle}>
+            <TouchableOpacity
+              style={styles.actionButtonContainer}
+              onPress={handleTakePhoto}
+              disabled={loading}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={[colors.primary.main, colors.primary.dark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.actionButton}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.text.light} />
+                ) : (
+                  <>
+                    <Ionicons name="camera-outline" size={24} color={colors.text.light} />
+                    <Text style={styles.actionButtonText}>Prendre une photo</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
           
           {selectedMedia.length > 0 && (
-            <View style={styles.selectedContainer}>
+            <Animated.View
+              entering={FadeIn}
+              style={styles.selectedContainer}
+            >
               <Text style={[styles.selectedCount, { color: themeColors.text.secondary }]}>
                 {selectedMedia.length} média{selectedMedia.length > 1 ? 'x' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
               </Text>
@@ -348,7 +403,7 @@ export const MediaPickerScreen: React.FC = () => {
                 contentContainerStyle={styles.mediaGrid}
                 scrollEnabled={false}
               />
-            </View>
+            </Animated.View>
           )}
         </View>
       );
@@ -356,292 +411,337 @@ export const MediaPickerScreen: React.FC = () => {
 
     return (
       <View style={styles.tabContent}>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: themeColors.primary }]}
-          onPress={handlePickDocument}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.text.light} />
-          ) : (
-            <>
-              <Ionicons name="document-text-outline" size={24} color={colors.text.light} />
-              <Text style={styles.actionButtonText}>Sélectionner des documents</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <Animated.View style={buttonScaleStyle}>
+          <TouchableOpacity
+            style={styles.actionButtonContainer}
+            onPress={handlePickDocument}
+            disabled={loading}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={[colors.secondary.main, colors.secondary.medium]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.actionButton}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.text.light} />
+              ) : (
+                <>
+                  <Ionicons name="document-text-outline" size={24} color={colors.text.light} />
+                  <Text style={styles.actionButtonText}>Sélectionner des documents</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
         
         {selectedMedia.length > 0 && (
-          <View style={styles.selectedContainer}>
+          <Animated.View
+            entering={FadeIn}
+            style={styles.selectedContainer}
+          >
             <Text style={[styles.selectedCount, { color: themeColors.text.secondary }]}>
               {selectedMedia.length} document{selectedMedia.length > 1 ? 's' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
             </Text>
             <FlatList
               data={selectedMedia}
               renderItem={({ item }) => (
-                <View style={styles.documentItem}>
+                <Animated.View
+                  entering={FadeIn}
+                  style={[styles.documentItem, { backgroundColor: withOpacity(colors.background.darkCard, 0.3) }]}
+                >
                   <Ionicons name="document" size={32} color={themeColors.primary} />
                   <Text style={[styles.documentName, { color: themeColors.text.primary }]} numberOfLines={1}>
                     {item.name}
                   </Text>
-                </View>
+                </Animated.View>
               )}
               keyExtractor={(item, index) => `${item.uri}-${index}`}
             />
-          </View>
+          </Animated.View>
         )}
       </View>
     );
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: themeColors.background.primary }]}
-      edges={['top']}
+    <LinearGradient
+      colors={colors.background.gradient.app}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
     >
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: themeColors.background.primary }]}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.closeButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={28} color={themeColors.text.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
-          Sélectionner des médias
-        </Text>
-        <TouchableOpacity
-          onPress={handleConfirm}
-          style={[
-            styles.confirmButton,
-            selectedMedia.length > 0 && { opacity: 1 },
-            selectedMedia.length === 0 && { opacity: 0.5 },
-          ]}
-          disabled={selectedMedia.length === 0}
-        >
-          <Text
-            style={[
-              styles.confirmButtonText,
-              { color: selectedMedia.length > 0 ? themeColors.primary : themeColors.text.tertiary },
-            ]}
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.closeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            Valider ({selectedMedia.length})
+            <Ionicons name="close" size={28} color={themeColors.text.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            Sélectionner des médias
           </Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            onPress={handleConfirm}
+            style={styles.confirmButton}
+            disabled={selectedMedia.length === 0}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text
+              style={[
+                styles.confirmButtonText,
+                {
+                  color: selectedMedia.length > 0
+                    ? themeColors.primary
+                    : withOpacity(themeColors.text.tertiary, 0.5),
+                },
+              ]}
+            >
+              Valider ({selectedMedia.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { backgroundColor: themeColors.background.secondary }]}>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => handleTabChange('gallery')}
-        >
-          <Ionicons
-            name="images-outline"
-            size={20}
-            color={activeTab === 'gallery' ? themeColors.primary : themeColors.text.tertiary}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              {
-                color: activeTab === 'gallery' ? themeColors.primary : themeColors.text.tertiary,
-              },
-            ]}
+        {/* Tabs */}
+        <View style={[styles.tabsContainer, { backgroundColor: 'transparent' }]}>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('gallery')}
+            activeOpacity={0.7}
           >
-            Galerie
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => handleTabChange('camera')}
-        >
-          <Ionicons
-            name="camera-outline"
-            size={20}
-            color={activeTab === 'camera' ? themeColors.primary : themeColors.text.tertiary}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              {
-                color: activeTab === 'camera' ? themeColors.primary : themeColors.text.tertiary,
-              },
-            ]}
+            <Ionicons
+              name="images-outline"
+              size={20}
+              color={activeTab === 'gallery' ? themeColors.primary : withOpacity(themeColors.text.tertiary, 0.6)}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: activeTab === 'gallery'
+                    ? themeColors.primary
+                    : withOpacity(themeColors.text.tertiary, 0.6),
+                  fontWeight: activeTab === 'gallery' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
+                },
+              ]}
+            >
+              Galerie
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('camera')}
+            activeOpacity={0.7}
           >
-            Caméra
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.tab}
-          onPress={() => handleTabChange('documents')}
-        >
-          <Ionicons
-            name="document-text-outline"
-            size={20}
-            color={activeTab === 'documents' ? themeColors.primary : themeColors.text.tertiary}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              {
-                color: activeTab === 'documents' ? themeColors.primary : themeColors.text.tertiary,
-              },
-            ]}
+            <Ionicons
+              name="camera-outline"
+              size={20}
+              color={activeTab === 'camera' ? themeColors.primary : withOpacity(themeColors.text.tertiary, 0.6)}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: activeTab === 'camera'
+                    ? themeColors.primary
+                    : withOpacity(themeColors.text.tertiary, 0.6),
+                  fontWeight: activeTab === 'camera' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
+                },
+              ]}
+            >
+              Caméra
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('documents')}
+            activeOpacity={0.7}
           >
-            Documents
-          </Text>
-        </TouchableOpacity>
-        <Animated.View
-          style={[
-            styles.tabIndicator,
-            { backgroundColor: themeColors.primary },
-            tabIndicatorStyle,
-          ]}
-        />
-      </View>
+            <Ionicons
+              name="document-text-outline"
+              size={20}
+              color={activeTab === 'documents' ? themeColors.primary : withOpacity(themeColors.text.tertiary, 0.6)}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: activeTab === 'documents'
+                    ? themeColors.primary
+                    : withOpacity(themeColors.text.tertiary, 0.6),
+                  fontWeight: activeTab === 'documents' ? typography.fontWeight.semiBold : typography.fontWeight.medium,
+                },
+              ]}
+            >
+              Documents
+            </Text>
+          </TouchableOpacity>
+          <Animated.View
+            style={[
+              styles.tabIndicator,
+              { backgroundColor: themeColors.primary },
+              tabIndicatorStyle,
+            ]}
+          />
+        </View>
 
-      {/* Content */}
-      <View style={styles.content}>{renderTabContent()}</View>
-    </SafeAreaView>
+        {/* Content */}
+        <View style={styles.content}>{renderTabContent()}</View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.ui.divider,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
+    backgroundColor: 'transparent',
   },
   closeButton: {
-    padding: 4,
+    padding: spacing.xs,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...textStyles.h3,
     flex: 1,
     textAlign: 'center',
   },
   confirmButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   confirmButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...textStyles.button,
+    fontSize: typography.fontSize.base,
   },
   tabsContainer: {
     flexDirection: 'row',
     position: 'relative',
     borderBottomWidth: 1,
-    borderBottomColor: colors.ui.divider,
+    borderBottomColor: withOpacity(colors.ui.divider, 0.1),
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 6,
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
   },
   tabLabel: {
-    fontSize: 14,
-    fontWeight: '500',
+    ...textStyles.label,
+    fontSize: typography.fontSize.sm,
   },
   tabIndicator: {
     position: 'absolute',
     bottom: 0,
     width: SCREEN_WIDTH / 3,
     height: 3,
-    borderRadius: 1.5,
+    borderRadius: borderRadius.sm,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: spacing.base,
   },
   tabContent: {
     flex: 1,
+  },
+  actionButtonContainer: {
+    borderRadius: borderRadius.xl,
+    overflow: 'hidden',
+    marginBottom: spacing.xl,
+    ...shadows.md,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 12,
-    marginBottom: 24,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+    minHeight: 56,
   },
   actionButtonText: {
+    ...textStyles.button,
     color: colors.text.light,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: typography.fontSize.base,
   },
   selectedContainer: {
     flex: 1,
+    marginTop: spacing.base,
   },
   selectedCount: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 12,
+    ...textStyles.label,
+    marginBottom: spacing.md,
   },
   mediaGrid: {
-    gap: 8,
+    gap: spacing.sm,
+  },
+  mediaItemContainer: {
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
   mediaItem: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    borderRadius: 8,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    marginRight: 8,
-    marginBottom: 8,
     position: 'relative',
   },
   mediaThumbnail: {
     width: '100%',
     height: '100%',
-    backgroundColor: colors.background.secondary,
+    backgroundColor: withOpacity(colors.background.darkCard, 0.3),
   },
   selectedOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: withOpacity(colors.background.dark, 0.5),
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectedBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.sm,
   },
   videoBadge: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 12,
-    padding: 4,
+    bottom: spacing.xs,
+    right: spacing.xs,
+    backgroundColor: withOpacity(colors.background.dark, 0.7),
+    borderRadius: borderRadius.md,
+    padding: spacing.xs,
   },
   documentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: colors.background.secondary,
-    borderRadius: 8,
-    marginBottom: 8,
-    gap: 12,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
   },
   documentName: {
     flex: 1,
-    fontSize: 14,
+    ...textStyles.body,
+    fontSize: typography.fontSize.sm,
   },
 });
