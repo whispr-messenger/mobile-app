@@ -264,12 +264,11 @@ export const MediaViewerScreen: React.FC = () => {
     setShowControls(prev => !prev);
   }, []);
 
-  // Combined gesture for images
+  // Combined gesture for images - use Simultaneous for pinch/pan, Race for navigation
   const imageGesture = Gesture.Race(
     doubleTapGesture,
     Gesture.Simultaneous(pinchGesture, panGesture),
-    swipeLeftGesture,
-    swipeRightGesture
+    Gesture.Race(swipeLeftGesture, swipeRightGesture)
   );
 
   // Render image
