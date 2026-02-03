@@ -527,7 +527,7 @@ export const MediaViewerScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar hidden={Platform.OS === 'ios'} barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       <SafeAreaView style={styles.safeArea} edges={[]}>
         {/* Header */}
         {showControls && (
