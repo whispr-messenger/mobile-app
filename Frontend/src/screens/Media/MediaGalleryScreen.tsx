@@ -3,7 +3,7 @@
  * WHISPR-254: Galerie de médias dans le chat avec filtres et grille
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -104,9 +104,9 @@ export const MediaGalleryScreen: React.FC = () => {
     const count = mediaCounts[filter];
     const scale = useSharedValue(isSelected ? 1.05 : 1);
     
-    React.useEffect(() => {
+    useEffect(() => {
       scale.value = withSpring(isSelected ? 1.05 : 1, { damping: 15, stiffness: 300 });
-    }, [isSelected]);
+    }, [isSelected, scale]);
     
     const animatedStyle = useAnimatedStyle(() => {
       return {
