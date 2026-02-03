@@ -226,26 +226,37 @@ export const MediaGalleryScreen: React.FC = () => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  const params = route.params as MediaGalleryParams;
+  // Safe parameter extraction with error handling
+  let params: MediaGalleryParams | undefined;
+  try {
+    params = route.params as MediaGalleryParams;
+  } catch (error) {
+    console.error('[MediaGallery] Error reading route params:', error);
+    params = undefined;
+  }
+  
   const { mediaItems = [], conversationId } = params || {};
+
+  // Validate mediaItems
+  const validMediaItems = Array.isArray(mediaItems) ? mediaItems : [];
 
   const [selectedFilter, setSelectedFilter] = useState<MediaFilter>('all');
 
   // Filter media based on selected filter
   const filteredMedia = useMemo(() => {
-    if (selectedFilter === 'all') return mediaItems;
-    return mediaItems.filter(item => item.type === selectedFilter);
-  }, [mediaItems, selectedFilter]);
+    if (selectedFilter === 'all') return validMediaItems;
+    return validMediaItems.filter(item => item && item.type === selectedFilter);
+  }, [validMediaItems, selectedFilter]);
 
   // Count media by type
   const mediaCounts = useMemo(() => {
     return {
-      all: mediaItems.length,
-      image: mediaItems.filter(m => m.type === 'image').length,
-      video: mediaItems.filter(m => m.type === 'video').length,
-      file: mediaItems.filter(m => m.type === 'file').length,
+      all: validMediaItems.length,
+      image: validMediaItems.filter(m => m && m.type === 'image').length,
+      video: validMediaItems.filter(m => m && m.type === 'video').length,
+      file: validMediaItems.filter(m => m && m.type === 'file').length,
     };
-  }, [mediaItems]);
+  }, [validMediaItems]);
 
   // Handle filter selection
   const handleFilterSelect = useCallback((filter: MediaFilter) => {
@@ -260,15 +271,20 @@ export const MediaGalleryScreen: React.FC = () => {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Find original index in all mediaItems
-    const originalIndex = mediaItems.findIndex(m => m.id === item.id);
+    // TODO: Navigate to MediaViewer when it's implemented
+    // For now, just log the press to avoid crash
+    console.log('[MediaGallery] Media item pressed:', item.id, 'index:', index);
     
-    navigation.navigate('MediaViewer' as never, {
-      mediaItems,
-      initialIndex: originalIndex >= 0 ? originalIndex : index,
-      conversationId,
-    } as never);
-  }, [filteredMedia, mediaItems, conversationId, navigation]);
+    // Find original index in all mediaItems
+    const originalIndex = validMediaItems.findIndex(m => m && m.id === item.id);
+    
+    // Temporarily disabled - MediaViewer not in navigator yet
+    // navigation.navigate('MediaViewer' as never, {
+    //   mediaItems,
+    //   initialIndex: originalIndex >= 0 ? originalIndex : index,
+    //   conversationId,
+    // } as never);
+  }, [filteredMedia, validMediaItems, conversationId, navigation]);
 
   // Render filter button - now using component
   const renderFilterButton = (filter: MediaFilter, label: string, icon: string) => {
