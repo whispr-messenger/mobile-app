@@ -15,8 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Image } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { Image, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
@@ -305,14 +304,17 @@ export const MediaGalleryScreen: React.FC = () => {
 
         {/* Media Grid */}
         {filteredMedia.length > 0 ? (
-          <FlashList
+          <FlatList
             data={filteredMedia}
             renderItem={renderMediaItem}
             numColumns={NUM_COLUMNS}
-            estimatedItemSize={ITEM_SIZE}
             contentContainerStyle={styles.gridContent}
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+            initialNumToRender={12}
           />
         ) : (
           <View style={styles.emptyContainer}>
