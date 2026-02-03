@@ -135,6 +135,10 @@ interface MediaItemComponentProps {
 const MediaItemComponent: React.FC<MediaItemComponentProps> = ({ item, index, onPress }) => {
   const scale = useSharedValue(1);
   
+  useEffect(() => {
+    console.log('[MediaGallery] Rendering item', index, 'type:', item.type, 'uri:', item.uri?.substring(0, 50) || 'no uri');
+  }, [item, index]);
+  
   const handlePressIn = () => {
     scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
   };
@@ -146,6 +150,11 @@ const MediaItemComponent: React.FC<MediaItemComponentProps> = ({ item, index, on
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
+
+  if (!item || !item.uri) {
+    console.warn('[MediaGallery] Item missing uri:', item);
+    return null;
+  }
 
   return (
     <TouchableOpacity
@@ -307,6 +316,10 @@ export const MediaGalleryScreen: React.FC = () => {
       />
     );
   };
+
+  useEffect(() => {
+    console.log('[MediaGallery] Component mounted/updated, filteredMedia:', filteredMedia.length);
+  }, [filteredMedia]);
 
   return (
     <View style={styles.container}>
