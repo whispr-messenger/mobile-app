@@ -691,6 +691,36 @@ export const ChatScreen: React.FC = () => {
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
+  // Extract all media items from conversation for navigation
+  const getAllMediaItems = useCallback((): MediaItem[] => {
+    const mediaItems: MediaItem[] = [];
+    messages.forEach((message) => {
+      if (message.attachments && message.attachments.length > 0) {
+        message.attachments.forEach((attachment) => {
+          if (attachment.metadata?.media_url || attachment.metadata?.thumbnail_url) {
+            mediaItems.push({
+              id: attachment.id,
+              uri: attachment.metadata.media_url || attachment.metadata.thumbnail_url || '',
+              type: attachment.media_type,
+              filename: attachment.metadata.filename,
+              size: attachment.metadata.size,
+              thumbnailUri: attachment.metadata.thumbnail_url,
+              messageId: message.id,
+              mediaId: attachment.media_id,
+            });
+          }
+        });
+      }
+    });
+    return mediaItems;
+  }, [messages]);
+
+  // Get media index for a specific message attachment
+  const getMediaIndex = useCallback((messageId: string, attachmentId: string): number => {
+    const mediaItems = getAllMediaItems();
+    return mediaItems.findIndex(m => m.messageId === messageId && m.id === attachmentId);
+  }, [getAllMediaItems]);
+
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === 'group') {
       // Ensure modal is closed before navigating
@@ -736,10 +766,12 @@ export const ChatScreen: React.FC = () => {
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
+          mediaItems={getAllMediaItems()}
+          conversationId={conversationId}
         />
       );
     },
-    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults]
+    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults, getAllMediaItems, conversationId]
   );
 
   const keyExtractor = useCallback(

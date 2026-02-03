@@ -17,6 +17,7 @@ import { ReplyPreview } from './ReplyPreview';
 import { ReactionPicker } from './ReactionPicker';
 import { MediaMessage } from './MediaMessage';
 import { FormattedText } from '../../utils/textFormatter';
+import { MediaItem } from '../../types/media';
 
 interface MessageBubbleProps {
   message: MessageWithRelations;
@@ -27,6 +28,8 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   isHighlighted?: boolean;
   searchQuery?: string;
+  mediaItems?: MediaItem[]; // All media items for navigation
+  conversationId?: string;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -38,6 +41,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onLongPress,
   isHighlighted = false,
   searchQuery,
+  mediaItems,
+  conversationId,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -55,6 +60,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   // Check if message has media attachments
   const hasMedia = message.attachments && message.attachments.length > 0;
   const firstAttachment = hasMedia && message.attachments ? message.attachments[0] : null;
+  
+  // Calculate media index for navigation
+  const getMediaIndex = (): number => {
+    if (!mediaItems || !firstAttachment) return 0;
+    return mediaItems.findIndex(
+      m => m.messageId === message.id && m.id === firstAttachment.id
+    );
+  };
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -115,6 +128,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
               thumbnailUri={firstAttachment.metadata.thumbnail_url}
+              mediaItems={mediaItems}
+              initialIndex={getMediaIndex()}
+              conversationId={conversationId}
             />
           ) : null}
           {displayContent ? (
