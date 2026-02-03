@@ -722,6 +722,56 @@ export const ChatScreen: React.FC = () => {
     return mediaItems.findIndex(m => m.messageId === messageId && m.id === attachmentId);
   }, [getAllMediaItems]);
 
+  // TEST: Add test media button handler
+  const handleAddTestMedia = useCallback(async () => {
+    console.log('🧪 [ChatScreen] Adding test media message');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    const testImages = [
+      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
+      'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=800&h=600&fit=crop',
+      'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop',
+    ];
+    
+    const randomImage = testImages[Math.floor(Math.random() * testImages.length)];
+    const testMessageId = `test-media-${Date.now()}`;
+    
+    const testMessage: MessageWithRelations = {
+      id: testMessageId,
+      conversation_id: conversationId,
+      sender_id: userId,
+      message_type: 'media',
+      content: 'Photo de test',
+      metadata: {
+        media_type: 'image',
+        media_url: randomImage,
+        thumbnail_url: randomImage,
+      },
+      client_random: Math.floor(Math.random() * 1000000),
+      sent_at: new Date().toISOString(),
+      is_deleted: false,
+      delete_for_everyone: false,
+      status: 'sent',
+      attachments: [{
+        id: `att-${testMessageId}`,
+        message_id: testMessageId,
+        media_id: `media-${testMessageId}`,
+        media_type: 'image',
+        metadata: {
+          filename: 'test-photo.jpg',
+          size: 245760,
+          mime_type: 'image/jpeg',
+          media_url: randomImage,
+          thumbnail_url: randomImage,
+        },
+        created_at: new Date().toISOString(),
+      }],
+    };
+    
+    setMessages(prev => [testMessage, ...prev]);
+    console.log('✅ [ChatScreen] Test media message added:', testMessageId);
+  }, [conversationId, userId]);
+
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === 'group') {
       // Ensure modal is closed before navigating
@@ -799,6 +849,7 @@ export const ChatScreen: React.FC = () => {
           isOnline={false}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
+          onTestMediaPress={handleAddTestMedia}
         />
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar

@@ -16,6 +16,7 @@ interface ChatHeaderProps {
   conversationType: 'direct' | 'group';
   onSearchPress?: () => void;
   onInfoPress?: () => void;
+  onTestMediaPress?: () => void; // TEST: Button to add test media
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -24,6 +25,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationType,
   onSearchPress,
   onInfoPress,
+  onTestMediaPress,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -69,6 +71,19 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
+        {/* TEST: Button to add test media */}
+        {onTestMediaPress && (
+          <TouchableOpacity
+            onPress={onTestMediaPress}
+            style={styles.actionButton}
+          >
+            <Ionicons
+              name="image"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
         {onSearchPress && (
           <TouchableOpacity
             onPress={onSearchPress}

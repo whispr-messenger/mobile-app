@@ -55,13 +55,25 @@ const generateMockMessages = (conversationId: string, count: number = 50): Messa
     'Parfait, merci !',
   ];
 
-  // Sample images for media messages
+  // Sample images for media messages (more images for testing)
   const sampleImages = [
-    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=300&fit=crop',
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1465146633011-14f8e0781093?w=800&h=600&fit=crop',
+    'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=800&h=600&fit=crop',
+  ];
+
+  // Sample videos for testing
+  const sampleVideos = [
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
   ];
 
   // Add system message at the beginning (oldest)
@@ -102,19 +114,23 @@ const generateMockMessages = (conversationId: string, count: number = 50): Messa
       });
     }
 
-    // Add media message every 8 messages
-    if (i > 0 && i % 8 === 0) {
-      const imageIndex = Math.floor(i / 8) % sampleImages.length;
+    // Add media message more frequently for testing (every 5 messages, and first 3 messages are media)
+    const isMediaMessage = i < 3 || (i > 0 && i % 5 === 0);
+    
+    if (isMediaMessage) {
+      const isVideo = i % 10 === 0 && i > 0; // Every 10th media is a video
+      const mediaIndex = Math.floor(i / 5) % (isVideo ? sampleVideos.length : sampleImages.length);
+      
       messages.push({
         id: messageId,
         conversation_id: conversationId,
         sender_id: senderId,
         message_type: 'media' as const,
-        content: 'Photo',
+        content: isVideo ? 'Vidéo' : 'Photo',
         metadata: {
-          media_type: 'image',
-          media_url: sampleImages[imageIndex],
-          thumbnail_url: sampleImages[imageIndex],
+          media_type: isVideo ? 'video' : 'image',
+          media_url: isVideo ? sampleVideos[mediaIndex] : sampleImages[mediaIndex],
+          thumbnail_url: isVideo ? sampleImages[mediaIndex % sampleImages.length] : sampleImages[mediaIndex],
         },
         client_random: 10000 + i,
         sent_at: sentAt.toISOString(),
@@ -128,15 +144,21 @@ const generateMockMessages = (conversationId: string, count: number = 50): Messa
         id: attachmentId,
         message_id: messageId,
         media_id: `media-${messageId}`,
-        media_type: 'image' as const,
+        media_type: (isVideo ? 'video' : 'image') as const,
         metadata: {
-          filename: `photo-${i}.jpg`,
-          size: 245760, // ~240 KB
-          mime_type: 'image/jpeg',
-          media_url: sampleImages[imageIndex],
-          thumbnail_url: sampleImages[imageIndex],
+          filename: isVideo ? `video-${i}.mp4` : `photo-${i}.jpg`,
+          size: isVideo ? 5242880 : 245760, // ~5MB for video, ~240 KB for image
+          mime_type: isVideo ? 'video/mp4' : 'image/jpeg',
+          media_url: isVideo ? sampleVideos[mediaIndex] : sampleImages[mediaIndex],
+          thumbnail_url: isVideo ? sampleImages[mediaIndex % sampleImages.length] : sampleImages[mediaIndex],
         },
         created_at: sentAt.toISOString(),
+      });
+      
+      console.log('📸 [MockAPI] Added media message:', {
+        messageId,
+        type: isVideo ? 'video' : 'image',
+        url: isVideo ? sampleVideos[mediaIndex] : sampleImages[mediaIndex],
       });
     } else {
       // Regular text message
