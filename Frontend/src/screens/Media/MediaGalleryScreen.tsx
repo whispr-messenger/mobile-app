@@ -230,6 +230,7 @@ export const MediaGalleryScreen: React.FC = () => {
   let params: MediaGalleryParams | undefined;
   try {
     params = route.params as MediaGalleryParams;
+    console.log('[MediaGallery] Route params received:', params ? 'yes' : 'no', 'mediaItems count:', params?.mediaItems?.length || 0);
   } catch (error) {
     console.error('[MediaGallery] Error reading route params:', error);
     params = undefined;
@@ -239,6 +240,7 @@ export const MediaGalleryScreen: React.FC = () => {
 
   // Validate mediaItems
   const validMediaItems = Array.isArray(mediaItems) ? mediaItems : [];
+  console.log('[MediaGallery] Valid media items:', validMediaItems.length);
 
   const [selectedFilter, setSelectedFilter] = useState<MediaFilter>('all');
 

@@ -780,13 +780,23 @@ export const ChatScreen: React.FC = () => {
 
   // Handle gallery press - navigate to MediaGalleryScreen
   const handleGalleryPress = useCallback(() => {
-    if (allMediaItems.length === 0) return;
+    console.log('[ChatScreen] handleGalleryPress called, allMediaItems.length:', allMediaItems.length);
+    if (allMediaItems.length === 0) {
+      console.log('[ChatScreen] No media items, returning early');
+      return;
+    }
     
+    console.log('[ChatScreen] Navigating to MediaGallery with', allMediaItems.length, 'items');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate('MediaGallery' as never, {
-      mediaItems: allMediaItems,
-      conversationId,
-    } as never);
+    try {
+      navigation.navigate('MediaGallery' as never, {
+        mediaItems: allMediaItems,
+        conversationId,
+      } as never);
+      console.log('[ChatScreen] Navigation successful');
+    } catch (error) {
+      console.error('[ChatScreen] Navigation error:', error);
+    }
   }, [allMediaItems, conversationId, navigation]);
 
   return (
