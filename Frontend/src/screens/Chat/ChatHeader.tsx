@@ -16,6 +16,8 @@ interface ChatHeaderProps {
   conversationType: 'direct' | 'group';
   onSearchPress?: () => void;
   onInfoPress?: () => void;
+  onGalleryPress?: () => void;
+  mediaCount?: number;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -24,6 +26,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationType,
   onSearchPress,
   onInfoPress,
+  onGalleryPress,
+  mediaCount = 0,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -69,10 +73,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
+        {onGalleryPress && mediaCount > 0 && (
+          <TouchableOpacity
+            onPress={onGalleryPress}
+            style={styles.actionButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name="images"
+              size={22}
+              color={themeColors.text.primary}
+            />
+            {mediaCount > 0 && (
+              <View style={styles.mediaBadge}>
+                <Text style={styles.mediaBadgeText}>{mediaCount > 99 ? '99+' : mediaCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
         {onSearchPress && (
           <TouchableOpacity
             onPress={onSearchPress}
             style={styles.actionButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons
               name="search"
@@ -88,6 +111,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             onInfoPress?.();
           }}
           style={styles.actionButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons
             name="information-circle-outline"
@@ -132,6 +156,26 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
     marginLeft: 4,
+    position: 'relative',
+  },
+  mediaBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: colors.primary.main,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: colors.background.dark,
+  },
+  mediaBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.text.light,
   },
 });
 

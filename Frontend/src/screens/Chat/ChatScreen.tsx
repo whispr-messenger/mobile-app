@@ -30,6 +30,7 @@ import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors, withOpacity } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '../../utils/logger';
+import { MediaItem } from '../../types/media';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 
@@ -766,6 +767,8 @@ export const ChatScreen: React.FC = () => {
           isOnline={false}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
+          onGalleryPress={handleGalleryPress}
+          mediaCount={allMediaItems.length}
         />
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar
