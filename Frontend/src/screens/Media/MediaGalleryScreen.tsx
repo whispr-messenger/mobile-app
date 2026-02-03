@@ -12,6 +12,7 @@ import {
   Dimensions,
   StatusBar,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -134,9 +135,13 @@ interface MediaItemComponentProps {
 
 const MediaItemComponent: React.FC<MediaItemComponentProps> = ({ item, index, onPress }) => {
   const scale = useSharedValue(1);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
   
   useEffect(() => {
     console.log('[MediaGallery] Rendering item', index, 'type:', item.type, 'uri:', item.uri?.substring(0, 50) || 'no uri');
+    setImageLoading(true);
+    setImageError(false);
   }, [item, index]);
   
   const handlePressIn = () => {
@@ -170,16 +175,34 @@ const MediaItemComponent: React.FC<MediaItemComponentProps> = ({ item, index, on
       >
         {item.type === 'image' && (
           <>
+            {imageLoading && !imageError && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.primary.main} />
+              </View>
+            )}
+            {imageError && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="image-outline" size={32} color={withOpacity(colors.text.light, 0.5)} />
+                <Text style={styles.errorText}>Erreur</Text>
+              </View>
+            )}
             <Image
               source={{ uri: item.thumbnailUri || item.uri }}
-              style={styles.mediaThumbnail}
+              style={[styles.mediaThumbnail, imageError && { opacity: 0 }]}
               resizeMode="cover"
-              cache="force-cache"
               onError={(error) => {
-                console.error('[MediaGallery] Image load error for item', index, ':', error.nativeEvent?.error || 'unknown error');
+                console.error('[MediaGallery] Image load error for item', index, ':', error.nativeEvent?.error || 'unknown error', 'uri:', item.uri?.substring(0, 50));
+                setImageError(true);
+                setImageLoading(false);
               }}
               onLoad={() => {
                 console.log('[MediaGallery] Image loaded successfully for item', index);
+                setImageLoading(false);
+                setImageError(false);
+              }}
+              onLoadStart={() => {
+                console.log('[MediaGallery] Image load started for item', index);
+                setImageLoading(true);
               }}
             />
             <View style={styles.imageOverlay} />
