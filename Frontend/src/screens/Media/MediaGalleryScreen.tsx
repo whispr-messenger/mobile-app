@@ -610,4 +610,23 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
   },
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: withOpacity(colors.background.darkCard, 0.5),
+    zIndex: 1,
+  },
+  errorContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: withOpacity(colors.background.darkCard, 0.8),
+    zIndex: 1,
+  },
+  errorText: {
+    fontSize: typography.fontSize.xs,
+    color: withOpacity(colors.text.light, 0.5),
+    marginTop: spacing.xs,
+  },
 });
