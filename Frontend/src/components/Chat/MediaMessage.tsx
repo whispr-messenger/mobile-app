@@ -426,13 +426,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: withOpacity(colors.text.light, 0.3),
   },
-  videoLabel: {
-    marginTop: 8,
-    color: colors.text.light,
-    fontSize: 14,
-    fontWeight: '600',
-    zIndex: 1,
-  },
   videoPlayerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
