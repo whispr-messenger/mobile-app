@@ -3,13 +3,23 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { View, Image, TouchableOpacity, StyleSheet, Text, Modal, ActivityIndicator } from 'react-native';
+import { View, Image, TouchableOpacity, StyleSheet, Text, Modal, ActivityIndicator, Linking, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ResizeMode } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+
+// Import expo-av avec gestion d'erreur
+let Video: any = null;
+let ResizeMode: any = null;
+try {
+  const expoAv = require('expo-av');
+  Video = expoAv.Video;
+  ResizeMode = expoAv.ResizeMode;
+} catch (error) {
+  console.warn('[MediaMessage] expo-av not available, using fallback:', error);
+}
 
 interface MediaMessageProps {
   uri: string;
@@ -30,7 +40,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const themeColors = getThemeColors();
   const [showFullImage, setShowFullImage] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-  const videoRef = useRef<Video>(null);
+  const videoRef = useRef<any>(null);
   const [videoStatus, setVideoStatus] = useState<any>({});
 
   if (type === 'image') {
@@ -110,16 +120,38 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   }
 
   // Video with thumbnail and player
-  const handleVideoPress = () => {
+  const handleVideoPress = async () => {
     console.log('[MediaMessage] Video pressed, opening player');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    if (!Video) {
+      // Fallback: ouvrir dans le lecteur natif
+      console.log('[MediaMessage] expo-av not available, opening with Linking');
+      try {
+        const supported = await Linking.canOpenURL(uri);
+        if (supported) {
+          await Linking.openURL(uri);
+        } else {
+          Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+        }
+      } catch (error) {
+        console.error('[MediaMessage] Error opening video:', error);
+        Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+      }
+      return;
+    }
+    
     setShowVideoPlayer(true);
   };
 
   const handleCloseVideo = () => {
     console.log('[MediaMessage] Closing video player');
-    if (videoRef.current) {
-      videoRef.current.pauseAsync();
+    if (videoRef.current && Video) {
+      try {
+        videoRef.current.pauseAsync();
+      } catch (error) {
+        console.error('[MediaMessage] Error pausing video:', error);
+      }
     }
     setShowVideoPlayer(false);
   };
@@ -186,27 +218,60 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           </TouchableOpacity>
           
           <View style={styles.videoPlayerContainer}>
-            {videoStatus.isLoaded ? null : (
-              <ActivityIndicator size="large" color={colors.primary.main} style={styles.videoLoading} />
+            {Video ? (
+              <>
+                {videoStatus.isLoaded ? null : (
+                  <ActivityIndicator size="large" color={colors.primary.main} style={styles.videoLoading} />
+                )}
+                <Video
+                  ref={videoRef}
+                  source={{ uri }}
+                  style={styles.videoPlayer}
+                  useNativeControls={true}
+                  resizeMode={ResizeMode?.CONTAIN || 'contain'}
+                  isLooping={false}
+                  shouldPlay={false}
+                  onPlaybackStatusUpdate={(status: any) => {
+                    setVideoStatus(status || {});
+                    if (status) {
+                      console.log('[MediaMessage] Video status:', status.isLoaded, status.isPlaying);
+                    }
+                  }}
+                  onError={(error: any) => {
+                    console.error('[MediaMessage] Video error:', error);
+                    Alert.alert('Erreur', 'Impossible de lire la vidéo.');
+                  }}
+                />
+              </>
+            ) : (
+              <View style={styles.videoFallback}>
+                <Ionicons name="videocam" size={64} color={colors.primary.main} />
+                <Text style={styles.videoFallbackText}>
+                  Lecteur vidéo non disponible
+                </Text>
+                <TouchableOpacity
+                  style={styles.videoFallbackButton}
+                  onPress={async () => {
+                    try {
+                      const supported = await Linking.canOpenURL(uri);
+                      if (supported) {
+                        await Linking.openURL(uri);
+                        setShowVideoPlayer(false);
+                      } else {
+                        Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+                      }
+                    } catch (error) {
+                      console.error('[MediaMessage] Error:', error);
+                      Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+                    }
+                  }}
+                >
+                  <Text style={styles.videoFallbackButtonText}>
+                    Ouvrir dans le lecteur natif
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
-            <Video
-              ref={videoRef}
-              source={{ uri }}
-              style={styles.videoPlayer}
-              useNativeControls={true}
-              resizeMode={ResizeMode.CONTAIN}
-              isLooping={false}
-              shouldPlay={false}
-              onPlaybackStatusUpdate={(status: any) => {
-                setVideoStatus(status || {});
-                if (status) {
-                  console.log('[MediaMessage] Video status:', status.isLoaded, status.isPlaying);
-                }
-              }}
-              onError={(error: any) => {
-                console.error('[MediaMessage] Video error:', error);
-              }}
-            />
           </View>
         </View>
       </Modal>
@@ -342,6 +407,30 @@ const styles = StyleSheet.create({
   videoLoading: {
     position: 'absolute',
     zIndex: 5,
+  },
+  videoFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  videoFallbackText: {
+    marginTop: 16,
+    color: colors.text.light,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  videoFallbackButton: {
+    marginTop: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.primary.main,
+  },
+  videoFallbackButtonText: {
+    color: colors.text.light,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 
