@@ -368,7 +368,15 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       <StatusBar barStyle="light-content" />
       <Animated.View style={[styles.modalOverlay, modalAnimatedStyle]}>
         <LinearGradient
-          colors={colors.background.gradient.app}
+          colors={[
+            '#2D1B4E', // Violet foncé indigo
+            '#4A2C6B', // Violet moyen
+            '#6B3D8F', // Violet vibrant
+            '#8B5AA8', // Violet clair
+            '#B87BC4'  // Violet rose/magenta clair
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         >
           <SafeAreaView style={styles.safeArea} edges={['top']}>
