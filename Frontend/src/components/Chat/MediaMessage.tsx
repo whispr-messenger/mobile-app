@@ -179,6 +179,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     setShowVideoPlayer(false);
   };
 
+  // Video thumbnail ref for chat preview
+  const thumbnailVideoRef = useRef<any>(null);
+
   return (
     <>
       <TouchableOpacity
@@ -186,10 +189,30 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         activeOpacity={0.9}
         style={styles.videoContainer}
       >
-        {/* Thumbnail background if available */}
-        {thumbnailUri || uri ? (
+        {/* Video preview - shows first frame */}
+        {Video ? (
+          <Video
+            ref={thumbnailVideoRef}
+            source={{ uri }}
+            style={styles.videoThumbnail}
+            resizeMode={ResizeMode?.COVER || 'cover'}
+            shouldPlay={false}
+            useNativeControls={false}
+            isMuted={true}
+            isLooping={false}
+            onError={(error: any) => {
+              console.error('[MediaMessage] Video thumbnail error:', error);
+            }}
+            onLoadStart={() => {
+              console.log('[MediaMessage] Video thumbnail loading');
+            }}
+            onLoad={(status: any) => {
+              console.log('[MediaMessage] Video thumbnail loaded:', status?.isLoaded);
+            }}
+          />
+        ) : thumbnailUri ? (
           <Image
-            source={{ uri: thumbnailUri || uri }}
+            source={{ uri: thumbnailUri }}
             style={styles.videoThumbnail}
             resizeMode="cover"
             onError={(error) => {
