@@ -369,11 +369,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       <Animated.View style={[styles.modalOverlay, modalAnimatedStyle]}>
         <LinearGradient
           colors={[
+            '#1A0F2E', // Violet très foncé indigo
             '#2D1B4E', // Violet foncé indigo
+            '#3C2558', // Violet moyen foncé
             '#4A2C6B', // Violet moyen
-            '#6B3D8F', // Violet vibrant
-            '#8B5AA8', // Violet clair
-            '#B87BC4'  // Violet rose/magenta clair
+            '#5A3575'  // Violet foncé
           ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
