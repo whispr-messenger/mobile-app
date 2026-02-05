@@ -237,17 +237,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       )}
       <View style={styles.inputContainer}>
         {!editingMessage && (
-          <TouchableOpacity
-            onPress={handlePickImage}
-            style={styles.attachButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="image-outline"
-              size={24}
-              color={themeColors.text.secondary}
-            />
-          </TouchableOpacity>
+          <View style={styles.attachButtons}>
+            <TouchableOpacity
+              onPress={handleOpenCamera}
+              style={styles.attachButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="camera-outline"
+                size={24}
+                color={themeColors.text.secondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePickImage}
+              style={styles.attachButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="image-outline"
+                size={24}
+                color={themeColors.text.secondary}
+              />
+            </TouchableOpacity>
+          </View>
         )}
         <View style={styles.inputWrapper}>
           <TextInput
@@ -361,8 +374,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'flex-end',
   },
-  attachButton: {
+  attachButtons: {
+    flexDirection: 'row',
     marginRight: 8,
+    gap: 4,
+  },
+  attachButton: {
     padding: 8,
     justifyContent: 'center',
     alignItems: 'center',
