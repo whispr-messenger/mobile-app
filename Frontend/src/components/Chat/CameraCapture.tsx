@@ -114,7 +114,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.9,
         cameraType: cameraType === 'front' ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
@@ -175,7 +175,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaType.Videos,
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: false,
         quality: 0.9,
         cameraType: cameraType === 'front' ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
@@ -305,26 +305,19 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
           >
             <View style={styles.modalContent}>
-            {/* Header with gradient */}
-            <LinearGradient
-              colors={[withOpacity(colors.primary.main, 0.2), 'transparent']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.headerGradient}
-            >
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>
-                  {capturedMedia ? 'Prévisualisation' : 'Caméra'}
-                </Text>
-                <TouchableOpacity 
-                  onPress={handleCancel} 
-                  style={styles.closeButton}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={24} color={colors.text.light} />
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
+                {capturedMedia ? 'Prévisualisation' : 'Caméra'}
+              </Text>
+              <TouchableOpacity 
+                onPress={handleCancel} 
+                style={styles.closeButton}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color={colors.text.light} />
+              </TouchableOpacity>
+            </View>
 
             <ScrollView
               style={styles.scrollView}
@@ -346,15 +339,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                       />
                     </View>
                   ) : (
-                    <LinearGradient
-                      colors={[withOpacity(colors.secondary.main, 0.3), withOpacity(colors.primary.main, 0.2)]}
-                      style={styles.previewVideo}
-                    >
+                    <View style={styles.previewVideo}>
                       <Ionicons name="videocam" size={64} color={colors.primary.main} />
                       <Text style={styles.videoLabel}>
                         Vidéo capturée
                       </Text>
-                    </LinearGradient>
+                    </View>
                   )}
 
                   {/* Caption input */}
@@ -390,23 +380,16 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                         Reprendre
                       </Text>
                     </TouchableOpacity>
-                    <LinearGradient
-                      colors={[colors.primary.main, colors.primary.dark]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.sendButtonGradient}
+                    <TouchableOpacity
+                      style={styles.sendButton}
+                      onPress={handleConfirm}
+                      activeOpacity={0.8}
                     >
-                      <TouchableOpacity
-                        style={styles.sendButton}
-                        onPress={handleConfirm}
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="send" size={20} color={colors.text.light} />
-                        <Text style={styles.sendButtonText}>
-                          Envoyer
-                        </Text>
-                      </TouchableOpacity>
-                    </LinearGradient>
+                      <Ionicons name="send" size={20} color={colors.text.light} />
+                      <Text style={styles.sendButtonText}>
+                        Envoyer
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               ) : (
@@ -417,16 +400,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                     onPress={handleToggleCamera}
                     activeOpacity={0.7}
                   >
-                    <LinearGradient
-                      colors={[withOpacity(colors.primary.main, 0.3), withOpacity(colors.secondary.main, 0.3)]}
-                      style={styles.toggleButtonGradient}
-                    >
-                      <Ionicons
-                        name="camera-reverse"
-                        size={24}
-                        color={colors.text.light}
-                      />
-                    </LinearGradient>
+                    <Ionicons
+                      name="camera-reverse"
+                      size={24}
+                      color={colors.primary.main}
+                    />
                   </TouchableOpacity>
 
                   {/* Capture buttons */}
@@ -436,15 +414,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                       onPress={handleTakePhoto}
                       activeOpacity={0.8}
                     >
-                      <LinearGradient
-                        colors={[withOpacity(colors.primary.main, 0.2), withOpacity(colors.primary.dark, 0.1)]}
-                        style={styles.captureButtonGradient}
-                      >
+                      <View style={[styles.captureButtonContent, { backgroundColor: withOpacity(colors.primary.main, 0.15) }]}>
                         <Ionicons name="camera" size={40} color={colors.primary.main} />
                         <Text style={styles.captureButtonText}>
                           Photo
                         </Text>
-                      </LinearGradient>
+                      </View>
                     </TouchableOpacity>
 
                     {allowVideo && (
@@ -453,15 +428,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                         onPress={handleTakeVideo}
                         activeOpacity={0.8}
                       >
-                        <LinearGradient
-                          colors={[withOpacity(colors.secondary.main, 0.2), withOpacity(colors.secondary.dark, 0.1)]}
-                          style={styles.captureButtonGradient}
-                        >
+                        <View style={[styles.captureButtonContent, { backgroundColor: withOpacity(colors.secondary.main, 0.15) }]}>
                           <Ionicons name="videocam" size={40} color={colors.secondary.main} />
                           <Text style={styles.captureButtonText}>
                             Vidéo
                           </Text>
-                        </LinearGradient>
+                        </View>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -492,11 +464,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: borderRadius.large,
     backgroundColor: withOpacity(colors.background.darkCard, 0.95),
     ...shadows.large,
-  },
-  headerGradient: {
-    borderTopLeftRadius: borderRadius.large,
-    borderTopRightRadius: borderRadius.large,
-    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -533,12 +500,9 @@ const styles = StyleSheet.create({
   toggleCameraButton: {
     alignSelf: 'flex-end',
     marginBottom: spacing.base * 2,
-  },
-  toggleButtonGradient: {
     padding: spacing.base,
     borderRadius: borderRadius.medium,
-    borderWidth: 1,
-    borderColor: withOpacity(colors.primary.main, 0.3),
+    backgroundColor: withOpacity(colors.background.dark, 0.3),
   },
   captureButtons: {
     flexDirection: 'row',
@@ -549,14 +513,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: borderRadius.medium,
     overflow: 'hidden',
-    ...shadows.medium,
   },
-  captureButtonGradient: {
+  captureButtonContent: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.base * 2,
     gap: spacing.small,
     minHeight: 120,
+    borderRadius: borderRadius.medium,
   },
   captureButtonText: {
     ...typography.body,
@@ -585,7 +549,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.medium,
     justifyContent: 'center',
     alignItems: 'center',
-    ...shadows.medium,
+    backgroundColor: withOpacity(colors.background.dark, 0.5),
   },
   videoLabel: {
     ...typography.body,
@@ -629,26 +593,21 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.medium,
     gap: spacing.small,
     backgroundColor: withOpacity(colors.ui.divider, 0.2),
-    borderWidth: 1,
-    borderColor: withOpacity(colors.ui.divider, 0.3),
   },
   retakeButtonText: {
     ...typography.body,
     fontWeight: '600',
     color: colors.text.light,
   },
-  sendButtonGradient: {
-    flex: 1,
-    borderRadius: borderRadius.medium,
-    overflow: 'hidden',
-    ...shadows.medium,
-  },
   sendButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.base,
+    borderRadius: borderRadius.medium,
     gap: spacing.small,
+    backgroundColor: colors.primary.main,
   },
   sendButtonText: {
     ...typography.body,
