@@ -389,15 +389,17 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+    zIndex: 0,
   },
-  videoGradientOverlay: {
+  videoOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    zIndex: 1,
   },
   videoIconWrapper: {
-    marginBottom: 8,
-    zIndex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
   },
   videoPlayButton: {
     width: 64,
