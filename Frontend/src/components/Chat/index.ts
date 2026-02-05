@@ -17,6 +17,8 @@ export { PinnedMessagesBar } from './PinnedMessagesBar';
 export { EmptyChatState } from './EmptyChatState';
 export { MessageActionsMenu } from './MessageActionsMenu';
 export { NewConversationModal } from './NewConversationModal';
+export { MediaSelector } from './MediaSelector';
+export type { SelectedMedia } from './MediaSelector';
 
 
 

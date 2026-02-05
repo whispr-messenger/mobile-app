@@ -13,6 +13,7 @@ import { colors } from '../../theme/colors';
 import { Message } from '../../types/messaging';
 import { ReplyPreview } from './ReplyPreview';
 import { Avatar } from './Avatar';
+import { MediaSelector, SelectedMedia } from './MediaSelector';
 
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
@@ -43,6 +44,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [showMediaSelector, setShowMediaSelector] = useState(false);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { getThemeColors } = useTheme();
@@ -145,61 +147,35 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [text, onSend, replyingTo, onCancelReply, onCancelEdit, members]);
 
-  const handlePickImage = useCallback(async () => {
-    console.log('[MessageInput] Starting image picker');
-    try {
-      // Request permissions
-      console.log('[MessageInput] Requesting media library permissions');
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log('[MessageInput] Permission status:', status);
+  // Open media selector modal
+  const handleOpenMediaSelector = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowMediaSelector(true);
+  }, []);
+
+  // Handle media selection from MediaSelector
+  const handleMediaSelected = useCallback(
+    (mediaList: SelectedMedia[]) => {
+      console.log('[MessageInput] Media selected:', mediaList.length, 'items');
       
-      if (status !== 'granted') {
-        console.log('[MessageInput] Permission denied');
-        Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
-        return;
-      }
-
-      // Launch image picker
-      console.log('[MessageInput] Launching image picker');
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+      // Send each media item
+      mediaList.forEach((media) => {
+        onSendMedia?.(media.uri, media.type, replyingTo?.id);
       });
 
-      console.log('[MessageInput] Image picker result:', {
-        canceled: result.canceled,
-        assetsCount: result.assets?.length || 0,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        console.log('[MessageInput] Image selected:', {
-          uri: asset.uri?.substring(0, 50) + '...',
-          width: asset.width,
-          height: asset.height,
-          type: asset.type,
-        });
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        onSendMedia?.(asset.uri, 'image', replyingTo?.id);
+      if (replyingTo) {
         onCancelReply?.();
-      } else {
-        console.log('[MessageInput] Image picker canceled or no assets');
       }
-    } catch (error: any) {
-      console.error('[MessageInput] Error picking image:', {
-        message: error?.message,
-        code: error?.code,
-        stack: error?.stack?.substring(0, 200),
-        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-      });
-      Alert.alert(
-        'Erreur', 
-        `Impossible de sélectionner une image.${error?.message ? `\n\n${error.message}` : ''}`
-      );
-    }
-  }, [onSendMedia, replyingTo, onCancelReply]);
+    },
+    [onSendMedia, replyingTo, onCancelReply]
+  );
+
+  // Legacy handler for backward compatibility (single image)
+  const handlePickImage = useCallback(async () => {
+    // For now, open the new media selector
+    // This maintains backward compatibility while transitioning
+    handleOpenMediaSelector();
+  }, [handleOpenMediaSelector]);
 
   return (
     <View
