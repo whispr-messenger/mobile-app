@@ -382,7 +382,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                 <LinearGradient
                   colors={[
                     withOpacity(colors.primary.main, 0.3),
-                    withOpacity(colors.secondary.main, 0.2),
+                    withOpacity(colors.palette.violet, 0.25),
+                    withOpacity(colors.palette.beige, 0.15),
                     'transparent'
                   ]}
                   start={{ x: 0, y: 0 }}
@@ -445,15 +446,15 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                       ) : (
                         <LinearGradient
                           colors={[
-                            withOpacity(colors.secondary.main, 0.4),
-                            withOpacity(colors.primary.main, 0.3),
-                            withOpacity(colors.secondary.dark, 0.2)
+                            withOpacity(colors.palette.violet, 0.4),
+                            withOpacity(colors.primary.main, 0.35),
+                            withOpacity(colors.palette.darkViolet, 0.25)
                           ]}
                           style={styles.previewVideo}
                         >
                           <View style={styles.videoIconContainer}>
                             <LinearGradient
-                              colors={[colors.primary.main, colors.secondary.main]}
+                              colors={[colors.primary.main, colors.palette.violet]}
                               style={styles.videoIconGradient}
                             >
                               <Ionicons name="videocam" size={48} color={colors.text.light} />
@@ -525,7 +526,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                           activeOpacity={0.9}
                         >
                           <LinearGradient
-                            colors={[colors.primary.main, colors.primary.dark, colors.secondary.main]}
+                            colors={[colors.primary.main, colors.primary.dark, colors.palette.violet]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.sendButtonGradient}
@@ -550,7 +551,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                           <LinearGradient
                             colors={[
                               withOpacity(colors.primary.main, 0.4),
-                              withOpacity(colors.secondary.main, 0.3)
+                              withOpacity(colors.palette.violet, 0.35),
+                              withOpacity(colors.palette.beige, 0.2)
                             ]}
                             style={styles.toggleButtonGradient}
                           >
@@ -605,9 +607,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                             >
                               <LinearGradient
                                 colors={[
-                                  withOpacity(colors.secondary.main, 0.25),
-                                  withOpacity(colors.secondary.dark, 0.15),
-                                  withOpacity(colors.secondary.main, 0.1)
+                                  withOpacity(colors.palette.violet, 0.3),
+                                  withOpacity(colors.palette.darkViolet, 0.2),
+                                  withOpacity(colors.palette.beige, 0.15)
                                 ]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
@@ -615,7 +617,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                               >
                                 <View style={styles.captureIconContainer}>
                                   <LinearGradient
-                                    colors={[colors.secondary.main, colors.secondary.medium]}
+                                    colors={[colors.palette.violet, colors.palette.darkViolet]}
                                     style={styles.captureIconGradient}
                                   >
                                     <Ionicons name="videocam" size={36} color={colors.text.light} />
