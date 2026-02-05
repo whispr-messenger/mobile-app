@@ -193,14 +193,17 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               ref={videoRef}
               source={{ uri }}
               style={styles.videoPlayer}
-              useNativeControls
+              useNativeControls={true}
               resizeMode={ResizeMode.CONTAIN}
               isLooping={false}
-              onPlaybackStatusUpdate={(status) => {
-                setVideoStatus(status);
-                console.log('[MediaMessage] Video status:', status.isLoaded, status.isPlaying);
+              shouldPlay={false}
+              onPlaybackStatusUpdate={(status: any) => {
+                setVideoStatus(status || {});
+                if (status) {
+                  console.log('[MediaMessage] Video status:', status.isLoaded, status.isPlaying);
+                }
               }}
-              onError={(error) => {
+              onError={(error: any) => {
                 console.error('[MediaMessage] Video error:', error);
               }}
             />
