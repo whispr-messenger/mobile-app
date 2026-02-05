@@ -17,6 +17,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   StatusBar,
+  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -59,10 +60,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       console.log('[CameraCapture] Modal opened');
       console.log('[CameraCapture] Camera type:', cameraType);
       console.log('[CameraCapture] Allow video:', allowVideo);
+      console.log('[CameraCapture] Captured media:', capturedMedia ? capturedMedia.type : 'none');
+      console.log('[CameraCapture] Caption:', caption);
     } else {
       console.log('[CameraCapture] Modal closed');
     }
-  }, [visible, cameraType, allowVideo]);
+  }, [visible, cameraType, allowVideo, capturedMedia, caption]);
 
   // Request camera permissions
   const requestCameraPermissions = useCallback(async () => {
@@ -295,12 +298,13 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         colors={colors.background.gradient.app}
         style={styles.modalOverlay}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardView}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          <View style={styles.modalContent}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <View style={styles.modalContent}>
             {/* Header with gradient */}
             <LinearGradient
               colors={[withOpacity(colors.primary.main, 0.2), 'transparent']}
@@ -326,6 +330,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
               {/* Preview or Camera Controls */}
               {capturedMedia ? (
@@ -463,8 +468,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                 </View>
               )}
             </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+            </View>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </LinearGradient>
     </Modal>
   );
@@ -473,16 +479,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+  },
+  safeArea: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
-    justifyContent: 'flex-end',
   },
   modalContent: {
+    flex: 1,
     borderTopLeftRadius: borderRadius.large,
     borderTopRightRadius: borderRadius.large,
-    maxHeight: '90%',
     backgroundColor: withOpacity(colors.background.darkCard, 0.95),
     ...shadows.large,
   },
@@ -515,7 +522,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.base,
+    flexGrow: 1,
+    paddingBottom: spacing.base * 2,
   },
   cameraControls: {
     padding: spacing.base * 2,
