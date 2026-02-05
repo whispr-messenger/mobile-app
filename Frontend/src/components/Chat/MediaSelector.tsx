@@ -23,6 +23,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { spacing, borderRadius, shadows } from '../../theme/spacing';
+import { compressImage } from '../../utils/imageCompression';
 
 export interface SelectedMedia {
   uri: string;
@@ -80,19 +81,41 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newMedia: SelectedMedia[] = result.assets.map((asset) => ({
-          uri: asset.uri,
-          type: asset.type === 'video' ? 'video' : 'image',
-          filename: asset.fileName || `media_${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`,
-          size: asset.fileSize || 0,
-          mimeType: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
-        }));
+        // Process each asset (compress images)
+        const processedMedia: SelectedMedia[] = await Promise.all(
+          result.assets.map(async (asset) => {
+            let finalUri = asset.uri;
+            
+            // Compress images (not videos)
+            if (asset.type === 'image') {
+              try {
+                finalUri = await compressImage(asset.uri, {
+                  maxWidth: 1920,
+                  maxHeight: 1920,
+                  quality: 0.8,
+                });
+                console.log('[MediaSelector] Image compressed:', asset.uri.substring(0, 50), '->', finalUri.substring(0, 50));
+              } catch (error) {
+                console.error('[MediaSelector] Error compressing image:', error);
+                // Use original URI if compression fails
+              }
+            }
+
+            return {
+              uri: finalUri,
+              type: asset.type === 'video' ? 'video' : 'image',
+              filename: asset.fileName || `media_${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`,
+              size: asset.fileSize || 0,
+              mimeType: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+            };
+          })
+        );
 
         if (allowMultiple) {
-          const combined = [...selectedMedia, ...newMedia].slice(0, maxSelection);
+          const combined = [...selectedMedia, ...processedMedia].slice(0, maxSelection);
           setSelectedMedia(combined);
         } else {
-          setSelectedMedia(newMedia.slice(0, 1));
+          setSelectedMedia(processedMedia.slice(0, 1));
         }
       }
     } catch (error: any) {
