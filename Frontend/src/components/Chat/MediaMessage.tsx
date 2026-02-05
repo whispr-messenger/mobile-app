@@ -192,30 +192,28 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             source={{ uri: thumbnailUri || uri }}
             style={styles.videoThumbnail}
             resizeMode="cover"
+            onError={(error) => {
+              console.error('[MediaMessage] Thumbnail load error:', error);
+            }}
+            onLoad={() => {
+              console.log('[MediaMessage] Thumbnail loaded successfully');
+            }}
           />
         ) : null}
         
-        {/* Gradient overlay */}
-        <LinearGradient
-          colors={[
-            withOpacity('#3C2558', 0.7),
-            withOpacity('#4A2C6B', 0.5),
-            withOpacity('#5A3575', 0.4)
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.videoGradientOverlay}
-        >
-          <View style={styles.videoIconWrapper}>
-            <LinearGradient
-              colors={[colors.primary.main, colors.palette.violet]}
-              style={styles.videoPlayButton}
-            >
-              <Ionicons name="play" size={32} color={colors.text.light} />
-            </LinearGradient>
-          </View>
+        {/* Subtle dark overlay for better contrast */}
+        <View style={styles.videoOverlay} />
+        
+        {/* Play button and label */}
+        <View style={styles.videoIconWrapper}>
+          <LinearGradient
+            colors={[colors.primary.main, colors.palette.violet]}
+            style={styles.videoPlayButton}
+          >
+            <Ionicons name="play" size={32} color={colors.text.light} />
+          </LinearGradient>
           <Text style={styles.videoLabel}>Vidéo</Text>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
 
       {/* Video Player Modal */}
