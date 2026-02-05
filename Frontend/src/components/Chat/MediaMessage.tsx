@@ -4,8 +4,9 @@
 
 import React, { useState } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Text, Modal } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+import { colors, withOpacity } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 
 interface MediaMessageProps {
@@ -105,10 +106,26 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Video placeholder
   return (
-    <View style={styles.videoContainer}>
-      <Ionicons name="play-circle" size={48} color={colors.text.light} />
+    <LinearGradient
+      colors={[
+        withOpacity('#3C2558', 0.8),
+        withOpacity('#4A2C6B', 0.6),
+        withOpacity('#5A3575', 0.5)
+      ]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.videoContainer}
+    >
+      <View style={styles.videoIconWrapper}>
+        <LinearGradient
+          colors={[colors.primary.main, colors.palette.violet]}
+          style={styles.videoPlayButton}
+        >
+          <Ionicons name="play" size={32} color={colors.text.light} />
+        </LinearGradient>
+      </View>
       <Text style={styles.videoLabel}>Vidéo</Text>
-    </View>
+    </LinearGradient>
   );
 };
 
@@ -174,14 +191,27 @@ const styles = StyleSheet.create({
     width: 250,
     height: 200,
     borderRadius: 12,
-    backgroundColor: colors.background.secondary,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  videoIconWrapper: {
+    marginBottom: 8,
+  },
+  videoPlayButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: withOpacity(colors.text.light, 0.3),
   },
   videoLabel: {
     marginTop: 8,
-    color: colors.text.secondary,
+    color: colors.text.light,
     fontSize: 14,
+    fontWeight: '600',
   },
 });
 
