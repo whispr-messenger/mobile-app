@@ -2,7 +2,7 @@
  * MediaMessage - Display media content (images, videos, files)
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Text, Modal, ActivityIndicator, Linking, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -42,6 +42,29 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const videoRef = useRef<any>(null);
   const [videoStatus, setVideoStatus] = useState<any>({});
+
+  // Auto-play video when modal opens and video is loaded
+  useEffect(() => {
+    if (showVideoPlayer && Video && videoRef.current) {
+      const playVideo = async () => {
+        try {
+          if (videoStatus.isLoaded && !videoStatus.isPlaying) {
+            console.log('[MediaMessage] Auto-playing video');
+            await videoRef.current.playAsync();
+          }
+        } catch (error) {
+          console.error('[MediaMessage] Error auto-playing video:', error);
+        }
+      };
+      
+      // Small delay to ensure video is ready
+      const timeout = setTimeout(() => {
+        playVideo();
+      }, 300);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [showVideoPlayer, videoStatus.isLoaded, videoStatus.isPlaying]);
 
   if (type === 'image') {
     return (
@@ -230,11 +253,29 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   useNativeControls={true}
                   resizeMode={ResizeMode?.CONTAIN || 'contain'}
                   isLooping={false}
-                  shouldPlay={false}
+                  shouldPlay={true}
                   onPlaybackStatusUpdate={(status: any) => {
                     setVideoStatus(status || {});
                     if (status) {
                       console.log('[MediaMessage] Video status:', status.isLoaded, status.isPlaying);
+                    }
+                  }}
+                  onLoadStart={() => {
+                    console.log('[MediaMessage] Video load started');
+                  }}
+                  onLoad={(status: any) => {
+                    console.log('[MediaMessage] Video loaded:', status);
+                    setVideoStatus(status || {});
+                    // Auto-play when loaded
+                    if (videoRef.current && status?.isLoaded) {
+                      setTimeout(async () => {
+                        try {
+                          await videoRef.current.playAsync();
+                          console.log('[MediaMessage] Video playAsync called');
+                        } catch (error) {
+                          console.error('[MediaMessage] Error playing video:', error);
+                        }
+                      }, 100);
                     }
                   }}
                   onError={(error: any) => {
