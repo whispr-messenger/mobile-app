@@ -478,8 +478,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                       <View style={styles.captionContainer}>
                         <LinearGradient
                           colors={[
-                            withOpacity(colors.background.darkCard, 0.8),
-                            withOpacity(colors.background.darkCard, 0.6)
+                            withOpacity('#4A2C6B', 0.7),
+                            withOpacity('#6B3D8F', 0.5)
                           ]}
                           style={styles.captionInputWrapper}
                         >
@@ -665,7 +665,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderTopLeftRadius: borderRadius.large,
     borderTopRightRadius: borderRadius.large,
-    backgroundColor: withOpacity(colors.background.darkCard, 0.98),
+    backgroundColor: 'transparent',
     overflow: 'hidden',
     ...shadows.large,
   },
@@ -772,7 +772,7 @@ const styles = StyleSheet.create({
     height: 450,
     borderRadius: borderRadius.large,
     overflow: 'hidden',
-    backgroundColor: withOpacity(colors.background.dark, 0.5),
+    backgroundColor: withOpacity('#4A2C6B', 0.3),
     ...shadows.large,
   },
   imageGradientOverlay: {
