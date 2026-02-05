@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
@@ -100,13 +101,38 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
     }
   }, [allowMultiple, maxSelection, requestMediaPermissions, selectedMedia]);
 
-  // Handle document selection (will be implemented with expo-document-picker)
+  // Handle document selection
   const handlePickDocuments = useCallback(async () => {
-    Alert.alert(
-      'Documents',
-      'La sélection de documents sera disponible après l\'installation d\'expo-document-picker.'
-    );
-  }, []);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        multiple: allowMultiple,
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newMedia: SelectedMedia[] = result.assets.map((asset) => ({
+          uri: asset.uri,
+          type: 'file',
+          filename: asset.name || `document_${Date.now()}`,
+          size: asset.size || 0,
+          mimeType: asset.mimeType || 'application/octet-stream',
+        }));
+
+        if (allowMultiple) {
+          const combined = [...selectedMedia, ...newMedia].slice(0, maxSelection);
+          setSelectedMedia(combined);
+        } else {
+          setSelectedMedia(newMedia.slice(0, 1));
+        }
+      }
+    } catch (error: any) {
+      console.error('[MediaSelector] Error picking documents:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner les documents.');
+    }
+  }, [allowMultiple, maxSelection, selectedMedia]);
 
   // Remove selected media
   const handleRemoveMedia = useCallback((index: number) => {
@@ -187,9 +213,16 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
                   <View key={index} style={styles.previewItem}>
                     {media.type === 'image' ? (
                       <Image source={{ uri: media.uri }} style={styles.previewImage} />
-                    ) : (
+                    ) : media.type === 'video' ? (
                       <View style={[styles.previewVideo, { backgroundColor: withOpacity(themeColors.primary, 0.2) }]}>
                         <Ionicons name="videocam" size={32} color={themeColors.primary} />
+                      </View>
+                    ) : (
+                      <View style={[styles.previewFile, { backgroundColor: withOpacity(themeColors.secondary, 0.2) }]}>
+                        <Ionicons name="document" size={32} color={themeColors.secondary} />
+                        <Text style={[styles.previewFileName, { color: themeColors.text.secondary }]} numberOfLines={1}>
+                          {media.filename || 'Document'}
+                        </Text>
                       </View>
                     )}
                     <TouchableOpacity
@@ -304,6 +337,19 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.small,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  previewFile: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.small,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.small,
+  },
+  previewFileName: {
+    ...typography.caption,
+    marginTop: spacing.small / 2,
+    fontSize: 10,
   },
   removeButton: {
     position: 'absolute',
