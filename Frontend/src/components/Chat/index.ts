@@ -17,6 +17,8 @@ export { PinnedMessagesBar } from './PinnedMessagesBar';
 export { EmptyChatState } from './EmptyChatState';
 export { MessageActionsMenu } from './MessageActionsMenu';
 export { NewConversationModal } from './NewConversationModal';
+export { CameraCapture } from './CameraCapture';
+export type { CameraCaptureResult } from './CameraCapture';
 
 
 
