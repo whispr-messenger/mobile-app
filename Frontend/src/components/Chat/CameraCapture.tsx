@@ -3,7 +3,7 @@
  * WHISPR-266: Caméra intégrée dans le chat
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,13 +14,17 @@ import {
   Image,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { typography, textStyles } from '../../theme/typography';
 import { spacing, borderRadius, shadows } from '../../theme/spacing';
 
 export interface CameraCaptureResult {
@@ -47,44 +51,101 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   const [capturedMedia, setCapturedMedia] = useState<{ uri: string; type: 'image' | 'video' } | null>(null);
   const [caption, setCaption] = useState('');
   const [cameraType, setCameraType] = useState<'back' | 'front'>('back');
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  // Log component lifecycle
+  useEffect(() => {
+    if (visible) {
+      console.log('[CameraCapture] Modal opened');
+      console.log('[CameraCapture] Camera type:', cameraType);
+      console.log('[CameraCapture] Allow video:', allowVideo);
+    } else {
+      console.log('[CameraCapture] Modal closed');
+    }
+  }, [visible, cameraType, allowVideo]);
 
   // Request camera permissions
   const requestCameraPermissions = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission requise',
-        'Nous avons besoin de votre permission pour accéder à la caméra.'
-      );
+    console.log('[CameraCapture] Requesting camera permissions...');
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      console.log('[CameraCapture] Permission result:', JSON.stringify(permissionResult, null, 2));
+      
+      if (!permissionResult) {
+        console.error('[CameraCapture] Permission result is null');
+        Alert.alert('Erreur', 'Impossible de vérifier les permissions.');
+        return false;
+      }
+
+      if (permissionResult.status !== 'granted') {
+        console.warn('[CameraCapture] Permission denied:', permissionResult.status);
+        Alert.alert(
+          'Permission requise',
+          'Nous avons besoin de votre permission pour accéder à la caméra.'
+        );
+        return false;
+      }
+
+      console.log('[CameraCapture] Permission granted');
+      return true;
+    } catch (error: any) {
+      console.error('[CameraCapture] Error requesting permissions:', error);
+      Alert.alert('Erreur', 'Erreur lors de la demande de permission.');
       return false;
     }
-    return true;
   }, []);
 
   // Handle photo capture
   const handleTakePhoto = useCallback(async () => {
+    console.log('[CameraCapture] handleTakePhoto called');
+    console.log('[CameraCapture] Current camera type:', cameraType);
+    
     const hasPermission = await requestCameraPermissions();
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      console.log('[CameraCapture] Permission denied, aborting photo capture');
+      return;
+    }
 
     try {
+      console.log('[CameraCapture] Launching camera for photo...');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaType.Images,
         allowsEditing: false,
         quality: 0.9,
         cameraType: cameraType === 'front' ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
       });
 
+      console.log('[CameraCapture] Camera result:', {
+        canceled: result.canceled,
+        assetsCount: result.assets?.length || 0,
+        hasAssets: !!result.assets && result.assets.length > 0,
+      });
+
       if (!result.canceled && result.assets && result.assets[0]) {
+        console.log('[CameraCapture] Photo captured successfully:', {
+          uri: result.assets[0].uri.substring(0, 50) + '...',
+          width: result.assets[0].width,
+          height: result.assets[0].height,
+          fileSize: result.assets[0].fileSize,
+        });
+        
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCapturedMedia({
           uri: result.assets[0].uri,
           type: 'image',
         });
+        console.log('[CameraCapture] Preview state updated');
+      } else {
+        console.log('[CameraCapture] Photo capture canceled or no assets');
       }
     } catch (error: any) {
       console.error('[CameraCapture] Error taking photo:', error);
+      console.error('[CameraCapture] Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+      });
       Alert.alert('Erreur', 'Impossible de prendre la photo.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -92,31 +153,60 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Handle video capture
   const handleTakeVideo = useCallback(async () => {
-    if (!allowVideo) return;
+    if (!allowVideo) {
+      console.log('[CameraCapture] Video not allowed, aborting');
+      return;
+    }
 
+    console.log('[CameraCapture] handleTakeVideo called');
+    console.log('[CameraCapture] Current camera type:', cameraType);
+    
     const hasPermission = await requestCameraPermissions();
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      console.log('[CameraCapture] Permission denied, aborting video capture');
+      return;
+    }
 
     try {
+      console.log('[CameraCapture] Launching camera for video...');
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: ImagePicker.MediaType.Videos,
         allowsEditing: false,
         quality: 0.9,
         cameraType: cameraType === 'front' ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
         videoMaxDuration: 60, // 60 seconds max
       });
 
+      console.log('[CameraCapture] Video result:', {
+        canceled: result.canceled,
+        assetsCount: result.assets?.length || 0,
+        hasAssets: !!result.assets && result.assets.length > 0,
+      });
+
       if (!result.canceled && result.assets && result.assets[0]) {
+        console.log('[CameraCapture] Video captured successfully:', {
+          uri: result.assets[0].uri.substring(0, 50) + '...',
+          duration: result.assets[0].duration,
+          fileSize: result.assets[0].fileSize,
+        });
+        
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCapturedMedia({
           uri: result.assets[0].uri,
           type: 'video',
         });
+        console.log('[CameraCapture] Preview state updated');
+      } else {
+        console.log('[CameraCapture] Video capture canceled or no assets');
       }
     } catch (error: any) {
       console.error('[CameraCapture] Error taking video:', error);
+      console.error('[CameraCapture] Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+      });
       Alert.alert('Erreur', 'Impossible d\'enregistrer la vidéo.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -124,20 +214,50 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Toggle camera (front/back)
   const handleToggleCamera = useCallback(() => {
+    const newType = cameraType === 'back' ? 'front' : 'back';
+    console.log('[CameraCapture] Toggling camera from', cameraType, 'to', newType);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCameraType((prev) => (prev === 'back' ? 'front' : 'back'));
-  }, []);
+    setCameraType(newType);
+  }, [cameraType]);
 
   // Retake photo/video
   const handleRetake = useCallback(() => {
+    console.log('[CameraCapture] Retake requested');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCapturedMedia(null);
     setCaption('');
+    console.log('[CameraCapture] Preview reset');
+  }, []);
+
+  // Handle caption input focus
+  const handleCaptionFocus = useCallback(() => {
+    console.log('[CameraCapture] Caption input focused');
+    setIsKeyboardVisible(true);
+  }, []);
+
+  const handleCaptionBlur = useCallback(() => {
+    console.log('[CameraCapture] Caption input blurred');
+    setIsKeyboardVisible(false);
+  }, []);
+
+  // Handle caption change
+  const handleCaptionChange = useCallback((text: string) => {
+    console.log('[CameraCapture] Caption changed:', text.length, 'characters');
+    setCaption(text);
   }, []);
 
   // Confirm and send
   const handleConfirm = useCallback(() => {
-    if (!capturedMedia) return;
+    if (!capturedMedia) {
+      console.warn('[CameraCapture] Cannot confirm: no captured media');
+      return;
+    }
+
+    console.log('[CameraCapture] Confirming capture:', {
+      type: capturedMedia.type,
+      hasCaption: !!caption && caption.trim().length > 0,
+      captionLength: caption.trim().length,
+    });
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onCapture({
@@ -147,6 +267,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     });
     
     // Reset state
+    console.log('[CameraCapture] Resetting state after confirmation');
     setCapturedMedia(null);
     setCaption('');
     onClose();
@@ -154,6 +275,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Cancel
   const handleCancel = useCallback(() => {
+    console.log('[CameraCapture] Cancel requested');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCapturedMedia(null);
     setCaption('');
@@ -166,113 +288,184 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       transparent
       animationType="slide"
       onRequestClose={handleCancel}
+      statusBarTranslucent
     >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
-              {capturedMedia ? 'Prévisualisation' : 'Caméra'}
-            </Text>
-            <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={themeColors.text.secondary} />
-            </TouchableOpacity>
-          </View>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={colors.background.gradient.app}
+        style={styles.modalOverlay}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <View style={styles.modalContent}>
+            {/* Header with gradient */}
+            <LinearGradient
+              colors={[withOpacity(colors.primary.main, 0.2), 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.headerGradient}
+            >
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>
+                  {capturedMedia ? 'Prévisualisation' : 'Caméra'}
+                </Text>
+                <TouchableOpacity 
+                  onPress={handleCancel} 
+                  style={styles.closeButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={24} color={colors.text.light} />
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
 
-          {/* Preview or Camera Controls */}
-          {capturedMedia ? (
-            <View style={styles.previewContainer}>
-              {capturedMedia.type === 'image' ? (
-                <Image source={{ uri: capturedMedia.uri }} style={styles.previewImage} />
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Preview or Camera Controls */}
+              {capturedMedia ? (
+                <View style={styles.previewContainer}>
+                  {capturedMedia.type === 'image' ? (
+                    <View style={styles.imageWrapper}>
+                      <Image 
+                        source={{ uri: capturedMedia.uri }} 
+                        style={styles.previewImage}
+                        resizeMode="contain"
+                        onLoad={() => console.log('[CameraCapture] Preview image loaded')}
+                        onError={(error) => console.error('[CameraCapture] Preview image error:', error)}
+                      />
+                    </View>
+                  ) : (
+                    <LinearGradient
+                      colors={[withOpacity(colors.secondary.main, 0.3), withOpacity(colors.primary.main, 0.2)]}
+                      style={styles.previewVideo}
+                    >
+                      <Ionicons name="videocam" size={64} color={colors.primary.main} />
+                      <Text style={styles.videoLabel}>
+                        Vidéo capturée
+                      </Text>
+                    </LinearGradient>
+                  )}
+
+                  {/* Caption input */}
+                  <View style={styles.captionContainer}>
+                    <TextInput
+                      style={styles.captionInput}
+                      placeholder="Ajouter une légende..."
+                      placeholderTextColor={withOpacity(colors.text.light, 0.5)}
+                      value={caption}
+                      onChangeText={handleCaptionChange}
+                      onFocus={handleCaptionFocus}
+                      onBlur={handleCaptionBlur}
+                      multiline
+                      maxLength={200}
+                      autoFocus={false}
+                      returnKeyType="done"
+                      blurOnSubmit={true}
+                    />
+                    <Text style={styles.captionCounter}>
+                      {caption.length}/200
+                    </Text>
+                  </View>
+
+                  {/* Action buttons */}
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={styles.retakeButton}
+                      onPress={handleRetake}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="refresh" size={20} color={colors.text.light} />
+                      <Text style={styles.retakeButtonText}>
+                        Reprendre
+                      </Text>
+                    </TouchableOpacity>
+                    <LinearGradient
+                      colors={[colors.primary.main, colors.primary.dark]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.sendButtonGradient}
+                    >
+                      <TouchableOpacity
+                        style={styles.sendButton}
+                        onPress={handleConfirm}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="send" size={20} color={colors.text.light} />
+                        <Text style={styles.sendButtonText}>
+                          Envoyer
+                        </Text>
+                      </TouchableOpacity>
+                    </LinearGradient>
+                  </View>
+                </View>
               ) : (
-                <View style={[styles.previewVideo, { backgroundColor: withOpacity(themeColors.primary, 0.2) }]}>
-                  <Ionicons name="videocam" size={64} color={themeColors.primary} />
-                  <Text style={[styles.videoLabel, { color: themeColors.text.secondary }]}>
-                    Vidéo capturée
-                  </Text>
+                <View style={styles.cameraControls}>
+                  {/* Camera type toggle */}
+                  <TouchableOpacity
+                    style={styles.toggleCameraButton}
+                    onPress={handleToggleCamera}
+                    activeOpacity={0.7}
+                  >
+                    <LinearGradient
+                      colors={[withOpacity(colors.primary.main, 0.3), withOpacity(colors.secondary.main, 0.3)]}
+                      style={styles.toggleButtonGradient}
+                    >
+                      <Ionicons
+                        name="camera-reverse"
+                        size={24}
+                        color={colors.text.light}
+                      />
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  {/* Capture buttons */}
+                  <View style={styles.captureButtons}>
+                    <TouchableOpacity
+                      style={styles.captureButton}
+                      onPress={handleTakePhoto}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={[withOpacity(colors.primary.main, 0.2), withOpacity(colors.primary.dark, 0.1)]}
+                        style={styles.captureButtonGradient}
+                      >
+                        <Ionicons name="camera" size={40} color={colors.primary.main} />
+                        <Text style={styles.captureButtonText}>
+                          Photo
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+
+                    {allowVideo && (
+                      <TouchableOpacity
+                        style={styles.captureButton}
+                        onPress={handleTakeVideo}
+                        activeOpacity={0.8}
+                      >
+                        <LinearGradient
+                          colors={[withOpacity(colors.secondary.main, 0.2), withOpacity(colors.secondary.dark, 0.1)]}
+                          style={styles.captureButtonGradient}
+                        >
+                          <Ionicons name="videocam" size={40} color={colors.secondary.main} />
+                          <Text style={styles.captureButtonText}>
+                            Vidéo
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               )}
-
-              {/* Caption input */}
-              <View style={styles.captionContainer}>
-                <TextInput
-                  style={[styles.captionInput, { 
-                    color: themeColors.text.primary,
-                    backgroundColor: withOpacity(themeColors.text.secondary, 0.1),
-                  }]}
-                  placeholder="Ajouter une légende..."
-                  placeholderTextColor={themeColors.text.tertiary}
-                  value={caption}
-                  onChangeText={setCaption}
-                  multiline
-                  maxLength={200}
-                />
-              </View>
-
-              {/* Action buttons */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  style={[styles.retakeButton, { backgroundColor: withOpacity(themeColors.text.secondary, 0.1) }]}
-                  onPress={handleRetake}
-                >
-                  <Ionicons name="refresh" size={20} color={themeColors.text.secondary} />
-                  <Text style={[styles.retakeButtonText, { color: themeColors.text.secondary }]}>
-                    Reprendre
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sendButton, { backgroundColor: themeColors.primary }]}
-                  onPress={handleConfirm}
-                >
-                  <Ionicons name="send" size={20} color={colors.text.light} />
-                  <Text style={[styles.sendButtonText, { color: colors.text.light }]}>
-                    Envoyer
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.cameraControls}>
-              {/* Camera type toggle */}
-              <TouchableOpacity
-                style={styles.toggleCameraButton}
-                onPress={handleToggleCamera}
-              >
-                <Ionicons
-                  name="camera-reverse"
-                  size={24}
-                  color={themeColors.text.primary}
-                />
-              </TouchableOpacity>
-
-              {/* Capture buttons */}
-              <View style={styles.captureButtons}>
-                <TouchableOpacity
-                  style={[styles.captureButton, { backgroundColor: withOpacity(themeColors.primary, 0.1) }]}
-                  onPress={handleTakePhoto}
-                >
-                  <Ionicons name="camera" size={32} color={themeColors.primary} />
-                  <Text style={[styles.captureButtonText, { color: themeColors.primary }]}>
-                    Photo
-                  </Text>
-                </TouchableOpacity>
-
-                {allowVideo && (
-                  <TouchableOpacity
-                    style={[styles.captureButton, { backgroundColor: withOpacity(themeColors.secondary, 0.1) }]}
-                    onPress={handleTakeVideo}
-                  >
-                    <Ionicons name="videocam" size={32} color={themeColors.secondary} />
-                    <Text style={[styles.captureButtonText, { color: themeColors.secondary }]}>
-                      Vidéo
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
-        </View>
-      </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </LinearGradient>
     </Modal>
   );
 };
@@ -280,39 +473,64 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'flex-end',
+  },
+  keyboardView: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   modalContent: {
     borderTopLeftRadius: borderRadius.large,
     borderTopRightRadius: borderRadius.large,
-    paddingBottom: spacing.base * 2,
     maxHeight: '90%',
+    backgroundColor: withOpacity(colors.background.darkCard, 0.95),
     ...shadows.large,
+  },
+  headerGradient: {
+    borderTopLeftRadius: borderRadius.large,
+    borderTopRightRadius: borderRadius.large,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.base,
+    paddingTop: spacing.base * 1.5,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: withOpacity(colors.ui.divider, 0.2),
   },
   headerTitle: {
     ...typography.h3,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: colors.text.light,
+    letterSpacing: -0.5,
   },
   closeButton: {
     padding: spacing.small,
+    borderRadius: borderRadius.small,
+    backgroundColor: withOpacity(colors.background.dark, 0.3),
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.base,
   },
   cameraControls: {
     padding: spacing.base * 2,
     alignItems: 'center',
+    minHeight: 300,
   },
   toggleCameraButton: {
     alignSelf: 'flex-end',
+    marginBottom: spacing.base * 2,
+  },
+  toggleButtonGradient: {
     padding: spacing.base,
-    marginBottom: spacing.base,
+    borderRadius: borderRadius.medium,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary.main, 0.3),
   },
   captureButtons: {
     flexDirection: 'row',
@@ -321,24 +539,37 @@ const styles = StyleSheet.create({
   },
   captureButton: {
     flex: 1,
+    borderRadius: borderRadius.medium,
+    overflow: 'hidden',
+    ...shadows.medium,
+  },
+  captureButtonGradient: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.base * 2,
-    borderRadius: borderRadius.medium,
     gap: spacing.small,
+    minHeight: 120,
   },
   captureButtonText: {
     ...typography.body,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: colors.text.light,
+    marginTop: spacing.small,
   },
   previewContainer: {
     padding: spacing.base,
   },
-  previewImage: {
+  imageWrapper: {
     width: '100%',
     height: 400,
     borderRadius: borderRadius.medium,
-    resizeMode: 'contain',
+    overflow: 'hidden',
+    backgroundColor: withOpacity(colors.background.dark, 0.5),
+    ...shadows.medium,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
   },
   previewVideo: {
     width: '100%',
@@ -346,13 +577,16 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.medium,
     justifyContent: 'center',
     alignItems: 'center',
+    ...shadows.medium,
   },
   videoLabel: {
     ...typography.body,
     marginTop: spacing.small,
+    color: colors.text.light,
+    fontWeight: '600',
   },
   captionContainer: {
-    marginTop: spacing.base,
+    marginTop: spacing.base * 1.5,
     marginBottom: spacing.base,
   },
   captionInput: {
@@ -362,10 +596,21 @@ const styles = StyleSheet.create({
     minHeight: 60,
     maxHeight: 120,
     textAlignVertical: 'top',
+    color: colors.text.light,
+    backgroundColor: withOpacity(colors.background.dark, 0.4),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.primary.main, 0.3),
+  },
+  captionCounter: {
+    ...textStyles.caption,
+    color: withOpacity(colors.text.light, 0.5),
+    textAlign: 'right',
+    marginTop: spacing.small / 2,
   },
   actionButtons: {
     flexDirection: 'row',
     gap: spacing.base,
+    marginTop: spacing.base,
   },
   retakeButton: {
     flex: 1,
@@ -375,22 +620,31 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     borderRadius: borderRadius.medium,
     gap: spacing.small,
+    backgroundColor: withOpacity(colors.ui.divider, 0.2),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.divider, 0.3),
   },
   retakeButtonText: {
     ...typography.body,
     fontWeight: '600',
+    color: colors.text.light,
+  },
+  sendButtonGradient: {
+    flex: 1,
+    borderRadius: borderRadius.medium,
+    overflow: 'hidden',
+    ...shadows.medium,
   },
   sendButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.base,
-    borderRadius: borderRadius.medium,
     gap: spacing.small,
   },
   sendButtonText: {
     ...typography.body,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: colors.text.light,
   },
 });
