@@ -276,7 +276,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
                     setVideoStatus(status || {});
-                    if (status?.isLoaded && !status?.isPlaying && shouldPlay) {
+                    if (status?.isLoaded && !status?.isPlaying) {
                       // Auto-play if loaded but not playing
                       videoRef.current?.playAsync().catch(console.error);
                     }
