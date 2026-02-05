@@ -13,6 +13,7 @@ import { colors } from '../../theme/colors';
 import { Message } from '../../types/messaging';
 import { ReplyPreview } from './ReplyPreview';
 import { Avatar } from './Avatar';
+import { CameraCapture, CameraCaptureResult } from './CameraCapture';
 
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
@@ -43,6 +44,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { getThemeColors } = useTheme();
@@ -144,6 +146,32 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       onCancelEdit?.();
     }
   }, [text, onSend, replyingTo, onCancelReply, onCancelEdit, members]);
+
+  // Open camera capture modal
+  const handleOpenCamera = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowCameraCapture(true);
+  }, []);
+
+  // Handle camera capture result
+  const handleCameraCapture = useCallback(
+    (result: CameraCaptureResult) => {
+      console.log('[MessageInput] Camera capture:', result.type, 'with caption:', result.caption || 'none');
+      
+      // Send media with optional caption
+      onSendMedia?.(result.uri, result.type, replyingTo?.id);
+      
+      // If caption exists, send it as a text message
+      if (result.caption && result.caption.trim()) {
+        console.log('[MessageInput] Caption:', result.caption);
+      }
+
+      if (replyingTo) {
+        onCancelReply?.();
+      }
+    },
+    [onSendMedia, replyingTo, onCancelReply]
+  );
 
   const handlePickImage = useCallback(async () => {
     console.log('[MessageInput] Starting image picker');
@@ -340,6 +368,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </LinearGradient>
         </TouchableOpacity>
       </View>
+      <CameraCapture
+        visible={showCameraCapture}
+        onClose={() => setShowCameraCapture(false)}
+        onCapture={handleCameraCapture}
+        allowVideo={true}
+      />
     </View>
   );
 };
