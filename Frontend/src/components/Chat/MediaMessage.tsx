@@ -43,28 +43,27 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const videoRef = useRef<any>(null);
   const [videoStatus, setVideoStatus] = useState<any>({});
 
-  // Auto-play video when modal opens and video is loaded
+  // Preload and auto-play video when modal opens
   useEffect(() => {
     if (showVideoPlayer && Video && videoRef.current) {
       const playVideo = async () => {
         try {
-          if (videoStatus.isLoaded && !videoStatus.isPlaying) {
-            console.log('[MediaMessage] Auto-playing video');
-            await videoRef.current.playAsync();
-          }
+          // Load video first
+          await videoRef.current.loadAsync({ uri });
+          console.log('[MediaMessage] Video preloaded');
+          
+          // Play immediately after load
+          await videoRef.current.playAsync();
+          console.log('[MediaMessage] Video playing');
         } catch (error) {
-          console.error('[MediaMessage] Error auto-playing video:', error);
+          console.error('[MediaMessage] Error loading/playing video:', error);
         }
       };
       
-      // Small delay to ensure video is ready
-      const timeout = setTimeout(() => {
-        playVideo();
-      }, 300);
-      
-      return () => clearTimeout(timeout);
+      // Start loading immediately
+      playVideo();
     }
-  }, [showVideoPlayer, videoStatus.isLoaded, videoStatus.isPlaying]);
+  }, [showVideoPlayer, uri]);
 
   if (type === 'image') {
     return (
@@ -227,7 +226,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         {/* Subtle dark overlay for better contrast */}
         <View style={styles.videoOverlay} />
         
-        {/* Play button and label */}
+        {/* Play button only */}
         <View style={styles.videoIconWrapper}>
           <LinearGradient
             colors={[colors.primary.main, colors.palette.violet]}
@@ -235,7 +234,6 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           >
             <Ionicons name="play" size={32} color={colors.text.light} />
           </LinearGradient>
-          <Text style={styles.videoLabel}>Vidéo</Text>
         </View>
       </TouchableOpacity>
 
@@ -275,28 +273,23 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   resizeMode={ResizeMode?.CONTAIN || 'contain'}
                   isLooping={false}
                   shouldPlay={true}
+                  isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
                     setVideoStatus(status || {});
-                    if (status) {
-                      console.log('[MediaMessage] Video status:', status.isLoaded, status.isPlaying);
+                    if (status?.isLoaded && !status?.isPlaying && shouldPlay) {
+                      // Auto-play if loaded but not playing
+                      videoRef.current?.playAsync().catch(console.error);
                     }
                   }}
                   onLoadStart={() => {
                     console.log('[MediaMessage] Video load started');
                   }}
                   onLoad={(status: any) => {
-                    console.log('[MediaMessage] Video loaded:', status);
+                    console.log('[MediaMessage] Video loaded, auto-playing');
                     setVideoStatus(status || {});
-                    // Auto-play when loaded
+                    // Auto-play immediately when loaded
                     if (videoRef.current && status?.isLoaded) {
-                      setTimeout(async () => {
-                        try {
-                          await videoRef.current.playAsync();
-                          console.log('[MediaMessage] Video playAsync called');
-                        } catch (error) {
-                          console.error('[MediaMessage] Error playing video:', error);
-                        }
-                      }, 100);
+                      videoRef.current.playAsync().catch(console.error);
                     }
                   }}
                   onError={(error: any) => {
