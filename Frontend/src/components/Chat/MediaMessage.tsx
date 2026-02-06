@@ -185,9 +185,6 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     setShowVideoPlayer(false);
   };
 
-  // Video thumbnail ref for chat preview
-  const thumbnailVideoRef = useRef<any>(null);
-
   return (
     <>
       <TouchableOpacity
