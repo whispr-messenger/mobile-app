@@ -207,7 +207,6 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             onLoad={() => {
               console.log('[MediaMessage] Thumbnail loaded successfully');
             }}
-            defaultSource={require('../../assets/placeholder-video.png').catch(() => null)}
           />
         ) : Video ? (
           // Fallback: try Video component but catch all errors
