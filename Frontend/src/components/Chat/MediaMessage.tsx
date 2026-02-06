@@ -266,14 +266,17 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   shouldPlay={true}
                   isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
-                    // Silently ignore null status to prevent crashes
-                    if (!status || typeof status !== 'object' || status === null) {
+                    // Completely ignore null/undefined status to prevent crashes
+                    if (status == null || typeof status !== 'object') {
                       return;
                     }
                     try {
-                      const isLoaded = status.isLoaded === true;
-                      const isPlaying = status.isPlaying === true;
-                      setVideoStatus(status);
+                      // Safely access properties with optional chaining
+                      const isLoaded = status?.isLoaded === true;
+                      const isPlaying = status?.isPlaying === true;
+                      if (status) {
+                        setVideoStatus(status);
+                      }
                       if (isLoaded && !isPlaying && videoRef.current) {
                         // Auto-play if loaded but not playing
                         videoRef.current.playAsync().catch((err: any) => {
@@ -281,23 +284,26 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                         });
                       }
                     } catch (error: any) {
+                      // Silently catch all errors to prevent crashes
                       console.error('[MediaMessage] Error in onPlaybackStatusUpdate:', error?.message || error);
-                      setVideoStatus({});
                     }
                   }}
                   onLoadStart={() => {
                     console.log('[MediaMessage] Video load started');
                   }}
                   onLoad={(status: any) => {
-                    // Silently ignore null status to prevent crashes
-                    if (!status || typeof status !== 'object' || status === null) {
-                      console.log('[MediaMessage] Video loaded (null status, ignoring)');
+                    // Completely ignore null/undefined status to prevent crashes
+                    if (status == null || typeof status !== 'object') {
+                      console.log('[MediaMessage] Video loaded (null/undefined status, ignoring)');
                       return;
                     }
                     try {
-                      const isLoaded = status.isLoaded === true;
+                      // Safely access properties with optional chaining
+                      const isLoaded = status?.isLoaded === true;
                       console.log('[MediaMessage] Video loaded, auto-playing', isLoaded);
-                      setVideoStatus(status);
+                      if (status) {
+                        setVideoStatus(status);
+                      }
                       // Auto-play immediately when loaded
                       if (videoRef.current && isLoaded) {
                         videoRef.current.playAsync().catch((err: any) => {
@@ -305,13 +311,13 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                         });
                       }
                     } catch (error: any) {
+                      // Silently catch all errors to prevent crashes
                       console.error('[MediaMessage] Error in onLoad:', error?.message || error);
-                      setVideoStatus({});
                     }
                   }}
                   onError={(error: any) => {
-                    console.error('[MediaMessage] Video error:', error);
-                    Alert.alert('Erreur', 'Impossible de lire la vidéo.');
+                    // Catch error but don't show alert to avoid interrupting user
+                    console.error('[MediaMessage] Video error:', error?.message || error);
                   }}
                 />
               </>
