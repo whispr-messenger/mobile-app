@@ -49,12 +49,17 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
       const playVideo = async () => {
         try {
           // Load video first
-          const loadResult = await videoRef.current.loadAsync({ uri });
-          console.log('[MediaMessage] Video preloaded', loadResult ? 'with status' : 'no status');
-          
-          // Play immediately after load
-          const playResult = await videoRef.current.playAsync();
-          console.log('[MediaMessage] Video playing', playResult ? 'with status' : 'no status');
+          try {
+            const loadResult = await videoRef.current.loadAsync({ uri });
+            console.log('[MediaMessage] Video preloaded', loadResult ? 'with status' : 'no status');
+            
+            // Play immediately after load
+            const playResult = await videoRef.current.playAsync();
+            console.log('[MediaMessage] Video playing', playResult ? 'with status' : 'no status');
+          } catch (loadError: any) {
+            console.error('[MediaMessage] Error in loadAsync/playAsync:', loadError?.message || loadError);
+            // Don't rethrow, let the component handle it
+          }
         } catch (error: any) {
           console.error('[MediaMessage] Error loading/playing video:', error?.message || error);
           // Don't show alert here, let onError handle it
@@ -271,7 +276,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           <View style={styles.videoPlayerContainer}>
             {Video ? (
               <>
-                {videoStatus.isLoaded ? null : (
+                {videoStatus && videoStatus.isLoaded ? null : (
                   <ActivityIndicator size="large" color={colors.primary.main} style={styles.videoLoading} />
                 )}
                 <Video
