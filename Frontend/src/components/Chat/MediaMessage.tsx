@@ -200,12 +200,14 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             source={{ uri: thumbnailUri }}
             style={styles.videoThumbnail}
             resizeMode="cover"
-            onError={(error) => {
-              console.error('[MediaMessage] Thumbnail load error:', error);
+            onError={(error: any) => {
+              console.error('[MediaMessage] Thumbnail load error, using placeholder');
+              // Don't show error to user, just log it
             }}
             onLoad={() => {
               console.log('[MediaMessage] Thumbnail loaded successfully');
             }}
+            defaultSource={require('../../assets/placeholder-video.png').catch(() => null)}
           />
         ) : Video ? (
           // Fallback: try Video component but catch all errors
@@ -296,9 +298,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
                     try {
-                      if (status && typeof status === 'object') {
+                      if (status && typeof status === 'object' && status !== null) {
+                        const isLoaded = status.isLoaded === true;
+                        const isPlaying = status.isPlaying === true;
                         setVideoStatus(status);
-                        if (status.isLoaded && !status.isPlaying) {
+                        if (isLoaded && !isPlaying) {
                           // Auto-play if loaded but not playing
                           videoRef.current?.playAsync().catch((err: any) => {
                             console.error('[MediaMessage] Error auto-playing:', err?.message || err);
@@ -307,8 +311,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       } else {
                         setVideoStatus({});
                       }
-                    } catch (error) {
-                      console.error('[MediaMessage] Error in onPlaybackStatusUpdate:', error);
+                    } catch (error: any) {
+                      console.error('[MediaMessage] Error in onPlaybackStatusUpdate:', error?.message || error);
                       setVideoStatus({});
                     }
                   }}
@@ -317,11 +321,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   }}
                   onLoad={(status: any) => {
                     try {
-                      if (status && typeof status === 'object') {
-                        console.log('[MediaMessage] Video loaded, auto-playing');
+                      if (status && typeof status === 'object' && status !== null) {
+                        const isLoaded = status.isLoaded === true;
+                        console.log('[MediaMessage] Video loaded, auto-playing', isLoaded);
                         setVideoStatus(status);
                         // Auto-play immediately when loaded
-                        if (videoRef.current && status.isLoaded) {
+                        if (videoRef.current && isLoaded) {
                           videoRef.current.playAsync().catch((err: any) => {
                             console.error('[MediaMessage] Error playing after load:', err?.message || err);
                           });
@@ -330,8 +335,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                         console.log('[MediaMessage] Video loaded (no status or invalid)');
                         setVideoStatus({});
                       }
-                    } catch (error) {
-                      console.error('[MediaMessage] Error in onLoad:', error);
+                    } catch (error: any) {
+                      console.error('[MediaMessage] Error in onLoad:', error?.message || error);
                       setVideoStatus({});
                     }
                   }}
