@@ -298,19 +298,19 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   shouldPlay={true}
                   isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
+                    // Silently ignore null status to prevent crashes
+                    if (!status || typeof status !== 'object' || status === null) {
+                      return;
+                    }
                     try {
-                      if (status && typeof status === 'object' && status !== null) {
-                        const isLoaded = status.isLoaded === true;
-                        const isPlaying = status.isPlaying === true;
-                        setVideoStatus(status);
-                        if (isLoaded && !isPlaying) {
-                          // Auto-play if loaded but not playing
-                          videoRef.current?.playAsync().catch((err: any) => {
-                            console.error('[MediaMessage] Error auto-playing:', err?.message || err);
-                          });
-                        }
-                      } else {
-                        setVideoStatus({});
+                      const isLoaded = status.isLoaded === true;
+                      const isPlaying = status.isPlaying === true;
+                      setVideoStatus(status);
+                      if (isLoaded && !isPlaying && videoRef.current) {
+                        // Auto-play if loaded but not playing
+                        videoRef.current.playAsync().catch((err: any) => {
+                          console.error('[MediaMessage] Error auto-playing:', err?.message || err);
+                        });
                       }
                     } catch (error: any) {
                       console.error('[MediaMessage] Error in onPlaybackStatusUpdate:', error?.message || error);
