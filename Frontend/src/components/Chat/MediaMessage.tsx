@@ -42,6 +42,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const videoRef = useRef<any>(null);
   const [videoStatus, setVideoStatus] = useState<any>({});
+  const [thumbnailError, setThumbnailError] = useState(false);
 
   // Preload and auto-play video when modal opens
   useEffect(() => {
@@ -195,20 +196,21 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         style={styles.videoContainer}
       >
         {/* Video preview - use Image to avoid expo-av issues in thumbnail */}
-        {thumbnailUri ? (
+        {thumbnailUri && !thumbnailError ? (
           <Image
             source={{ uri: thumbnailUri }}
             style={styles.videoThumbnail}
             resizeMode="cover"
             onError={(error: any) => {
               console.error('[MediaMessage] Thumbnail load error, using placeholder');
-              // Don't show error to user, just log it
+              setThumbnailError(true);
             }}
             onLoad={() => {
               console.log('[MediaMessage] Thumbnail loaded successfully');
+              setThumbnailError(false);
             }}
           />
-        ) : Video ? (
+        ) : Video && !thumbnailError ? (
           // Fallback: try Video component but catch all errors
           <Video
             ref={thumbnailVideoRef}
