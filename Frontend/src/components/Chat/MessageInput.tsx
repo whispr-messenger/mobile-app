@@ -158,19 +158,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     (result: CameraCaptureResult) => {
       console.log('[MessageInput] Camera capture:', result.type, 'with caption:', result.caption || 'none');
       
-      // Send media with optional caption
+      // Send media first
       onSendMedia?.(result.uri, result.type, replyingTo?.id);
       
-      // If caption exists, send it as a text message
+      // If caption exists, send it as a separate text message after the media
       if (result.caption && result.caption.trim()) {
-        console.log('[MessageInput] Caption:', result.caption);
+        console.log('[MessageInput] Sending caption as text message:', result.caption);
+        // Small delay to ensure media message is sent first
+        setTimeout(() => {
+          onSend(result.caption.trim(), replyingTo?.id);
+        }, 100);
       }
 
       if (replyingTo) {
         onCancelReply?.();
       }
     },
-    [onSendMedia, replyingTo, onCancelReply]
+    [onSendMedia, onSend, replyingTo, onCancelReply]
   );
 
   const handlePickImage = useCallback(async () => {
