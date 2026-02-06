@@ -195,7 +195,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         activeOpacity={0.9}
         style={styles.videoContainer}
       >
-        {/* Video preview - use Image to avoid expo-av issues in thumbnail */}
+        {/* Video preview - use Image or placeholder, never Video component to avoid expo-av issues */}
         {thumbnailUri && !thumbnailError ? (
           <Image
             source={{ uri: thumbnailUri }}
@@ -210,37 +210,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               setThumbnailError(false);
             }}
           />
-        ) : Video && !thumbnailError ? (
-          // Fallback: try Video component but catch all errors
-          <Video
-            ref={thumbnailVideoRef}
-            source={{ uri }}
-            style={styles.videoThumbnail}
-            resizeMode={ResizeMode?.COVER || 'cover'}
-            shouldPlay={false}
-            useNativeControls={false}
-            isMuted={true}
-            isLooping={false}
-            onError={(error: any) => {
-              console.error('[MediaMessage] Video thumbnail error:', error?.message || error);
-            }}
-            onLoadStart={() => {
-              console.log('[MediaMessage] Video thumbnail loading');
-            }}
-            onLoad={(status: any) => {
-              try {
-                if (status && typeof status === 'object' && status !== null) {
-                  const isLoaded = status.isLoaded !== undefined ? status.isLoaded : false;
-                  console.log('[MediaMessage] Video thumbnail loaded:', isLoaded);
-                } else {
-                  console.log('[MediaMessage] Video thumbnail loaded (no status or invalid)');
-                }
-              } catch (error: any) {
-                console.log('[MediaMessage] Video thumbnail loaded (error reading status):', error?.message || error);
-              }
-            }}
-          />
         ) : (
+          // Always use placeholder instead of Video component to avoid expo-av status null errors
           <View style={[styles.videoThumbnail, { backgroundColor: colors.palette.darkViolet, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="videocam" size={48} color={colors.text.light} />
           </View>
