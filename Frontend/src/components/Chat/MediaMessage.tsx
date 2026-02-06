@@ -194,36 +194,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         activeOpacity={0.9}
         style={styles.videoContainer}
       >
-        {/* Video preview - shows first frame */}
-        {Video ? (
-          <Video
-            ref={thumbnailVideoRef}
-            source={{ uri }}
-            style={styles.videoThumbnail}
-            resizeMode={ResizeMode?.COVER || 'cover'}
-            shouldPlay={false}
-            useNativeControls={false}
-            isMuted={true}
-            isLooping={false}
-            onError={(error: any) => {
-              console.error('[MediaMessage] Video thumbnail error:', error);
-            }}
-            onLoadStart={() => {
-              console.log('[MediaMessage] Video thumbnail loading');
-            }}
-            onLoad={(status: any) => {
-              try {
-                if (status && typeof status === 'object') {
-                  console.log('[MediaMessage] Video thumbnail loaded:', status.isLoaded);
-                } else {
-                  console.log('[MediaMessage] Video thumbnail loaded (no status or invalid)');
-                }
-              } catch (error) {
-                console.log('[MediaMessage] Video thumbnail loaded (error reading status)');
-              }
-            }}
-          />
-        ) : thumbnailUri ? (
+        {/* Video preview - use Image to avoid expo-av issues in thumbnail */}
+        {thumbnailUri ? (
           <Image
             source={{ uri: thumbnailUri }}
             style={styles.videoThumbnail}
@@ -235,7 +207,41 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               console.log('[MediaMessage] Thumbnail loaded successfully');
             }}
           />
-        ) : null}
+        ) : Video ? (
+          // Fallback: try Video component but catch all errors
+          <Video
+            ref={thumbnailVideoRef}
+            source={{ uri }}
+            style={styles.videoThumbnail}
+            resizeMode={ResizeMode?.COVER || 'cover'}
+            shouldPlay={false}
+            useNativeControls={false}
+            isMuted={true}
+            isLooping={false}
+            onError={(error: any) => {
+              console.error('[MediaMessage] Video thumbnail error:', error?.message || error);
+            }}
+            onLoadStart={() => {
+              console.log('[MediaMessage] Video thumbnail loading');
+            }}
+            onLoad={(status: any) => {
+              try {
+                if (status && typeof status === 'object' && status !== null) {
+                  const isLoaded = status.isLoaded !== undefined ? status.isLoaded : false;
+                  console.log('[MediaMessage] Video thumbnail loaded:', isLoaded);
+                } else {
+                  console.log('[MediaMessage] Video thumbnail loaded (no status or invalid)');
+                }
+              } catch (error: any) {
+                console.log('[MediaMessage] Video thumbnail loaded (error reading status):', error?.message || error);
+              }
+            }}
+          />
+        ) : (
+          <View style={[styles.videoThumbnail, { backgroundColor: colors.palette.darkViolet, justifyContent: 'center', alignItems: 'center' }]}>
+            <Ionicons name="videocam" size={48} color={colors.text.light} />
+          </View>
+        )}
         
         {/* Subtle dark overlay for better contrast */}
         <View style={styles.videoOverlay} />
