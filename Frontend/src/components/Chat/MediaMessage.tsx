@@ -46,7 +46,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Preload and auto-play video when modal opens
   useEffect(() => {
-    if (showVideoPlayer && Video && videoRef.current) {
+    if (showVideoPlayer && Video && videoRef.current && type === 'video') {
       const playVideo = async () => {
         try {
           // Load video first
@@ -70,7 +70,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
       // Start loading immediately
       playVideo();
     }
-  }, [showVideoPlayer, uri]);
+  }, [showVideoPlayer, uri, type]);
 
   if (type === 'image') {
     return (
@@ -321,20 +321,20 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                     console.log('[MediaMessage] Video load started');
                   }}
                   onLoad={(status: any) => {
+                    // Silently ignore null status to prevent crashes
+                    if (!status || typeof status !== 'object' || status === null) {
+                      console.log('[MediaMessage] Video loaded (null status, ignoring)');
+                      return;
+                    }
                     try {
-                      if (status && typeof status === 'object' && status !== null) {
-                        const isLoaded = status.isLoaded === true;
-                        console.log('[MediaMessage] Video loaded, auto-playing', isLoaded);
-                        setVideoStatus(status);
-                        // Auto-play immediately when loaded
-                        if (videoRef.current && isLoaded) {
-                          videoRef.current.playAsync().catch((err: any) => {
-                            console.error('[MediaMessage] Error playing after load:', err?.message || err);
-                          });
-                        }
-                      } else {
-                        console.log('[MediaMessage] Video loaded (no status or invalid)');
-                        setVideoStatus({});
+                      const isLoaded = status.isLoaded === true;
+                      console.log('[MediaMessage] Video loaded, auto-playing', isLoaded);
+                      setVideoStatus(status);
+                      // Auto-play immediately when loaded
+                      if (videoRef.current && isLoaded) {
+                        videoRef.current.playAsync().catch((err: any) => {
+                          console.error('[MediaMessage] Error playing after load:', err?.message || err);
+                        });
                       }
                     } catch (error: any) {
                       console.error('[MediaMessage] Error in onLoad:', error?.message || error);
