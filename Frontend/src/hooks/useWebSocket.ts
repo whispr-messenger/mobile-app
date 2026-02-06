@@ -85,7 +85,11 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
       // Listen for reply to update message status
       const replyKey = `${channel['topic']}:phx_reply`;
-      const replyHandler = (data: { status: string; response?: { message: Message } }) => {
+      const replyHandler = (data: { status: string; response?: { message: Message } } | null) => {
+        // Protect against null data
+        if (!data || !data.status) {
+          return;
+        }
         if (data.status === 'ok' && data.response?.message) {
           options.onNewMessage?.(data.response.message);
         }
