@@ -206,7 +206,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               console.log('[MediaMessage] Video thumbnail loading');
             }}
             onLoad={(status: any) => {
-              console.log('[MediaMessage] Video thumbnail loaded:', status?.isLoaded);
+              if (status) {
+                console.log('[MediaMessage] Video thumbnail loaded:', status.isLoaded);
+              } else {
+                console.log('[MediaMessage] Video thumbnail loaded (no status)');
+              }
             }}
           />
         ) : thumbnailUri ? (
@@ -275,21 +279,30 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   shouldPlay={true}
                   isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
-                    setVideoStatus(status || {});
-                    if (status?.isLoaded && !status?.isPlaying) {
-                      // Auto-play if loaded but not playing
-                      videoRef.current?.playAsync().catch(console.error);
+                    if (status) {
+                      setVideoStatus(status);
+                      if (status.isLoaded && !status.isPlaying) {
+                        // Auto-play if loaded but not playing
+                        videoRef.current?.playAsync().catch(console.error);
+                      }
+                    } else {
+                      setVideoStatus({});
                     }
                   }}
                   onLoadStart={() => {
                     console.log('[MediaMessage] Video load started');
                   }}
                   onLoad={(status: any) => {
-                    console.log('[MediaMessage] Video loaded, auto-playing');
-                    setVideoStatus(status || {});
-                    // Auto-play immediately when loaded
-                    if (videoRef.current && status?.isLoaded) {
-                      videoRef.current.playAsync().catch(console.error);
+                    if (status) {
+                      console.log('[MediaMessage] Video loaded, auto-playing');
+                      setVideoStatus(status);
+                      // Auto-play immediately when loaded
+                      if (videoRef.current && status.isLoaded) {
+                        videoRef.current.playAsync().catch(console.error);
+                      }
+                    } else {
+                      console.log('[MediaMessage] Video loaded (no status)');
+                      setVideoStatus({});
                     }
                   }}
                   onError={(error: any) => {
