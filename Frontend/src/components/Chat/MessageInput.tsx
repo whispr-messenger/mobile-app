@@ -17,7 +17,7 @@ import { CameraCapture, CameraCaptureResult } from './CameraCapture';
 
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
-  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => void;
+  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => void;
   onTyping?: (typing: boolean) => void;
   placeholder?: string;
   replyingTo?: Message | null;
@@ -158,23 +158,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     (result: CameraCaptureResult) => {
       console.log('[MessageInput] Camera capture:', result.type, 'with caption:', result.caption || 'none');
       
-      // Send media first
-      onSendMedia?.(result.uri, result.type, replyingTo?.id);
-      
-      // If caption exists, send it as a separate text message after the media
-      if (result.caption && result.caption.trim()) {
-        console.log('[MessageInput] Sending caption as text message:', result.caption);
-        // Small delay to ensure media message is sent first
-        setTimeout(() => {
-          onSend(result.caption.trim(), replyingTo?.id);
-        }, 100);
-      }
+      // Send media with caption integrated in the same message
+      onSendMedia?.(result.uri, result.type, replyingTo?.id, result.caption?.trim() || undefined);
 
       if (replyingTo) {
         onCancelReply?.();
       }
     },
-    [onSendMedia, onSend, replyingTo, onCancelReply]
+    [onSendMedia, replyingTo, onCancelReply]
   );
 
   const handlePickImage = useCallback(async () => {

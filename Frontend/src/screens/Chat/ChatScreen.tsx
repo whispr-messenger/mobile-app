@@ -307,18 +307,21 @@ export const ChatScreen: React.FC = () => {
   );
 
   const handleSendMedia = useCallback(
-    async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => {
+    async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => {
       // Stop typing indicator
       sendTyping(conversationId, false);
 
       try {
+        // Use caption if provided, otherwise use default text
+        const messageContent = caption?.trim() || (type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier');
+        
         // Create optimistic message
         const tempMessage: MessageWithRelations = {
           id: `temp-${Date.now()}`,
           conversation_id: conversationId,
           sender_id: userId,
           message_type: 'media',
-          content: type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier',
+          content: messageContent,
           metadata: {
             media_type: type,
             media_url: uri,

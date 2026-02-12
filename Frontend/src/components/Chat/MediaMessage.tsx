@@ -40,22 +40,23 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const themeColors = getThemeColors();
   const [showFullImage, setShowFullImage] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-  const videoRef = useRef<any>(null);
+  const thumbnailVideoRef = useRef<any>(null); // Ref for thumbnail video
+  const playerVideoRef = useRef<any>(null); // Ref for full-screen player
   const [videoStatus, setVideoStatus] = useState<any>({});
   const [thumbnailError, setThumbnailError] = useState(false);
 
   // Preload and auto-play video when modal opens
   useEffect(() => {
-    if (showVideoPlayer && Video && videoRef.current && type === 'video') {
+    if (showVideoPlayer && Video && playerVideoRef.current && type === 'video') {
       const playVideo = async () => {
         try {
           // Load video first
           try {
-            const loadResult = await videoRef.current.loadAsync({ uri });
+            const loadResult = await playerVideoRef.current.loadAsync({ uri });
             console.log('[MediaMessage] Video preloaded', loadResult ? 'with status' : 'no status');
             
             // Play immediately after load
-            const playResult = await videoRef.current.playAsync();
+            const playResult = await playerVideoRef.current.playAsync();
             console.log('[MediaMessage] Video playing', playResult ? 'with status' : 'no status');
           } catch (loadError: any) {
             console.error('[MediaMessage] Error in loadAsync/playAsync:', loadError?.message || loadError);
@@ -175,9 +176,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   const handleCloseVideo = () => {
     console.log('[MediaMessage] Closing video player');
-    if (videoRef.current && Video) {
+    if (playerVideoRef.current && Video) {
       try {
-        videoRef.current.pauseAsync();
+        playerVideoRef.current.pauseAsync();
       } catch (error) {
         console.error('[MediaMessage] Error pausing video:', error);
       }
@@ -192,23 +193,44 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         activeOpacity={0.9}
         style={styles.videoContainer}
       >
-        {/* Video preview - use Image or placeholder, never Video component to avoid expo-av issues */}
-        {thumbnailUri && !thumbnailError ? (
-          <Image
-            source={{ uri: thumbnailUri }}
+        {/* Video preview - use Video component for thumbnail to show actual video frame */}
+        {Video && uri && !thumbnailError ? (
+          <Video
+            ref={thumbnailVideoRef}
+            source={{ uri }}
             style={styles.videoThumbnail}
-            resizeMode="cover"
+            resizeMode={ResizeMode?.COVER || 'cover'}
+            shouldPlay={false}
+            isMuted={true}
+            useNativeControls={false}
+            onLoad={(status: any) => {
+              // Silently ignore null or invalid status to prevent crashes
+              if (!status || typeof status !== 'object' || status === null) {
+                console.log('[MediaMessage] Video thumbnail loaded (null status, ignoring)');
+                return;
+              }
+              try {
+                console.log('[MediaMessage] Video thumbnail loaded successfully');
+                setThumbnailError(false);
+              } catch (error: any) {
+                // Silently ignore errors
+                console.log('[MediaMessage] Thumbnail load completed (status may be null, ignoring)');
+              }
+            }}
             onError={(error: any) => {
-              console.error('[MediaMessage] Thumbnail load error, using placeholder');
+              console.error('[MediaMessage] Video thumbnail error, using placeholder:', error?.message || error);
               setThumbnailError(true);
             }}
-            onLoad={() => {
-              console.log('[MediaMessage] Thumbnail loaded successfully');
-              setThumbnailError(false);
+            onPlaybackStatusUpdate={(status: any) => {
+              // Silently ignore null status updates to prevent crashes
+              if (!status || typeof status !== 'object' || status === null) {
+                return;
+              }
+              // Do nothing, just prevent errors
             }}
           />
         ) : (
-          // Always use placeholder instead of Video component to avoid expo-av status null errors
+          // Fallback placeholder if Video component not available or error
           <View style={[styles.videoThumbnail, { backgroundColor: colors.palette.darkViolet, justifyContent: 'center', alignItems: 'center' }]}>
             <Ionicons name="videocam" size={48} color={colors.text.light} />
           </View>
@@ -257,7 +279,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                   <ActivityIndicator size="large" color={colors.primary.main} style={styles.videoLoading} />
                 )}
                 <Video
-                  ref={videoRef}
+                  ref={playerVideoRef}
                   source={{ uri }}
                   style={styles.videoPlayer}
                   useNativeControls={true}
@@ -277,9 +299,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       if (status) {
                         setVideoStatus(status);
                       }
-                      if (isLoaded && !isPlaying && videoRef.current) {
+                      if (isLoaded && !isPlaying && playerVideoRef.current) {
                         // Auto-play if loaded but not playing
-                        videoRef.current.playAsync().catch((err: any) => {
+                        playerVideoRef.current.playAsync().catch((err: any) => {
                           console.error('[MediaMessage] Error auto-playing:', err?.message || err);
                         });
                       }
@@ -305,8 +327,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                         setVideoStatus(status);
                       }
                       // Auto-play immediately when loaded
-                      if (videoRef.current && isLoaded) {
-                        videoRef.current.playAsync().catch((err: any) => {
+                      if (playerVideoRef.current && isLoaded) {
+                        playerVideoRef.current.playAsync().catch((err: any) => {
                           console.error('[MediaMessage] Error playing after load:', err?.message || err);
                         });
                       }

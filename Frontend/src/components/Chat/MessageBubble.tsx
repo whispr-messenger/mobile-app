@@ -48,9 +48,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return null;
   }
 
+  // For media messages, only show content if it's not the default placeholder text
+  const isDefaultMediaText = hasMedia && message.content && 
+    ['Photo', 'Vidéo', 'Fichier'].includes(message.content);
+  
   const displayContent = message.is_deleted && message.delete_for_everyone
     ? '[Message supprimé]'
-    : message.content || '';
+    : (hasMedia && isDefaultMediaText) 
+      ? '' // Don't show default text for media without caption
+      : message.content || '';
 
   // Check if message has media attachments
   const hasMedia = message.attachments && message.attachments.length > 0;
