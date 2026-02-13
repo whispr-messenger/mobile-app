@@ -14,6 +14,7 @@ import AuthService from '../../services/AuthService';
 import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { useMediaUpload } from '../../hooks/useMediaUpload';
 import { MessageBubble } from '../../components/Chat/MessageBubble';
 import { MessageInput } from '../../components/Chat/MessageInput';
 import { TypingIndicator } from '../../components/Chat/TypingIndicator';
@@ -69,7 +70,11 @@ export const ChatScreen: React.FC = () => {
   const userId = currentUser?.userId || '';
   const token = currentUser ? `token-${currentUser.userId}` : '';
 
-  const { joinConversationChannel, markAsRead, sendTyping } = useWebSocket({
+  // Media upload hook
+  const { startUpload, cancelUpload, retryUpload, getUploadProgress, transferUpload, markAsSuccess } = useMediaUpload();
+
+  // WebSocket connection
+  const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -347,48 +352,70 @@ export const ChatScreen: React.FC = () => {
   );
 
   const handleSendMedia = useCallback(
-    async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => {
+    async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => {
+      console.log('[ChatScreen] handleSendMedia called:', { type, uri: uri.substring(0, 50) + '...', caption });
       // Stop typing indicator
       sendTyping(conversationId, false);
 
-      try {
-        // Create optimistic message
-        const tempMessage: MessageWithRelations = {
-          id: `temp-${Date.now()}`,
-          conversation_id: conversationId,
-          sender_id: userId,
-          message_type: 'media',
-          content: type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier',
-          metadata: {
+      // Use caption if provided, otherwise use default text
+      const messageContent = caption?.trim() || (type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier');
+      
+      // Create optimistic message
+      const tempMessageId = `temp-${Date.now()}`;
+      const tempMessage: MessageWithRelations = {
+        id: tempMessageId,
+        conversation_id: conversationId,
+        sender_id: userId,
+        message_type: 'media',
+        content: messageContent,
+        metadata: {
+          media_type: type,
+          media_url: uri,
+          thumbnail_url: uri, // For now, use same URI for thumbnail
+        },
+        client_random: Math.floor(Math.random() * 1000000),
+        sent_at: new Date().toISOString(),
+        is_deleted: false,
+        delete_for_everyone: false,
+        status: 'sending',
+        reply_to_id: replyToId,
+        reply_to: replyingTo || undefined,
+        attachments: [
+          {
+            id: `att-temp-${Date.now()}`,
+            message_id: tempMessageId,
+            media_id: `media-temp-${Date.now()}`,
             media_type: type,
-            media_url: uri,
-            thumbnail_url: uri, // For now, use same URI for thumbnail
-          },
-          client_random: Math.floor(Math.random() * 1000000),
-          sent_at: new Date().toISOString(),
-          is_deleted: false,
-          delete_for_everyone: false,
-          status: 'sending',
-          reply_to_id: replyToId,
-          reply_to: replyingTo || undefined,
-          attachments: [
-            {
-              id: `att-temp-${Date.now()}`,
-              message_id: `temp-${Date.now()}`,
-              media_id: `media-temp-${Date.now()}`,
-              media_type: type,
-              metadata: {
-                filename: uri.split('/').pop() || 'media',
-                media_url: uri,
-                thumbnail_url: uri,
-              },
-              created_at: new Date().toISOString(),
+            metadata: {
+              filename: uri.split('/').pop() || 'media',
+              media_url: uri,
+              thumbnail_url: uri,
             },
-          ],
-        };
+            created_at: new Date().toISOString(),
+          },
+        ],
+      };
 
-        setMessages(prev => [tempMessage, ...prev]);
-        setReplyingTo(null);
+      setMessages(prev => [tempMessage, ...prev]);
+      setReplyingTo(null);
+
+      // Start upload with progress tracking
+      console.log('[ChatScreen] Starting upload for message:', tempMessageId);
+      
+      // Start upload in background (don't await immediately to allow UI to render)
+      startUpload(tempMessageId, async (onProgress, signal) => {
+        console.log('[ChatScreen] Upload function called for:', tempMessageId);
+        // Simulate upload progress
+        const progressSteps = [10, 30, 50, 70, 90, 100];
+        for (const step of progressSteps) {
+          if (signal.aborted) {
+            console.log('[ChatScreen] Upload cancelled:', tempMessageId);
+            throw new Error('Upload cancelled');
+          }
+          console.log('[ChatScreen] Upload progress step:', step + '%');
+          onProgress(step);
+          await new Promise(resolve => setTimeout(resolve, 200)); // Faster upload
+        }
 
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: tempMessage.content,
@@ -402,10 +429,10 @@ export const ChatScreen: React.FC = () => {
           await messagingAPI.addAttachment(sentMessage.id, tempMessage.attachments[0]);
         }
 
-        // Update message with real ID
+        // Update message with real ID first
         setMessages(prev =>
           prev.map(msg =>
-            msg.id === tempMessage.id
+            msg.id === tempMessageId
               ? {
                   ...msg,
                   id: sentMessage.id,
@@ -414,19 +441,87 @@ export const ChatScreen: React.FC = () => {
               : msg
           )
         );
-      } catch (error) {
-        logger.error('ChatScreen', 'Error sending media', error);
+
+        // Transfer upload progress to new message ID AFTER updating message
+        // This ensures the upload state is transferred with the correct ID
+        transferUpload(tempMessageId, sentMessage.id);
+        
+        // Mark as success after transfer (since uploadFn completed successfully)
+        markAsSuccess(sentMessage.id);
+
+        return sentMessage;
+      }).catch((error) => {
+        console.error('[ChatScreen] Upload error:', error);
         // Update message status to failed
         setMessages(prev =>
           prev.map(msg =>
-            msg.id.startsWith('temp-') && msg.status === 'sending'
+            msg.id === tempMessageId
               ? { ...msg, status: 'failed' as const }
               : msg
           )
         );
-      }
+      });
     },
-    [conversationId, userId, sendTyping, replyingTo]
+    [conversationId, userId, sendTyping, replyingTo, startUpload]
+  );
+
+  const handleCancelUpload = useCallback(
+    (messageId: string) => {
+      cancelUpload(messageId);
+      // Update message status
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId ? { ...msg, status: 'failed' as const } : msg
+        )
+      );
+    },
+    [cancelUpload]
+  );
+
+  const handleRetryUpload = useCallback(
+    async (messageId: string, uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => {
+      const message = messages.find(m => m.id === messageId);
+      if (!message) return;
+
+      // Retry upload
+      await retryUpload(messageId, async (onProgress, signal) => {
+        const progressSteps = [10, 30, 50, 70, 90, 100];
+        for (const step of progressSteps) {
+          if (signal.aborted) {
+            throw new Error('Upload cancelled');
+          }
+          onProgress(step);
+          await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200));
+        }
+
+        const sentMessage = await messagingAPI.sendMessage(conversationId, {
+          content: message.content,
+          message_type: 'media',
+          client_random: message.client_random,
+          metadata: message.metadata,
+          reply_to_id: replyToId,
+        });
+
+        if (message.attachments && message.attachments[0]) {
+          mockStore.addAttachment(sentMessage.id, message.attachments[0]);
+        }
+
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  id: sentMessage.id,
+                  status: 'sent' as const,
+                }
+              : msg
+          )
+        );
+
+        return sentMessage;
+      });
+    },
+    [messages, conversationId, retryUpload]
   );
 
   const handleReactionPress = useCallback(
@@ -763,7 +858,16 @@ export const ChatScreen: React.FC = () => {
 
       const isSent = message.sender_id === userId;
       const isHighlighted = Boolean(searchQuery.trim() && searchResults.some(r => r.id === message.id));
-
+      
+      const uploadProgressData = getUploadProgress(message.id);
+      // Map upload progress to expected format
+      const uploadProgress = uploadProgressData
+        ? {
+            progress: uploadProgressData.progress,
+            status: uploadProgressData.status,
+            error: uploadProgressData.error,
+          }
+        : undefined;
       return (
         <MessageBubble
           message={message}
@@ -774,10 +878,32 @@ export const ChatScreen: React.FC = () => {
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
+          uploadProgress={uploadProgress}
+          onCancelUpload={
+            message.status === 'sending' ? () => handleCancelUpload(message.id) : undefined
+          }
+          onRetryUpload={
+            message.status === 'failed'
+              ? () => {
+                  const attachment = message.attachments?.[0];
+                  if (attachment?.metadata) {
+                    handleRetryUpload(
+                      message.id,
+                      attachment.metadata.media_url || '',
+                      attachment.media_type,
+                      message.reply_to_id,
+                      message.content !== 'Photo' && message.content !== 'Vidéo' && message.content !== 'Fichier'
+                        ? message.content
+                        : undefined
+                    );
+                  }
+                }
+              : undefined
+          }
         />
       );
     },
-    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults]
+    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults, getUploadProgress, handleCancelUpload, handleRetryUpload, messages]
   );
 
   const keyExtractor = useCallback(

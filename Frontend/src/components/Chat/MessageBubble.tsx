@@ -16,6 +16,7 @@ import { ReactionBar } from './ReactionBar';
 import { ReplyPreview } from './ReplyPreview';
 import { ReactionPicker } from './ReactionPicker';
 import { MediaMessage } from './MediaMessage';
+import { MediaUploadProgress } from './MediaUploadProgress';
 import { FormattedText } from '../../utils/textFormatter';
 
 interface MessageBubbleProps {
@@ -27,6 +28,13 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   isHighlighted?: boolean;
   searchQuery?: string;
+  uploadProgress?: {
+    progress: number;
+    status: 'uploading' | 'success' | 'error' | 'cancelled';
+    error?: string;
+  };
+  onCancelUpload?: () => void;
+  onRetryUpload?: () => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -38,6 +46,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onLongPress,
   isHighlighted = false,
   searchQuery,
+  uploadProgress,
+  onCancelUpload,
+  onRetryUpload,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -48,13 +59,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return null;
   }
 
-  const displayContent = message.is_deleted && message.delete_for_everyone
-    ? '[Message supprimé]'
-    : message.content || '';
-
   // Check if message has media attachments
   const hasMedia = message.attachments && message.attachments.length > 0;
   const firstAttachment = hasMedia && message.attachments ? message.attachments[0] : null;
+
+  // For media messages, only show content if it's not the default placeholder text
+  const isDefaultMediaText = hasMedia && message.content && 
+    ['Photo', 'Vidéo', 'Fichier'].includes(message.content);
+  
+  const displayContent = message.is_deleted && message.delete_for_everyone
+    ? '[Message supprimé]'
+    : (hasMedia && isDefaultMediaText) 
+      ? '' // Don't show default text for media without caption
+      : message.content || '';
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -109,13 +126,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             />
           ) : null}
           {hasMedia && firstAttachment && firstAttachment.metadata ? (
-            <MediaMessage
-              uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
-              type={firstAttachment.media_type}
-              filename={firstAttachment.metadata.filename}
-              size={firstAttachment.metadata.size}
-              thumbnailUri={firstAttachment.metadata.thumbnail_url}
-            />
+            <>
+              <MediaMessage
+                uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
+                type={firstAttachment.media_type}
+                filename={firstAttachment.metadata.filename}
+                size={firstAttachment.metadata.size}
+                thumbnailUri={firstAttachment.metadata.thumbnail_url}
+              />
+              {(uploadProgress || message.status === 'sending' || message.status === 'failed') && (
+                <MediaUploadProgress
+                  progress={uploadProgress?.progress || 0}
+                  status={uploadProgress?.status || (message.status === 'failed' ? 'error' : message.status === 'sending' ? 'uploading' : uploadProgress ? 'success' : 'uploading')}
+                  error={uploadProgress?.error || (message.status === 'failed' ? 'Erreur lors de l\'envoi' : undefined)}
+                  onCancel={onCancelUpload}
+                  onRetry={onRetryUpload}
+                  isSent={isSent}
+                />
+              )}
+            </>
           ) : null}
           {displayContent ? (
             message.is_deleted && message.delete_for_everyone ? (
@@ -175,13 +204,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           />
         ) : null}
         {hasMedia && firstAttachment && firstAttachment.metadata ? (
-          <MediaMessage
-            uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
-            type={firstAttachment.media_type}
-            filename={firstAttachment.metadata.filename}
-            size={firstAttachment.metadata.size}
-            thumbnailUri={firstAttachment.metadata.thumbnail_url}
-          />
+          <>
+            <MediaMessage
+              uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
+              type={firstAttachment.media_type}
+              filename={firstAttachment.metadata.filename}
+              size={firstAttachment.metadata.size}
+              thumbnailUri={firstAttachment.metadata.thumbnail_url}
+            />
+            {(uploadProgress || message.status === 'sending' || message.status === 'failed') && (
+              <MediaUploadProgress
+                progress={uploadProgress?.progress || 0}
+                status={uploadProgress?.status || (message.status === 'failed' ? 'error' : 'uploading')}
+                error={uploadProgress?.error || (message.status === 'failed' ? 'Erreur lors de l\'envoi' : undefined)}
+                onCancel={onCancelUpload}
+                onRetry={onRetryUpload}
+                isSent={isSent}
+              />
+            )}
+          </>
         ) : null}
         {displayContent ? (
           message.is_deleted && message.delete_for_everyone ? (
@@ -275,6 +316,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 16,
     borderBottomRightRadius: 4,
+    overflow: 'visible', // Allow progress bar to be visible
   },
   sentText: {
     color: colors.text.light,
@@ -331,7 +373,8 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.status === nextProps.message.status &&
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
-    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions)
+    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
+    JSON.stringify(prevProps.uploadProgress) === JSON.stringify(nextProps.uploadProgress)
   );
 });
 

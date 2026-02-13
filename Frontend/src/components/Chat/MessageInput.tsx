@@ -13,10 +13,11 @@ import { colors } from '../../theme/colors';
 import { Message } from '../../types/messaging';
 import { ReplyPreview } from './ReplyPreview';
 import { Avatar } from './Avatar';
+import { CameraCapture, CameraCaptureResult } from './CameraCapture';
 
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
-  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string) => void;
+  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => void;
   onTyping?: (typing: boolean) => void;
   placeholder?: string;
   replyingTo?: Message | null;
@@ -43,6 +44,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
@@ -154,6 +156,27 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [text, onSend, replyingTo, onCancelReply, onCancelEdit, members]);
 
+  // Open camera capture modal
+  const handleOpenCamera = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowCameraCapture(true);
+  }, []);
+
+  // Handle camera capture result
+  const handleCameraCapture = useCallback(
+    (result: CameraCaptureResult) => {
+      console.log('[MessageInput] Camera capture:', result.type, 'with caption:', result.caption || 'none');
+      
+      // Send media with caption integrated in the same message
+      onSendMedia?.(result.uri, result.type, replyingTo?.id, result.caption?.trim() || undefined);
+
+      if (replyingTo) {
+        onCancelReply?.();
+      }
+    },
+    [onSendMedia, replyingTo, onCancelReply]
+  );
+
   const handlePickImage = useCallback(async () => {
     console.log('[MessageInput] Starting image picker');
     try {
@@ -246,17 +269,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       )}
       <View style={styles.inputContainer}>
         {!editingMessage && (
-          <TouchableOpacity
-            onPress={handlePickImage}
-            style={styles.attachButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="image-outline"
-              size={24}
-              color={themeColors.text.secondary}
-            />
-          </TouchableOpacity>
+          <View style={styles.attachButtons}>
+            <TouchableOpacity
+              onPress={handleOpenCamera}
+              style={styles.attachButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="camera-outline"
+                size={24}
+                color={themeColors.text.secondary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePickImage}
+              style={styles.attachButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="image-outline"
+                size={24}
+                color={themeColors.text.secondary}
+              />
+            </TouchableOpacity>
+          </View>
         )}
         <View style={styles.inputWrapper}>
           <TextInput
@@ -343,6 +379,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           </LinearGradient>
         </TouchableOpacity>
       </View>
+      <CameraCapture
+        visible={showCameraCapture}
+        onClose={() => setShowCameraCapture(false)}
+        onCapture={handleCameraCapture}
+        allowVideo={true}
+      />
     </View>
   );
 };
@@ -377,8 +419,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
-  attachButton: {
+  attachButtons: {
+    flexDirection: 'row',
     marginRight: 8,
+    gap: 4,
+  },
+  attachButton: {
     padding: 8,
     justifyContent: 'center',
     alignItems: 'center',
