@@ -1,9 +1,4 @@
-/**
- * NewConversationModal - Modal for creating new conversations or groups
- * WHISPR-211: Modal selection groupe
- */
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -37,7 +32,7 @@ import Animated, {
 import { useTheme } from '../../context/ThemeContext';
 import { colors, withOpacity } from '../../theme/colors';
 import { typography, textStyles } from '../../theme/typography';
-import { Contact } from '../../types/contact';
+import { Contact, UserSearchResult } from '../../types/contact';
 import { contactsAPI } from '../../services/contacts/api';
 import { messagingAPI } from '../../services/messaging/api';
 import { Avatar } from './Avatar';
@@ -54,6 +49,10 @@ interface NewConversationModalProps {
 
 type ConversationType = 'direct' | 'group' | null;
 
+type DirectTarget =
+  | { type: 'contact'; contact: Contact }
+  | { type: 'user'; user: UserSearchResult };
+
 export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   visible,
   onClose,
@@ -63,12 +62,15 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
+  const [selectedDirectTarget, setSelectedDirectTarget] = useState<DirectTarget | null>(null);
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [groupName, setGroupName] = useState('');
   const [groupDescription, setGroupDescription] = useState('');
   const [groupPhoto, setGroupPhoto] = useState<string | null>(null);
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const [creating, setCreating] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -92,28 +94,106 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     }
   }, []);
 
-  // Filter contacts by search query
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    const trimmed = query.trim();
+
+    if (!trimmed) {
+      setUserSearchResults([]);
+      setLoadingContacts(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setLoadingContacts(true);
+        const results = await contactsAPI.searchUsers({
+          username: trimmed,
+        });
+        setUserSearchResults(results);
+      } catch (error) {
+        logger.error('NewConversationModal', 'Error searching users', error);
+        Alert.alert('Erreur', 'Impossible de rechercher les utilisateurs');
+        setUserSearchResults([]);
+      } finally {
+        setLoadingContacts(false);
+      }
+    }, 300);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    },
+    []
+  );
+
   const filteredContacts = React.useMemo(() => {
     if (!searchQuery.trim()) return contacts;
-    
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
     return contacts.filter(contact => {
       const user = contact.contact_user;
-      if (!user) return false;
-      
       const nickname = contact.nickname?.toLowerCase() || '';
-      const firstName = user.first_name?.toLowerCase() || '';
-      const lastName = user.last_name?.toLowerCase() || '';
-      const username = user.username?.toLowerCase() || '';
-      
+      const username = user?.username?.toLowerCase() || '';
+      const firstName = user?.first_name?.toLowerCase() || '';
+      const lastName = user?.last_name?.toLowerCase() || '';
       return (
         nickname.includes(query) ||
+        username.includes(query) ||
         firstName.includes(query) ||
-        lastName.includes(query) ||
-        username.includes(query)
+        lastName.includes(query)
       );
     });
   }, [contacts, searchQuery]);
+
+  const groupContacts = React.useMemo(() => {
+    if (!groupSearchQuery.trim()) return contacts;
+    const query = groupSearchQuery.trim().toLowerCase();
+    return contacts.filter(contact => {
+      const user = contact.contact_user;
+      const nickname = contact.nickname?.toLowerCase() || '';
+      const username = user?.username?.toLowerCase() || '';
+      const firstName = user?.first_name?.toLowerCase() || '';
+      const lastName = user?.last_name?.toLowerCase() || '';
+      return (
+        nickname.includes(query) ||
+        username.includes(query) ||
+        firstName.includes(query) ||
+        lastName.includes(query)
+      );
+    });
+  }, [contacts, groupSearchQuery]);
+
+  const directListItems: DirectTarget[] = React.useMemo(() => {
+    const items: DirectTarget[] = filteredContacts.map(contact => ({
+      type: 'contact',
+      contact,
+    }));
+
+    if (searchQuery.trim() && userSearchResults.length > 0) {
+      const existingUserIds = new Set(
+        contacts
+          .map(c => c.contact_user?.id)
+          .filter((id): id is string => !!id)
+      );
+
+      userSearchResults.forEach(result => {
+        const userId = result.user.id;
+        if (!existingUserIds.has(userId)) {
+          items.push({ type: 'user', user: result });
+        }
+      });
+    }
+
+    return items;
+  }, [filteredContacts, userSearchResults, contacts, searchQuery]);
 
   // Animation values
   const slideAnim = useSharedValue(0);
@@ -125,15 +205,17 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     slideAnim.value = withSpring(-300, { damping: 15, stiffness: 150 });
     fadeAnim.value = withTiming(0, { duration: 200 });
-    
+
     setTimeout(() => {
       setConversationType(type);
-      setSelectedContact(null);
+      setSelectedDirectTarget(null);
       setSelectedMembers(new Set());
       setGroupName('');
       setGroupDescription('');
       setGroupPhoto(null);
       setSearchQuery('');
+      setGroupSearchQuery('');
+      setUserSearchResults([]);
       slideAnim.value = 300;
       fadeAnim.value = 0;
       setTimeout(() => {
@@ -146,7 +228,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   // Handle contact selection for direct conversation with haptics
   const handleContactSelect = (contact: Contact) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedContact(contact);
+    setSelectedDirectTarget({ type: 'contact', contact });
   };
 
   // Handle member selection for group with haptics
@@ -188,12 +270,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         mediaTypes: 'images',
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.5,
+        base64: true,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets[0] && result.assets[0].base64) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setGroupPhoto(result.assets[0].uri);
+        setGroupPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
       }
     } catch (error) {
       // Error handled by Alert
@@ -216,12 +299,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.5,
+        base64: true,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets[0] && result.assets[0].base64) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setGroupPhoto(result.assets[0].uri);
+        setGroupPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
       }
     } catch (error) {
       // Error handled by Alert
@@ -233,7 +317,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   // Handle create conversation with haptics and animations
   const handleCreate = async () => {
     if (conversationType === 'direct') {
-      if (!selectedContact) {
+      if (!selectedDirectTarget) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         Alert.alert('Contact requis', 'Veuillez sélectionner un contact');
         return;
@@ -246,14 +330,21 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           withSpring(1, { damping: 10, stiffness: 200 })
         );
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        
-        const userId = selectedContact.contact_user?.id;
+
+        let userId: string | undefined;
+
+        if (selectedDirectTarget.type === 'contact') {
+          userId = selectedDirectTarget.contact.contact_user?.id;
+        } else {
+          userId = selectedDirectTarget.user.user.id;
+        }
+
         if (!userId) {
           throw new Error('Contact invalide');
         }
 
         const conversation = await messagingAPI.createDirectConversation(userId);
-        
+
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onConversationCreated(conversation.id);
         handleClose();
@@ -292,7 +383,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           withSpring(1, { damping: 10, stiffness: 200 })
         );
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-        
+
         const memberIds = Array.from(selectedMembers);
 
         const conversation = await messagingAPI.createGroupConversation(
@@ -301,7 +392,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           groupDescription.trim() || undefined,
           groupPhoto || undefined
         );
-        
+
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onConversationCreated(conversation.id);
         handleClose();
@@ -321,12 +412,14 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     fadeAnim.value = withTiming(0, { duration: 200 });
     setTimeout(() => {
       setConversationType(null);
-      setSelectedContact(null);
+      setSelectedDirectTarget(null);
       setSelectedMembers(new Set());
       setGroupName('');
       setGroupDescription('');
       setGroupPhoto(null);
       setSearchQuery('');
+      setGroupSearchQuery('');
+      setUserSearchResults([]);
       slideAnim.value = 0;
       fadeAnim.value = 1;
       onClose();
@@ -345,14 +438,24 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   // Render type selection screen with animations
   const renderTypeSelection = () => (
-    <Animated.View 
+    <Animated.View
       style={[styles.typeSelectionContainer, slideStyle]}
       entering={FadeIn.duration(300).springify()}
     >
-      <Animated.Text 
+      <View style={styles.header}>
+        <View style={styles.placeholder} />
+        <TouchableOpacity
+          onPress={handleClose}
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text.light} />
+        </TouchableOpacity>
+      </View>
+      <Animated.Text
         style={[
-          styles.screenTitle, 
-          { 
+          styles.screenTitle,
+          {
             color: colors.text.light,
             fontSize: typography.fontSize.xxxl,
             fontWeight: typography.fontWeight.bold,
@@ -363,10 +466,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       >
         Nouvelle conversation
       </Animated.Text>
-      <Animated.Text 
+      <Animated.Text
         style={[
-          styles.screenSubtitle, 
-          { 
+          styles.screenSubtitle,
+          {
             color: colors.text.secondary,
             fontSize: typography.fontSize.md,
             fontWeight: typography.fontWeight.regular,
@@ -380,7 +483,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       <View style={styles.typeButtonsContainer}>
         <AnimatedTouchableOpacity
           style={[
-            styles.typeButton, 
+            styles.typeButton,
             { backgroundColor: colors.background.darkCard },
           ]}
           onPress={() => handleTypeSelect('direct')}
@@ -396,8 +499,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             <Ionicons name="person" size={32} color={colors.text.light} />
           </LinearGradient>
           <Text style={[
-            styles.typeButtonTitle, 
-            { 
+            styles.typeButtonTitle,
+            {
               color: colors.text.light,
               fontSize: typography.fontSize.xl,
               fontWeight: typography.fontWeight.semiBold,
@@ -406,8 +509,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             Conversation directe
           </Text>
           <Text style={[
-            styles.typeButtonSubtitle, 
-            { 
+            styles.typeButtonSubtitle,
+            {
               color: colors.text.secondary,
               fontSize: typography.fontSize.sm,
               fontWeight: typography.fontWeight.regular,
@@ -419,7 +522,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
         <AnimatedTouchableOpacity
           style={[
-            styles.typeButton, 
+            styles.typeButton,
             { backgroundColor: colors.background.darkCard },
           ]}
           onPress={() => handleTypeSelect('group')}
@@ -435,8 +538,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             <Ionicons name="people" size={32} color={colors.text.light} />
           </LinearGradient>
           <Text style={[
-            styles.typeButtonTitle, 
-            { 
+            styles.typeButtonTitle,
+            {
               color: colors.text.light,
               fontSize: typography.fontSize.xl,
               fontWeight: typography.fontWeight.semiBold,
@@ -445,8 +548,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             Groupe
           </Text>
           <Text style={[
-            styles.typeButtonSubtitle, 
-            { 
+            styles.typeButtonSubtitle,
+            {
               color: colors.text.secondary,
               fontSize: typography.fontSize.sm,
               fontWeight: typography.fontWeight.regular,
@@ -461,24 +564,24 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   // Render direct conversation screen with animations
   const renderDirectConversation = () => (
-    <Animated.View 
+    <Animated.View
       style={[styles.contentContainer, slideStyle]}
       entering={SlideInDown.springify()}
     >
       <View style={[styles.header, { borderBottomColor: withOpacity(colors.ui.divider, 0.3) }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setConversationType(null);
-          }} 
+          }}
           style={styles.backButton}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text.light} />
         </TouchableOpacity>
         <Text style={[
-          styles.screenTitle, 
-          { 
+          styles.screenTitle,
+          {
             color: colors.text.light,
             fontSize: typography.fontSize.xxl,
             fontWeight: typography.fontWeight.bold,
@@ -489,24 +592,24 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         <View style={styles.placeholder} />
       </View>
 
-      <Animated.View 
+      <Animated.View
         style={[styles.searchContainer, { backgroundColor: withOpacity(colors.background.darkCard, 0.8) }]}
         entering={FadeIn.delay(100).duration(300)}
       >
         <Ionicons name="search" size={20} color={colors.text.secondary} style={styles.searchIcon} />
         <TextInput
           style={[
-            styles.searchInput, 
-            { 
+            styles.searchInput,
+            {
               color: colors.text.light,
               fontSize: typography.fontSize.base,
               fontWeight: typography.fontWeight.regular,
             }
           ]}
-          placeholder="Rechercher un contact..."
+          placeholder="Rechercher un contact"
           placeholderTextColor={colors.text.tertiary}
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={handleSearchChange}
         />
       </Animated.View>
 
@@ -516,51 +619,127 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         </View>
       ) : (
         <FlatList
-          data={filteredContacts}
-          keyExtractor={(item) => item.id}
+          data={directListItems}
+          keyExtractor={(item) =>
+            item.type === 'contact' ? item.contact.id : `user-${item.user.user.id}`
+          }
           renderItem={({ item }) => {
-            const user = item.contact_user;
-            const displayName = item.nickname || user?.first_name || user?.username || 'Contact';
-            const isSelected = selectedContact?.id === item.id;
+            if (item.type === 'contact') {
+              const contact = item.contact;
+              const user = contact.contact_user;
+              const displayName =
+                contact.nickname || user?.first_name || user?.username || 'Contact';
+              const isSelected =
+                selectedDirectTarget?.type === 'contact' &&
+                selectedDirectTarget.contact.id === contact.id;
+
+              return (
+                <AnimatedTouchableOpacity
+                  key={contact.id}
+                  style={[
+                    styles.contactItem,
+                    { backgroundColor: colors.background.darkCard },
+                    isSelected && { backgroundColor: withOpacity(colors.primary.main, 0.2) },
+                  ]}
+                  onPress={() => handleContactSelect(contact)}
+                  activeOpacity={0.7}
+                  entering={FadeIn.duration(200)}
+                >
+                  <Avatar
+                    uri={user?.avatar_url}
+                    name={displayName}
+                    size={48}
+                    showOnlineBadge={false}
+                  />
+                  <View style={styles.contactInfo}>
+                    <Text
+                      style={[
+                        styles.contactName,
+                        {
+                          color: colors.text.light,
+                          fontSize: typography.fontSize.base,
+                          fontWeight: typography.fontWeight.semiBold,
+                        },
+                      ]}
+                    >
+                      {displayName}
+                    </Text>
+                    {user?.username && (
+                      <Text
+                        style={[
+                          styles.contactUsername,
+                          {
+                            color: colors.text.secondary,
+                            fontSize: typography.fontSize.sm,
+                            fontWeight: typography.fontWeight.regular,
+                          },
+                        ]}
+                      >
+                        @{user.username}
+                      </Text>
+                    )}
+                  </View>
+                  {isSelected && (
+                    <Animated.View entering={FadeIn.springify()}>
+                      <Ionicons name="checkmark-circle" size={24} color={colors.primary.main} />
+                    </Animated.View>
+                  )}
+                </AnimatedTouchableOpacity>
+              );
+            }
+
+            const result = item.user;
+            const user = result.user;
+            const displayName = user.first_name || user.username || 'Utilisateur';
+            const isSelected =
+              selectedDirectTarget?.type === 'user' &&
+              selectedDirectTarget.user.user.id === user.id;
 
             return (
               <AnimatedTouchableOpacity
-                key={item.id}
+                key={user.id}
                 style={[
                   styles.contactItem,
                   { backgroundColor: colors.background.darkCard },
                   isSelected && { backgroundColor: withOpacity(colors.primary.main, 0.2) },
                 ]}
-                onPress={() => handleContactSelect(item)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedDirectTarget(item);
+                }}
                 activeOpacity={0.7}
                 entering={FadeIn.duration(200)}
               >
                 <Avatar
-                  uri={user?.avatar_url}
+                  uri={user.avatar_url}
                   name={displayName}
                   size={48}
                   showOnlineBadge={false}
                 />
                 <View style={styles.contactInfo}>
-                  <Text style={[
-                    styles.contactName, 
-                    { 
-                      color: colors.text.light,
-                      fontSize: typography.fontSize.base,
-                      fontWeight: typography.fontWeight.semiBold,
-                    }
-                  ]}>
+                  <Text
+                    style={[
+                      styles.contactName,
+                      {
+                        color: colors.text.light,
+                        fontSize: typography.fontSize.base,
+                        fontWeight: typography.fontWeight.semiBold,
+                      },
+                    ]}
+                  >
                     {displayName}
                   </Text>
-                  {user?.username && (
-                    <Text style={[
-                      styles.contactUsername, 
-                      { 
-                        color: colors.text.secondary,
-                        fontSize: typography.fontSize.sm,
-                        fontWeight: typography.fontWeight.regular,
-                      }
-                    ]}>
+                  {user.username && (
+                    <Text
+                      style={[
+                        styles.contactUsername,
+                        {
+                          color: colors.text.secondary,
+                          fontSize: typography.fontSize.sm,
+                          fontWeight: typography.fontWeight.regular,
+                        },
+                      ]}
+                    >
                       @{user.username}
                     </Text>
                   )}
@@ -583,10 +762,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         />
       )}
 
-      {selectedContact && (
+      {selectedDirectTarget && (
         <AnimatedTouchableOpacity
           style={[
-            styles.createButton, 
+            styles.createButton,
             { backgroundColor: colors.primary.main },
             buttonScaleStyle,
           ]}
@@ -599,8 +778,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             <ActivityIndicator color={colors.text.light} size="small" />
           ) : (
             <Text style={[
-              styles.createButtonText, 
-              { 
+              styles.createButtonText,
+              {
                 color: colors.text.light,
                 fontSize: typography.fontSize.base,
                 fontWeight: typography.fontWeight.semiBold,
@@ -616,29 +795,29 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   // Render group creation screen with animations
   const renderGroupCreation = () => {
-    const selectedContacts = contacts.filter(c => 
+    const selectedContacts = contacts.filter(c =>
       c.contact_user?.id && selectedMembers.has(c.contact_user.id)
     );
 
     return (
-      <Animated.View 
+      <Animated.View
         style={[styles.contentContainer, slideStyle]}
         entering={SlideInDown.springify()}
       >
         <View style={[styles.header, { borderBottomColor: withOpacity(colors.ui.divider, 0.3) }]}>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setConversationType(null);
-            }} 
+            }}
             style={styles.backButton}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text.light} />
           </TouchableOpacity>
           <Text style={[
-            styles.screenTitle, 
-            { 
+            styles.screenTitle,
+            {
               color: colors.text.light,
               fontSize: typography.fontSize.xxl,
               fontWeight: typography.fontWeight.bold,
@@ -651,7 +830,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {/* Group Photo */}
-          <Animated.View 
+          <Animated.View
             style={styles.photoSection}
             entering={FadeIn.delay(100).duration(300)}
           >
@@ -677,8 +856,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               activeOpacity={0.7}
             >
               <Text style={[
-                styles.takePhotoText, 
-                { 
+                styles.takePhotoText,
+                {
                   color: colors.primary.main,
                   fontSize: typography.fontSize.sm,
                   fontWeight: typography.fontWeight.semiBold,
@@ -690,13 +869,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           </Animated.View>
 
           {/* Group Name */}
-          <Animated.View 
+          <Animated.View
             style={styles.inputSection}
             entering={FadeIn.delay(200).duration(300)}
           >
             <Text style={[
-              styles.inputLabel, 
-              { 
+              styles.inputLabel,
+              {
                 color: colors.text.light,
                 fontSize: typography.fontSize.md,
                 fontWeight: typography.fontWeight.semiBold,
@@ -707,7 +886,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             <TextInput
               style={[
                 styles.input,
-                { 
+                {
                   backgroundColor: colors.background.darkCard,
                   color: colors.text.light,
                   borderColor: groupName.trim().length > 0 && groupName.trim().length < 3
@@ -724,10 +903,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               maxLength={100}
             />
             {groupName.trim().length > 0 && groupName.trim().length < 3 && (
-              <Animated.Text 
+              <Animated.Text
                 style={[
-                  styles.errorText, 
-                  { 
+                  styles.errorText,
+                  {
                     color: colors.ui.error,
                     fontSize: typography.fontSize.xs,
                     fontWeight: typography.fontWeight.regular,
@@ -739,8 +918,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               </Animated.Text>
             )}
             <Text style={[
-              styles.helperText, 
-              { 
+              styles.helperText,
+              {
                 color: colors.text.secondary,
                 fontSize: typography.fontSize.xs,
                 fontWeight: typography.fontWeight.regular,
@@ -751,13 +930,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           </Animated.View>
 
           {/* Group Description */}
-          <Animated.View 
+          <Animated.View
             style={styles.inputSection}
             entering={FadeIn.delay(300).duration(300)}
           >
             <Text style={[
-              styles.inputLabel, 
-              { 
+              styles.inputLabel,
+              {
                 color: colors.text.light,
                 fontSize: typography.fontSize.md,
                 fontWeight: typography.fontWeight.semiBold,
@@ -769,7 +948,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               style={[
                 styles.input,
                 styles.textArea,
-                { 
+                {
                   backgroundColor: colors.background.darkCard,
                   color: colors.text.light,
                   fontSize: typography.fontSize.base,
@@ -785,8 +964,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               maxLength={500}
             />
             <Text style={[
-              styles.helperText, 
-              { 
+              styles.helperText,
+              {
                 color: colors.text.secondary,
                 fontSize: typography.fontSize.xs,
                 fontWeight: typography.fontWeight.regular,
@@ -797,14 +976,14 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
           </Animated.View>
 
           {/* Members Selection */}
-          <Animated.View 
+          <Animated.View
             style={styles.membersSection}
             entering={FadeIn.delay(400).duration(300)}
           >
-            <View style={styles.membersHeader}>
+              <View style={styles.membersHeader}>
               <Text style={[
-                styles.inputLabel, 
-                { 
+                styles.inputLabel,
+                {
                   color: colors.text.light,
                   fontSize: typography.fontSize.md,
                   fontWeight: typography.fontWeight.semiBold,
@@ -816,8 +995,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 <Ionicons name="search" size={20} color={colors.text.secondary} style={styles.searchIcon} />
                 <TextInput
                   style={[
-                    styles.searchInput, 
-                    { 
+                    styles.searchInput,
+                    {
                       color: colors.text.light,
                       fontSize: typography.fontSize.base,
                       fontWeight: typography.fontWeight.regular,
@@ -825,15 +1004,15 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   ]}
                   placeholder="Rechercher des contacts..."
                   placeholderTextColor={colors.text.tertiary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  value={groupSearchQuery}
+                  onChangeText={setGroupSearchQuery}
                 />
               </View>
             </View>
 
             {/* Selected Members Preview */}
             {selectedContacts.length > 0 && (
-              <Animated.View 
+              <Animated.View
                 style={styles.selectedMembersContainer}
                 entering={FadeIn.duration(300)}
               >
@@ -842,8 +1021,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                     const user = contact.contact_user;
                     const displayName = contact.nickname || user?.first_name || user?.username || 'Contact';
                     return (
-                      <Animated.View 
-                        key={contact.id} 
+                      <Animated.View
+                        key={contact.id}
                         style={styles.selectedMemberChip}
                         entering={FadeIn.delay(index * 50).springify()}
                       >
@@ -874,7 +1053,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               </View>
             ) : (
               <FlatList
-                data={filteredContacts}
+                data={groupContacts}
                 keyExtractor={(item) => item.id}
                 scrollEnabled={false}
                 renderItem={({ item }) => {
@@ -905,8 +1084,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                       />
                       <View style={styles.contactInfo}>
                         <Text style={[
-                          styles.contactName, 
-                          { 
+                          styles.contactName,
+                          {
                             color: colors.text.light,
                             fontSize: typography.fontSize.base,
                             fontWeight: typography.fontWeight.semiBold,
@@ -916,8 +1095,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         </Text>
                         {user?.username && (
                           <Text style={[
-                            styles.contactUsername, 
-                            { 
+                            styles.contactUsername,
+                            {
                               color: colors.text.secondary,
                               fontSize: typography.fontSize.sm,
                               fontWeight: typography.fontWeight.regular,
@@ -953,8 +1132,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         <AnimatedTouchableOpacity
           style={[
             styles.createButton,
-            { 
-              backgroundColor: 
+            {
+              backgroundColor:
                 groupName.trim().length >= 3 && selectedMembers.size > 0
                   ? colors.primary.main
                   : colors.background.tertiary,
@@ -970,8 +1149,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             <ActivityIndicator color={colors.text.light} size="small" />
           ) : (
             <Text style={[
-              styles.createButtonText, 
-              { 
+              styles.createButtonText,
+              {
                 color: colors.text.light,
                 fontSize: typography.fontSize.base,
                 fontWeight: typography.fontWeight.semiBold,
@@ -998,7 +1177,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
       >
-        <SafeAreaView 
+        <SafeAreaView
           style={styles.container}
           edges={['top']}
         >
@@ -1021,8 +1200,10 @@ const styles = StyleSheet.create({
   },
   typeSelectionContainer: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+    justifyContent: 'flex-start',
   },
   screenTitle: {
     marginBottom: 8,
@@ -1233,4 +1414,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

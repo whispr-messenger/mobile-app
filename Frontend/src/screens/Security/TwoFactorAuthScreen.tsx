@@ -32,7 +32,7 @@ const copyToClipboard = async (text: string) => {
     await Clipboard.setStringAsync(text);
     return true;
   } catch (error) {
-    console.log('📋 Copy to clipboard (mock):', text);
+    console.log('📋 Copy to clipboard (fallback):', text);
     return false;
   }
 };
@@ -1128,4 +1128,3 @@ const styles = StyleSheet.create({
 });
 
 export default TwoFactorAuthScreen;
-

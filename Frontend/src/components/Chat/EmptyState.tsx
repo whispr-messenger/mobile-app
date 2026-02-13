@@ -15,9 +15,6 @@ interface EmptyStateProps {
 export const EmptyState: React.FC<EmptyStateProps> = ({ onNewConversation }) => {
   return (
     <View style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <View style={styles.iconContainer}>
-        <Ionicons name="chatbubbles-outline" size={80} color="rgba(255, 255, 255, 0.3)" />
-      </View>
       <Text style={[styles.title, { color: '#FFFFFF' }]}>
         Aucune conversation
       </Text>
@@ -81,5 +78,3 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
-
-

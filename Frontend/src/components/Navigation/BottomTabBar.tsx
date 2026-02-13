@@ -22,13 +22,13 @@ interface TabItem {
   useLogo?: boolean;
   logoVariant?: 'single' | 'double';
   route: string;
-  badge?: number;
+  badgeKey?: 'chats';
 }
 
 const tabs: TabItem[] = [
   { name: 'Contacts', icon: 'person-outline', route: 'Contacts' },
   { name: 'Calls', icon: 'call-outline', route: 'ConversationsList' },
-  { name: 'Chats', useLogo: true, logoVariant: 'double', route: 'ConversationsList', badge: 4 },
+  { name: 'Chats', useLogo: true, logoVariant: 'double', route: 'ConversationsList', badgeKey: 'chats' },
   { name: 'Settings', useLogo: true, logoVariant: 'single', route: 'Settings' },
 ];
 
@@ -37,6 +37,41 @@ export const BottomTabBar: React.FC = () => {
   const route = useRoute();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+  const [unreadCounts, setUnreadCounts] = React.useState<{ chats: number }>({ chats: 0 });
+
+  React.useEffect(() => {
+    const updateCounts = (conversations: any[]) => {
+      const chatsUnread = conversations.reduce((sum, conv) => {
+        const count = conv.unread_count || 0;
+        return sum + (typeof count === 'number' ? count : 0);
+      }, 0);
+      setUnreadCounts({ chats: chatsUnread });
+    };
+
+    const handleUpdate = (event: any) => {
+      if (event && event.conversations && Array.isArray(event.conversations)) {
+        updateCounts(event.conversations);
+      }
+    };
+
+    const subscription = (globalThis as any).whisprEvents?.addListener?.(
+      'conversationsUpdated',
+      handleUpdate
+    );
+
+    const initial = (globalThis as any).whisprConversations as any[] | undefined;
+    if (initial && Array.isArray(initial)) {
+      updateCounts(initial);
+    }
+
+    return () => {
+      if (subscription && typeof subscription.remove === 'function') {
+        subscription.remove();
+      } else if ((globalThis as any).whisprEvents?.removeListener) {
+        (globalThis as any).whisprEvents.removeListener('conversationsUpdated', handleUpdate);
+      }
+    };
+  }, []);
 
   const handleTabPress = (tabRoute: string) => {
     if (route.name !== tabRoute) {
@@ -60,6 +95,11 @@ export const BottomTabBar: React.FC = () => {
         <View style={[styles.tabBar, { borderTopColor: 'rgba(255, 255, 255, 0.1)' }]}>
         {tabs.map((tab) => {
           const active = isActive(tab.route);
+          const badgeCount =
+            tab.badgeKey && unreadCounts[tab.badgeKey] && unreadCounts[tab.badgeKey] > 0
+              ? unreadCounts[tab.badgeKey]
+              : 0;
+
           return (
             <TouchableOpacity
               key={tab.name}
@@ -85,19 +125,21 @@ export const BottomTabBar: React.FC = () => {
                             style={styles.logoImageFront}
                             resizeMode="contain"
                           />
-              {tab.badge && tab.badge > 0 && (
-                <View style={[
-                  styles.badge, 
-                  { 
-                    backgroundColor: PRIMARY_MAIN_COLOR,
-                    borderColor: 'transparent',
-                  }
-                ]}>
-                  <Text style={styles.badgeText}>
-                    {tab.badge > 99 ? '99+' : String(tab.badge)}
-                  </Text>
-                </View>
-              )}
+                          {badgeCount > 0 && (
+                            <View
+                              style={[
+                                styles.badge,
+                                {
+                                  backgroundColor: PRIMARY_MAIN_COLOR,
+                                  borderColor: 'transparent',
+                                },
+                              ]}
+                            >
+                              <Text style={styles.badgeText}>
+                                {badgeCount > 99 ? '99+' : String(badgeCount)}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                     ) : (
@@ -117,8 +159,8 @@ export const BottomTabBar: React.FC = () => {
                 ) : null}
               </View>
               <Text style={[
-                styles.tabLabel, 
-                { 
+                styles.tabLabel,
+                {
                   color: active ? PRIMARY_MAIN_COLOR : 'rgba(255, 255, 255, 0.7)',
                   fontWeight: active ? '600' : '500',
                 }
@@ -225,4 +267,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
