@@ -306,7 +306,7 @@ class CallService extends EventEmitter {
         username: data.from_username,
       },
       direction: 'incoming',
-      type: data.type,
+      type: data.type || 'audio',
       state: 'ringing',
       isMuted: false,
       isSpeakerOn: false,
@@ -315,13 +315,17 @@ class CallService extends EventEmitter {
 
     this.currentCall = call;
     this.calls.set(data.call_id, call);
+    
+    // Stocker l'offer pour plus tard si disponible
+    if (data.offer) {
+      (call as any).pendingOffer = data.offer;
+    }
+
+    // Émettre les événements
     this.emit('incomingCall', call);
     this.emit('callStateChanged', call);
 
-    // Stocker l'offer pour plus tard
-    (call as any).pendingOffer = data.offer;
-
-    console.log('[CallService] Incoming call received');
+    console.log('[CallService] Incoming call received and emitted');
     return call;
   }
 
