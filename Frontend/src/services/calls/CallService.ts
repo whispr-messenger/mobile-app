@@ -3,8 +3,58 @@
  * Gère l'établissement des connexions, le signaling via WebSocket, et les états des appels
  */
 
-import { EventEmitter } from 'events';
 import AuthService from '../AuthService';
+
+/**
+ * Simple EventEmitter implementation for React Native
+ * (Node.js 'events' module is not available in React Native)
+ */
+class EventEmitter {
+  private listeners: Map<string, Function[]> = new Map();
+
+  on(event: string, listener: Function): this {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event)!.push(listener);
+    return this;
+  }
+
+  emit(event: string, ...args: any[]): boolean {
+    const listeners = this.listeners.get(event);
+    if (listeners && listeners.length > 0) {
+      listeners.forEach(listener => {
+        try {
+          listener(...args);
+        } catch (error) {
+          console.error(`[EventEmitter] Error in listener for event "${event}":`, error);
+        }
+      });
+      return true;
+    }
+    return false;
+  }
+
+  removeListener(event: string, listener: Function): this {
+    const listeners = this.listeners.get(event);
+    if (listeners) {
+      const index = listeners.indexOf(listener);
+      if (index !== -1) {
+        listeners.splice(index, 1);
+      }
+    }
+    return this;
+  }
+
+  removeAllListeners(event?: string): this {
+    if (event) {
+      this.listeners.delete(event);
+    } else {
+      this.listeners.clear();
+    }
+    return this;
+  }
+}
 
 export type CallState = 'idle' | 'initiating' | 'ringing' | 'connecting' | 'connected' | 'ended' | 'rejected' | 'failed';
 export type CallDirection = 'incoming' | 'outgoing';
