@@ -723,7 +723,10 @@ class CallService extends EventEmitter {
   }
 
   private handleIncomingCall(data: any): void {
-    this.receiveIncomingCall(data);
+    // Appel asynchrone mais on ne bloque pas l'exécution
+    this.receiveIncomingCall(data).catch(error => {
+      console.error('[CallService] Error handling incoming call:', error);
+    });
   }
 
   private async handleCallAnswer(data: { call_id: string; answer: RTCSessionDescriptionInit }): Promise<void> {
