@@ -28,7 +28,8 @@ export const useCallManager = () => {
 
       // Naviguer vers l'écran d'appel si nécessaire
       if (call.state === 'connected' || call.state === 'ringing' || call.state === 'connecting') {
-        navigation.navigate('AudioCall', {
+        const screenName = call.type === 'video' ? 'VideoCall' : 'AudioCall';
+        navigation.navigate(screenName, {
           callId: call.id,
           participant: call.participant,
           direction: call.direction,

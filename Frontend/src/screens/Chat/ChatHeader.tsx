@@ -17,6 +17,7 @@ interface ChatHeaderProps {
   onSearchPress?: () => void;
   onInfoPress?: () => void;
   onCallPress?: () => void;
+  onVideoCallPress?: () => void;
   participantId?: string;
   participantUsername?: string;
   participantAvatarUrl?: string;
@@ -29,6 +30,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onSearchPress,
   onInfoPress,
   onCallPress,
+  onVideoCallPress,
   participantId,
   participantUsername,
   participantAvatarUrl,
@@ -77,23 +79,45 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
-        {conversationType === 'direct' && onCallPress && (
-          <TouchableOpacity
-            onPress={() => {
-              console.log('[ChatHeader] Call button pressed for:', conversationName);
-              onCallPress();
-            }}
-            style={[styles.actionButton, styles.callButton]}
-            activeOpacity={0.7}
-          >
-            <View style={styles.callButtonContainer}>
-              <Ionicons
-                name="call"
-                size={20}
-                color={colors.text.light}
-              />
-            </View>
-          </TouchableOpacity>
+        {conversationType === 'direct' && (
+          <>
+            {onVideoCallPress && (
+              <TouchableOpacity
+                onPress={() => {
+                  console.log('[ChatHeader] Video call button pressed for:', conversationName);
+                  onVideoCallPress();
+                }}
+                style={[styles.actionButton, styles.videoCallButton]}
+                activeOpacity={0.7}
+              >
+                <View style={styles.videoCallButtonContainer}>
+                  <Ionicons
+                    name="videocam"
+                    size={20}
+                    color={colors.text.light}
+                  />
+                </View>
+              </TouchableOpacity>
+            )}
+            {onCallPress && (
+              <TouchableOpacity
+                onPress={() => {
+                  console.log('[ChatHeader] Call button pressed for:', conversationName);
+                  onCallPress();
+                }}
+                style={[styles.actionButton, styles.callButton]}
+                activeOpacity={0.7}
+              >
+                <View style={styles.callButtonContainer}>
+                  <Ionicons
+                    name="call"
+                    size={20}
+                    color={colors.text.light}
+                  />
+                </View>
+              </TouchableOpacity>
+            )}
+          </>
         )}
         {onSearchPress && (
           <TouchableOpacity
@@ -162,6 +186,9 @@ const styles = StyleSheet.create({
   callButton: {
     marginRight: 4,
   },
+  videoCallButton: {
+    marginRight: 4,
+  },
   callButtonContainer: {
     width: 36,
     height: 36,
@@ -170,6 +197,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.primary.main,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  videoCallButtonContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.secondary.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.secondary.main,
     shadowOffset: {
       width: 0,
       height: 2,

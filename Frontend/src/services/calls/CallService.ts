@@ -286,6 +286,10 @@ class CallService extends EventEmitter {
               if (this.currentCall && this.currentCall.id === callId) {
                 console.log('[CallService] Demo mode: call connected');
                 call.state = 'connected';
+                // Pour les appels vidéo, activer la vidéo par défaut
+                if (type === 'video') {
+                  call.isVideoEnabled = true;
+                }
                 this.emit('callStateChanged', call);
               }
             }, 1000);
@@ -567,20 +571,63 @@ class CallService extends EventEmitter {
    * Active/désactive la vidéo
    */
   toggleVideo(): boolean {
-    if (!this.currentCall || !this.localStream) {
+    if (!this.currentCall) {
+      console.warn('[CallService] No current call to toggle video');
       return false;
     }
 
     const newVideoState = !this.currentCall.isVideoEnabled;
     this.currentCall.isVideoEnabled = newVideoState;
 
-    this.localStream.getVideoTracks().forEach(track => {
-      track.enabled = newVideoState;
-    });
+    // Mettre à jour les tracks vidéo si le stream existe (pas en mode démo)
+    if (this.localStream && this.localStream.getVideoTracks) {
+      try {
+        this.localStream.getVideoTracks().forEach(track => {
+          track.enabled = newVideoState;
+        });
+      } catch (error) {
+        console.log('[CallService] Error updating video tracks (demo mode):', error);
+      }
+    }
 
+    // Mettre à jour l'appel dans la map
+    this.calls.set(this.currentCall.id, this.currentCall);
+    
     this.emit('callStateChanged', this.currentCall);
     console.log('[CallService] Video toggled:', newVideoState);
     return newVideoState;
+  }
+
+  /**
+   * Bascule entre caméra avant et arrière
+   */
+  switchCamera(): boolean {
+    if (!this.currentCall || !this.localStream) {
+      console.warn('[CallService] No current call or stream to switch camera');
+      return false;
+    }
+
+    try {
+      const videoTracks = this.localStream.getVideoTracks();
+      if (videoTracks.length === 0) {
+        console.warn('[CallService] No video tracks available');
+        return false;
+      }
+
+      const track = videoTracks[0];
+      const settings = track.getSettings();
+      const facingMode = settings.facingMode === 'user' ? 'environment' : 'user';
+
+      // En mode démo, on simule juste le changement
+      console.log('[CallService] Switching camera to:', facingMode);
+      
+      // En production avec WebRTC réel, on devrait recréer le stream avec la nouvelle caméra
+      // Pour l'instant, on retourne true pour indiquer que l'opération est simulée
+      return true;
+    } catch (error) {
+      console.error('[CallService] Error switching camera:', error);
+      return false;
+    }
   }
 
   /**

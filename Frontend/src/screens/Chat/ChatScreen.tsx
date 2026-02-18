@@ -779,10 +779,8 @@ export const ChatScreen: React.FC = () => {
           onCallPress={async () => {
             if (conversation?.type === 'direct') {
               try {
-                // Utiliser l'ID de conversation comme fallback si pas de participant_id
-                // Pour les conversations directes, on peut utiliser l'ID de conversation
                 const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || conversationId || 'unknown';
-                console.log('[ChatScreen] Initiating call to:', otherParticipantId, 'conversation:', conversationId);
+                console.log('[ChatScreen] Initiating audio call to:', otherParticipantId, 'conversation:', conversationId);
                 await initiateCall(
                   {
                     id: otherParticipantId,
@@ -794,8 +792,30 @@ export const ChatScreen: React.FC = () => {
                   conversationId
                 );
               } catch (error: any) {
-                console.error('[ChatScreen] Error initiating call:', error);
-                // Afficher un message d'erreur à l'utilisateur si nécessaire
+                console.error('[ChatScreen] Error initiating audio call:', error);
+                if (error.message?.includes('déjà en cours')) {
+                  // L'erreur est déjà gérée par CallService
+                }
+              }
+            }
+          }}
+          onVideoCallPress={async () => {
+            if (conversation?.type === 'direct') {
+              try {
+                const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || conversationId || 'unknown';
+                console.log('[ChatScreen] Initiating video call to:', otherParticipantId, 'conversation:', conversationId);
+                await initiateCall(
+                  {
+                    id: otherParticipantId,
+                    displayName: conversation.display_name || 'Contact',
+                    avatarUrl: conversation.avatar_url,
+                    username: conversation.metadata?.other_participant_username,
+                  },
+                  'video',
+                  conversationId
+                );
+              } catch (error: any) {
+                console.error('[ChatScreen] Error initiating video call:', error);
                 if (error.message?.includes('déjà en cours')) {
                   // L'erreur est déjà gérée par CallService
                 }

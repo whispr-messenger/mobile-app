@@ -20,6 +20,7 @@ import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
 import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 import { AudioCallScreen } from '../screens/Calls/AudioCallScreen';
+import { VideoCallScreen } from '../screens/Calls/VideoCallScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -37,6 +38,12 @@ export type AuthStackParamList = {
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
   AudioCall: {
+    callId?: string;
+    participant: { id: string; displayName: string; avatarUrl?: string; username?: string };
+    direction: 'incoming' | 'outgoing';
+    conversationId?: string;
+  };
+  VideoCall: {
     callId?: string;
     participant: { id: string; displayName: string; avatarUrl?: string; username?: string };
     direction: 'incoming' | 'outgoing';
@@ -87,6 +94,14 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="AudioCall"
         component={AudioCallScreen}
+        options={{
+          gestureEnabled: false,
+          animationTypeForReplace: 'push',
+        }}
+      />
+      <Stack.Screen
+        name="VideoCall"
+        component={VideoCallScreen}
         options={{
           gestureEnabled: false,
           animationTypeForReplace: 'push',
