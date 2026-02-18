@@ -14,7 +14,6 @@ import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '
 import { messagingAPI } from '../../services/messaging/api';
 import { mockStore } from '../../services/messaging/mockStore';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import { useMediaUpload } from '../../hooks/useMediaUpload';
 import { MessageBubble } from '../../components/Chat/MessageBubble';
 import { MessageInput } from '../../components/Chat/MessageInput';
 import { TypingIndicator } from '../../components/Chat/TypingIndicator';
@@ -68,8 +67,6 @@ export const ChatScreen: React.FC = () => {
   const userId = 'user-1';
   const token = 'mock-token';
 
-  // Media upload hook
-  const { startUpload, cancelUpload, retryUpload, getUploadProgress, transferUpload, markAsSuccess } = useMediaUpload();
 
   // WebSocket connection
   const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
@@ -312,7 +309,6 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMedia = useCallback(
     async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => {
-      console.log('[ChatScreen] handleSendMedia called:', { type, uri: uri.substring(0, 50) + '...', caption });
       // Stop typing indicator
       sendTyping(conversationId, false);
 
@@ -330,7 +326,7 @@ export const ChatScreen: React.FC = () => {
         metadata: {
           media_type: type,
           media_url: uri,
-          thumbnail_url: uri, // For now, use same URI for thumbnail
+          thumbnail_url: uri,
         },
         client_random: Math.floor(Math.random() * 1000000),
         sent_at: new Date().toISOString(),
@@ -358,25 +354,8 @@ export const ChatScreen: React.FC = () => {
       setMessages(prev => [tempMessage, ...prev]);
       setReplyingTo(null);
 
-      // Start upload with progress tracking
-      console.log('[ChatScreen] Starting upload for message:', tempMessageId);
-      
-      // Start upload in background (don't await immediately to allow UI to render)
-      startUpload(tempMessageId, async (onProgress, signal) => {
-        console.log('[ChatScreen] Upload function called for:', tempMessageId);
-        // Simulate upload progress
-        const progressSteps = [10, 30, 50, 70, 90, 100];
-        for (const step of progressSteps) {
-          if (signal.aborted) {
-            console.log('[ChatScreen] Upload cancelled:', tempMessageId);
-            throw new Error('Upload cancelled');
-          }
-          console.log('[ChatScreen] Upload progress step:', step + '%');
-          onProgress(step);
-          await new Promise(resolve => setTimeout(resolve, 200)); // Faster upload
-        }
-
-        // Send via API (mock for now)
+      try {
+        // Send via API
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: tempMessage.content,
           message_type: 'media',
@@ -390,7 +369,7 @@ export const ChatScreen: React.FC = () => {
           mockStore.addAttachment(sentMessage.id, tempMessage.attachments[0]);
         }
 
-        // Update message with real ID first
+        // Update message with real ID
         setMessages(prev =>
           prev.map(msg =>
             msg.id === tempMessageId
@@ -402,17 +381,8 @@ export const ChatScreen: React.FC = () => {
               : msg
           )
         );
-
-        // Transfer upload progress to new message ID AFTER updating message
-        // This ensures the upload state is transferred with the correct ID
-        transferUpload(tempMessageId, sentMessage.id);
-        
-        // Mark as success after transfer (since uploadFn completed successfully)
-        markAsSuccess(sentMessage.id);
-
-        return sentMessage;
-      }).catch((error) => {
-        console.error('[ChatScreen] Upload error:', error);
+      } catch (error) {
+        console.error('[ChatScreen] Error sending media:', error);
         // Update message status to failed
         setMessages(prev =>
           prev.map(msg =>
@@ -421,9 +391,9 @@ export const ChatScreen: React.FC = () => {
               : msg
           )
         );
-      });
+      }
     },
-    [conversationId, userId, sendTyping, replyingTo, startUpload]
+    [conversationId, userId, sendTyping, replyingTo]
   );
 
   const handleCancelUpload = useCallback(
@@ -820,18 +790,6 @@ export const ChatScreen: React.FC = () => {
       const isSent = message.sender_id === userId;
       const isHighlighted = Boolean(searchQuery.trim() && searchResults.some(r => r.id === message.id));
       
-      const uploadProgressData = getUploadProgress(message.id);
-      // Map upload progress to expected format
-      const uploadProgress = uploadProgressData
-        ? {
-            progress: uploadProgressData.progress,
-            status: uploadProgressData.status,
-            error: uploadProgressData.error,
-          }
-        : undefined;
-      
-      // Debug log removed to reduce noise
-      
       return (
         <MessageBubble
           message={message}
@@ -842,32 +800,10 @@ export const ChatScreen: React.FC = () => {
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
-          uploadProgress={uploadProgress}
-          onCancelUpload={
-            message.status === 'sending' ? () => handleCancelUpload(message.id) : undefined
-          }
-          onRetryUpload={
-            message.status === 'failed'
-              ? () => {
-                  const attachment = message.attachments?.[0];
-                  if (attachment?.metadata) {
-                    handleRetryUpload(
-                      message.id,
-                      attachment.metadata.media_url || '',
-                      attachment.media_type,
-                      message.reply_to_id,
-                      message.content !== 'Photo' && message.content !== 'Vidéo' && message.content !== 'Fichier'
-                        ? message.content
-                        : undefined
-                    );
-                  }
-                }
-              : undefined
-          }
         />
       );
     },
-    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults, getUploadProgress, handleCancelUpload, handleRetryUpload, messages]
+    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults]
   );
 
   const keyExtractor = useCallback(
