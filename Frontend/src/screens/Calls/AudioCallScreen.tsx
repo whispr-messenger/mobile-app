@@ -60,7 +60,7 @@ export const AudioCallScreen: React.FC = () => {
     // Écouter les changements d'état
     const handleCallStateChanged = (updatedCall: Call) => {
       if (updatedCall.id === callId) {
-        console.log('[AudioCallScreen] Call state changed:', updatedCall.state);
+        console.log('[AudioCallScreen] Call state changed:', updatedCall.state, 'muted:', updatedCall.isMuted, 'speaker:', updatedCall.isSpeakerOn);
         setCall(updatedCall);
         updateCallStatus(updatedCall.state);
 
@@ -179,22 +179,34 @@ export const AudioCallScreen: React.FC = () => {
   };
 
   const handleToggleMute = () => {
-    console.log('[AudioCallScreen] Toggling mute');
+    console.log('[AudioCallScreen] Toggling mute, current state:', call?.isMuted);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      callService.toggleMute();
-      setCall(callService.getCurrentCall());
+      const newMutedState = callService.toggleMute();
+      // L'événement callStateChanged sera émis automatiquement et mettra à jour l'UI
+      // Mais on force aussi la mise à jour immédiate pour être sûr
+      const updatedCall = callService.getCurrentCall();
+      if (updatedCall) {
+        setCall({ ...updatedCall });
+      }
+      console.log('[AudioCallScreen] Mute toggled to:', newMutedState);
     } catch (error) {
       console.error('[AudioCallScreen] Error toggling mute:', error);
     }
   };
 
   const handleToggleSpeaker = () => {
-    console.log('[AudioCallScreen] Toggling speaker');
+    console.log('[AudioCallScreen] Toggling speaker, current state:', call?.isSpeakerOn);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      callService.toggleSpeaker();
-      setCall(callService.getCurrentCall());
+      const newSpeakerState = callService.toggleSpeaker();
+      // L'événement callStateChanged sera émis automatiquement et mettra à jour l'UI
+      // Mais on force aussi la mise à jour immédiate pour être sûr
+      const updatedCall = callService.getCurrentCall();
+      if (updatedCall) {
+        setCall({ ...updatedCall });
+      }
+      console.log('[AudioCallScreen] Speaker toggled to:', newSpeakerState);
     } catch (error) {
       console.error('[AudioCallScreen] Error toggling speaker:', error);
     }

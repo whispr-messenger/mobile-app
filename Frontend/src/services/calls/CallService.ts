@@ -496,17 +496,28 @@ class CallService extends EventEmitter {
    * Active/désactive le micro
    */
   toggleMute(): boolean {
-    if (!this.currentCall || !this.localStream) {
+    if (!this.currentCall) {
+      console.warn('[CallService] No current call to toggle mute');
       return false;
     }
 
     const newMutedState = !this.currentCall.isMuted;
     this.currentCall.isMuted = newMutedState;
 
-    this.localStream.getAudioTracks().forEach(track => {
-      track.enabled = !newMutedState;
-    });
+    // Mettre à jour les tracks audio si le stream existe (pas en mode démo)
+    if (this.localStream && this.localStream.getAudioTracks) {
+      try {
+        this.localStream.getAudioTracks().forEach(track => {
+          track.enabled = !newMutedState;
+        });
+      } catch (error) {
+        console.log('[CallService] Error updating audio tracks (demo mode):', error);
+      }
+    }
 
+    // Mettre à jour l'appel dans la map
+    this.calls.set(this.currentCall.id, this.currentCall);
+    
     this.emit('callStateChanged', this.currentCall);
     console.log('[CallService] Mute toggled:', newMutedState);
     return newMutedState;
@@ -517,6 +528,7 @@ class CallService extends EventEmitter {
    */
   toggleSpeaker(): boolean {
     if (!this.currentCall) {
+      console.warn('[CallService] No current call to toggle speaker');
       return false;
     }
 
@@ -527,6 +539,9 @@ class CallService extends EventEmitter {
     // Pour l'instant, on met juste à jour l'état
     // TODO: Implémenter avec react-native-webrtc ou expo-av
 
+    // Mettre à jour l'appel dans la map
+    this.calls.set(this.currentCall.id, this.currentCall);
+    
     this.emit('callStateChanged', this.currentCall);
     console.log('[CallService] Speaker toggled:', newSpeakerState);
     return newSpeakerState;
