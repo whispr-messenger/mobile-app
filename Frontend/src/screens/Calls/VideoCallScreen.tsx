@@ -44,7 +44,7 @@ export const VideoCallScreen: React.FC = () => {
   const [call, setCall] = useState<Call | null>(null);
   const [duration, setDuration] = useState(0);
   const [callStatus, setCallStatus] = useState<string>('');
-  // Vidéo locale fixe en haut à droite
+  const [isLocalVideoFullscreen, setIsLocalVideoFullscreen] = useState(false);
 
   // Animations
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -321,7 +321,7 @@ export const VideoCallScreen: React.FC = () => {
   };
 
   const handleLocalVideoPress = () => {
-    // Animation de scale pour feedback uniquement
+    // Animation de scale pour feedback
     Animated.sequence([
       Animated.timing(localVideoScale, {
         toValue: 0.95,
@@ -334,7 +334,10 @@ export const VideoCallScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
-    // La vidéo locale reste fixe en haut à droite
+    
+    // Switcher entre vue locale et distante (comme WhatsApp)
+    setIsLocalVideoFullscreen(!isLocalVideoFullscreen);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const formatDuration = (seconds: number): string => {
@@ -357,8 +360,8 @@ export const VideoCallScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Vue vidéo distante (plein écran) */}
       <View style={styles.remoteVideoContainer}>
-        {isConnected && call?.isVideoEnabled ? (
-          // En mode démo, on affiche un placeholder avec gradient
+        {isConnected && call?.isVideoEnabled && !isLocalVideoFullscreen ? (
+          // En mode démo, on affiche un placeholder avec gradient (vue distante)
           <LinearGradient
             colors={themeColors.background.gradient}
             style={styles.remoteVideo}
@@ -368,6 +371,29 @@ export const VideoCallScreen: React.FC = () => {
               name={participant.displayName}
               uri={participant.avatarUrl}
             />
+          </LinearGradient>
+        ) : isConnected && isLocalVideoFullscreen ? (
+          // Vue locale en plein écran (switch)
+          <LinearGradient
+            colors={themeColors.background.gradient}
+            style={styles.remoteVideo}
+          >
+            {call?.isVideoEnabled ? (
+              <View style={styles.localVideoFullscreen}>
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.5)']}
+                  style={styles.localVideoGradientFullscreen}
+                >
+                  <Text style={styles.localVideoLabelFullscreen}>Vous</Text>
+                </LinearGradient>
+              </View>
+            ) : (
+              <Avatar
+                size={200}
+                name="Vous"
+                uri={undefined}
+              />
+            )}
           </LinearGradient>
         ) : (
           // Pendant ringing/connecting, afficher avatar avec animations
@@ -453,8 +479,18 @@ export const VideoCallScreen: React.FC = () => {
               />
             </Animated.View>
 
-            <Text style={styles.participantName}>{participant.displayName}</Text>
-            <Text style={styles.callStatus}>{callStatus}</Text>
+            {!isLocalVideoFullscreen && (
+              <>
+                <Text style={styles.participantName}>{participant.displayName}</Text>
+                <Text style={styles.callStatus}>{callStatus}</Text>
+              </>
+            )}
+            {isLocalVideoFullscreen && (
+              <>
+                <Text style={styles.participantName}>Vous</Text>
+                <Text style={styles.callStatus}>{callStatus}</Text>
+              </>
+            )}
           </LinearGradient>
         )}
       </View>
@@ -475,7 +511,35 @@ export const VideoCallScreen: React.FC = () => {
             onPress={handleLocalVideoPress}
             style={styles.localVideoTouchable}
           >
-            {call?.isVideoEnabled ? (
+            {isLocalVideoFullscreen ? (
+              // Afficher la vue distante en petit (Bill Gates)
+              <View style={styles.localVideoPlaceholder}>
+                {call?.isVideoEnabled ? (
+                  <LinearGradient
+                    colors={themeColors.background.gradient}
+                    style={styles.localVideoSmall}
+                  >
+                    <Avatar
+                      size={LOCAL_VIDEO_SIZE - 20}
+                      name={participant.displayName}
+                      uri={participant.avatarUrl}
+                    />
+                  </LinearGradient>
+                ) : (
+                  <>
+                    <Avatar
+                      size={LOCAL_VIDEO_SIZE}
+                      name={participant.displayName}
+                      uri={participant.avatarUrl}
+                    />
+                    <View style={styles.localVideoBadge}>
+                      <Ionicons name="videocam-off" size={16} color={colors.text.light} />
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : call?.isVideoEnabled ? (
+              // Vue locale normale avec vidéo
               <View style={styles.localVideo}>
                 <LinearGradient
                   colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.5)']}
@@ -485,6 +549,7 @@ export const VideoCallScreen: React.FC = () => {
                 </LinearGradient>
               </View>
             ) : (
+              // Vue locale sans vidéo - afficher avatar au lieu du rond noir
               <View style={styles.localVideoPlaceholder}>
                 <Avatar
                   size={LOCAL_VIDEO_SIZE}
@@ -725,10 +790,34 @@ const styles = StyleSheet.create({
   },
   localVideoPlaceholder: {
     flex: 1,
-    backgroundColor: colors.background.primary,
+    backgroundColor: colors.background.dark,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+    borderRadius: 12,
+  },
+  localVideoSmall: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  localVideoFullscreen: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: colors.background.dark,
+  },
+  localVideoGradientFullscreen: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  localVideoLabelFullscreen: {
+    color: colors.text.light,
+    fontSize: 18,
+    fontWeight: '600',
   },
   localVideoBadge: {
     position: 'absolute',
