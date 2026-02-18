@@ -16,7 +16,6 @@ import { ReactionBar } from './ReactionBar';
 import { ReplyPreview } from './ReplyPreview';
 import { ReactionPicker } from './ReactionPicker';
 import { MediaMessage } from './MediaMessage';
-import { MediaUploadProgress } from './MediaUploadProgress';
 import { FormattedText } from '../../utils/textFormatter';
 
 interface MessageBubbleProps {
@@ -28,13 +27,6 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   isHighlighted?: boolean;
   searchQuery?: string;
-  uploadProgress?: {
-    progress: number;
-    status: 'uploading' | 'success' | 'error' | 'cancelled';
-    error?: string;
-  };
-  onCancelUpload?: () => void;
-  onRetryUpload?: () => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -46,9 +38,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onLongPress,
   isHighlighted = false,
   searchQuery,
-  uploadProgress,
-  onCancelUpload,
-  onRetryUpload,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -134,16 +123,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 size={firstAttachment.metadata.size}
                 thumbnailUri={firstAttachment.metadata.thumbnail_url}
               />
-              {(uploadProgress || message.status === 'sending' || message.status === 'failed') && (
-                <MediaUploadProgress
-                  progress={uploadProgress?.progress || 0}
-                  status={uploadProgress?.status || (message.status === 'failed' ? 'error' : message.status === 'sending' ? 'uploading' : uploadProgress ? 'success' : 'uploading')}
-                  error={uploadProgress?.error || (message.status === 'failed' ? 'Erreur lors de l\'envoi' : undefined)}
-                  onCancel={onCancelUpload}
-                  onRetry={onRetryUpload}
-                  isSent={isSent}
-                />
-              )}
             </>
           ) : null}
           {displayContent ? (
@@ -212,16 +191,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               size={firstAttachment.metadata.size}
               thumbnailUri={firstAttachment.metadata.thumbnail_url}
             />
-            {(uploadProgress || message.status === 'sending' || message.status === 'failed') && (
-              <MediaUploadProgress
-                progress={uploadProgress?.progress || 0}
-                status={uploadProgress?.status || (message.status === 'failed' ? 'error' : 'uploading')}
-                error={uploadProgress?.error || (message.status === 'failed' ? 'Erreur lors de l\'envoi' : undefined)}
-                onCancel={onCancelUpload}
-                onRetry={onRetryUpload}
-                isSent={isSent}
-              />
-            )}
           </>
         ) : null}
         {displayContent ? (
@@ -373,8 +342,7 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.status === nextProps.message.status &&
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
-    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
-    JSON.stringify(prevProps.uploadProgress) === JSON.stringify(nextProps.uploadProgress)
+    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions)
   );
 });
 
