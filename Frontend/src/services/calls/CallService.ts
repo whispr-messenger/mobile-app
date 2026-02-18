@@ -161,14 +161,19 @@ class CallService extends EventEmitter {
   initializeSignaling(socket: any, userId: string): void {
     console.log('[CallService] Initializing signaling with socket for user:', userId);
     
+    if (!socket) {
+      console.warn('[CallService] No socket provided, signaling will not work');
+      return;
+    }
+
     // Créer un channel dédié aux appels
     this.signalingChannel = socket.channel(`calls:${userId}`);
     this.signalingChannel.join().then(() => {
       console.log('[CallService] Joined calls channel');
 
-      // Écouter les événements de signaling
+      // Écouter les événements de signaling sur le channel calls
       this.signalingChannel.on('call_offer', (data: any) => {
-        console.log('[CallService] Received call offer:', data);
+        console.log('[CallService] Received call offer on calls channel:', data);
         this.handleIncomingCall(data);
       });
 
@@ -186,6 +191,17 @@ class CallService extends EventEmitter {
         console.log('[CallService] Received call end:', data);
         this.handleCallEnd(data);
       });
+
+      // Écouter aussi sur le user channel pour les appels entrants
+      const userChannel = socket.channel(`user:${userId}`);
+      userChannel.join().then(() => {
+        userChannel.on('call_offer', (data: any) => {
+          console.log('[CallService] Received call offer on user channel:', data);
+          this.handleIncomingCall(data);
+        });
+      });
+    }).catch((error: any) => {
+      console.error('[CallService] Error joining calls channel:', error);
     });
   }
 
@@ -433,9 +449,12 @@ class CallService extends EventEmitter {
 
     // Envoyer la fin d'appel via WebSocket
     if (this.signalingChannel && callIdToEnd) {
+      console.log('[CallService] Sending call end via WebSocket');
       this.signalingChannel.push('call_end', {
         call_id: callIdToEnd,
       });
+    } else if (callIdToEnd) {
+      console.warn('[CallService] No signaling channel available, call end not sent');
     }
 
     this.cleanup();

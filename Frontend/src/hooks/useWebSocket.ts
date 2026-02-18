@@ -139,12 +139,18 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     return userChannel;
   }, [options.userId, options.token, options.onNewMessage, options.onDeliveryStatus]);
 
+  // Expose socket for CallService initialization
+  const getSocket = useCallback(() => {
+    return socketRef.current;
+  }, []);
+
   return {
     joinUserChannel,
     joinConversationChannel,
     sendMessage,
     sendTyping,
     markAsRead,
+    getSocket, // Expose socket for CallService
   };
 };
 

@@ -15,6 +15,9 @@ import { Conversation, Message } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { cacheService } from '../../services/messaging/cache';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { useCallManager } from '../../hooks/useCallManager';
+import CallService from '../../services/calls/CallService';
+import { IncomingCallNotification } from '../../components/Calls/IncomingCallNotification';
 import { SwipeableConversationItem } from '../../components/Chat/SwipeableConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
 import { ConversationSkeleton } from '../../components/Chat/SkeletonLoader';
@@ -83,8 +86,11 @@ export const ConversationsListScreen: React.FC = () => {
   const userId = 'user-1';
   const token = 'mock-token';
 
+  // Call management
+  const { incomingCall, acceptCall, rejectCall } = useCallManager();
+
   // WebSocket connection
-  const { joinUserChannel } = useWebSocket({
+  const { joinUserChannel, getSocket } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -106,6 +112,16 @@ export const ConversationsListScreen: React.FC = () => {
       });
     },
   });
+
+  // Initialize CallService with WebSocket
+  useEffect(() => {
+    const socket = getSocket();
+    if (socket && userId) {
+      console.log('[ConversationsListScreen] Initializing CallService signaling');
+      const callService = CallService.getInstance();
+      callService.initializeSignaling(socket, userId);
+    }
+  }, [getSocket, userId]);
 
   useEffect(() => {
     const init = async () => {

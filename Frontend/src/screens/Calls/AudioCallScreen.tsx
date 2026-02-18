@@ -181,15 +181,23 @@ export const AudioCallScreen: React.FC = () => {
   const handleToggleMute = () => {
     console.log('[AudioCallScreen] Toggling mute');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    callService.toggleMute();
-    setCall(callService.getCurrentCall());
+    try {
+      callService.toggleMute();
+      setCall(callService.getCurrentCall());
+    } catch (error) {
+      console.error('[AudioCallScreen] Error toggling mute:', error);
+    }
   };
 
   const handleToggleSpeaker = () => {
     console.log('[AudioCallScreen] Toggling speaker');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    callService.toggleSpeaker();
-    setCall(callService.getCurrentCall());
+    try {
+      callService.toggleSpeaker();
+      setCall(callService.getCurrentCall());
+    } catch (error) {
+      console.error('[AudioCallScreen] Error toggling speaker:', error);
+    }
   };
 
   const formatDuration = (seconds: number): string => {
