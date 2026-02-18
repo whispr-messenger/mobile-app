@@ -355,32 +355,30 @@ export const VideoCallScreen: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // PanResponder pour glisser la vidéo locale (comme FaceTime)
+  // PanResponder pour glisser la vidéo locale (comme FaceTime) - Réactif en temps réel
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false, // Ne pas capturer au début
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         // Seulement si le mouvement est significatif (évite les faux positifs)
-        return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
       },
       onPanResponderGrant: (evt) => {
         // Sauvegarder la position actuelle comme offset
-        localVideoPosition.setOffset({
-          x: (localVideoPosition.x as any)._value,
-          y: (localVideoPosition.y as any)._value,
-        });
+        const currentX = (localVideoPosition.x as any)._value;
+        const currentY = (localVideoPosition.y as any)._value;
+        localVideoPosition.setOffset({ x: currentX, y: currentY });
         localVideoPosition.setValue({ x: 0, y: 0 });
         
-        // Animation de scale au début du drag
-        Animated.spring(localVideoScale, {
+        // Animation de scale au début du drag (rapide)
+        Animated.timing(localVideoScale, {
           toValue: 1.1,
+          duration: 150,
           useNativeDriver: true,
-          tension: 100,
-          friction: 7,
         }).start();
       },
       onPanResponderMove: (evt, gestureState) => {
-        // Calculer la nouvelle position avec l'offset
+        // Calculer la nouvelle position avec l'offset - SUIVRE LE DOIGT EN TEMPS RÉEL
         const offsetX = (localVideoPosition.x as any)._offset || 0;
         const offsetY = (localVideoPosition.y as any)._offset || 0;
         const newX = offsetX + gestureState.dx;
@@ -395,7 +393,7 @@ export const VideoCallScreen: React.FC = () => {
         const boundedX = Math.max(minX, Math.min(maxX, newX));
         const boundedY = Math.max(minY, Math.min(maxY, newY));
         
-        // Mettre à jour seulement le delta depuis l'offset
+        // Mettre à jour DIRECTEMENT sans animation pour suivre le doigt en temps réel
         localVideoPosition.setValue({ 
           x: boundedX - offsetX, 
           y: boundedY - offsetY 
@@ -405,12 +403,11 @@ export const VideoCallScreen: React.FC = () => {
         // Flatten l'offset pour garder la position finale
         localVideoPosition.flattenOffset();
         
-        // Animation de scale à la fin du drag
-        Animated.spring(localVideoScale, {
+        // Animation de scale à la fin du drag (rapide)
+        Animated.timing(localVideoScale, {
           toValue: 1,
+          duration: 150,
           useNativeDriver: true,
-          tension: 100,
-          friction: 7,
         }).start();
         
         // Si le mouvement était très petit, considérer comme un clic pour switcher
