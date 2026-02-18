@@ -306,7 +306,7 @@ class CallService extends EventEmitter {
   /**
    * Reçoit un appel entrant
    */
-  receiveIncomingCall(data: {
+  async receiveIncomingCall(data: {
     call_id: string;
     from_user_id: string;
     from_display_name: string;
@@ -315,7 +315,7 @@ class CallService extends EventEmitter {
     offer: RTCSessionDescriptionInit;
     type: CallType;
     conversation_id?: string;
-  }): Call {
+  }): Promise<Call> {
     console.log('[CallService] Receiving incoming call:', data.call_id);
 
     if (this.currentCall && this.currentCall.state !== 'ended' && this.currentCall.state !== 'rejected') {
