@@ -80,13 +80,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {conversationType === 'direct' && onCallPress && (
           <TouchableOpacity
             onPress={onCallPress}
-            style={styles.actionButton}
+            style={[styles.actionButton, styles.callButton]}
+            activeOpacity={0.7}
           >
-            <Ionicons
-              name="call"
-              size={22}
-              color={colors.primary.main}
-            />
+            <View style={styles.callButtonContainer}>
+              <Ionicons
+                name="call"
+                size={20}
+                color={colors.text.light}
+              />
+            </View>
           </TouchableOpacity>
         )}
         {onSearchPress && (
@@ -152,6 +155,25 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
     marginLeft: 4,
+  },
+  callButton: {
+    marginRight: 4,
+  },
+  callButtonContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary.main,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary.main,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
 
