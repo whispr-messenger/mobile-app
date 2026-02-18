@@ -431,86 +431,89 @@ export const AudioCallScreen: React.FC = () => {
               </>
             )}
 
-            {/* Avatar avec glow effect */}
-            <Animated.View
-              style={[
-                styles.avatarWrapper,
-                {
-                  transform: [{ scale: isRinging ? pulseAnim : 1 }],
-                  shadowOpacity: isRinging
-                    ? glowAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.3, 0.8],
-                      })
-                    : 0.3,
-                  shadowRadius: isRinging
-                    ? glowAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 40],
-                      })
-                    : 20,
-                },
-              ]}
-            >
-              <Avatar
-                size={120}
-                name={participant.displayName}
-                uri={participant.avatarUrl}
-              />
-              {isRinging && (
-                <View style={styles.ringingIndicator}>
+            {/* Avatar avec glow effect - wrapper séparé pour éviter les conflits */}
+            <View style={styles.avatarWrapperContainer}>
+              <Animated.View
+                style={[
+                  styles.avatarWrapper,
+                  {
+                    transform: [{ scale: isRinging ? pulseAnim : 1 }],
+                  },
+                ]}
+              >
+                {isRinging && (
                   <Animated.View
                     style={[
-                      styles.ringingDot,
+                      styles.avatarGlow,
                       {
-                        opacity: pulseAnim.interpolate({
-                          inputRange: [1, 1.15],
-                          outputRange: [0.8, 1],
+                        opacity: glowAnim.interpolate({
+                          inputRange: [0.5, 1],
+                          outputRange: [0.3, 0.8],
                         }),
                       },
                     ]}
                   />
-                  <Animated.View
-                    style={[
-                      styles.ringingDot,
-                      {
-                        opacity: pulseAnim.interpolate({
-                          inputRange: [1, 1.15],
-                          outputRange: [0.6, 0.8],
-                        }),
-                        transform: [
-                          {
-                            translateX: pulseAnim.interpolate({
-                              inputRange: [1, 1.15],
-                              outputRange: [0, -8],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                  <Animated.View
-                    style={[
-                      styles.ringingDot,
-                      {
-                        opacity: pulseAnim.interpolate({
-                          inputRange: [1, 1.15],
-                          outputRange: [0.4, 0.6],
-                        }),
-                        transform: [
-                          {
-                            translateX: pulseAnim.interpolate({
-                              inputRange: [1, 1.15],
-                              outputRange: [0, 8],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  />
-                </View>
-              )}
-            </Animated.View>
+                )}
+                <Avatar
+                  size={120}
+                  name={participant.displayName}
+                  uri={participant.avatarUrl}
+                />
+                {isRinging && (
+                  <View style={styles.ringingIndicator}>
+                    <Animated.View
+                      style={[
+                        styles.ringingDot,
+                        {
+                          opacity: pulseAnim.interpolate({
+                            inputRange: [1, 1.15],
+                            outputRange: [0.8, 1],
+                          }),
+                        },
+                      ]}
+                    />
+                    <Animated.View
+                      style={[
+                        styles.ringingDot,
+                        {
+                          opacity: pulseAnim.interpolate({
+                            inputRange: [1, 1.15],
+                            outputRange: [0.6, 0.8],
+                          }),
+                          transform: [
+                            {
+                              translateX: pulseAnim.interpolate({
+                                inputRange: [1, 1.15],
+                                outputRange: [0, -8],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                    <Animated.View
+                      style={[
+                        styles.ringingDot,
+                        {
+                          opacity: pulseAnim.interpolate({
+                            inputRange: [1, 1.15],
+                            outputRange: [0.4, 0.6],
+                          }),
+                          transform: [
+                            {
+                              translateX: pulseAnim.interpolate({
+                                inputRange: [1, 1.15],
+                                outputRange: [0, 8],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+                  </View>
+                )}
+              </Animated.View>
+            </View>
           </View>
 
           {/* Nom du participant */}
