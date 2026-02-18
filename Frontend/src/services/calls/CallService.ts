@@ -270,6 +270,29 @@ class CallService extends EventEmitter {
       call.state = 'ringing';
       this.emit('callStateChanged', call);
 
+      // En mode démo, simuler automatiquement la connexion après 2-3 secondes
+      // En production, cela sera géré par la réponse du destinataire via WebSocket
+      if (!mediaDevices || !RTCPeerConnection || RTCPeerConnection.name === 'MockRTCPeerConnection') {
+        console.log('[CallService] Demo mode: simulating call connection after 2 seconds');
+        setTimeout(() => {
+          if (this.currentCall && this.currentCall.id === callId && this.currentCall.state === 'ringing') {
+            console.log('[CallService] Demo mode: simulating call answered');
+            call.state = 'connecting';
+            call.startTime = new Date();
+            this.emit('callStateChanged', call);
+            
+            // Simuler la connexion établie après 1 seconde supplémentaire
+            setTimeout(() => {
+              if (this.currentCall && this.currentCall.id === callId) {
+                console.log('[CallService] Demo mode: call connected');
+                call.state = 'connected';
+                this.emit('callStateChanged', call);
+              }
+            }, 1000);
+          }
+        }, 2000);
+      }
+
       console.log('[CallService] Outgoing call initiated successfully');
       return call;
     } catch (error: any) {
