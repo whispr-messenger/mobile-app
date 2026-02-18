@@ -237,17 +237,18 @@ export const AudioCallScreen: React.FC = () => {
 
   const startGlowAnimation = () => {
     glowAnim.setValue(0.5);
+    // Utiliser useNativeDriver: true pour shadowOpacity car c'est supporté
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
           toValue: 1,
           duration: 1500,
-          useNativeDriver: false, // opacity needs false
+          useNativeDriver: true, // shadowOpacity est supporté avec useNativeDriver
         }),
         Animated.timing(glowAnim, {
           toValue: 0.5,
           duration: 1500,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
       ])
     ).start();
