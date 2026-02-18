@@ -717,13 +717,33 @@ class CallService extends EventEmitter {
   private cleanup(): void {
     console.log('[CallService] Cleaning up');
 
+    // Marquer l'appel actuel comme terminé avant de le supprimer
+    if (this.currentCall && this.currentCall.state !== 'ended' && this.currentCall.state !== 'rejected' && this.currentCall.state !== 'failed') {
+      const callId = this.currentCall.id;
+      const call = this.calls.get(callId);
+      if (call) {
+        call.state = 'ended';
+        call.endTime = new Date();
+        this.emit('callStateChanged', call);
+        this.emit('callEnded', call);
+      }
+    }
+
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
+      try {
+        this.localStream.getTracks().forEach(track => track.stop());
+      } catch (error) {
+        console.log('[CallService] Error stopping local stream tracks:', error);
+      }
       this.localStream = null;
     }
 
     if (this.peerConnection) {
-      this.peerConnection.close();
+      try {
+        this.peerConnection.close();
+      } catch (error) {
+        console.log('[CallService] Error closing peer connection:', error);
+      }
       this.peerConnection = null;
     }
 

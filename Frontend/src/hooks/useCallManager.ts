@@ -47,19 +47,15 @@ export const useCallManager = () => {
     // Écouter la fin des appels
     const handleCallEnded = (call: Call) => {
       console.log('[useCallManager] Call ended:', call.id);
-      if (call.id === currentCall?.id) {
-        setCurrentCall(null);
-      }
-      if (call.id === incomingCall?.id) {
-        setIncomingCall(null);
-      }
+      setCurrentCall(prev => prev?.id === call.id ? null : prev);
+      setIncomingCall(prev => prev?.id === call.id ? null : prev);
     };
 
     // Écouter les erreurs d'appel
     const handleCallFailed = (call: Call, error: string) => {
       console.error('[useCallManager] Call failed:', call.id, error);
-      setCurrentCall(null);
-      setIncomingCall(null);
+      setCurrentCall(prev => prev?.id === call.id ? null : prev);
+      setIncomingCall(prev => prev?.id === call.id ? null : prev);
     };
 
     callService.on('callStateChanged', handleCallStateChanged);
@@ -73,7 +69,7 @@ export const useCallManager = () => {
       callService.removeListener('callEnded', handleCallEnded);
       callService.removeListener('callFailed', handleCallFailed);
     };
-  }, [navigation, currentCall?.id, incomingCall?.id]);
+  }, [navigation]); // Retirer currentCall et incomingCall des dépendances pour éviter les re-renders
 
   const initiateCall = useCallback(async (
     participant: { id: string; displayName: string; avatarUrl?: string; username?: string },
