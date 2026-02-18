@@ -46,13 +46,17 @@ export const VideoCallScreen: React.FC = () => {
   const [duration, setDuration] = useState(0);
   const [callStatus, setCallStatus] = useState<string>('');
   const [isLocalVideoFullscreen, setIsLocalVideoFullscreen] = useState(false);
+  
+  // Position initiale calculée
+  const initialVideoX = width - LOCAL_VIDEO_SIZE - LOCAL_VIDEO_MARGIN;
+  const initialVideoY = LOCAL_VIDEO_MARGIN + (Platform.OS === 'ios' ? 50 : 20);
 
   // Animations
   const slideAnim = useRef(new Animated.Value(0)).current;
   const localVideoScale = useRef(new Animated.Value(1)).current;
   const localVideoPosition = useRef(new Animated.ValueXY({
-    x: width - LOCAL_VIDEO_SIZE - LOCAL_VIDEO_MARGIN,
-    y: LOCAL_VIDEO_MARGIN + (Platform.OS === 'ios' ? 50 : 20),
+    x: initialVideoX,
+    y: initialVideoY,
   })).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ringAnim1 = useRef(new Animated.Value(0)).current;
@@ -351,17 +355,22 @@ export const VideoCallScreen: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // PanResponder pour glisser la vidéo locale
+  // PanResponder pour glisser la vidéo locale (comme FaceTime)
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Seulement si le mouvement est significatif (évite les faux positifs)
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: (evt) => {
+        // Sauvegarder la position actuelle comme offset
         localVideoPosition.setOffset({
           x: (localVideoPosition.x as any)._value,
           y: (localVideoPosition.y as any)._value,
         });
         localVideoPosition.setValue({ x: 0, y: 0 });
+        
         // Animation de scale au début du drag
         Animated.spring(localVideoScale, {
           toValue: 1.1,
@@ -371,8 +380,11 @@ export const VideoCallScreen: React.FC = () => {
         }).start();
       },
       onPanResponderMove: (evt, gestureState) => {
-        const newX = gestureState.dx;
-        const newY = gestureState.dy;
+        // Calculer la nouvelle position avec l'offset
+        const offsetX = (localVideoPosition.x as any)._offset || 0;
+        const offsetY = (localVideoPosition.y as any)._offset || 0;
+        const newX = offsetX + gestureState.dx;
+        const newY = offsetY + gestureState.dy;
         
         // Limiter le mouvement dans les bounds de l'écran
         const maxX = width - LOCAL_VIDEO_SIZE - LOCAL_VIDEO_MARGIN;
@@ -383,9 +395,14 @@ export const VideoCallScreen: React.FC = () => {
         const boundedX = Math.max(minX, Math.min(maxX, newX));
         const boundedY = Math.max(minY, Math.min(maxY, newY));
         
-        localVideoPosition.setValue({ x: boundedX, y: boundedY });
+        // Mettre à jour seulement le delta depuis l'offset
+        localVideoPosition.setValue({ 
+          x: boundedX - offsetX, 
+          y: boundedY - offsetY 
+        });
       },
       onPanResponderRelease: (evt, gestureState) => {
+        // Flatten l'offset pour garder la position finale
         localVideoPosition.flattenOffset();
         
         // Animation de scale à la fin du drag
@@ -397,7 +414,7 @@ export const VideoCallScreen: React.FC = () => {
         }).start();
         
         // Si le mouvement était très petit, considérer comme un clic pour switcher
-        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
+        if (Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10) {
           handleLocalVideoPress();
         }
       },
@@ -959,11 +976,12 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     paddingTop: 30,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    paddingHorizontal: 20,
-    gap: 20,
+    paddingLeft: 20,
+    paddingRight: 20,
+    gap: 16,
   },
   controlButton: {
     width: 64,
