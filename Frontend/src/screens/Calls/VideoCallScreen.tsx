@@ -675,7 +675,7 @@ export const VideoCallScreen: React.FC = () => {
               )}
             </Animated.View>
           </SafeAreaView>
-        </TouchableOpacity>
+        </View>
       </Animated.View>
     </View>
   );
