@@ -3,8 +3,46 @@
  * Gère l'établissement des connexions, le signaling via WebSocket, et les états des appels
  */
 
-import { mediaDevices, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, MediaStream } from 'react-native-webrtc';
 import AuthService from '../AuthService';
+
+// Import conditionnel de react-native-webrtc (non disponible dans Expo Go)
+let mediaDevices: any = null;
+let RTCPeerConnection: any = null;
+let RTCSessionDescription: any = null;
+let RTCIceCandidate: any = null;
+let MediaStream: any = null;
+
+try {
+  const webrtc = require('react-native-webrtc');
+  mediaDevices = webrtc.mediaDevices;
+  RTCPeerConnection = webrtc.RTCPeerConnection;
+  RTCSessionDescription = webrtc.RTCSessionDescription;
+  RTCIceCandidate = webrtc.RTCIceCandidate;
+  MediaStream = webrtc.MediaStream;
+  console.log('[CallService] react-native-webrtc loaded successfully');
+} catch (error) {
+  console.log('[CallService] react-native-webrtc not available, using demo mode');
+  // En mode démo, on crée des classes mock pour éviter les erreurs
+  RTCPeerConnection = class MockRTCPeerConnection {
+    constructor() {}
+    createOffer() { return Promise.resolve({ type: 'offer', sdp: '' }); }
+    createAnswer() { return Promise.resolve({ type: 'answer', sdp: '' }); }
+    setLocalDescription() { return Promise.resolve(); }
+    setRemoteDescription() { return Promise.resolve(); }
+    addIceCandidate() { return Promise.resolve(); }
+    addTrack() {}
+    onicecandidate = null;
+    ontrack = null;
+    onconnectionstatechange = null;
+    close() {}
+  };
+  RTCSessionDescription = class MockRTCSessionDescription {
+    constructor(init: any) {}
+  };
+  RTCIceCandidate = class MockRTCIceCandidate {
+    constructor(init: any) {}
+  };
+}
 
 /**
  * Simple EventEmitter implementation for React Native
@@ -529,6 +567,26 @@ class CallService extends EventEmitter {
   }
 
   private async createPeerConnection(): Promise<void> {
+    if (!RTCPeerConnection) {
+      console.log('[CallService] RTCPeerConnection not available, using demo mode');
+      // En mode démo, on crée une connexion mock
+      this.peerConnection = new (class MockRTCPeerConnection {
+        constructor() {}
+        createOffer() { return Promise.resolve({ type: 'offer', sdp: '' }); }
+        createAnswer() { return Promise.resolve({ type: 'answer', sdp: '' }); }
+        setLocalDescription() { return Promise.resolve(); }
+        setRemoteDescription() { return Promise.resolve(); }
+        addIceCandidate() { return Promise.resolve(); }
+        addTrack() {}
+        onicecandidate = null;
+        ontrack = null;
+        onconnectionstatechange = null;
+        connectionState = 'connected';
+        close() {}
+      })() as any;
+      return;
+    }
+
     const configuration: RTCConfiguration = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -536,7 +594,7 @@ class CallService extends EventEmitter {
       ],
     };
 
-    // Utiliser RTCPeerConnection de react-native-webrtc
+    // Utiliser RTCPeerConnection de react-native-webrtc ou mock
     this.peerConnection = new RTCPeerConnection(configuration);
 
     // Ajouter le stream local
