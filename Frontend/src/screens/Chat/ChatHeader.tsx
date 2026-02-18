@@ -119,13 +119,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {onSearchPress && (
           <TouchableOpacity
             onPress={onSearchPress}
-            style={styles.actionButton}
+            style={styles.secondaryButton}
             activeOpacity={0.7}
           >
             <Ionicons
               name="search"
-              size={18}
-              color={colors.text.light}
+              size={20}
+              color={themeColors.text.primary}
             />
           </TouchableOpacity>
         )}
@@ -135,13 +135,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             console.log('[ChatHeader] onInfoPress function:', typeof onInfoPress);
             onInfoPress?.();
           }}
-          style={styles.actionButton}
+          style={styles.secondaryButton}
           activeOpacity={0.7}
         >
           <Ionicons
             name="information-circle-outline"
-            size={18}
-            color={colors.text.light}
+            size={20}
+            color={themeColors.text.primary}
           />
         </TouchableOpacity>
       </View>
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 8,
-    gap: 8,
+    gap: 12,
   },
   actionButton: {
     width: 32,
@@ -194,6 +194,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  secondaryButton: {
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
