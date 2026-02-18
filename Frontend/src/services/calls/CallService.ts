@@ -353,6 +353,22 @@ class CallService extends EventEmitter {
     this.emit('incomingCall', call);
     this.emit('callStateChanged', call);
 
+    // Afficher une notification push pour l'appel entrant
+    try {
+      const CallNotifications = require('../notifications/CallNotifications').default;
+      const notifications = CallNotifications.getInstance();
+      await notifications.showIncomingCallNotification({
+        callId: call.id,
+        fromUserId: data.from_user_id,
+        fromDisplayName: data.from_display_name,
+        fromAvatarUrl: data.from_avatar_url,
+        callType: data.type || 'audio',
+        conversationId: data.conversation_id,
+      });
+    } catch (error) {
+      console.log('[CallService] Could not show notification (may not be available):', error);
+    }
+
     console.log('[CallService] Incoming call received and emitted');
     return call;
   }

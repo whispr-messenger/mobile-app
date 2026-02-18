@@ -124,7 +124,7 @@ export const IncomingCallNotification: React.FC<IncomingCallNotificationProps> =
               <Avatar
                 size={80}
                 name={call.participant.displayName}
-                avatarUrl={call.participant.avatarUrl}
+                uri={call.participant.avatarUrl}
               />
             </Animated.View>
 

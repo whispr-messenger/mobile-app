@@ -46,6 +46,10 @@ export const AudioCallScreen: React.FC = () => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const ringAnim1 = useRef(new Animated.Value(0)).current;
+  const ringAnim2 = useRef(new Animated.Value(0)).current;
+  const ringAnim3 = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
     console.log('[AudioCallScreen] Mounted with params:', { callId, participant, direction });
@@ -74,11 +78,6 @@ export const AudioCallScreen: React.FC = () => {
     };
 
     callService.on('callStateChanged', handleCallStateChanged);
-
-    // Animation de pulsation pour l'état "ringing"
-    if (call?.state === 'ringing') {
-      startPulseAnimation();
-    }
 
     // Animation d'entrée
     Animated.spring(slideAnim, {
@@ -109,6 +108,21 @@ export const AudioCallScreen: React.FC = () => {
     };
   }, [call?.state, call?.startTime]);
 
+  // Gérer les animations selon l'état de l'appel
+  useEffect(() => {
+    const isRinging = call?.state === 'ringing';
+    const isConnecting = call?.state === 'connecting';
+    
+    if (isRinging || isConnecting) {
+      startPulseAnimation();
+      startRingingAnimations();
+      startGlowAnimation();
+    } else {
+      stopRingingAnimations();
+      stopGlowAnimation();
+    }
+  }, [call?.state]);
+
   const updateCallStatus = (state: CallState) => {
     switch (state) {
       case 'initiating':
@@ -138,20 +152,110 @@ export const AudioCallScreen: React.FC = () => {
   };
 
   const startPulseAnimation = () => {
+    pulseAnim.setValue(1);
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
+          toValue: 1.15,
+          duration: 1200,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 1200,
           useNativeDriver: true,
         }),
       ])
     ).start();
+  };
+
+  const startRingingAnimations = () => {
+    // Cercle concentrique 1
+    ringAnim1.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(ringAnim1, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(ringAnim1, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Cercle concentrique 2 (décalé)
+    ringAnim2.setValue(0);
+    setTimeout(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(ringAnim2, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(ringAnim2, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }, 400);
+
+    // Cercle concentrique 3 (décalé)
+    ringAnim3.setValue(0);
+    setTimeout(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(ringAnim3, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(ringAnim3, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }, 800);
+  };
+
+  const stopRingingAnimations = () => {
+    ringAnim1.stopAnimation();
+    ringAnim2.stopAnimation();
+    ringAnim3.stopAnimation();
+    ringAnim1.setValue(0);
+    ringAnim2.setValue(0);
+    ringAnim3.setValue(0);
+  };
+
+  const startGlowAnimation = () => {
+    glowAnim.setValue(0.5);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: false, // opacity needs false
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0.5,
+          duration: 1500,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  };
+
+  const stopGlowAnimation = () => {
+    glowAnim.stopAnimation();
+    glowAnim.setValue(0);
   };
 
   const handleAccept = async () => {
@@ -260,26 +364,148 @@ export const AudioCallScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Avatar avec animation de pulsation */}
+          {/* Avatar avec animations améliorées */}
           <View style={styles.avatarContainer}>
+            {/* Cercles concentriques animés */}
+            {isRinging && (
+              <>
+                <Animated.View
+                  style={[
+                    styles.ring,
+                    {
+                      opacity: ringAnim1.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0.6, 0.3, 0],
+                      }),
+                      transform: [
+                        {
+                          scale: ringAnim1.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 2.5],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.ring,
+                    {
+                      opacity: ringAnim2.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0.6, 0.3, 0],
+                      }),
+                      transform: [
+                        {
+                          scale: ringAnim2.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 2.5],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.ring,
+                    {
+                      opacity: ringAnim3.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0.6, 0.3, 0],
+                      }),
+                      transform: [
+                        {
+                          scale: ringAnim3.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 2.5],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              </>
+            )}
+
+            {/* Avatar avec glow effect */}
             <Animated.View
               style={[
                 styles.avatarWrapper,
                 {
                   transform: [{ scale: isRinging ? pulseAnim : 1 }],
+                  shadowOpacity: isRinging
+                    ? glowAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 0.8],
+                      })
+                    : 0.3,
+                  shadowRadius: isRinging
+                    ? glowAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 40],
+                      })
+                    : 20,
                 },
               ]}
             >
               <Avatar
                 size={120}
                 name={participant.displayName}
-                avatarUrl={participant.avatarUrl}
+                uri={participant.avatarUrl}
               />
               {isRinging && (
                 <View style={styles.ringingIndicator}>
-                  <View style={styles.ringingDot} />
-                  <View style={[styles.ringingDot, { animationDelay: '0.2s' }]} />
-                  <View style={[styles.ringingDot, { animationDelay: '0.4s' }]} />
+                  <Animated.View
+                    style={[
+                      styles.ringingDot,
+                      {
+                        opacity: pulseAnim.interpolate({
+                          inputRange: [1, 1.15],
+                          outputRange: [0.8, 1],
+                        }),
+                      },
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.ringingDot,
+                      {
+                        opacity: pulseAnim.interpolate({
+                          inputRange: [1, 1.15],
+                          outputRange: [0.6, 0.8],
+                        }),
+                        transform: [
+                          {
+                            translateX: pulseAnim.interpolate({
+                              inputRange: [1, 1.15],
+                              outputRange: [0, -8],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
+                  <Animated.View
+                    style={[
+                      styles.ringingDot,
+                      {
+                        opacity: pulseAnim.interpolate({
+                          inputRange: [1, 1.15],
+                          outputRange: [0.4, 0.6],
+                        }),
+                        transform: [
+                          {
+                            translateX: pulseAnim.interpolate({
+                              inputRange: [1, 1.15],
+                              outputRange: [0, 8],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  />
                 </View>
               )}
             </Animated.View>
@@ -406,23 +632,51 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    width: 300,
+    height: 300,
   },
   avatarWrapper: {
     position: 'relative',
+    zIndex: 10,
+    shadowColor: colors.primary.main,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 30,
+    elevation: 10,
+  },
+  ring: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: colors.primary.main,
+    top: '50%',
+    left: '50%',
+    marginTop: -60,
+    marginLeft: -60,
+    zIndex: 1,
   },
   ringingIndicator: {
     position: 'absolute',
-    top: -10,
-    right: -10,
+    top: -15,
+    right: -15,
     flexDirection: 'row',
     alignItems: 'center',
+    zIndex: 20,
   },
   ringingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: colors.primary.main,
-    marginHorizontal: 2,
+    marginHorizontal: 3,
+    shadowColor: colors.primary.main,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 5,
+    elevation: 5,
   },
   participantName: {
     fontSize: 28,
