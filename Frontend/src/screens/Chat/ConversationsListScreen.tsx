@@ -472,6 +472,14 @@ export const ConversationsListScreen: React.FC = () => {
           }
         }}
       />
+
+      {/* Notification d'appel entrant */}
+      <IncomingCallNotification
+        call={incomingCall}
+        visible={!!incomingCall && incomingCall.state === 'ringing'}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+      />
     </LinearGradient>
   );
 };
