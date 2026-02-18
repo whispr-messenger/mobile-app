@@ -77,7 +77,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
-        {conversationType === 'direct' && onCallPress && participantId && (
+        {conversationType === 'direct' && onCallPress && (
           <TouchableOpacity
             onPress={onCallPress}
             style={styles.actionButton}

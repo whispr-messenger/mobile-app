@@ -779,7 +779,9 @@ export const ChatScreen: React.FC = () => {
           onCallPress={async () => {
             if (conversation?.type === 'direct') {
               try {
-                const otherParticipantId = conversation.metadata?.other_participant_id || 'unknown';
+                // Utiliser l'ID de conversation comme fallback si pas de participant_id
+                const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || 'unknown';
+                console.log('[ChatScreen] Initiating call to:', otherParticipantId);
                 await initiateCall(
                   {
                     id: otherParticipantId,
@@ -795,7 +797,7 @@ export const ChatScreen: React.FC = () => {
               }
             }
           }}
-          participantId={conversation?.metadata?.other_participant_id}
+          participantId={conversation?.metadata?.other_participant_id || conversation?.id}
           participantUsername={conversation?.metadata?.other_participant_username}
           participantAvatarUrl={conversation?.avatar_url}
         />
