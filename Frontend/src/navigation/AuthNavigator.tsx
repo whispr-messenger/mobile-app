@@ -19,6 +19,7 @@ import { ContactsScreen } from '../screens/Contacts/ContactsScreen';
 import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
 import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
+import { AudioCallScreen } from '../screens/Calls/AudioCallScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -35,6 +36,12 @@ export type AuthStackParamList = {
   BlockedUsers: undefined;
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
+  AudioCall: {
+    callId?: string;
+    participant: { id: string; displayName: string; avatarUrl?: string; username?: string };
+    direction: 'incoming' | 'outgoing';
+    conversationId?: string;
+  };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -77,6 +84,14 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
       <Stack.Screen name="GroupManagement" component={GroupManagementScreen} />
+      <Stack.Screen
+        name="AudioCall"
+        component={AudioCallScreen}
+        options={{
+          gestureEnabled: false,
+          animationTypeForReplace: 'push',
+        }}
+      />
     </Stack.Navigator>
   );
 };

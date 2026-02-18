@@ -1,0 +1,542 @@
+/**
+ * CallService - Service centralisé pour gérer les appels audio/vidéo WebRTC
+ * Gère l'établissement des connexions, le signaling via WebSocket, et les états des appels
+ */
+
+import { EventEmitter } from 'events';
+import AuthService from '../AuthService';
+
+export type CallState = 'idle' | 'initiating' | 'ringing' | 'connecting' | 'connected' | 'ended' | 'rejected' | 'failed';
+export type CallDirection = 'incoming' | 'outgoing';
+export type CallType = 'audio' | 'video';
+
+export interface CallParticipant {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+  username?: string;
+}
+
+export interface Call {
+  id: string;
+  conversationId?: string;
+  participant: CallParticipant;
+  direction: CallDirection;
+  type: CallType;
+  state: CallState;
+  startTime?: Date;
+  endTime?: Date;
+  duration?: number; // en secondes
+  isMuted: boolean;
+  isSpeakerOn: boolean;
+  isVideoEnabled: boolean;
+}
+
+interface CallServiceEvents {
+  callStateChanged: (call: Call) => void;
+  incomingCall: (call: Call) => void;
+  callEnded: (call: Call) => void;
+  callFailed: (call: Call, error: string) => void;
+}
+
+declare interface CallService {
+  on<U extends keyof CallServiceEvents>(event: U, listener: CallServiceEvents[U]): this;
+  emit<U extends keyof CallServiceEvents>(event: U, ...args: Parameters<CallServiceEvents[U]>): boolean;
+}
+
+class CallService extends EventEmitter {
+  private currentCall: Call | null = null;
+  private calls: Map<string, Call> = new Map();
+  private peerConnection: RTCPeerConnection | null = null;
+  private localStream: MediaStream | null = null;
+  private remoteStream: MediaStream | null = null;
+  private signalingChannel: any = null; // WebSocket channel pour le signaling
+
+  private static instance: CallService;
+
+  private constructor() {
+    super();
+    console.log('[CallService] Initialized');
+  }
+
+  static getInstance(): CallService {
+    if (!CallService.instance) {
+      CallService.instance = new CallService();
+    }
+    return CallService.instance;
+  }
+
+  /**
+   * Initialise le service avec le WebSocket pour le signaling
+   */
+  initializeSignaling(socket: any, userId: string): void {
+    console.log('[CallService] Initializing signaling with socket for user:', userId);
+    
+    // Créer un channel dédié aux appels
+    this.signalingChannel = socket.channel(`calls:${userId}`);
+    this.signalingChannel.join().then(() => {
+      console.log('[CallService] Joined calls channel');
+
+      // Écouter les événements de signaling
+      this.signalingChannel.on('call_offer', (data: any) => {
+        console.log('[CallService] Received call offer:', data);
+        this.handleIncomingCall(data);
+      });
+
+      this.signalingChannel.on('call_answer', (data: any) => {
+        console.log('[CallService] Received call answer:', data);
+        this.handleCallAnswer(data);
+      });
+
+      this.signalingChannel.on('ice_candidate', (data: any) => {
+        console.log('[CallService] Received ICE candidate:', data);
+        this.handleIceCandidate(data);
+      });
+
+      this.signalingChannel.on('call_end', (data: any) => {
+        console.log('[CallService] Received call end:', data);
+        this.handleCallEnd(data);
+      });
+    });
+  }
+
+  /**
+   * Initie un appel sortant
+   */
+  async initiateOutgoingCall(
+    participant: CallParticipant,
+    type: CallType = 'audio',
+    conversationId?: string
+  ): Promise<Call> {
+    console.log('[CallService] Initiating outgoing call to:', participant.id, 'type:', type);
+
+    if (this.currentCall && this.currentCall.state !== 'ended' && this.currentCall.state !== 'rejected') {
+      throw new Error('Un appel est déjà en cours');
+    }
+
+    const callId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const call: Call = {
+      id: callId,
+      conversationId,
+      participant,
+      direction: 'outgoing',
+      type,
+      state: 'initiating',
+      isMuted: false,
+      isSpeakerOn: false,
+      isVideoEnabled: type === 'video',
+    };
+
+    this.currentCall = call;
+    this.calls.set(callId, call);
+    this.emit('callStateChanged', call);
+
+    try {
+      // Obtenir le stream local
+      await this.getLocalStream(type);
+      
+      // Créer la connexion peer
+      await this.createPeerConnection();
+
+      // Créer et envoyer l'offer
+      const offer = await this.peerConnection!.createOffer();
+      await this.peerConnection!.setLocalDescription(offer);
+
+      // Envoyer l'offer via WebSocket
+      if (this.signalingChannel) {
+        this.signalingChannel.push('call_offer', {
+          call_id: callId,
+          to_user_id: participant.id,
+          offer: offer,
+          type: type,
+          conversation_id: conversationId,
+        });
+      }
+
+      // Passer à l'état "ringing"
+      call.state = 'ringing';
+      this.emit('callStateChanged', call);
+
+      console.log('[CallService] Outgoing call initiated successfully');
+      return call;
+    } catch (error: any) {
+      console.error('[CallService] Error initiating call:', error);
+      call.state = 'failed';
+      this.emit('callFailed', call, error.message || 'Erreur lors de l\'initiation de l\'appel');
+      throw error;
+    }
+  }
+
+  /**
+   * Reçoit un appel entrant
+   */
+  receiveIncomingCall(data: {
+    call_id: string;
+    from_user_id: string;
+    from_display_name: string;
+    from_avatar_url?: string;
+    from_username?: string;
+    offer: RTCSessionDescriptionInit;
+    type: CallType;
+    conversation_id?: string;
+  }): Call {
+    console.log('[CallService] Receiving incoming call:', data.call_id);
+
+    if (this.currentCall && this.currentCall.state !== 'ended' && this.currentCall.state !== 'rejected') {
+      // Rejeter automatiquement si un appel est déjà en cours
+      this.rejectCall(data.call_id, 'Un appel est déjà en cours');
+      throw new Error('Un appel est déjà en cours');
+    }
+
+    const call: Call = {
+      id: data.call_id,
+      conversationId: data.conversation_id,
+      participant: {
+        id: data.from_user_id,
+        displayName: data.from_display_name,
+        avatarUrl: data.from_avatar_url,
+        username: data.from_username,
+      },
+      direction: 'incoming',
+      type: data.type,
+      state: 'ringing',
+      isMuted: false,
+      isSpeakerOn: false,
+      isVideoEnabled: data.type === 'video',
+    };
+
+    this.currentCall = call;
+    this.calls.set(data.call_id, call);
+    this.emit('incomingCall', call);
+    this.emit('callStateChanged', call);
+
+    // Stocker l'offer pour plus tard
+    (call as any).pendingOffer = data.offer;
+
+    console.log('[CallService] Incoming call received');
+    return call;
+  }
+
+  /**
+   * Accepte un appel entrant
+   */
+  async acceptCall(callId: string): Promise<void> {
+    console.log('[CallService] Accepting call:', callId);
+
+    const call = this.calls.get(callId);
+    if (!call || call.direction !== 'incoming') {
+      throw new Error('Appel introuvable ou invalide');
+    }
+
+    try {
+      call.state = 'connecting';
+      this.emit('callStateChanged', call);
+
+      // Obtenir le stream local
+      await this.getLocalStream(call.type);
+
+      // Créer la connexion peer
+      await this.createPeerConnection();
+
+      // Appliquer l'offer reçue
+      const offer = (call as any).pendingOffer;
+      if (offer) {
+        await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(offer));
+      }
+
+      // Créer et envoyer la réponse
+      const answer = await this.peerConnection!.createAnswer();
+      await this.peerConnection!.setLocalDescription(answer);
+
+      // Envoyer la réponse via WebSocket
+      if (this.signalingChannel) {
+        this.signalingChannel.push('call_answer', {
+          call_id: callId,
+          answer: answer,
+        });
+      }
+
+      call.state = 'connected';
+      call.startTime = new Date();
+      this.emit('callStateChanged', call);
+
+      console.log('[CallService] Call accepted successfully');
+    } catch (error: any) {
+      console.error('[CallService] Error accepting call:', error);
+      call.state = 'failed';
+      this.emit('callFailed', call, error.message || 'Erreur lors de l\'acceptation de l\'appel');
+      throw error;
+    }
+  }
+
+  /**
+   * Rejette un appel entrant
+   */
+  rejectCall(callId: string, reason?: string): void {
+    console.log('[CallService] Rejecting call:', callId, reason);
+
+    const call = this.calls.get(callId);
+    if (call) {
+      call.state = 'rejected';
+      call.endTime = new Date();
+      this.emit('callStateChanged', call);
+      this.emit('callEnded', call);
+    }
+
+    // Envoyer le rejet via WebSocket
+    if (this.signalingChannel) {
+      this.signalingChannel.push('call_reject', {
+        call_id: callId,
+        reason: reason || 'Rejeté par l\'utilisateur',
+      });
+    }
+
+    this.cleanup();
+  }
+
+  /**
+   * Termine un appel en cours
+   */
+  endCall(callId?: string): void {
+    const callIdToEnd = callId || this.currentCall?.id;
+    if (!callIdToEnd) {
+      console.warn('[CallService] No call to end');
+      return;
+    }
+
+    console.log('[CallService] Ending call:', callIdToEnd);
+
+    const call = this.calls.get(callIdToEnd);
+    if (call) {
+      call.state = 'ended';
+      call.endTime = new Date();
+      if (call.startTime) {
+        call.duration = Math.floor((call.endTime.getTime() - call.startTime.getTime()) / 1000);
+      }
+      this.emit('callStateChanged', call);
+      this.emit('callEnded', call);
+    }
+
+    // Envoyer la fin d'appel via WebSocket
+    if (this.signalingChannel && callIdToEnd) {
+      this.signalingChannel.push('call_end', {
+        call_id: callIdToEnd,
+      });
+    }
+
+    this.cleanup();
+  }
+
+  /**
+   * Active/désactive le micro
+   */
+  toggleMute(): boolean {
+    if (!this.currentCall || !this.localStream) {
+      return false;
+    }
+
+    const newMutedState = !this.currentCall.isMuted;
+    this.currentCall.isMuted = newMutedState;
+
+    this.localStream.getAudioTracks().forEach(track => {
+      track.enabled = !newMutedState;
+    });
+
+    this.emit('callStateChanged', this.currentCall);
+    console.log('[CallService] Mute toggled:', newMutedState);
+    return newMutedState;
+  }
+
+  /**
+   * Active/désactive le haut-parleur
+   */
+  toggleSpeaker(): boolean {
+    if (!this.currentCall) {
+      return false;
+    }
+
+    const newSpeakerState = !this.currentCall.isSpeakerOn;
+    this.currentCall.isSpeakerOn = newSpeakerState;
+
+    // Note: La gestion du haut-parleur nécessite une API native spécifique
+    // Pour l'instant, on met juste à jour l'état
+    // TODO: Implémenter avec react-native-webrtc ou expo-av
+
+    this.emit('callStateChanged', this.currentCall);
+    console.log('[CallService] Speaker toggled:', newSpeakerState);
+    return newSpeakerState;
+  }
+
+  /**
+   * Active/désactive la vidéo
+   */
+  toggleVideo(): boolean {
+    if (!this.currentCall || !this.localStream) {
+      return false;
+    }
+
+    const newVideoState = !this.currentCall.isVideoEnabled;
+    this.currentCall.isVideoEnabled = newVideoState;
+
+    this.localStream.getVideoTracks().forEach(track => {
+      track.enabled = newVideoState;
+    });
+
+    this.emit('callStateChanged', this.currentCall);
+    console.log('[CallService] Video toggled:', newVideoState);
+    return newVideoState;
+  }
+
+  /**
+   * Obtient l'appel en cours
+   */
+  getCurrentCall(): Call | null {
+    return this.currentCall;
+  }
+
+  /**
+   * Obtient le stream local
+   */
+  getLocalStream(): MediaStream | null {
+    return this.localStream;
+  }
+
+  /**
+   * Obtient le stream distant
+   */
+  getRemoteStream(): MediaStream | null {
+    return this.remoteStream;
+  }
+
+  /**
+   * Gestionnaires privés
+   */
+  private async getLocalStream(type: CallType): Promise<void> {
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: true,
+        video: type === 'video' ? {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        } : false,
+      };
+
+      this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('[CallService] Local stream obtained');
+    } catch (error: any) {
+      console.error('[CallService] Error getting local stream:', error);
+      throw new Error('Impossible d\'accéder au micro/caméra');
+    }
+  }
+
+  private async createPeerConnection(): Promise<void> {
+    const configuration: RTCConfiguration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+    };
+
+    this.peerConnection = new RTCPeerConnection(configuration);
+
+    // Ajouter le stream local
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => {
+        this.peerConnection!.addTrack(track, this.localStream!);
+      });
+    }
+
+    // Gérer les candidats ICE
+    this.peerConnection.onicecandidate = (event) => {
+      if (event.candidate && this.signalingChannel && this.currentCall) {
+        console.log('[CallService] Sending ICE candidate');
+        this.signalingChannel.push('ice_candidate', {
+          call_id: this.currentCall.id,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    // Gérer le stream distant
+    this.peerConnection.ontrack = (event) => {
+      console.log('[CallService] Received remote stream');
+      this.remoteStream = event.streams[0];
+      this.emit('callStateChanged', this.currentCall!);
+    };
+
+    // Gérer les changements de connexion
+    this.peerConnection.onconnectionstatechange = () => {
+      if (!this.peerConnection || !this.currentCall) return;
+
+      console.log('[CallService] Connection state:', this.peerConnection.connectionState);
+
+      if (this.peerConnection.connectionState === 'connected') {
+        this.currentCall.state = 'connected';
+        if (!this.currentCall.startTime) {
+          this.currentCall.startTime = new Date();
+        }
+        this.emit('callStateChanged', this.currentCall);
+      } else if (this.peerConnection.connectionState === 'failed' || this.peerConnection.connectionState === 'disconnected') {
+        this.endCall();
+      }
+    };
+  }
+
+  private handleIncomingCall(data: any): void {
+    this.receiveIncomingCall(data);
+  }
+
+  private async handleCallAnswer(data: { call_id: string; answer: RTCSessionDescriptionInit }): Promise<void> {
+    if (!this.peerConnection || !this.currentCall || this.currentCall.id !== data.call_id) {
+      return;
+    }
+
+    try {
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+      this.currentCall.state = 'connected';
+      this.currentCall.startTime = new Date();
+      this.emit('callStateChanged', this.currentCall);
+    } catch (error) {
+      console.error('[CallService] Error handling call answer:', error);
+      this.endCall();
+    }
+  }
+
+  private async handleIceCandidate(data: { call_id: string; candidate: RTCIceCandidateInit }): Promise<void> {
+    if (!this.peerConnection || !this.currentCall || this.currentCall.id !== data.call_id) {
+      return;
+    }
+
+    try {
+      await this.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    } catch (error) {
+      console.error('[CallService] Error handling ICE candidate:', error);
+    }
+  }
+
+  private handleCallEnd(data: { call_id: string }): void {
+    if (this.currentCall && this.currentCall.id === data.call_id) {
+      this.endCall(data.call_id);
+    }
+  }
+
+  private cleanup(): void {
+    console.log('[CallService] Cleaning up');
+
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream = null;
+    }
+
+    if (this.peerConnection) {
+      this.peerConnection.close();
+      this.peerConnection = null;
+    }
+
+    this.remoteStream = null;
+    this.currentCall = null;
+  }
+}
+
+export default CallService;

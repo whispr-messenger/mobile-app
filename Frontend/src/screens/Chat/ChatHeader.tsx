@@ -16,6 +16,10 @@ interface ChatHeaderProps {
   conversationType: 'direct' | 'group';
   onSearchPress?: () => void;
   onInfoPress?: () => void;
+  onCallPress?: () => void;
+  participantId?: string;
+  participantUsername?: string;
+  participantAvatarUrl?: string;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -24,6 +28,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationType,
   onSearchPress,
   onInfoPress,
+  onCallPress,
+  participantId,
+  participantUsername,
+  participantAvatarUrl,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -69,6 +77,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
+        {conversationType === 'direct' && onCallPress && participantId && (
+          <TouchableOpacity
+            onPress={onCallPress}
+            style={styles.actionButton}
+          >
+            <Ionicons
+              name="call"
+              size={22}
+              color={colors.primary.main}
+            />
+          </TouchableOpacity>
+        )}
         {onSearchPress && (
           <TouchableOpacity
             onPress={onSearchPress}

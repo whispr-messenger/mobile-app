@@ -26,6 +26,8 @@ import { MessageSearch } from '../../components/Chat/MessageSearch';
 import { PinnedMessagesBar } from '../../components/Chat/PinnedMessagesBar';
 import { EmptyChatState } from '../../components/Chat/EmptyChatState';
 import { ChatHeader } from './ChatHeader';
+import { useCallManager } from '../../hooks/useCallManager';
+import { IncomingCallNotification } from '../../components/Calls/IncomingCallNotification';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors, withOpacity } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,6 +69,8 @@ export const ChatScreen: React.FC = () => {
   const userId = 'user-1';
   const token = 'mock-token';
 
+  // Call management
+  const { initiateCall, incomingCall, acceptCall, rejectCall } = useCallManager();
 
   // WebSocket connection
   const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
@@ -772,6 +776,28 @@ export const ChatScreen: React.FC = () => {
           isOnline={false}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
+          onCallPress={async () => {
+            if (conversation?.type === 'direct') {
+              try {
+                const otherParticipantId = conversation.metadata?.other_participant_id || 'unknown';
+                await initiateCall(
+                  {
+                    id: otherParticipantId,
+                    displayName: conversation.display_name || 'Contact',
+                    avatarUrl: conversation.avatar_url,
+                    username: conversation.metadata?.other_participant_username,
+                  },
+                  'audio',
+                  conversationId
+                );
+              } catch (error) {
+                console.error('[ChatScreen] Error initiating call:', error);
+              }
+            }
+          }}
+          participantId={conversation?.metadata?.other_participant_id}
+          participantUsername={conversation?.metadata?.other_participant_username}
+          participantAvatarUrl={conversation?.avatar_url}
         />
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar
@@ -940,6 +966,14 @@ export const ChatScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Notification d'appel entrant */}
+      <IncomingCallNotification
+        call={incomingCall}
+        visible={!!incomingCall && incomingCall.state === 'ringing'}
+        onAccept={acceptCall}
+        onReject={rejectCall}
+      />
       </SafeAreaView>
     </LinearGradient>
   );
