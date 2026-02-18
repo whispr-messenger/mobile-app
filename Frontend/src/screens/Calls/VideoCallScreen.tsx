@@ -345,20 +345,8 @@ export const VideoCallScreen: React.FC = () => {
 
   const getLocalVideoPosition = () => {
     const margin = LOCAL_VIDEO_MARGIN;
-    const size = LOCAL_VIDEO_SIZE;
-    
-    switch (localVideoPosition) {
-      case 'top-right':
-        return { top: margin + (Platform.OS === 'ios' ? 50 : 20), right: margin };
-      case 'top-left':
-        return { top: margin + (Platform.OS === 'ios' ? 50 : 20), left: margin };
-      case 'bottom-right':
-        return { bottom: 120, right: margin };
-      case 'bottom-left':
-        return { bottom: 120, left: margin };
-      default:
-        return { top: margin + (Platform.OS === 'ios' ? 50 : 20), right: margin };
-    }
+    // Toujours en haut à droite (fixe)
+    return { top: margin + (Platform.OS === 'ios' ? 50 : 20), right: margin };
   };
 
   const isRinging = call?.state === 'ringing';
