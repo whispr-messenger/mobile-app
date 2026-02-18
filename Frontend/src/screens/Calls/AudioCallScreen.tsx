@@ -237,18 +237,19 @@ export const AudioCallScreen: React.FC = () => {
 
   const startGlowAnimation = () => {
     glowAnim.setValue(0.5);
-    // Utiliser useNativeDriver: true pour shadowOpacity car c'est supporté
+    // shadowOpacity et shadowRadius ne sont pas supportés par useNativeDriver
+    // On doit utiliser useNativeDriver: false pour ces propriétés
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
           toValue: 1,
           duration: 1500,
-          useNativeDriver: true, // shadowOpacity est supporté avec useNativeDriver
+          useNativeDriver: false, // Nécessaire pour shadowOpacity/shadowRadius
         }),
         Animated.timing(glowAnim, {
           toValue: 0.5,
           duration: 1500,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     ).start();
@@ -637,13 +638,25 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
   },
-  avatarWrapper: {
+  avatarWrapperContainer: {
     position: 'relative',
     zIndex: 10,
+  },
+  avatarWrapper: {
+    position: 'relative',
+  },
+  avatarGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.primary.main,
+    opacity: 0,
+    zIndex: -1,
     shadowColor: colors.primary.main,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
+    shadowOpacity: 0.8,
+    shadowRadius: 40,
     elevation: 10,
   },
   ring: {
