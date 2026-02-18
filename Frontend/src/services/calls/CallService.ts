@@ -215,8 +215,13 @@ class CallService extends EventEmitter {
   ): Promise<Call> {
     console.log('[CallService] Initiating outgoing call to:', participant.id, 'type:', type);
 
-    if (this.currentCall && this.currentCall.state !== 'ended' && this.currentCall.state !== 'rejected') {
-      throw new Error('Un appel est déjà en cours');
+    // Vérifier si un appel est en cours et le nettoyer si nécessaire
+    if (this.currentCall && this.currentCall.state !== 'ended' && this.currentCall.state !== 'rejected' && this.currentCall.state !== 'failed') {
+      console.log('[CallService] Call already in progress, cleaning up previous call:', this.currentCall.id);
+      // Nettoyer l'appel précédent avant d'en créer un nouveau
+      this.cleanup();
+      // Attendre un peu pour que le cleanup se termine
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     const callId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

@@ -780,8 +780,9 @@ export const ChatScreen: React.FC = () => {
             if (conversation?.type === 'direct') {
               try {
                 // Utiliser l'ID de conversation comme fallback si pas de participant_id
-                const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || 'unknown';
-                console.log('[ChatScreen] Initiating call to:', otherParticipantId);
+                // Pour les conversations directes, on peut utiliser l'ID de conversation
+                const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || conversationId || 'unknown';
+                console.log('[ChatScreen] Initiating call to:', otherParticipantId, 'conversation:', conversationId);
                 await initiateCall(
                   {
                     id: otherParticipantId,
@@ -792,12 +793,16 @@ export const ChatScreen: React.FC = () => {
                   'audio',
                   conversationId
                 );
-              } catch (error) {
+              } catch (error: any) {
                 console.error('[ChatScreen] Error initiating call:', error);
+                // Afficher un message d'erreur à l'utilisateur si nécessaire
+                if (error.message?.includes('déjà en cours')) {
+                  // L'erreur est déjà gérée par CallService
+                }
               }
             }
           }}
-          participantId={conversation?.metadata?.other_participant_id || conversation?.id}
+          participantId={conversation?.metadata?.other_participant_id || conversation?.id || conversationId}
           participantUsername={conversation?.metadata?.other_participant_username}
           participantAvatarUrl={conversation?.avatar_url}
         />

@@ -79,7 +79,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       <View style={styles.actions}>
         {conversationType === 'direct' && onCallPress && (
           <TouchableOpacity
-            onPress={onCallPress}
+            onPress={() => {
+              console.log('[ChatHeader] Call button pressed for:', conversationName);
+              onCallPress();
+            }}
             style={[styles.actionButton, styles.callButton]}
             activeOpacity={0.7}
           >
