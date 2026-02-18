@@ -80,23 +80,21 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       </View>
       <View style={styles.actions}>
         {conversationType === 'direct' && (
-          <>
+          <View style={styles.callButtonsContainer}>
             {onVideoCallPress && (
               <TouchableOpacity
                 onPress={() => {
                   console.log('[ChatHeader] Video call button pressed for:', conversationName);
                   onVideoCallPress();
                 }}
-                style={[styles.actionButton, styles.videoCallButton]}
+                style={styles.videoCallButton}
                 activeOpacity={0.7}
               >
-                <View style={styles.videoCallButtonContainer}>
-                  <Ionicons
-                    name="videocam"
-                    size={20}
-                    color={colors.text.light}
-                  />
-                </View>
+                <Ionicons
+                  name="videocam"
+                  size={18}
+                  color={colors.text.light}
+                />
               </TouchableOpacity>
             )}
             {onCallPress && (
@@ -105,19 +103,17 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   console.log('[ChatHeader] Call button pressed for:', conversationName);
                   onCallPress();
                 }}
-                style={[styles.actionButton, styles.callButton]}
+                style={styles.callButton}
                 activeOpacity={0.7}
               >
-                <View style={styles.callButtonContainer}>
-                  <Ionicons
-                    name="call"
-                    size={20}
-                    color={colors.text.light}
-                  />
-                </View>
+                <Ionicons
+                  name="call"
+                  size={18}
+                  color={colors.text.light}
+                />
               </TouchableOpacity>
             )}
-          </>
+          </View>
         )}
         {onSearchPress && (
           <TouchableOpacity
@@ -178,21 +174,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 8,
+    gap: 8,
   },
   actionButton: {
     padding: 8,
-    marginLeft: 4,
+  },
+  callButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginRight: 8,
   },
   callButton: {
-    marginRight: 4,
-  },
-  videoCallButton: {
-    marginRight: 4,
-  },
-  callButtonContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.primary.main,
     alignItems: 'center',
     justifyContent: 'center',
@@ -205,14 +201,14 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  videoCallButtonContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary.light,
+  videoCallButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary.main,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.primary.light,
+    shadowColor: colors.primary.main,
     shadowOffset: {
       width: 0,
       height: 2,

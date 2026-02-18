@@ -44,12 +44,10 @@ export const VideoCallScreen: React.FC = () => {
   const [call, setCall] = useState<Call | null>(null);
   const [duration, setDuration] = useState(0);
   const [callStatus, setCallStatus] = useState<string>('');
-  const [localVideoPosition, setLocalVideoPosition] = useState<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'>('top-right');
-  const [showControls, setShowControls] = useState(true);
+  // Vidéo locale fixe en haut à droite
 
   // Animations
   const slideAnim = useRef(new Animated.Value(0)).current;
-  const controlsOpacity = useRef(new Animated.Value(1)).current;
   const localVideoScale = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ringAnim1 = useRef(new Animated.Value(0)).current;
@@ -92,14 +90,10 @@ export const VideoCallScreen: React.FC = () => {
       friction: 7,
     }).start();
 
-    // Auto-hide controls après 5 secondes
-    const hideControlsTimer = setTimeout(() => {
-      hideControls();
-    }, 5000);
+    // Les contrôles restent toujours visibles
 
     return () => {
       callService.removeListener('callStateChanged', handleCallStateChanged);
-      clearTimeout(hideControlsTimer);
     };
   }, [callId, navigation, callService]);
 
@@ -240,28 +234,7 @@ export const VideoCallScreen: React.FC = () => {
     ringAnim3.setValue(0);
   };
 
-  const hideControls = () => {
-    // Réduire l'opacité mais garder les contrôles accessibles (opacité minimale de 0.3)
-    Animated.timing(controlsOpacity, {
-      toValue: 0.3,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const showControlsWithAnimation = () => {
-    // Réafficher les contrôles à pleine opacité
-    Animated.timing(controlsOpacity, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-    
-    // Re-hide après 5 secondes (mais garder accessibles)
-    setTimeout(() => {
-      hideControls();
-    }, 5000);
-  };
+  // Les contrôles restent toujours visibles et accessibles
 
   const handleAccept = async () => {
     console.log('[VideoCallScreen] Accepting call');
@@ -348,7 +321,7 @@ export const VideoCallScreen: React.FC = () => {
   };
 
   const handleLocalVideoPress = () => {
-    // Animation de scale pour feedback
+    // Animation de scale pour feedback uniquement
     Animated.sequence([
       Animated.timing(localVideoScale, {
         toValue: 0.95,
@@ -361,12 +334,7 @@ export const VideoCallScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Changer la position de la vidéo locale
-    const positions: Array<'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'> = ['top-right', 'top-left', 'bottom-left', 'bottom-right'];
-    const currentIndex = positions.indexOf(localVideoPosition);
-    const nextIndex = (currentIndex + 1) % positions.length;
-    setLocalVideoPosition(positions[nextIndex]);
+    // La vidéo locale reste fixe en haut à droite
   };
 
   const formatDuration = (seconds: number): string => {
@@ -412,7 +380,6 @@ export const VideoCallScreen: React.FC = () => {
               name={participant.displayName}
               uri={participant.avatarUrl}
             />
-            <Text style={styles.remoteVideoLabel}>Vidéo distante</Text>
           </LinearGradient>
         ) : (
           // Pendant ringing/connecting, afficher avatar avec animations
@@ -547,19 +514,10 @@ export const VideoCallScreen: React.FC = () => {
 
       {/* Overlay avec contrôles */}
       <Animated.View
-        style={[
-          styles.overlay,
-          {
-            opacity: controlsOpacity,
-          },
-        ]}
+        style={styles.overlay}
         pointerEvents="auto"
       >
-        <TouchableOpacity
-          style={styles.overlayTouchable}
-          activeOpacity={1}
-          onPress={showControlsWithAnimation}
-        >
+        <View style={styles.overlayTouchable}>
           <SafeAreaView style={styles.safeArea}>
             {/* Header avec info */}
             <Animated.View
