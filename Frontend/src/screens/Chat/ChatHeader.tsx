@@ -209,10 +209,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.secondary.main,
+    backgroundColor: colors.primary.light,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: colors.secondary.main,
+    shadowColor: colors.primary.light,
     shadowOffset: {
       width: 0,
       height: 2,

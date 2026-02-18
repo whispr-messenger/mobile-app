@@ -241,24 +241,23 @@ export const VideoCallScreen: React.FC = () => {
   };
 
   const hideControls = () => {
+    // Réduire l'opacité mais garder les contrôles accessibles (opacité minimale de 0.3)
     Animated.timing(controlsOpacity, {
-      toValue: 0,
+      toValue: 0.3,
       duration: 300,
       useNativeDriver: true,
-    }).start(() => {
-      setShowControls(false);
-    });
+    }).start();
   };
 
   const showControlsWithAnimation = () => {
-    setShowControls(true);
+    // Réafficher les contrôles à pleine opacité
     Animated.timing(controlsOpacity, {
       toValue: 1,
       duration: 300,
       useNativeDriver: true,
     }).start();
     
-    // Re-hide après 5 secondes
+    // Re-hide après 5 secondes (mais garder accessibles)
     setTimeout(() => {
       hideControls();
     }, 5000);
@@ -554,7 +553,7 @@ export const VideoCallScreen: React.FC = () => {
             opacity: controlsOpacity,
           },
         ]}
-        pointerEvents={showControls ? 'auto' : 'none'}
+        pointerEvents="auto"
       >
         <TouchableOpacity
           style={styles.overlayTouchable}
@@ -868,6 +867,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 30,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     paddingHorizontal: 20,
     gap: 20,
