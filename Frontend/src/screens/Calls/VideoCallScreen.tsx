@@ -13,6 +13,7 @@ import {
   Dimensions,
   Platform,
   Image,
+  PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -49,6 +50,10 @@ export const VideoCallScreen: React.FC = () => {
   // Animations
   const slideAnim = useRef(new Animated.Value(0)).current;
   const localVideoScale = useRef(new Animated.Value(1)).current;
+  const localVideoPosition = useRef(new Animated.ValueXY({
+    x: width - LOCAL_VIDEO_SIZE - LOCAL_VIDEO_MARGIN,
+    y: LOCAL_VIDEO_MARGIN + (Platform.OS === 'ios' ? 50 : 20),
+  })).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ringAnim1 = useRef(new Animated.Value(0)).current;
   const ringAnim2 = useRef(new Animated.Value(0)).current;
@@ -346,11 +351,58 @@ export const VideoCallScreen: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getLocalVideoPosition = () => {
-    const margin = LOCAL_VIDEO_MARGIN;
-    // Toujours en haut à droite (fixe)
-    return { top: margin + (Platform.OS === 'ios' ? 50 : 20), right: margin };
-  };
+  // PanResponder pour glisser la vidéo locale
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        localVideoPosition.setOffset({
+          x: (localVideoPosition.x as any)._value,
+          y: (localVideoPosition.y as any)._value,
+        });
+        localVideoPosition.setValue({ x: 0, y: 0 });
+        // Animation de scale au début du drag
+        Animated.spring(localVideoScale, {
+          toValue: 1.1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 7,
+        }).start();
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const newX = gestureState.dx;
+        const newY = gestureState.dy;
+        
+        // Limiter le mouvement dans les bounds de l'écran
+        const maxX = width - LOCAL_VIDEO_SIZE - LOCAL_VIDEO_MARGIN;
+        const maxY = height - LOCAL_VIDEO_SIZE - 120; // 120 pour laisser de la place pour les contrôles
+        const minX = LOCAL_VIDEO_MARGIN;
+        const minY = LOCAL_VIDEO_MARGIN + (Platform.OS === 'ios' ? 50 : 20);
+        
+        const boundedX = Math.max(minX, Math.min(maxX, newX));
+        const boundedY = Math.max(minY, Math.min(maxY, newY));
+        
+        localVideoPosition.setValue({ x: boundedX, y: boundedY });
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        localVideoPosition.flattenOffset();
+        
+        // Animation de scale à la fin du drag
+        Animated.spring(localVideoScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 7,
+        }).start();
+        
+        // Si le mouvement était très petit, considérer comme un clic pour switcher
+        if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
+          handleLocalVideoPress();
+        }
+      },
+    })
+  ).current;
 
   const isRinging = call?.state === 'ringing';
   const isConnected = call?.state === 'connected';
@@ -500,11 +552,15 @@ export const VideoCallScreen: React.FC = () => {
         <Animated.View
           style={[
             styles.localVideoContainer,
-            getLocalVideoPosition(),
             {
-              transform: [{ scale: localVideoScale }],
+              transform: [
+                { translateX: localVideoPosition.x },
+                { translateY: localVideoPosition.y },
+                { scale: localVideoScale },
+              ],
             },
           ]}
+          {...panResponder.panHandlers}
         >
           <TouchableOpacity
             activeOpacity={0.8}
@@ -769,6 +825,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 10,
     zIndex: 100,
+    left: 0,
+    top: 0,
   },
   localVideoTouchable: {
     flex: 1,
