@@ -3,3 +3,4 @@ export { SplashScreen } from './SplashScreen';
 export * from './Auth';
 export * from './Profile';
 export * from './Settings';
+export * from './Calls';

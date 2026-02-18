@@ -133,6 +133,13 @@ declare interface CallService {
   emit<U extends keyof CallServiceEvents>(event: U, ...args: Parameters<CallServiceEvents[U]>): boolean;
 }
 
+interface PendingMessage {
+  event: string;
+  payload: any;
+  timestamp: number;
+  retries: number;
+}
+
 class CallService extends EventEmitter {
   private currentCall: Call | null = null;
   private calls: Map<string, Call> = new Map();
@@ -140,6 +147,14 @@ class CallService extends EventEmitter {
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
   private signalingChannel: any = null; // WebSocket channel pour le signaling
+  private userChannel: any = null; // User channel pour les appels entrants
+  private socket: any = null; // Référence au socket pour reconnexion
+  private userId: string | null = null; // User ID pour reconnexion
+  private pendingMessages: PendingMessage[] = []; // Queue de messages en attente
+  private isSignalingReady: boolean = false; // État de connexion signaling
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 5;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   private static instance: CallService;
 
@@ -166,43 +181,264 @@ class CallService extends EventEmitter {
       return;
     }
 
+    // Sauvegarder les références pour reconnexion
+    this.socket = socket;
+    this.userId = userId;
+    this.reconnectAttempts = 0;
+
+    // Écouter les événements de déconnexion/reconnexion du socket
+    if (socket.on) {
+      socket.on('close', () => {
+        console.warn('[CallService] WebSocket disconnected, will attempt to reconnect');
+        this.isSignalingReady = false;
+        this.handleDisconnection();
+      });
+
+      socket.on('error', (error: any) => {
+        console.error('[CallService] WebSocket error:', error);
+        this.isSignalingReady = false;
+      });
+
+      socket.on('open', () => {
+        console.log('[CallService] WebSocket reconnected, reinitializing signaling');
+        this.reconnectAttempts = 0;
+        this.setupSignalingChannels();
+      });
+    }
+
+    this.setupSignalingChannels();
+  }
+
+  /**
+   * Configure les channels de signaling
+   */
+  private setupSignalingChannels(): void {
+    if (!this.socket || !this.userId) {
+      console.warn('[CallService] Cannot setup channels: socket or userId missing');
+      return;
+    }
+
     // Créer un channel dédié aux appels
-    this.signalingChannel = socket.channel(`calls:${userId}`);
-    this.signalingChannel.join().then(() => {
-      console.log('[CallService] Joined calls channel');
+    this.signalingChannel = this.socket.channel(`calls:${this.userId}`);
+    this.signalingChannel.join()
+      .then(() => {
+        console.log('[CallService] Successfully joined calls channel');
+        this.isSignalingReady = true;
+        this.reconnectAttempts = 0;
 
-      // Écouter les événements de signaling sur le channel calls
-      this.signalingChannel.on('call_offer', (data: any) => {
-        console.log('[CallService] Received call offer on calls channel:', data);
-        this.handleIncomingCall(data);
-      });
-
-      this.signalingChannel.on('call_answer', (data: any) => {
-        console.log('[CallService] Received call answer:', data);
-        this.handleCallAnswer(data);
-      });
-
-      this.signalingChannel.on('ice_candidate', (data: any) => {
-        console.log('[CallService] Received ICE candidate:', data);
-        this.handleIceCandidate(data);
-      });
-
-      this.signalingChannel.on('call_end', (data: any) => {
-        console.log('[CallService] Received call end:', data);
-        this.handleCallEnd(data);
-      });
-
-      // Écouter aussi sur le user channel pour les appels entrants
-      const userChannel = socket.channel(`user:${userId}`);
-      userChannel.join().then(() => {
-        userChannel.on('call_offer', (data: any) => {
-          console.log('[CallService] Received call offer on user channel:', data);
-          this.handleIncomingCall(data);
+        // Écouter les événements de signaling sur le channel calls
+        this.signalingChannel.on('call_offer', (data: any) => {
+          console.log('[CallService] Received call offer on calls channel:', data);
+          if (this.validateSignalingMessage('call_offer', data)) {
+            this.handleIncomingCall(data);
+          }
         });
+
+        this.signalingChannel.on('call_answer', (data: any) => {
+          console.log('[CallService] Received call answer:', data);
+          if (this.validateSignalingMessage('call_answer', data)) {
+            this.handleCallAnswer(data);
+          }
+        });
+
+        this.signalingChannel.on('ice_candidate', (data: any) => {
+          console.log('[CallService] Received ICE candidate:', data);
+          if (this.validateSignalingMessage('ice_candidate', data)) {
+            this.handleIceCandidate(data);
+          }
+        });
+
+        this.signalingChannel.on('call_end', (data: any) => {
+          console.log('[CallService] Received call end:', data);
+          if (this.validateSignalingMessage('call_end', data)) {
+            this.handleCallEnd(data);
+          }
+        });
+
+        this.signalingChannel.on('call_reject', (data: any) => {
+          console.log('[CallService] Received call reject:', data);
+          if (this.validateSignalingMessage('call_reject', data)) {
+            this.handleCallReject(data);
+          }
+        });
+
+        // Écouter aussi sur le user channel pour les appels entrants
+        this.userChannel = this.socket.channel(`user:${this.userId}`);
+        this.userChannel.join().then(() => {
+          console.log('[CallService] Successfully joined user channel');
+          this.userChannel.on('call_offer', (data: any) => {
+            console.log('[CallService] Received call offer on user channel:', data);
+            if (this.validateSignalingMessage('call_offer', data)) {
+              this.handleIncomingCall(data);
+            }
+          });
+        }).catch((error: any) => {
+          console.error('[CallService] Error joining user channel:', error);
+        });
+
+        // Traiter les messages en attente
+        this.processPendingMessages();
+      })
+      .catch((error: any) => {
+        console.error('[CallService] Error joining calls channel:', error);
+        this.isSignalingReady = false;
+        this.scheduleReconnect();
       });
-    }).catch((error: any) => {
-      console.error('[CallService] Error joining calls channel:', error);
+  }
+
+  /**
+   * Gère la déconnexion et planifie la reconnexion
+   */
+  private handleDisconnection(): void {
+    this.isSignalingReady = false;
+    this.signalingChannel = null;
+    this.userChannel = null;
+
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.scheduleReconnect();
+    } else {
+      console.error('[CallService] Max reconnection attempts reached, giving up');
+      // Émettre un événement d'erreur
+      if (this.currentCall) {
+        this.currentCall.state = 'failed';
+        this.emit('callFailed', this.currentCall, 'Connexion WebSocket perdue');
+      }
+    }
+  }
+
+  /**
+   * Planifie une tentative de reconnexion
+   */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000); // Exponential backoff, max 30s
+    this.reconnectAttempts++;
+
+    console.log(`[CallService] Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+
+    this.reconnectTimeout = setTimeout(() => {
+      if (this.socket && this.userId) {
+        this.setupSignalingChannels();
+      }
+    }, delay);
+  }
+
+  /**
+   * Valide un message de signaling reçu
+   */
+  private validateSignalingMessage(event: string, data: any): boolean {
+    if (!data || typeof data !== 'object') {
+      console.warn(`[CallService] Invalid ${event} message: data is not an object`);
+      return false;
+    }
+
+    // Validation basique selon le type d'événement
+    switch (event) {
+      case 'call_offer':
+        if (!data.call_id || !data.from_user_id || !data.offer) {
+          console.warn('[CallService] Invalid call_offer: missing required fields');
+          return false;
+        }
+        break;
+      case 'call_answer':
+        if (!data.call_id || !data.answer) {
+          console.warn('[CallService] Invalid call_answer: missing required fields');
+          return false;
+        }
+        break;
+      case 'ice_candidate':
+        if (!data.call_id || !data.candidate) {
+          console.warn('[CallService] Invalid ice_candidate: missing required fields');
+          return false;
+        }
+        break;
+      case 'call_end':
+      case 'call_reject':
+        if (!data.call_id) {
+          console.warn(`[CallService] Invalid ${event}: missing call_id`);
+          return false;
+        }
+        break;
+    }
+
+    return true;
+  }
+
+  /**
+   * Ajoute un message à la queue en attente
+   */
+  private queueMessage(event: string, payload: any): void {
+    this.pendingMessages.push({
+      event,
+      payload,
+      timestamp: Date.now(),
+      retries: 0,
     });
+    console.log(`[CallService] Queued ${event} message (${this.pendingMessages.length} pending)`);
+  }
+
+  /**
+   * Traite les messages en attente
+   */
+  private processPendingMessages(): void {
+    if (this.pendingMessages.length === 0) {
+      return;
+    }
+
+    console.log(`[CallService] Processing ${this.pendingMessages.length} pending messages`);
+
+    const messagesToProcess = [...this.pendingMessages];
+    this.pendingMessages = [];
+
+    messagesToProcess.forEach(msg => {
+      if (this.sendSignalingMessage(msg.event, msg.payload, false)) {
+        console.log(`[CallService] Successfully sent queued ${msg.event} message`);
+      } else {
+        // Remettre en queue si l'envoi échoue
+        msg.retries++;
+        if (msg.retries < 3) {
+          this.pendingMessages.push(msg);
+        } else {
+          console.warn(`[CallService] Dropping ${msg.event} message after ${msg.retries} retries`);
+        }
+      }
+    });
+  }
+
+  /**
+   * Envoie un message de signaling via WebSocket
+   */
+  private sendSignalingMessage(event: string, payload: any, queueIfOffline: boolean = true): boolean {
+    if (!this.signalingChannel) {
+      console.warn(`[CallService] Cannot send ${event}: signaling channel not available`);
+      if (queueIfOffline) {
+        this.queueMessage(event, payload);
+      }
+      return false;
+    }
+
+    if (!this.isSignalingReady) {
+      console.warn(`[CallService] Signaling not ready, queueing ${event} message`);
+      if (queueIfOffline) {
+        this.queueMessage(event, payload);
+      }
+      return false;
+    }
+
+    try {
+      this.signalingChannel.push(event, payload);
+      console.log(`[CallService] Sent ${event} message:`, payload);
+      return true;
+    } catch (error: any) {
+      console.error(`[CallService] Error sending ${event}:`, error);
+      if (queueIfOffline) {
+        this.queueMessage(event, payload);
+      }
+      return false;
+    }
   }
 
   /**
@@ -256,15 +492,13 @@ class CallService extends EventEmitter {
       await this.peerConnection.setLocalDescription(offer);
 
       // Envoyer l'offer via WebSocket
-      if (this.signalingChannel) {
-        this.signalingChannel.push('call_offer', {
-          call_id: callId,
-          to_user_id: participant.id,
-          offer: offer,
-          type: type,
-          conversation_id: conversationId,
-        });
-      }
+      this.sendSignalingMessage('call_offer', {
+        call_id: callId,
+        to_user_id: participant.id,
+        offer: offer,
+        type: type,
+        conversation_id: conversationId,
+      });
 
       // Passer à l'état "ringing"
       call.state = 'ringing';
@@ -431,12 +665,10 @@ class CallService extends EventEmitter {
       }
 
       // Envoyer la réponse via WebSocket
-      if (this.signalingChannel) {
-        this.signalingChannel.push('call_answer', {
-          call_id: callId,
-          answer: answer,
-        });
-      }
+      this.sendSignalingMessage('call_answer', {
+        call_id: callId,
+        answer: answer,
+      });
 
       call.state = 'connected';
       call.startTime = new Date();
@@ -466,12 +698,10 @@ class CallService extends EventEmitter {
     }
 
     // Envoyer le rejet via WebSocket
-    if (this.signalingChannel) {
-      this.signalingChannel.push('call_reject', {
-        call_id: callId,
-        reason: reason || 'Rejeté par l\'utilisateur',
-      });
-    }
+    this.sendSignalingMessage('call_reject', {
+      call_id: callId,
+      reason: reason || 'Rejeté par l\'utilisateur',
+    });
 
     this.cleanup();
   }
@@ -500,13 +730,11 @@ class CallService extends EventEmitter {
     }
 
     // Envoyer la fin d'appel via WebSocket
-    if (this.signalingChannel && callIdToEnd) {
+    if (callIdToEnd) {
       console.log('[CallService] Sending call end via WebSocket');
-      this.signalingChannel.push('call_end', {
+      this.sendSignalingMessage('call_end', {
         call_id: callIdToEnd,
       });
-    } else if (callIdToEnd) {
-      console.warn('[CallService] No signaling channel available, call end not sent');
     }
 
     this.cleanup();
@@ -735,9 +963,9 @@ class CallService extends EventEmitter {
 
     // Gérer les candidats ICE
     this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate && this.signalingChannel && this.currentCall) {
+      if (event.candidate && this.currentCall) {
         console.log('[CallService] Sending ICE candidate');
-        this.signalingChannel.push('ice_candidate', {
+        this.sendSignalingMessage('ice_candidate', {
           call_id: this.currentCall.id,
           candidate: event.candidate,
         });
@@ -818,6 +1046,18 @@ class CallService extends EventEmitter {
     }
   }
 
+  private handleCallReject(data: { call_id: string; reason?: string }): void {
+    const call = this.calls.get(data.call_id);
+    if (call) {
+      console.log('[CallService] Call rejected by remote party:', data.reason);
+      call.state = 'rejected';
+      call.endTime = new Date();
+      this.emit('callStateChanged', call);
+      this.emit('callEnded', call);
+      this.cleanup();
+    }
+  }
+
   private cleanup(): void {
     console.log('[CallService] Cleaning up');
 
@@ -853,6 +1093,12 @@ class CallService extends EventEmitter {
 
     this.remoteStream = null;
     this.currentCall = null;
+
+    // Nettoyer le timeout de reconnexion si présent
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
   }
 }
 
