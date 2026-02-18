@@ -81,14 +81,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       <View style={styles.actions}>
         {/* Boutons d'appel pour direct ET group */}
         {(conversationType === 'direct' || conversationType === 'group') && (
-          <View style={styles.callButtonsContainer}>
+          <>
             {onVideoCallPress && (
               <TouchableOpacity
                 onPress={() => {
                   console.log('[ChatHeader] Video call button pressed for:', conversationName, 'type:', conversationType);
                   onVideoCallPress();
                 }}
-                style={styles.videoCallButton}
+                style={styles.actionButton}
                 activeOpacity={0.7}
               >
                 <Ionicons
@@ -104,7 +104,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   console.log('[ChatHeader] Call button pressed for:', conversationName, 'type:', conversationType);
                   onCallPress();
                 }}
-                style={styles.callButton}
+                style={styles.actionButton}
                 activeOpacity={0.7}
               >
                 <Ionicons
@@ -114,17 +114,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 />
               </TouchableOpacity>
             )}
-          </View>
+          </>
         )}
         {onSearchPress && (
           <TouchableOpacity
             onPress={onSearchPress}
             style={styles.actionButton}
+            activeOpacity={0.7}
           >
             <Ionicons
               name="search"
-              size={22}
-              color={themeColors.text.primary}
+              size={18}
+              color={colors.text.light}
             />
           </TouchableOpacity>
         )}
@@ -135,11 +136,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             onInfoPress?.();
           }}
           style={styles.actionButton}
+          activeOpacity={0.7}
         >
           <Ionicons
             name="information-circle-outline"
-            size={22}
-            color={themeColors.text.primary}
+            size={18}
+            color={colors.text.light}
           />
         </TouchableOpacity>
       </View>
@@ -178,31 +180,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    padding: 8,
-  },
-  callButtonsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginRight: 8,
-  },
-  callButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary.main,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary.main,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  videoCallButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
