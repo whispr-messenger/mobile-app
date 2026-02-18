@@ -396,64 +396,6 @@ export const ChatScreen: React.FC = () => {
     [conversationId, userId, sendTyping, replyingTo]
   );
 
-  const handleCancelUpload = useCallback(
-    (messageId: string) => {
-      cancelUpload(messageId);
-      // Update message status
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.id === messageId ? { ...msg, status: 'failed' as const } : msg
-        )
-      );
-    },
-    [cancelUpload]
-  );
-
-  const handleRetryUpload = useCallback(
-    async (messageId: string, uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => {
-      const message = messages.find(m => m.id === messageId);
-      if (!message) return;
-
-      // Retry upload
-      await retryUpload(messageId, async (onProgress, signal) => {
-        const progressSteps = [10, 30, 50, 70, 90, 100];
-        for (const step of progressSteps) {
-          if (signal.aborted) {
-            throw new Error('Upload cancelled');
-          }
-          onProgress(step);
-          await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200));
-        }
-
-        const sentMessage = await messagingAPI.sendMessage(conversationId, {
-          content: message.content,
-          message_type: 'media',
-          client_random: message.client_random,
-          metadata: message.metadata,
-          reply_to_id: replyToId,
-        });
-
-        if (message.attachments && message.attachments[0]) {
-          mockStore.addAttachment(sentMessage.id, message.attachments[0]);
-        }
-
-        setMessages(prev =>
-          prev.map(msg =>
-            msg.id === messageId
-              ? {
-                  ...msg,
-                  id: sentMessage.id,
-                  status: 'sent' as const,
-                }
-              : msg
-          )
-        );
-
-        return sentMessage;
-      });
-    },
-    [messages, conversationId, retryUpload]
-  );
 
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
