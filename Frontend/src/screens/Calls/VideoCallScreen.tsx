@@ -358,10 +358,10 @@ export const VideoCallScreen: React.FC = () => {
   // PanResponder pour glisser la vidéo locale (comme FaceTime)
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false, // Ne pas capturer au début
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         // Seulement si le mouvement est significatif (évite les faux positifs)
-        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+        return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
       },
       onPanResponderGrant: (evt) => {
         // Sauvegarder la position actuelle comme offset
