@@ -79,12 +79,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
-        {conversationType === 'direct' && (
+        {/* Boutons d'appel pour direct ET group */}
+        {(conversationType === 'direct' || conversationType === 'group') && (
           <View style={styles.callButtonsContainer}>
             {onVideoCallPress && (
               <TouchableOpacity
                 onPress={() => {
-                  console.log('[ChatHeader] Video call button pressed for:', conversationName);
+                  console.log('[ChatHeader] Video call button pressed for:', conversationName, 'type:', conversationType);
                   onVideoCallPress();
                 }}
                 style={styles.videoCallButton}
@@ -100,7 +101,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             {onCallPress && (
               <TouchableOpacity
                 onPress={() => {
-                  console.log('[ChatHeader] Call button pressed for:', conversationName);
+                  console.log('[ChatHeader] Call button pressed for:', conversationName, 'type:', conversationType);
                   onCallPress();
                 }}
                 style={styles.callButton}

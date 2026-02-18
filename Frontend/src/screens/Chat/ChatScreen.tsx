@@ -777,8 +777,8 @@ export const ChatScreen: React.FC = () => {
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onCallPress={async () => {
-            if (conversation?.type === 'direct') {
-              try {
+            try {
+              if (conversation?.type === 'direct') {
                 const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || conversationId || 'unknown';
                 console.log('[ChatScreen] Initiating audio call to:', otherParticipantId, 'conversation:', conversationId);
                 await initiateCall(
@@ -791,17 +791,31 @@ export const ChatScreen: React.FC = () => {
                   'audio',
                   conversationId
                 );
-              } catch (error: any) {
-                console.error('[ChatScreen] Error initiating audio call:', error);
-                if (error.message?.includes('déjà en cours')) {
-                  // L'erreur est déjà gérée par CallService
-                }
+              } else if (conversation?.type === 'group') {
+                // Pour les groupes, utiliser l'ID du groupe comme participant
+                const groupId = conversation.metadata?.group_id || conversation.id || conversationId || 'unknown';
+                console.log('[ChatScreen] Initiating group audio call to:', groupId, 'conversation:', conversationId);
+                await initiateCall(
+                  {
+                    id: groupId,
+                    displayName: conversation.display_name || 'Groupe',
+                    avatarUrl: conversation.avatar_url,
+                    username: undefined,
+                  },
+                  'audio',
+                  conversationId
+                );
+              }
+            } catch (error: any) {
+              console.error('[ChatScreen] Error initiating audio call:', error);
+              if (error.message?.includes('déjà en cours')) {
+                // L'erreur est déjà gérée par CallService
               }
             }
           }}
           onVideoCallPress={async () => {
-            if (conversation?.type === 'direct') {
-              try {
+            try {
+              if (conversation?.type === 'direct') {
                 const otherParticipantId = conversation.metadata?.other_participant_id || conversation.id || conversationId || 'unknown';
                 console.log('[ChatScreen] Initiating video call to:', otherParticipantId, 'conversation:', conversationId);
                 await initiateCall(
@@ -814,11 +828,25 @@ export const ChatScreen: React.FC = () => {
                   'video',
                   conversationId
                 );
-              } catch (error: any) {
-                console.error('[ChatScreen] Error initiating video call:', error);
-                if (error.message?.includes('déjà en cours')) {
-                  // L'erreur est déjà gérée par CallService
-                }
+              } else if (conversation?.type === 'group') {
+                // Pour les groupes, utiliser l'ID du groupe comme participant
+                const groupId = conversation.metadata?.group_id || conversation.id || conversationId || 'unknown';
+                console.log('[ChatScreen] Initiating group video call to:', groupId, 'conversation:', conversationId);
+                await initiateCall(
+                  {
+                    id: groupId,
+                    displayName: conversation.display_name || 'Groupe',
+                    avatarUrl: conversation.avatar_url,
+                    username: undefined,
+                  },
+                  'video',
+                  conversationId
+                );
+              }
+            } catch (error: any) {
+              console.error('[ChatScreen] Error initiating video call:', error);
+              if (error.message?.includes('déjà en cours')) {
+                // L'erreur est déjà gérée par CallService
               }
             }
           }}
