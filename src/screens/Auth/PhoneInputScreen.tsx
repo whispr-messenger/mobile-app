@@ -50,6 +50,7 @@ export const PhoneInputScreen: React.FC = () => {
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showRegister, setShowRegister] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const phoneInputRef = useRef<TextInput>(null);
@@ -134,6 +135,7 @@ export const PhoneInputScreen: React.FC = () => {
       const apiError = err as { status?: number };
       if (mode === 'login' && apiError.status === 400) {
         setError(getLocalizedText('auth.noAccountFound'));
+        setShowRegister(true);
       } else if (mode === 'register' && apiError.status === 409) {
         setError(getLocalizedText('auth.accountAlreadyExists'));
       } else {
@@ -228,6 +230,7 @@ export const PhoneInputScreen: React.FC = () => {
                   onChangeText={(t) => {
                     setPhoneNumber(t);
                     setError('');
+                    setShowRegister(false);
                   }}
                 />
               </View>
@@ -241,15 +244,27 @@ export const PhoneInputScreen: React.FC = () => {
 
             {/* Bouton toujours dans le flux — visible clavier ouvert */}
             <View style={styles.buttons}>
-              <Button
-                title={getLocalizedText('auth.continue')}
-                variant="primary"
-                size="large"
-                fullWidth
-                loading={loading}
-                disabled={!isPhoneValid || loading}
-                onPress={handleContinue}
-              />
+              {showRegister ? (
+                <Button
+                  title={getLocalizedText('auth.creerCompte')}
+                  variant="primary"
+                  size="large"
+                  fullWidth
+                  onPress={() => {
+                    navigation.replace('PhoneInput', { mode: 'register' });
+                  }}
+                />
+              ) : (
+                <Button
+                  title={getLocalizedText('auth.continue')}
+                  variant="primary"
+                  size="large"
+                  fullWidth
+                  loading={loading}
+                  disabled={!isPhoneValid || loading}
+                  onPress={handleContinue}
+                />
+              )}
             </View>
           </Animated.View>
         </TouchableWithoutFeedback>

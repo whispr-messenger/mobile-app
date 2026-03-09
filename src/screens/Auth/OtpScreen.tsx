@@ -78,8 +78,12 @@ export const OtpScreen: React.FC = () => {
     ]).start();
   };
 
+  const submittingRef = useRef(false);
+
   const handleSubmit = useCallback(
     async (code: string) => {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
       setLoading(true);
       setError('');
 
@@ -94,6 +98,7 @@ export const OtpScreen: React.FC = () => {
           setError(getLocalizedText('auth.codeIncorrect'));
           shake();
           setLoading(false);
+          submittingRef.current = false;
           return;
         }
 
@@ -121,6 +126,7 @@ export const OtpScreen: React.FC = () => {
         }
         shake();
         setLoading(false);
+        submittingRef.current = false;
       }
     },
     [verificationId, purpose, signIn, navigation, getLocalizedText]

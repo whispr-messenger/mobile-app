@@ -10,10 +10,19 @@ import type {
   VerificationRequestResponse,
 } from '../types/auth';
 
+function getDevHost(): string {
+  if (Platform.OS === 'android') return '10.0.2.2';
+  // On iOS simulator, localhost works; on physical device use the LAN IP
+  // from the Expo dev server (debuggerHost).
+  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost) return debuggerHost.split(':')[0];
+  return 'localhost';
+}
+
 function getBaseUrl(): string {
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   if (__DEV__) {
-    return extra?.devAuthApiUrl ?? 'http://127.0.0.1:3001';
+    return `http://${getDevHost()}:3001/auth`;
   }
   return `${extra?.apiBaseUrl ?? 'https://whispr.epitech.beer'}/auth`;
 }
@@ -164,7 +173,7 @@ export const AuthService = {
     try {
       const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
       const userApiBase = __DEV__
-        ? `${extra?.devUserApiUrl ?? 'http://10.0.2.2:3002'}/user/v1`
+        ? `http://${getDevHost()}:3002/user/v1`
         : `${extra?.apiBaseUrl ?? 'https://whispr.epitech.beer'}/user/v1`;
 
       const response = await fetch(`${userApiBase}/users/me`, {
