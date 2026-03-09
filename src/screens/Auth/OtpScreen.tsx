@@ -118,6 +118,7 @@ export const OtpScreen: React.FC = () => {
           navigation.reset({ index: 0, routes: [{ name: 'ConversationsList' }] });
         }
       } catch (err: unknown) {
+        console.error('[OtpScreen] Registration/Login failed:', err);
         const apiError = err as { status?: number };
         if (apiError.status === 400) {
           setError(getLocalizedText('auth.codeIncorrect'));
