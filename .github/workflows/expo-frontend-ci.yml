@@ -22,7 +22,7 @@ jobs:
         run: npm install
 
       - name: Run tests
-        run: npx jest --no-coverage
+        run: ./node_modules/.bin/jest --no-coverage
 
       - name: Run Expo build check
         run: |
