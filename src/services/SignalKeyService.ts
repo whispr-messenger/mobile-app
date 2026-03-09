@@ -1,7 +1,14 @@
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
+import { getRandomValues } from 'expo-crypto';
 import { TokenService } from './TokenService';
 import type { SignalKeyBundleDto } from '../types/auth';
+
+nacl.setPRNG((_x: Uint8Array, n: number) => {
+  const bytes = new Uint8Array(n);
+  getRandomValues(bytes);
+  for (let i = 0; i < n; i++) _x[i] = bytes[i];
+});
 
 const SIGNED_PREKEY_ID = 1;
 const NUM_ONE_TIME_PREKEYS = 100;
