@@ -92,7 +92,7 @@ export const AuthService = {
 
   async register(verificationId: string): Promise<TokenPair> {
     const [deviceInfo, signalKeyBundle] = await Promise.all([
-      Promise.resolve(DeviceService.getDeviceInfo()),
+      DeviceService.getDeviceInfo(),
       SignalKeyService.generateKeyBundle(),
     ]);
 
@@ -111,7 +111,7 @@ export const AuthService = {
 
   async login(verificationId: string): Promise<TokenPair> {
     const [deviceInfo, signalKeyBundle] = await Promise.all([
-      Promise.resolve(DeviceService.getDeviceInfo()),
+      DeviceService.getDeviceInfo(),
       SignalKeyService.generateKeyBundle(),
     ]);
 

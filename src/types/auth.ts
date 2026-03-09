@@ -42,6 +42,7 @@ export interface SignalKeyBundleDto {
 }
 
 export interface DeviceInfo {
+  deviceId: string;
   deviceName: string;
   deviceType: string;
   model: string;
