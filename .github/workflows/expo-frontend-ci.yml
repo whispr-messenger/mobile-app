@@ -1,0 +1,38 @@
+name: Expo Frontend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run tests
+        run: ./node_modules/.bin/jest --no-coverage
+
+      - name: Run Expo build check
+        run: |
+          npx expo --version
+          npx expo start --offline --no-dev --minify &
+          sleep 30
+          npx expo export --output-dir web-build
+
+      - name: Archive production build
+        uses: actions/upload-artifact@v4
+        with:
+          name: expo-web-build
+          path: web-build
