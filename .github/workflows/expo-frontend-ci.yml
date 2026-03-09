@@ -19,12 +19,10 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: |
-          yarn install || npm install
+        run: npm install
 
       - name: Run tests
-        run: |
-          yarn test || npm test
+        run: npx jest --no-coverage
 
       - name: Run Expo build check
         run: |
