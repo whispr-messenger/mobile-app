@@ -14,7 +14,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.Whispr-Frontend"
+      "bundleIdentifier": "com.anonymous.Whispr-Frontend",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
