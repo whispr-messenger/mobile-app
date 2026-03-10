@@ -43,6 +43,7 @@ export const OtpScreen: React.FC = () => {
   const [error, setError] = useState('');
   const [resendCountdown, setResendCountdown] = useState(RESEND_DELAY);
   const [resending, setResending] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -118,9 +119,13 @@ export const OtpScreen: React.FC = () => {
           navigation.reset({ index: 0, routes: [{ name: 'ConversationsList' }] });
         }
       } catch (err: unknown) {
+        console.error('[OtpScreen] Registration/login failed:', err);
         const apiError = err as { status?: number };
         if (apiError.status === 400) {
           setError(getLocalizedText('auth.codeIncorrect'));
+        } else if (purpose === 'register' && apiError.status === 409) {
+          setError(getLocalizedText('auth.accountAlreadyExists'));
+          setShowLogin(true);
         } else {
           setError(getLocalizedText('auth.errorConnection'));
         }
@@ -147,6 +152,7 @@ export const OtpScreen: React.FC = () => {
     newDigits[index] = digit;
     setDigits(newDigits);
     setError('');
+    setShowLogin(false);
 
     if (digit && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
@@ -261,15 +267,27 @@ export const OtpScreen: React.FC = () => {
             </Text>
           )}
 
-          <Button
-            title={getLocalizedText('auth.verify')}
-            variant="primary"
-            size="large"
-            fullWidth
-            loading={loading}
-            disabled={digits.some((d) => d === '') || loading}
-            onPress={() => handleSubmit(digits.join(''))}
-          />
+          {showLogin ? (
+            <Button
+              title={getLocalizedText('auth.seConnecter')}
+              variant="primary"
+              size="large"
+              fullWidth
+              onPress={() => {
+                navigation.replace('PhoneInput', { mode: 'login' });
+              }}
+            />
+          ) : (
+            <Button
+              title={getLocalizedText('auth.verify')}
+              variant="primary"
+              size="large"
+              fullWidth
+              loading={loading}
+              disabled={digits.some((d) => d === '') || loading}
+              onPress={() => handleSubmit(digits.join(''))}
+            />
+          )}
 
           {/* Resend */}
           <View style={styles.resendContainer}>
