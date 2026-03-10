@@ -51,6 +51,7 @@ export const PhoneInputScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const phoneInputRef = useRef<TextInput>(null);
@@ -138,6 +139,7 @@ export const PhoneInputScreen: React.FC = () => {
         setShowRegister(true);
       } else if (mode === 'register' && apiError.status === 409) {
         setError(getLocalizedText('auth.accountAlreadyExists'));
+        setShowLogin(true);
       } else {
         setError(getLocalizedText('auth.errorSendCode'));
       }
@@ -231,6 +233,7 @@ export const PhoneInputScreen: React.FC = () => {
                     setPhoneNumber(t);
                     setError('');
                     setShowRegister(false);
+                    setShowLogin(false);
                   }}
                 />
               </View>
@@ -252,6 +255,16 @@ export const PhoneInputScreen: React.FC = () => {
                   fullWidth
                   onPress={() => {
                     navigation.replace('PhoneInput', { mode: 'register' });
+                  }}
+                />
+              ) : showLogin ? (
+                <Button
+                  title={getLocalizedText('auth.seConnecter')}
+                  variant="primary"
+                  size="large"
+                  fullWidth
+                  onPress={() => {
+                    navigation.replace('PhoneInput', { mode: 'login' });
                   }}
                 />
               ) : (
