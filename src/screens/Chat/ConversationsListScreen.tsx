@@ -154,7 +154,6 @@ export const ConversationsListScreen: React.FC = () => {
       // Load from cache first for instant display
       const cachedData = await cacheService.getConversations();
       if (cachedData && cachedData.length > 0) {
-        // Loaded from cache
         setConversations(cachedData);
         cancelGracePeriod();
         setGracePeriodExpired(false);
@@ -166,11 +165,9 @@ export const ConversationsListScreen: React.FC = () => {
 
       if (data.length === 0) {
         if (isRefresh) {
-          // Pull-to-refresh with no results: show empty state immediately
           cancelGracePeriod();
           setGracePeriodExpired(true);
         } else {
-          // Start grace period on first/polling load
           startGracePeriod();
         }
       } else {
@@ -181,10 +178,15 @@ export const ConversationsListScreen: React.FC = () => {
       (globalThis as any).whisprConversations = data;
       (globalThis as any).whisprEvents?.emit?.('conversationsUpdated', { conversations: data });
 
-      // Save to cache
       await cacheService.saveConversations(data);
     } catch (error) {
       console.error('Error loading conversations:', error);
+      // On error, still start grace period so skeletons don't show forever
+      if (!isRefresh) {
+        startGracePeriod();
+      } else {
+        setGracePeriodExpired(true);
+      }
     } finally {
       if (showLoading) setLoading(false);
     }
