@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 const API_BASE_URL =
   Platform.OS === 'web'
-    ? 'http://localhost:4000/api/v1'
+    ? 'http://localhost:4010/api/v1'
     : 'https://api.whispr.local/api/v1';
 
 const getAuthHeaders = (): Record<string, string> => {

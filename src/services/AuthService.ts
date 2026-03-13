@@ -22,7 +22,7 @@ function getDevHost(): string {
 function getBaseUrl(): string {
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   if (__DEV__) {
-    return `http://${getDevHost()}:3001/auth`;
+    return `http://${getDevHost()}:3010/auth`;
   }
   return `${extra?.apiBaseUrl ?? 'https://whispr.epitech.beer'}/auth`;
 }
@@ -173,7 +173,7 @@ export const AuthService = {
     try {
       const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
       const userApiBase = __DEV__
-        ? `http://${getDevHost()}:3002/user/v1`
+        ? `http://${getDevHost()}:3011/user/v1`
         : `${extra?.apiBaseUrl ?? 'https://whispr.epitech.beer'}/user/v1`;
 
       const response = await fetch(`${userApiBase}/users/me`, {

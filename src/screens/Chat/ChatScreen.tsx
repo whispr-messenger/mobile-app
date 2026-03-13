@@ -59,8 +59,10 @@ export const ChatScreen: React.FC = () => {
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<Array<{ id: string; display_name: string; username?: string }>>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -70,9 +72,20 @@ export const ChatScreen: React.FC = () => {
 
 
   // WebSocket connection
-  const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
+  const { connectionState, joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
     userId,
     token,
+    onPresenceUpdate: (presenceUserId: string, isOnline: boolean) => {
+      setOnlineUsers(prev => {
+        const next = new Set(prev);
+        if (isOnline) {
+          next.add(presenceUserId);
+        } else {
+          next.delete(presenceUserId);
+        }
+        return next;
+      });
+    },
     onNewMessage: (message: Message) => {
       if (message.conversation_id === conversationId) {
         setMessages(prev => {
@@ -101,8 +114,47 @@ export const ChatScreen: React.FC = () => {
         markAsRead(conversationId, message.id);
       }
     },
+    onDeliveryStatus: (messageId: string, status: string) => {
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, status: status as 'sent' | 'delivered' | 'read' }
+            : msg
+        )
+      );
+    },
+    onMessageUpdated: (message: Message) => {
+      if (message.conversation_id === conversationId) {
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === message.id
+              ? { ...msg, ...message, edited_at: message.edited_at }
+              : msg
+          )
+        );
+      }
+    },
+    onMessageDeleted: (messageId: string, deleteForEveryone: boolean) => {
+      if (deleteForEveryone) {
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId
+              ? { ...msg, is_deleted: true, delete_for_everyone: true, content: '[Message supprimé]' }
+              : msg
+          )
+        );
+      } else {
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      }
+    },
     onTyping: (typingUserId: string, typing: boolean) => {
       if (typingUserId !== userId) {
+        // Clear any existing auto-timeout for this user
+        if (typingTimeoutsRef.current[typingUserId]) {
+          clearTimeout(typingTimeoutsRef.current[typingUserId]);
+          delete typingTimeoutsRef.current[typingUserId];
+        }
+
         setTypingUsers(prev => {
           if (typing) {
             if (prev.includes(typingUserId)) return prev;
@@ -120,6 +172,14 @@ export const ChatScreen: React.FC = () => {
             return prev.filter(id => id !== typingUserId);
           }
         });
+
+        // Auto-clear typing after 5s if no follow-up event
+        if (typing) {
+          typingTimeoutsRef.current[typingUserId] = setTimeout(() => {
+            setTypingUsers(prev => prev.filter(id => id !== typingUserId));
+            delete typingTimeoutsRef.current[typingUserId];
+          }, 5000);
+        }
       }
     },
     onConversationUpdate: (updatedConversation: Conversation) => {
@@ -173,6 +233,9 @@ export const ChatScreen: React.FC = () => {
 
     return () => {
       channel?.leave();
+      // Clear all typing timeouts on unmount
+      Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
+      typingTimeoutsRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
@@ -809,7 +872,11 @@ export const ChatScreen: React.FC = () => {
           conversationName={conversation?.display_name || 'Contact'}
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || 'direct'}
-          isOnline={conversation?.type === 'direct'}
+          isOnline={
+            conversation?.type === 'direct'
+              ? Array.from(onlineUsers).some((uid) => uid !== userId)
+              : false
+          }
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
         />
@@ -946,14 +1013,20 @@ export const ChatScreen: React.FC = () => {
                     uri={conversation?.avatar_url}
                     name={conversation?.display_name || 'Contact'}
                     showOnlineBadge={conversation?.type === 'direct'}
-                    isOnline={false}
+                    isOnline={
+                      conversation?.type === 'direct'
+                        ? Array.from(onlineUsers).some((uid) => uid !== userId)
+                        : false
+                    }
                   />
                   <Text style={styles.infoName}>
                     {conversation?.display_name || 'Contact'}
                   </Text>
                   {conversation?.type === 'direct' && (
                     <Text style={styles.infoStatus}>
-                      Hors ligne
+                      {Array.from(onlineUsers).some((uid) => uid !== userId)
+                        ? 'En ligne'
+                        : 'Hors ligne'}
                     </Text>
                   )}
                 </View>
