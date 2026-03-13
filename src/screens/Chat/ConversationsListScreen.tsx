@@ -3,7 +3,7 @@
  * Displays list of conversations with real-time updates
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,11 +28,15 @@ import Toast from '../../components/Toast/Toast';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
 
+const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
+
 export const ConversationsListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [gracePeriodExpired, setGracePeriodExpired] = useState(false);
+  const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
@@ -80,6 +84,20 @@ export const ConversationsListScreen: React.FC = () => {
     });
   }, [conversations, searchQuery]);
 
+  const startGracePeriod = useCallback(() => {
+    if (gracePeriodTimerRef.current) return;
+    gracePeriodTimerRef.current = setTimeout(() => {
+      setGracePeriodExpired(true);
+    }, EMPTY_STATE_GRACE_PERIOD_MS);
+  }, []);
+
+  const cancelGracePeriod = useCallback(() => {
+    if (gracePeriodTimerRef.current) {
+      clearTimeout(gracePeriodTimerRef.current);
+      gracePeriodTimerRef.current = null;
+    }
+  }, []);
+
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? '';
   const token = userId ? `token-${userId}` : '';
@@ -108,11 +126,12 @@ export const ConversationsListScreen: React.FC = () => {
     onConversationUpdate: (conversation: Conversation) => {
       setConversations(prev => {
         const index = prev.findIndex(c => c.id === conversation.id);
-        if (index === -1) {
-          return [conversation, ...prev];
+        const next = index === -1 ? [conversation, ...prev] : [...prev];
+        if (index !== -1) next[index] = conversation;
+        if (next.length > 0) {
+          cancelGracePeriod();
+          setGracePeriodExpired(false);
         }
-        const next = [...prev];
-        next[index] = conversation;
         return next;
       });
     },
@@ -124,10 +143,11 @@ export const ConversationsListScreen: React.FC = () => {
       await loadConversations();
     };
     init();
+    return () => cancelGracePeriod();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadConversations = useCallback(async (showLoading = true) => {
+  const loadConversations = useCallback(async (showLoading = true, isRefresh = false) => {
     try {
       if (showLoading) setLoading(true);
 
@@ -136,11 +156,27 @@ export const ConversationsListScreen: React.FC = () => {
       if (cachedData && cachedData.length > 0) {
         // Loaded from cache
         setConversations(cachedData);
+        cancelGracePeriod();
+        setGracePeriodExpired(false);
       }
 
       // Fetch fresh data
       const data = await messagingAPI.getConversations();
       setConversations(data);
+
+      if (data.length === 0) {
+        if (isRefresh) {
+          // Pull-to-refresh with no results: show empty state immediately
+          cancelGracePeriod();
+          setGracePeriodExpired(true);
+        } else {
+          // Start grace period on first/polling load
+          startGracePeriod();
+        }
+      } else {
+        cancelGracePeriod();
+        setGracePeriodExpired(false);
+      }
 
       (globalThis as any).whisprConversations = data;
       (globalThis as any).whisprEvents?.emit?.('conversationsUpdated', { conversations: data });
@@ -152,7 +188,7 @@ export const ConversationsListScreen: React.FC = () => {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, []);
+  }, [startGracePeriod, cancelGracePeriod]);
 
   useEffect(() => {
     if (!userId || !token) {
@@ -342,7 +378,7 @@ export const ConversationsListScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadConversations(false);
+    await loadConversations(false, true);
     setRefreshing(false);
   }, [loadConversations]);
 
@@ -427,6 +463,12 @@ export const ConversationsListScreen: React.FC = () => {
         </View>
 
         {loading && conversations.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            {[...Array(5)].map((_, i) => (
+              <ConversationSkeleton key={i} />
+            ))}
+          </View>
+        ) : filteredAndSortedConversations.length === 0 && !gracePeriodExpired ? (
           <View style={styles.loadingContainer}>
             {[...Array(5)].map((_, i) => (
               <ConversationSkeleton key={i} />
