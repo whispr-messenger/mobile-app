@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { TextInput, View, Text, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
 import { colors, spacing, borderRadius, typography } from '../../theme';
+import { useTheme } from '../../context/ThemeContext';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -19,6 +20,8 @@ interface InputProps extends TextInputProps {
 export const Input: React.FC<InputProps> = (inputs) => {
 
   const [isFocused, setIsFocused] = useState(false);
+  const { getThemeColors } = useTheme();
+  const themeColors = getThemeColors();
 
   const { label, error, helperText, leftIcon, rightIcon, containerStyle, style, ...textInputProps } = inputs;
 
@@ -29,6 +32,7 @@ export const Input: React.FC<InputProps> = (inputs) => {
       <View
         style={[
           styles.inputContainer,
+          { backgroundColor: themeColors.background.secondary },
           isFocused && styles.inputContainerFocused,
           error && styles.inputContainerError,
         ]}
@@ -36,8 +40,8 @@ export const Input: React.FC<InputProps> = (inputs) => {
         {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
 
         <TextInput
-          style={[styles.input, style]}
-          placeholderTextColor={colors.text.secondary}
+          style={[styles.input, { color: themeColors.text.primary }, style]}
+          placeholderTextColor={themeColors.text.secondary}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           {...textInputProps}
@@ -66,7 +70,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.ui.border,
@@ -84,7 +87,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: typography.fontSize.base,
-    color: colors.text.primary,
     paddingVertical: spacing.sm,
     minHeight: 20,
   },

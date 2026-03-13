@@ -25,7 +25,17 @@ import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'ProfileSetup'>;
 
+function getDevHost(): string {
+  if (Platform.OS === 'android') return '10.0.2.2';
+  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost) return debuggerHost.split(':')[0];
+  return 'localhost';
+}
+
 function getUserApiBase(): string {
+  if (__DEV__) {
+    return `http://${getDevHost()}:3002/user/v1`;
+  }
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   const base = extra?.apiBaseUrl ?? 'https://whispr.epitech.beer';
   return `${base}/user/v1`;
@@ -166,7 +176,6 @@ export const ProfileSetupScreen: React.FC = () => {
                 onChangeText={setFirstName}
                 autoCapitalize="words"
                 containerStyle={styles.inputContainer}
-                style={{ color: themeColors.text.primary }}
               />
 
               <Text style={[styles.fieldLabel, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>
@@ -178,7 +187,6 @@ export const ProfileSetupScreen: React.FC = () => {
                 onChangeText={setLastName}
                 autoCapitalize="words"
                 containerStyle={styles.inputContainer}
-                style={{ color: themeColors.text.primary }}
               />
 
               <Text style={[styles.fieldLabel, { color: themeColors.text.primary, fontSize: getFontSize('base') }]}>
@@ -190,7 +198,6 @@ export const ProfileSetupScreen: React.FC = () => {
                 onChangeText={setUsername}
                 autoCapitalize="none"
                 containerStyle={styles.inputContainer}
-                style={{ color: themeColors.text.primary }}
               />
             </View>
 
