@@ -34,14 +34,7 @@ export const DeliveryStatus: React.FC<DeliveryStatusProps> = ({ status }) => {
 
   if (status === 'delivered') {
     return (
-      <LinearGradient
-        colors={['#FFB07B', '#F04882']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientCheck}
-      >
-        <Text style={styles.checkText}>✓✓</Text>
-      </LinearGradient>
+      <Text style={styles.deliveredCheck}>✓✓</Text>
     );
   }
 
@@ -72,6 +65,12 @@ const styles = StyleSheet.create({
   check: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  deliveredCheck: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: TEXT_LIGHT_COLOR,
+    opacity: 0.7,
   },
   gradientCheck: {
     width: 20,

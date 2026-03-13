@@ -2,26 +2,36 @@
  * useWebSocket Hook - Manage WebSocket connection and channels
  */
 
-import { useEffect, useRef, useCallback } from 'react';
-import { createSocket, SocketConnection } from '../services/messaging/websocket';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { createSocket, SocketConnection, ConnectionState } from '../services/messaging/websocket';
 import { Conversation, Message } from '../types/messaging';
 
 interface UseWebSocketOptions {
   userId: string;
   token: string;
   onNewMessage?: (message: Message) => void;
+  onMessageUpdated?: (message: Message) => void;
+  onMessageDeleted?: (messageId: string, deleteForEveryone: boolean) => void;
   onConversationUpdate?: (conversation: Conversation) => void;
   onTyping?: (userId: string, typing: boolean) => void;
   onDeliveryStatus?: (messageId: string, status: string) => void;
   onContactRequest?: (request: any) => void;
+  onPresenceUpdate?: (userId: string, isOnline: boolean) => void;
 }
 
 export const useWebSocket = (options: UseWebSocketOptions) => {
   const socketRef = useRef<SocketConnection | null>(null);
   const userChannelRef = useRef<any>(null);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
 
   useEffect(() => {
     const socket = createSocket();
+
+    // Track connection state changes from the socket layer
+    socket.onConnectionStateChange = (state: ConnectionState) => {
+      setConnectionState(state);
+    };
+
     socket.connect(options.userId, options.token);
     socketRef.current = socket;
 
@@ -70,6 +80,42 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         channel.on('new_message', (data: { message: Message }) => {
           options.onNewMessage?.(data.message);
         });
+
+        // Listen for message edits
+        channel.on('message_updated', (data: { message: Message }) => {
+          options.onMessageUpdated?.(data.message);
+        });
+
+        // Listen for message deletions
+        channel.on('message_deleted', (data: { message_id: string; delete_for_everyone: boolean }) => {
+          options.onMessageDeleted?.(data.message_id, data.delete_for_everyone);
+        });
+
+        // Listen for delivery status updates in conversation
+        channel.on('delivery_status', (data: { message_id: string; status: string }) => {
+          options.onDeliveryStatus?.(data.message_id, data.status);
+        });
+
+        // Listen for presence updates from conversation participants
+        channel.on('presence_diff', (data: { joins?: Record<string, any>; leaves?: Record<string, any> }) => {
+          if (data.joins) {
+            Object.keys(data.joins).forEach((uid) => {
+              options.onPresenceUpdate?.(uid, true);
+            });
+          }
+          if (data.leaves) {
+            Object.keys(data.leaves).forEach((uid) => {
+              options.onPresenceUpdate?.(uid, false);
+            });
+          }
+        });
+
+        // Listen for presence_state (initial full sync when joining)
+        channel.on('presence_state', (data: Record<string, any>) => {
+          Object.keys(data).forEach((uid) => {
+            options.onPresenceUpdate?.(uid, true);
+          });
+        });
       });
 
       return channel;
@@ -104,7 +150,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         // Remove listener after handling
         socketRef.current?.emit(replyKey, null);
       };
-      
+
       socketRef.current.on(replyKey, replyHandler);
     },
     [options]
@@ -131,6 +177,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       return userChannelRef.current;
     }
     const socket = createSocket();
+    socket.onConnectionStateChange = (state: ConnectionState) => {
+      setConnectionState(state);
+    };
     socket.connect(options.userId, options.token);
     socketRef.current = socket;
     const userChannel = socket.channel(`user:${options.userId}`);
@@ -166,6 +215,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   ]);
 
   return {
+    connectionState,
     joinUserChannel,
     joinConversationChannel,
     sendMessage,
