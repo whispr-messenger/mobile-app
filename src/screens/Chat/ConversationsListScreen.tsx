@@ -3,7 +3,7 @@
  * Displays list of conversations with real-time updates
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,9 +12,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Conversation, Message } from '../../types/messaging';
-import { messagingAPI } from '../../services/messaging/api';
 import { useAuth } from '../../context/AuthContext';
-import { cacheService } from '../../services/messaging/cache';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { SwipeableConversationItem } from '../../components/Chat/SwipeableConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
@@ -25,18 +23,27 @@ import { useTheme } from '../../context/ThemeContext';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors } from '../../theme/colors';
 import Toast from '../../components/Toast/Toast';
+import { useConversationsStore } from '../../store/conversationsStore';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
 
-const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
-
 export const ConversationsListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Store
+  const conversations = useConversationsStore(s => s.conversations);
+  const status = useConversationsStore(s => s.status);
+  const fetchConversations = useConversationsStore(s => s.fetchConversations);
+  const refreshConversations = useConversationsStore(s => s.refreshConversations);
+  const applyConversationUpdate = useConversationsStore(s => s.applyConversationUpdate);
+  const applyNewMessage = useConversationsStore(s => s.applyNewMessage);
+  const storeDeleteConversation = useConversationsStore(s => s.deleteConversation);
+  const archiveConversation = useConversationsStore(s => s.archiveConversation);
+  const muteConversation = useConversationsStore(s => s.muteConversation);
+  const pinConversation = useConversationsStore(s => s.pinConversation);
+
+  // UI-only state
   const [refreshing, setRefreshing] = useState(false);
-  const [gracePeriodExpired, setGracePeriodExpired] = useState(false);
-  const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
@@ -56,10 +63,8 @@ export const ConversationsListScreen: React.FC = () => {
       return [];
     }
 
-    // Filter out archived conversations (for now, can add toggle later)
     let filtered = conversations.filter(conv => !conv.is_archived);
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(conv => {
@@ -71,32 +76,14 @@ export const ConversationsListScreen: React.FC = () => {
       });
     }
 
-    // Sort: pinned first, then by timestamp
     return [...filtered].sort((a, b) => {
-      // Pinned conversations first
       if (a.is_pinned && !b.is_pinned) return -1;
       if (!a.is_pinned && b.is_pinned) return 1;
-
-      // Then by timestamp
       const aTime = a.last_message?.sent_at || a.updated_at;
       const bTime = b.last_message?.sent_at || b.updated_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
   }, [conversations, searchQuery]);
-
-  const startGracePeriod = useCallback(() => {
-    if (gracePeriodTimerRef.current) return;
-    gracePeriodTimerRef.current = setTimeout(() => {
-      setGracePeriodExpired(true);
-    }, EMPTY_STATE_GRACE_PERIOD_MS);
-  }, []);
-
-  const cancelGracePeriod = useCallback(() => {
-    if (gracePeriodTimerRef.current) {
-      clearTimeout(gracePeriodTimerRef.current);
-      gracePeriodTimerRef.current = null;
-    }
-  }, []);
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? '';
@@ -106,103 +93,19 @@ export const ConversationsListScreen: React.FC = () => {
     userId,
     token,
     onNewMessage: (message: Message) => {
-      // Update conversation with new message
-      setConversations(prev => {
-        const updated = prev.map(conv => {
-          if (conv.id === message.conversation_id) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            return {
-              ...conv,
-              last_message: message,
-              updated_at: message.sent_at,
-              unread_count: (conv.unread_count || 0) + 1,
-            };
-          }
-          return conv;
-        });
-        return updated;
-      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      applyNewMessage(message);
     },
     onConversationUpdate: (conversation: Conversation) => {
-      setConversations(prev => {
-        const index = prev.findIndex(c => c.id === conversation.id);
-        const next = index === -1 ? [conversation, ...prev] : [...prev];
-        if (index !== -1) next[index] = conversation;
-        if (next.length > 0) {
-          cancelGracePeriod();
-          setGracePeriodExpired(false);
-        }
-        return next;
-      });
+      applyConversationUpdate(conversation);
     },
   });
 
   useEffect(() => {
-    const init = async () => {
-      joinUserChannel();
-      await loadConversations();
-    };
-    init();
-    return () => cancelGracePeriod();
+    joinUserChannel();
+    fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const loadConversations = useCallback(async (showLoading = true, isRefresh = false) => {
-    try {
-      if (showLoading) setLoading(true);
-
-      // Load from cache first for instant display
-      const cachedData = await cacheService.getConversations();
-      if (cachedData && cachedData.length > 0) {
-        setConversations(cachedData);
-        cancelGracePeriod();
-        setGracePeriodExpired(false);
-      }
-
-      // Fetch fresh data
-      const data = await messagingAPI.getConversations();
-      setConversations(data);
-
-      if (data.length === 0) {
-        if (isRefresh) {
-          cancelGracePeriod();
-          setGracePeriodExpired(true);
-        } else {
-          startGracePeriod();
-        }
-      } else {
-        cancelGracePeriod();
-        setGracePeriodExpired(false);
-      }
-
-      (globalThis as any).whisprConversations = data;
-      (globalThis as any).whisprEvents?.emit?.('conversationsUpdated', { conversations: data });
-
-      await cacheService.saveConversations(data);
-    } catch (error) {
-      console.error('Error loading conversations:', error);
-      // On error, still start grace period so skeletons don't show forever
-      if (!isRefresh) {
-        startGracePeriod();
-      } else {
-        setGracePeriodExpired(true);
-      }
-    } finally {
-      if (showLoading) setLoading(false);
-    }
-  }, [startGracePeriod, cancelGracePeriod]);
-
-  useEffect(() => {
-    if (!userId || !token) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      loadConversations(false);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [userId, token, loadConversations]);
 
   const handleConversationPress = useCallback(
     (conversationId: string) => {
@@ -237,117 +140,52 @@ export const ConversationsListScreen: React.FC = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const ids = Array.from(selectedConversations);
     const count = ids.length;
-
     try {
-      await Promise.all(
-        ids.map(id =>
-          messagingAPI.deleteConversation(id).catch(() => {
-            return;
-          })
-        )
-      );
-
-      setConversations(prev => {
-        const next = prev.filter(conv => !selectedConversations.has(conv.id));
-        (globalThis as any).whisprConversations = next;
-        (globalThis as any).whisprEvents?.emit?.('conversationsUpdated', { conversations: next });
-        return next;
-      });
+      await Promise.all(ids.map(id => storeDeleteConversation(id).catch(() => {})));
       setSelectedConversations(new Set());
       setEditMode(false);
-      setToast({
-        visible: true,
-        message: `${count} conversation${count > 1 ? 's' : ''} deleted`,
-        type: 'success',
-      });
-    } catch (error) {
-      setToast({
-        visible: true,
-        message: 'Unable to delete conversations',
-        type: 'error',
-      });
+      setToast({ visible: true, message: `${count} conversation${count > 1 ? 's' : ''} deleted`, type: 'success' });
+    } catch {
+      setToast({ visible: true, message: 'Unable to delete conversations', type: 'error' });
     }
-  }, [selectedConversations]);
+  }, [selectedConversations, storeDeleteConversation]);
 
   const handleBulkArchive = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const count = selectedConversations.size;
-    setConversations(prev => prev.map(conv =>
-      selectedConversations.has(conv.id)
-        ? { ...conv, is_archived: true }
-        : conv
-    ));
+    selectedConversations.forEach(id => archiveConversation(id));
     setSelectedConversations(new Set());
     setEditMode(false);
-    setToast({
-      visible: true,
-      message: `${count} conversation${count > 1 ? 's' : ''} archived`,
-      type: 'success',
-    });
-  }, [selectedConversations]);
+    setToast({ visible: true, message: `${count} conversation${count > 1 ? 's' : ''} archived`, type: 'success' });
+  }, [selectedConversations, archiveConversation]);
 
   const handleDelete = useCallback(async (conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
     try {
-      await messagingAPI.deleteConversation(conversationId);
-      setConversations(prev => {
-        const next = prev.filter(conv => conv.id !== conversationId);
-        (globalThis as any).whisprConversations = next;
-        (globalThis as any).whisprEvents?.emit?.('conversationsUpdated', { conversations: next });
-        return next;
-      });
-    } catch (error) {
-      setToast({
-        visible: true,
-        message: 'Unable to delete conversation',
-        type: 'error',
-      });
+      await storeDeleteConversation(conversationId);
+    } catch {
+      setToast({ visible: true, message: 'Unable to delete conversation', type: 'error' });
     }
-  }, []);
+  }, [storeDeleteConversation]);
 
   const handleMute = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConversations(prev => prev.map(conv => {
-      if (conv.id === conversationId) {
-        return {
-          ...conv,
-          is_muted: !conv.is_muted,
-          updated_at: new Date().toISOString() // Force update to trigger re-render
-        };
-      }
-      return conv;
-    }));
-    // TODO: Call API when backend is ready
-  }, []);
+    muteConversation(conversationId);
+  }, [muteConversation]);
 
   const handleUnread = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConversations(prev => prev.map(conv =>
-      conv.id === conversationId
-        ? { ...conv, unread_count: (conv.unread_count || 0) + 1 }
-        : conv
-    ));
     // TODO: Call API when backend is ready
   }, []);
 
   const handleArchive = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setConversations(prev => prev.map(conv =>
-      conv.id === conversationId
-        ? { ...conv, is_archived: !conv.is_archived }
-        : conv
-    ));
-    // TODO: Call API when backend is ready
-  }, []);
+    archiveConversation(conversationId);
+  }, [archiveConversation]);
 
   const handlePin = useCallback((conversationId: string) => {
-    setConversations(prev => prev.map(conv =>
-      conv.id === conversationId
-        ? { ...conv, is_pinned: !conv.is_pinned }
-        : conv
-    ));
-  }, []);
+    pinConversation(conversationId);
+  }, [pinConversation]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Conversation; index: number }) => (
@@ -371,7 +209,7 @@ export const ConversationsListScreen: React.FC = () => {
 
   const getItemLayout = useCallback(
     (_data: ArrayLike<Conversation> | null | undefined, index: number) => ({
-      length: 72, // Fixed height for conversation item
+      length: 72,
       offset: 72 * index,
       index,
     }),
@@ -380,10 +218,57 @@ export const ConversationsListScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadConversations(false, true);
+    await refreshConversations();
     setRefreshing(false);
-  }, [loadConversations]);
+  }, [refreshConversations]);
 
+  const renderContent = () => {
+    if (status === 'loading' || status === 'grace_period') {
+      return (
+        <View style={styles.loadingContainer}>
+          {[...Array(5)].map((_, i) => (
+            <ConversationSkeleton key={i} />
+          ))}
+        </View>
+      );
+    }
+
+    if (status === 'empty' || filteredAndSortedConversations.length === 0) {
+      return (
+        <EmptyState
+          onNewConversation={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setShowNewConversationModal(true);
+          }}
+        />
+      );
+    }
+
+    return (
+      <FlatList
+        data={filteredAndSortedConversations}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={styles.listContent}
+        style={styles.list}
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={15}
+        windowSize={10}
+        getItemLayout={getItemLayout}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.text.light}
+            colors={[colors.primary.main]}
+          />
+        }
+      />
+    );
+  };
 
   return (
     <LinearGradient
@@ -395,20 +280,20 @@ export const ConversationsListScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: 'rgba(255, 255, 255, 0.1)' }]}>
-        <TouchableOpacity
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setEditMode(!editMode);
-            if (editMode) {
-              setSelectedConversations(new Set());
-            }
-          }}
-          style={styles.headerButton}
-        >
-          <Text style={[styles.editButton, { color: colors.text.light }]}>
-            {editMode ? 'Cancel' : 'Edit'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setEditMode(!editMode);
+              if (editMode) {
+                setSelectedConversations(new Set());
+              }
+            }}
+            style={styles.headerButton}
+          >
+            <Text style={[styles.editButton, { color: colors.text.light }]}>
+              {editMode ? 'Cancel' : 'Edit'}
+            </Text>
+          </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text.light }]}></Text>
           <TouchableOpacity
             onPress={() => {
@@ -439,7 +324,6 @@ export const ConversationsListScreen: React.FC = () => {
               value={searchQuery}
               onChangeText={(text) => {
                 setSearchQuery(text);
-                // Debounce search if needed for future API calls
                 if (searchTimeoutRef.current) {
                   clearTimeout(searchTimeoutRef.current);
                 }
@@ -464,77 +348,19 @@ export const ConversationsListScreen: React.FC = () => {
           </View>
         </View>
 
-        {loading && conversations.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            {[...Array(5)].map((_, i) => (
-              <ConversationSkeleton key={i} />
-            ))}
-          </View>
-        ) : filteredAndSortedConversations.length === 0 && !gracePeriodExpired ? (
-          <View style={styles.loadingContainer}>
-            {[...Array(5)].map((_, i) => (
-              <ConversationSkeleton key={i} />
-            ))}
-          </View>
-        ) : filteredAndSortedConversations.length === 0 ? (
-          <EmptyState
-            onNewConversation={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowNewConversationModal(true);
-            }}
-          />
-        ) : (
-          <FlatList
-            data={filteredAndSortedConversations}
-            renderItem={renderItem}
-            keyExtractor={keyExtractor}
-            contentContainerStyle={styles.listContent}
-            style={styles.list}
-            removeClippedSubviews={false}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            initialNumToRender={15}
-            windowSize={10}
-            getItemLayout={getItemLayout}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <EmptyState
-                onNewConversation={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowNewConversationModal(true);
-                }}
-              />
-            }
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.text.light}
-                colors={[colors.primary.main]}
-              />
-            }
-          />
-        )}
+        {renderContent()}
+
         {editMode && selectedConversations.size > 0 && (
           <View style={styles.editActionsBar}>
-            <TouchableOpacity
-              style={styles.editActionButton}
-              onPress={handleBulkDelete}
-            >
+            <TouchableOpacity style={styles.editActionButton} onPress={handleBulkDelete}>
               <Ionicons name="trash-outline" size={24} color={colors.ui.error} />
               <Text style={styles.editActionText}>Delete</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editActionButton}
-              onPress={handleBulkArchive}
-            >
+            <TouchableOpacity style={styles.editActionButton} onPress={handleBulkArchive}>
               <Ionicons name="archive-outline" size={24} color={colors.secondary.main} />
               <Text style={styles.editActionText}>Archive</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editActionButton}
-              onPress={handleSelectAll}
-            >
+            <TouchableOpacity style={styles.editActionButton} onPress={handleSelectAll}>
               <Ionicons
                 name={selectedConversations.size === filteredAndSortedConversations.length ? "checkmark-done-outline" : "checkmark-outline"}
                 size={24}
@@ -546,6 +372,7 @@ export const ConversationsListScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         )}
+
         <Toast
           visible={toast.visible}
           message={toast.message}
@@ -560,9 +387,8 @@ export const ConversationsListScreen: React.FC = () => {
         onClose={() => setShowNewConversationModal(false)}
         onConversationCreated={async (conversationId) => {
           setShowNewConversationModal(false);
-          await loadConversations();
+          await fetchConversations();
           setTimeout(() => {
-            // Navigate directement vers l'écran de chat avec la conversation créée
             navigation.navigate('Chat', { conversationId });
           }, 100);
         }}
