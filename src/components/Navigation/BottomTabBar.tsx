@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
+import { useConversationsStore } from '../../store/conversationsStore';
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -37,41 +38,13 @@ export const BottomTabBar: React.FC = () => {
   const route = useRoute();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
-  const [unreadCounts, setUnreadCounts] = React.useState<{ chats: number }>({ chats: 0 });
 
-  React.useEffect(() => {
-    const updateCounts = (conversations: any[]) => {
-      const chatsUnread = conversations.reduce((sum, conv) => {
-        const count = conv.unread_count || 0;
-        return sum + (typeof count === 'number' ? count : 0);
-      }, 0);
-      setUnreadCounts({ chats: chatsUnread });
-    };
-
-    const handleUpdate = (event: any) => {
-      if (event && event.conversations && Array.isArray(event.conversations)) {
-        updateCounts(event.conversations);
-      }
-    };
-
-    const subscription = (globalThis as any).whisprEvents?.addListener?.(
-      'conversationsUpdated',
-      handleUpdate
-    );
-
-    const initial = (globalThis as any).whisprConversations as any[] | undefined;
-    if (initial && Array.isArray(initial)) {
-      updateCounts(initial);
-    }
-
-    return () => {
-      if (subscription && typeof subscription.remove === 'function') {
-        subscription.remove();
-      } else if ((globalThis as any).whisprEvents?.removeListener) {
-        (globalThis as any).whisprEvents.removeListener('conversationsUpdated', handleUpdate);
-      }
-    };
-  }, []);
+  const conversations = useConversationsStore(s => s.conversations);
+  const chatsUnread = React.useMemo(
+    () => conversations.reduce((sum, c) => sum + (typeof c.unread_count === 'number' ? c.unread_count : 0), 0),
+    [conversations]
+  );
+  const unreadCounts = { chats: chatsUnread };
 
   const handleTabPress = (tabRoute: string) => {
     if (route.name !== tabRoute) {
