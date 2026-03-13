@@ -34,7 +34,7 @@ function getDevHost(): string {
 
 function getUserApiBase(): string {
   if (__DEV__) {
-    return `http://${getDevHost()}:3002/user/v1`;
+    return `http://${getDevHost()}:3011/user/v1`;
   }
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
   const base = extra?.apiBaseUrl ?? 'https://whispr.epitech.beer';
