@@ -1,8 +1,7 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { TokenService } from './TokenService';
 import { DeviceService } from './DeviceService';
 import { SignalKeyService } from './SignalKeyService';
+import { SERVICE_URLS } from './config/services';
 import type {
   AuthPurpose,
   TokenPair,
@@ -10,21 +9,8 @@ import type {
   VerificationRequestResponse,
 } from '../types/auth';
 
-function getDevHost(): string {
-  if (Platform.OS === 'android') return '10.0.2.2';
-  // On iOS simulator, localhost works; on physical device use the LAN IP
-  // from the Expo dev server (debuggerHost).
-  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  if (debuggerHost) return debuggerHost.split(':')[0];
-  return 'localhost';
-}
-
 function getBaseUrl(): string {
-  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-  if (__DEV__) {
-    return `http://${getDevHost()}:3010/auth`;
-  }
-  return `${extra?.apiBaseUrl ?? 'https://whispr.epitech.beer'}/auth`;
+  return `${SERVICE_URLS.auth}/auth`;
 }
 
 async function apiFetch<T>(
@@ -171,10 +157,7 @@ export const AuthService = {
 
     // Validate with a network call (GET /users/me via user-service)
     try {
-      const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-      const userApiBase = __DEV__
-        ? `http://${getDevHost()}:3011/user/v1`
-        : `${extra?.apiBaseUrl ?? 'https://whispr.epitech.beer'}/user/v1`;
+      const userApiBase = SERVICE_URLS.user;
 
       const response = await fetch(`${userApiBase}/users/me`, {
         headers: { Authorization: `Bearer ${token}` },

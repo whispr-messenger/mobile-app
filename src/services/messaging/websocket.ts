@@ -1,3 +1,5 @@
+import { SERVICE_URLS } from '../config/services';
+
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
 type EventCallback = (data: any) => void;
@@ -57,9 +59,7 @@ export class SocketConnection {
     this.lastToken = token;
     this.shouldReconnect = true;
 
-    const host = 'localhost';
-    const port = 4010;
-    const url = `ws://${host}:${port}/socket/websocket?user_id=${encodeURIComponent(
+    const url = `${SERVICE_URLS.messagingWs}/socket/websocket?user_id=${encodeURIComponent(
       userId,
     )}&token=${encodeURIComponent(token)}`;
 

@@ -11,12 +11,9 @@ import {
   PhoneContact,
   ContactRequest,
 } from '../../types/contact';
-import { Platform } from 'react-native';
+import { SERVICE_URLS } from '../config/services';
 
-const API_BASE_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:4010/api/v1'
-    : 'https://api.whispr.local/api/v1';
+const API_BASE_URL = SERVICE_URLS.user;
 
 const getAuthHeaders = (): Record<string, string> => {
   return {};
