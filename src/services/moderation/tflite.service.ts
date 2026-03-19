@@ -79,7 +79,7 @@ class TfliteModerationService {
             );
         }
 
-        // out0 直接是 softmax 概率（你的训练末层就是 softmax）
+        // out0 is softmax probabilities (training pipeline ends with softmax)
         let bestIndex = 0;
         let bestProb = out0[0];
         for (let i = 1; i < out0.length; i++) {

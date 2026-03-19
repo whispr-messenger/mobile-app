@@ -14,6 +14,11 @@ const path = require('path');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
+// Bundle .tflite files as static assets (for require('*.tflite'))
+if (!config.resolver.assetExts.includes('tflite')) {
+  config.resolver.assetExts.push('tflite');
+}
+
 // Fix for react-native-reanimated web imports
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'web.ts', 'web.tsx'];
 
