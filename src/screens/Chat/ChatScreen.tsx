@@ -179,7 +179,7 @@ export const ChatScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  // 预加载 TFLite，减少首张图片发送时的等待
+  // Preload TFLite to reduce latency on the first image send
   useEffect(() => {
     if (Platform.OS === 'web') return;
     tfliteService.warmup().catch(() => {
@@ -362,7 +362,7 @@ export const ChatScreen: React.FC = () => {
       // Stop typing indicator
       sendTyping(conversationId, false);
 
-      // 图片：先过本地模型，未通过则禁止发送（不创建乐观消息）
+      // Images: run local model first; block send without optimistic message if rejected
       if (type === 'image') {
         const gate = await gateChatImageBeforeSend(uri);
         if (!gate.ok) {
