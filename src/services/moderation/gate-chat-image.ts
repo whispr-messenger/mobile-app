@@ -10,7 +10,7 @@ export type GateChatImageResult = { ok: true } | { ok: false; reason: "blocked" 
  */
 export async function gateChatImageBeforeSend(uri: string): Promise<GateChatImageResult> {
   if (Platform.OS === "web") {
-    logger.warn("gateChatImageBeforeSend", "Skipping TFLite gate on web");
+    logger.warn("moderation", "Skipping TFLite gate on web");
     return { ok: true };
   }
 
@@ -21,7 +21,7 @@ export async function gateChatImageBeforeSend(uri: string): Promise<GateChatImag
     }
     return { ok: true };
   } catch (e) {
-    logger.error("gateChatImageBeforeSend", "Moderation inference failed", e);
+    logger.error("moderation", "Image gate inference failed", e);
     return { ok: false, reason: "error" };
   }
 }
