@@ -138,6 +138,11 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     'settings.fontSize.small': 'Petit',
     'settings.fontSize.medium': 'Moyen',
     'settings.fontSize.large': 'Grand',
+
+    // Moderation (on-device image gate before send)
+    'moderation.alertTitle': 'Envoi impossible',
+    'moderation.imageBlocked': 'Cette image n’a pas passé la détection et ne peut pas être envoyée.',
+    'moderation.checkFailed': 'La vérification de l’image a échoué. Réessayez ou choisissez une autre image.',
     
     // Notifications
     'notif.success': 'Succès',
@@ -296,6 +301,11 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     'settings.fontSize.small': 'Small',
     'settings.fontSize.medium': 'Medium',
     'settings.fontSize.large': 'Large',
+
+    // Moderation (on-device image gate before send)
+    'moderation.alertTitle': 'Cannot send',
+    'moderation.imageBlocked': 'This image did not pass the safety check and cannot be sent.',
+    'moderation.checkFailed': 'Image check failed. Please try again or pick another image.',
     
     // Notifications
     'notif.success': 'Success',
