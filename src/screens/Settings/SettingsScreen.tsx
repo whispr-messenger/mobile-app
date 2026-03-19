@@ -663,6 +663,15 @@ export const SettingsScreen: React.FC = () => {
         {/* Account Settings */}
         <SettingSection title={getLocalizedText('settings.account')} icon="person-outline">
           <SettingItem
+            label={getLocalizedText('settings.myProfile')}
+            subtitle={getLocalizedText('settings.myProfileSubtitle')}
+            onPress={() => navigation.navigate('Profile', {})}
+            icon="person-circle-outline"
+            rightComponent={
+              <Ionicons name="chevron-forward" size={20} color={themeColors.text.tertiary} />
+            }
+          />
+          <SettingItem
             label={getLocalizedText('settings.logout')}
             subtitle="Log out of your account"
             onPress={handleLogout}

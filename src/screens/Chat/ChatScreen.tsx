@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -30,6 +30,8 @@ import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { colors, withOpacity } from '../../theme/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { logger } from '../../utils/logger';
+import { gateChatImageBeforeSend } from '../../services/moderation/gate-chat-image';
+import { tfliteService } from '../../services/moderation/tflite.service';
 
 type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
 type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
@@ -61,7 +63,7 @@ export const ChatScreen: React.FC = () => {
   const [conversationMembers, setConversationMembers] = useState<Array<{ id: string; display_name: string; username?: string }>>([]);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
-  const { getThemeColors } = useTheme();
+  const { getThemeColors, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
   const { userId: rawUserId } = useAuth();
@@ -175,6 +177,14 @@ export const ChatScreen: React.FC = () => {
       channel?.leave();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
+
+  // 预加载 TFLite，减少首张图片发送时的等待
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    tfliteService.warmup().catch(() => {
+      logger.warn('ChatScreen', 'TFLite warmup skipped or failed');
+    });
   }, [conversationId]);
 
   const loadMessages = useCallback(async (before?: string) => {
@@ -352,6 +362,20 @@ export const ChatScreen: React.FC = () => {
       // Stop typing indicator
       sendTyping(conversationId, false);
 
+      // 图片：先过本地模型，未通过则禁止发送（不创建乐观消息）
+      if (type === 'image') {
+        const gate = await gateChatImageBeforeSend(uri);
+        if (!gate.ok) {
+          const message =
+            gate.reason === 'blocked'
+              ? getLocalizedText('moderation.imageBlocked')
+              : getLocalizedText('moderation.checkFailed');
+          Alert.alert(getLocalizedText('moderation.alertTitle'), message);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          return;
+        }
+      }
+
       // Use caption if provided, otherwise use default text
       const messageContent = caption?.trim() || (type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier');
       
@@ -432,7 +456,7 @@ export const ChatScreen: React.FC = () => {
         );
       }
     },
-    [conversationId, userId, sendTyping, replyingTo]
+    [conversationId, userId, sendTyping, replyingTo, getLocalizedText]
   );
 
 
