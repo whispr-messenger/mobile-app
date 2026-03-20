@@ -50,12 +50,13 @@ Example: `WHISPR-310-fix-chat-screen-scroll-to-bottom`
 
 ## 4. Write tests
 
-Tests live next to the source files:
+Current test layout:
 
 | Kind | Location | Pattern |
 |------|----------|---------|
-| Unit | next to the source file | `*.spec.ts` or `*.test.ts` |
+| Unit | project root (alongside entry files such as `App.tsx`) | `*.test.ts` or `*.test.tsx` |
 
+In this repository, unit tests currently live at the project root (for example, `App.test.tsx`). Follow this layout when adding new tests unless and until the project is reorganized to colocate tests with their corresponding source files.
 ### Rules
 
 - **Test behaviour, not implementation.** Assert on observable outcomes
