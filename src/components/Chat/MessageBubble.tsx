@@ -142,7 +142,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   firstAttachment.metadata.thumbnail_url ||
                   ""
                 }
-                type={firstAttachment.media_type as "image" | "video" | "file"}
+                type={
+                  firstAttachment.media_type === "audio"
+                    ? "file"
+                    : firstAttachment.media_type
+                }
                 filename={firstAttachment.metadata.filename}
                 size={firstAttachment.metadata.size}
                 thumbnailUri={firstAttachment.metadata.thumbnail_url}
@@ -157,7 +161,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             ) : (
               <FormattedText
                 text={displayContent}
-                style={[styles.sentText, { color: colors.text.light }] as any}
+                style={[styles.sentText, { color: colors.text.light }]}
                 boldStyle={{ color: colors.text.light }}
                 italicStyle={{ color: colors.text.light }}
                 codeStyle={{
@@ -233,12 +237,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ) : (
             <FormattedText
               text={displayContent}
-              style={
-                [
-                  styles.receivedText,
-                  { color: themeColors.text.primary },
-                ] as any
-              }
+              style={[styles.receivedText, { color: themeColors.text.primary }]}
               boldStyle={{ color: themeColors.text.primary }}
               italicStyle={{ color: themeColors.text.primary }}
               codeStyle={{

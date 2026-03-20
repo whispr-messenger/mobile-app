@@ -4,14 +4,14 @@
 
 import React, { useEffect } from "react";
 import { View, StyleSheet, Text } from "react-native";
-import {
+import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withRepeat,
   withSequence,
+  SharedValue,
 } from "react-native-reanimated";
-import Animated from "react-native-reanimated";
 import { colors } from "../../theme/colors";
 import { useTheme } from "../../context/ThemeContext";
 import { Avatar } from "./Avatar";
@@ -35,7 +35,7 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
 
   useEffect(() => {
     // Animate dots with 150ms stagger
-    const animateDot = (dotY: { value: number }, delay: number) => {
+    const animateDot = (dotY: SharedValue<number>, delay: number) => {
       setTimeout(() => {
         dotY.value = withRepeat(
           withSequence(

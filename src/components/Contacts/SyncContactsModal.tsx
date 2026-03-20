@@ -156,7 +156,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         limitedContacts.map((contact) => hashPhoneNumber(contact.normalized)),
       );
 
-      // Create PhoneContact objects with only hashes (no plain phone numbers)
+      // Create PhoneContact objects with name, hash, and phone number
       const phoneContacts: PhoneContact[] = limitedContacts.map(
         (contact, index) => ({
           name: contact.name,
@@ -165,7 +165,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         }),
       );
 
-      // Match with users (API receives only hashes)
+      // Match with users via API
       const matched = await contactsAPI.importPhoneContacts(phoneContacts);
 
       // Filter out dismissed contacts (ne plus suggérer)

@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { Text, TextStyle, StyleSheet } from "react-native";
+import { Text, TextStyle, StyleSheet, StyleProp } from "react-native";
 import { colors } from "../theme/colors";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
@@ -13,7 +13,7 @@ const TEXT_LIGHT_COLOR = colors.text.light;
 
 interface FormattedTextProps {
   text: string;
-  style?: TextStyle;
+  style?: StyleProp<TextStyle>;
   boldStyle?: TextStyle;
   italicStyle?: TextStyle;
   codeStyle?: TextStyle;
@@ -140,10 +140,10 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     return (
       <Text key={segmentIndex}>
         {highlightedParts.map((part, partIndex) => {
-          const baseStyles: TextStyle[] = part.highlighted
+          const baseStyles: StyleProp<TextStyle>[] = part.highlighted
             ? ([style, highlightStyle || styles.highlight].filter(
                 Boolean,
-              ) as TextStyle[])
+              ) as StyleProp<TextStyle>[])
             : style
               ? [style]
               : [];
