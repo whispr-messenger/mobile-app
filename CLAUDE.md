@@ -7,7 +7,7 @@ when picking up and completing a Jira ticket for this repository.
 
 ## 0. Prerequisites
 
-- Jira cloud ID: `82ae2da5-7ee5-48f7-8877-a644651cd84b`
+- Jira cloud ID: fetch at runtime via `mcp__atlassian__getAccessibleAtlassianResources` (select the resource whose `name` matches the Jira site)
 - GitHub org/repo: `whispr-messenger/mobile-app`
 - Default base branch: `main`
 - Node package manager: `npm`
@@ -183,16 +183,18 @@ git pull origin main
 
 ---
 
-## Jira transition IDs (current)
+## Jira transition IDs (reference)
 
-| Name | ID |
-|------|----|
+| Name | ID (example) |
+|------|-------------|
 | À faire | `11` |
 | En cours | `21` |
 | Terminé | `31` |
 
-These IDs are stable but can be verified with
-`mcp__atlassian__getTransitionsForJiraIssue` if in doubt.
+**Important:** transition IDs can change when Jira workflows are edited.
+Always call `mcp__atlassian__getTransitionsForJiraIssue` and select the
+transition by `name` — never hard-code the numeric ID. The values above
+are examples only.
 
 ---
 
