@@ -3,7 +3,7 @@
  * WHISPR-132: Implement ProfileScreen with user profile management
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,16 +18,22 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import { Logo, Button } from '../../components';
-import { colors, spacing, typography, borderRadius, shadows } from '../../theme';
-import { UserService } from '../../services';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { Logo, Button } from "../../components";
+import {
+  colors,
+  spacing,
+  typography,
+  borderRadius,
+  shadows,
+} from "../../theme";
+import { UserService } from "../../services";
 
 // Types
 interface UserProfile {
@@ -48,7 +54,7 @@ interface ProfileScreenProps {
   token?: string;
 }
 
-type NavigationProp = StackNavigationProp<any, 'Profile'>;
+type NavigationProp = StackNavigationProp<any, "Profile">;
 type RouteParams = {
   userId?: string;
   token?: string;
@@ -60,34 +66,38 @@ type RouteParams = {
   profilePicture?: string;
 };
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({
+  userId,
+  token,
+}) => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const params = (route as any)?.params as RouteParams | undefined;
   // ProfileScreen params loaded
-  
+
   // States
   const [profile, setProfile] = useState<UserProfile>({
-    id: params?.userId || userId || 'demo-user-id',
-    firstName: params?.firstName || 'John',
-    lastName: params?.lastName || 'Doe',
-    username: params?.username || 'johndoe',
-    phoneNumber: params?.phoneNumber || '+33 07 12 34 56 78',
-    biography: params?.biography || 'Développeur passionné par les technologies mobiles et la sécurité.',
+    id: params?.userId || userId || "demo-user-id",
+    firstName: params?.firstName || "John",
+    lastName: params?.lastName || "Doe",
+    username: params?.username || "johndoe",
+    phoneNumber: params?.phoneNumber || "+33 07 12 34 56 78",
+    biography:
+      params?.biography ||
+      "Développeur passionné par les technologies mobiles et la sécurité.",
     profilePicture: params?.profilePicture,
     isOnline: true,
-    lastSeen: 'Maintenant',
-    createdAt: '2024-01-15T10:30:00Z',
+    lastSeen: "Maintenant",
+    createdAt: "2024-01-15T10:30:00Z",
   });
-  useEffect(() => {
-  }, []);
-  
+  useEffect(() => {}, []);
+
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showFloatingMenu, setShowFloatingMenu] = useState(false);
-  const STORAGE_KEY = 'whispr.profile.v1';
-  
+  const STORAGE_KEY = "whispr.profile.v1";
+
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -114,31 +124,29 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
-          setProfile(prev => ({ ...prev, ...parsed }));
+          setProfile((prev) => ({ ...prev, ...parsed }));
           return;
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       if (!params?.firstName && !params?.lastName) {
         try {
           const service = UserService.getInstance();
           const res = await service.getProfile();
           if (res.success && res.profile) {
-            setProfile(prev => ({
+            setProfile((prev) => ({
               ...prev,
-              firstName: res.profile.firstName,
-              lastName: res.profile.lastName,
-              username: res.profile.username,
-              phoneNumber: res.profile.phoneNumber,
-              biography: res.profile.biography,
-              profilePicture: res.profile.profilePicture,
-              createdAt: res.profile.createdAt || prev.createdAt,
+              firstName: res.profile!.firstName,
+              lastName: res.profile!.lastName,
+              username: res.profile!.username,
+              phoneNumber: res.profile!.phoneNumber,
+              biography: res.profile!.biography,
+              profilePicture: res.profile!.profilePicture,
+              createdAt: res.profile!.createdAt || prev.createdAt,
             }));
           } else {
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
     };
 
@@ -148,9 +156,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
   // Handle profile picture change
   const handleImagePicker = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission refusée', 'Permission d\'accès à la galerie requise');
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission refusée",
+          "Permission d'accès à la galerie requise",
+        );
         return;
       }
 
@@ -162,16 +174,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       });
 
       if (!result.canceled && result.assets[0]) {
-        setProfile(prev => ({
+        setProfile((prev) => ({
           ...prev,
           profilePicture: result.assets[0].uri,
         }));
         setShowImagePicker(false);
-        Alert.alert('Succès', 'Photo de profil mise à jour');
+        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
-      console.error('Erreur sélection image:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner l\'image');
+      console.error("Erreur sélection image:", error);
+      Alert.alert("Erreur", "Impossible de sélectionner l'image");
     }
   };
 
@@ -179,8 +191,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
   const handleCameraCapture = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission refusée', 'Permission d\'accès à la caméra requise');
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission refusée",
+          "Permission d'accès à la caméra requise",
+        );
         return;
       }
 
@@ -191,101 +206,114 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       });
 
       if (!result.canceled && result.assets[0]) {
-        console.log('📸 Photo prise:', result.assets[0].uri);
-        setProfile(prev => ({
+        console.log("📸 Photo prise:", result.assets[0].uri);
+        setProfile((prev) => ({
           ...prev,
           profilePicture: result.assets[0].uri,
         }));
         setShowImagePicker(false);
-        Alert.alert('Succès', 'Photo de profil mise à jour');
+        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
-      console.error('Erreur capture caméra:', error);
-      Alert.alert('Erreur', 'Impossible d\'utiliser la caméra');
+      console.error("Erreur capture caméra:", error);
+      Alert.alert("Erreur", "Impossible d'utiliser la caméra");
     }
   };
 
   // Handle profile update
   const handleSaveProfile = async () => {
-    console.log('💾 Sauvegarde du profil avec:', profile);
-    
+    console.log("💾 Sauvegarde du profil avec:", profile);
+
     // Validation globale avant sauvegarde
     const errors: string[] = [];
-    
-    const firstNameError = validateField('firstName', profile.firstName);
+
+    const firstNameError = validateField("firstName", profile.firstName);
     if (firstNameError) errors.push(`Prénom: ${firstNameError}`);
-    
-    const lastNameError = validateField('lastName', profile.lastName);
+
+    const lastNameError = validateField("lastName", profile.lastName);
     if (lastNameError) errors.push(`Nom: ${lastNameError}`);
-    
-    const usernameError = validateField('username', profile.username);
+
+    const usernameError = validateField("username", profile.username);
     if (usernameError) errors.push(`Nom d'utilisateur: ${usernameError}`);
-    
-    const phoneError = validateField('phoneNumber', profile.phoneNumber);
+
+    const phoneError = validateField("phoneNumber", profile.phoneNumber);
     if (phoneError) errors.push(`Téléphone: ${phoneError}`);
-    
-    const bioError = validateField('biography', profile.biography);
+
+    const bioError = validateField("biography", profile.biography);
     if (bioError) errors.push(`Biographie: ${bioError}`);
-    
+
     if (errors.length > 0) {
-      Alert.alert('Erreurs de validation', errors.join('\n\n'));
+      Alert.alert("Erreurs de validation", errors.join("\n\n"));
       return;
     }
-    
+
     setLoading(true);
-    
+
     // Animation feedback
     Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.95, duration: 100, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
     ]).start();
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-      } catch (e) {
-      }
-      
+      } catch (e) {}
+
       setIsEditing(false);
-      Alert.alert('Succès', 'Profil mis à jour avec succès');
+      Alert.alert("Succès", "Profil mis à jour avec succès");
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de mettre à jour le profil');
+      Alert.alert("Erreur", "Impossible de mettre à jour le profil");
     } finally {
       setLoading(false);
     }
   };
 
   // Validation functions
-  const validateField = (field: keyof UserProfile, value: string): string | null => {
+  const validateField = (
+    field: keyof UserProfile,
+    value: string,
+  ): string | null => {
     switch (field) {
-      case 'firstName':
-      case 'lastName':
-        if (!value.trim()) return 'Ce champ est obligatoire';
-        if (value.trim().length < 2) return 'Minimum 2 caractères';
-        if (value.trim().length > 50) return 'Maximum 50 caractères';
+      case "firstName":
+      case "lastName":
+        if (!value.trim()) return "Ce champ est obligatoire";
+        if (value.trim().length < 2) return "Minimum 2 caractères";
+        if (value.trim().length > 50) return "Maximum 50 caractères";
         return null;
-      
-      case 'username':
-        if (!value.trim()) return 'Le nom d\'utilisateur est obligatoire';
-        if (value.trim().length < 3) return 'Minimum 3 caractères';
-        if (value.trim().length > 20) return 'Maximum 20 caractères';
-        if (!/^[a-zA-Z0-9_]+$/.test(value.trim())) return 'Seuls lettres, chiffres et _ autorisés';
+
+      case "username":
+        if (!value.trim()) return "Le nom d'utilisateur est obligatoire";
+        if (value.trim().length < 3) return "Minimum 3 caractères";
+        if (value.trim().length > 20) return "Maximum 20 caractères";
+        if (!/^[a-zA-Z0-9_]+$/.test(value.trim()))
+          return "Seuls lettres, chiffres et _ autorisés";
         return null;
-      
-      case 'phoneNumber':
-        if (!value.trim()) return 'Le numéro de téléphone est obligatoire';
-        const cleanNumber = value.replace(/\s/g, '');
+
+      case "phoneNumber":
+        if (!value.trim()) return "Le numéro de téléphone est obligatoire";
+        const cleanNumber = value.replace(/\s/g, "");
         // Validation format international E.164: +[code pays][numéro]
         // Exemples: +33123456789, +1234567890, +86123456789
-        if (!/^\+[1-9]\d{1,14}$/.test(cleanNumber)) return 'Format international invalide (ex: +33 1 23 45 67 89)';
-        if (cleanNumber.length < 8 || cleanNumber.length > 16) return 'Numéro trop court ou trop long (8-16 chiffres)';
+        if (!/^\+[1-9]\d{1,14}$/.test(cleanNumber))
+          return "Format international invalide (ex: +33 1 23 45 67 89)";
+        if (cleanNumber.length < 8 || cleanNumber.length > 16)
+          return "Numéro trop court ou trop long (8-16 chiffres)";
         return null;
-      
-      case 'biography':
-        if (value.length > 500) return 'Maximum 500 caractères';
+
+      case "biography":
+        if (value.length > 500) return "Maximum 500 caractères";
         return null;
-      
+
       default:
         return null;
     }
@@ -294,39 +322,39 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
   // Handle field change with validation
   const handleFieldChange = (field: keyof UserProfile, value: string) => {
     const error = validateField(field, value);
-    
+
     // Update profile
-    setProfile(prev => ({
+    setProfile((prev) => ({
       ...prev,
       [field]: value,
     }));
-    
+
     // Show validation error if any
     if (error) {
-      Alert.alert('Erreur de validation', error);
+      Alert.alert("Erreur de validation", error);
     }
   };
 
   // Handle settings navigation
   const handleSettingsPress = () => {
-    navigation.navigate('Settings');
+    navigation.navigate("Settings");
   };
 
   // Handle home navigation (ConversationsList)
   const handleHomePress = () => {
-    navigation.navigate('ConversationsList');
+    navigation.navigate("ConversationsList");
   };
 
   // Handle back navigation
   const handleBackPress = () => {
     if (isEditing) {
       Alert.alert(
-        'Modifications non sauvegardées',
-        'Voulez-vous vraiment quitter sans sauvegarder ?',
+        "Modifications non sauvegardées",
+        "Voulez-vous vraiment quitter sans sauvegarder ?",
         [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Quitter', onPress: () => setIsEditing(false) },
-        ]
+          { text: "Annuler", style: "cancel" },
+          { text: "Quitter", onPress: () => setIsEditing(false) },
+        ],
       );
     } else {
       navigation.goBack();
@@ -341,7 +369,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
       style={styles.container}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
         <Animated.View
@@ -355,55 +383,83 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={handleBackPress}
+              style={styles.backButton}
+            >
               <Text style={styles.backButtonText}>← Retour</Text>
             </TouchableOpacity>
-            
+
             <Text style={styles.headerTitle}>Profil</Text>
-            
+
             {!isEditing ? (
               <View style={styles.headerActions}>
-                <TouchableOpacity onPress={handleHomePress} style={styles.homeButton}>
-                  <Ionicons name="chatbubbles" size={24} color={colors.text.light} />
+                <TouchableOpacity
+                  onPress={handleHomePress}
+                  style={styles.homeButton}
+                >
+                  <Ionicons
+                    name="chatbubbles"
+                    size={24}
+                    color={colors.text.light}
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleSettingsPress} style={styles.settingsButton}>
+                <TouchableOpacity
+                  onPress={handleSettingsPress}
+                  style={styles.settingsButton}
+                >
                   <Text style={styles.settingsButtonText}>⚙️</Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity onPress={() => setIsEditing(false)} style={styles.cancelButton}>
+              <TouchableOpacity
+                onPress={() => setIsEditing(false)}
+                style={styles.cancelButton}
+              >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Profile Picture Section */}
-            <Animated.View style={[styles.profilePictureSection, { transform: [{ scale: scaleAnim }] }]}>
+            <Animated.View
+              style={[
+                styles.profilePictureSection,
+                { transform: [{ scale: scaleAnim }] },
+              ]}
+            >
               <TouchableOpacity
                 onPress={() => setShowImagePicker(true)}
                 style={styles.profilePictureContainer}
                 disabled={!isEditing}
               >
                 {profile.profilePicture ? (
-                  <Image source={{ uri: profile.profilePicture }} style={styles.profilePicture} />
+                  <Image
+                    source={{ uri: profile.profilePicture }}
+                    style={styles.profilePicture}
+                  />
                 ) : (
                   <View style={styles.profilePicturePlaceholder}>
                     <Text style={styles.profilePicturePlaceholderText}>
-                      {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                      {profile.firstName.charAt(0)}
+                      {profile.lastName.charAt(0)}
                     </Text>
                   </View>
                 )}
-                
+
                 {isEditing && (
                   <View style={styles.editOverlay}>
                     <Ionicons name="camera" size={18} color="#333" />
                   </View>
                 )}
               </TouchableOpacity>
-              
-            <Text style={styles.profilePictureLabel}>
-                {isEditing ? 'Appuyez pour changer' : 'Photo de profil'}
+
+              <Text style={styles.profilePictureLabel}>
+                {isEditing ? "Appuyez pour changer" : "Photo de profil"}
               </Text>
             </Animated.View>
 
@@ -417,14 +473,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
                     <TextInput
                       style={[styles.input, styles.nameInput]}
                       value={profile.firstName}
-                      onChangeText={(text) => handleFieldChange('firstName', text)}
+                      onChangeText={(text) =>
+                        handleFieldChange("firstName", text)
+                      }
                       placeholder="Prénom"
                       placeholderTextColor="rgba(255,255,255,0.5)"
                     />
                     <TextInput
                       style={[styles.input, styles.nameInput]}
                       value={profile.lastName}
-                      onChangeText={(text) => handleFieldChange('lastName', text)}
+                      onChangeText={(text) =>
+                        handleFieldChange("lastName", text)
+                      }
                       placeholder="Nom"
                       placeholderTextColor="rgba(255,255,255,0.5)"
                     />
@@ -443,7 +503,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
                   <TextInput
                     style={styles.input}
                     value={profile.username}
-                    onChangeText={(text) => handleFieldChange('username', text)}
+                    onChangeText={(text) => handleFieldChange("username", text)}
                     placeholder="@nomdutilisateur"
                     placeholderTextColor={colors.text.placeholder}
                     autoCapitalize="none"
@@ -460,7 +520,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
                   <TextInput
                     style={styles.input}
                     value={profile.phoneNumber}
-                    onChangeText={(text) => handleFieldChange('phoneNumber', text)}
+                    onChangeText={(text) =>
+                      handleFieldChange("phoneNumber", text)
+                    }
                     placeholder="+33 07 12 34 56 78"
                     placeholderTextColor={colors.text.placeholder}
                     keyboardType="phone-pad"
@@ -478,7 +540,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
                     <TextInput
                       style={[styles.input, styles.biographyInput]}
                       value={profile.biography}
-                      onChangeText={(text) => handleFieldChange('biography', text)}
+                      onChangeText={(text) =>
+                        handleFieldChange("biography", text)
+                      }
                       placeholder="Parlez-nous de vous..."
                       placeholderTextColor={colors.text.placeholder}
                       multiline
@@ -498,10 +562,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
               {/* Status Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Statut</Text>
-                <View style={[styles.statusChip, profile.isOnline ? styles.statusChipOnline : styles.statusChipOffline]}>
-                  <View style={[styles.statusDotSmall, { backgroundColor: profile.isOnline ? colors.status.online : colors.status.offline }]} />
-                  <Text style={[styles.statusText, profile.isOnline ? styles.statusTextOnline : styles.statusTextOffline]}>
-                    {profile.isOnline ? 'Actif maintenant' : `Hors ligne - ${profile.lastSeen}`}
+                <View
+                  style={[
+                    styles.statusChip,
+                    profile.isOnline
+                      ? styles.statusChipOnline
+                      : styles.statusChipOffline,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.statusDotSmall,
+                      {
+                        backgroundColor: profile.isOnline
+                          ? colors.status.online
+                          : colors.status.offline,
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      profile.isOnline
+                        ? styles.statusTextOnline
+                        : styles.statusTextOffline,
+                    ]}
+                  >
+                    {profile.isOnline
+                      ? "Actif maintenant"
+                      : `Hors ligne - ${profile.lastSeen}`}
                   </Text>
                 </View>
               </View>
@@ -511,7 +600,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
                 <View style={styles.section}>
                   <Text style={styles.sectionLabel}>Membre depuis</Text>
                   <Text style={styles.sectionValue}>
-                    {new Date(profile.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    {new Date(profile.createdAt).toLocaleDateString("fr-FR", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}
                   </Text>
                 </View>
               )}
@@ -554,17 +647,38 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, token }) =
             <Text style={styles.alertTitle}>Changer la photo de profil</Text>
             <Text style={styles.alertSubtitle}>Sélectionnez une option</Text>
 
-            <TouchableOpacity style={styles.alertAction} onPress={handleCameraCapture}>
-              <Ionicons name="camera" size={18} color="#0A84FF" style={styles.alertIcon} />
+            <TouchableOpacity
+              style={styles.alertAction}
+              onPress={handleCameraCapture}
+            >
+              <Ionicons
+                name="camera"
+                size={18}
+                color="#0A84FF"
+                style={styles.alertIcon}
+              />
               <Text style={styles.alertActionText}>Prendre une photo</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.alertAction} onPress={handleImagePicker}>
-              <Ionicons name="image" size={18} color="#0A84FF" style={styles.alertIcon} />
-              <Text style={styles.alertActionText}>Choisir depuis la galerie</Text>
+            <TouchableOpacity
+              style={styles.alertAction}
+              onPress={handleImagePicker}
+            >
+              <Ionicons
+                name="image"
+                size={18}
+                color="#0A84FF"
+                style={styles.alertIcon}
+              />
+              <Text style={styles.alertActionText}>
+                Choisir depuis la galerie
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.alertCancel} onPress={() => setShowImagePicker(false)}>
+            <TouchableOpacity
+              style={styles.alertCancel}
+              onPress={() => setShowImagePicker(false)}
+            >
               <Text style={styles.alertCancelText}>Continuer</Text>
             </TouchableOpacity>
           </View>
@@ -585,13 +699,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xxxl,
     paddingBottom: spacing.lg,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderBottomWidth: 0,
   },
   backButton: {
@@ -608,8 +722,8 @@ const styles = StyleSheet.create({
     color: colors.text.light,
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
   },
   homeButton: {
@@ -634,28 +748,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   profilePictureSection: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: spacing.xxxl,
   },
   profilePictureContainer: {
-    position: 'relative',
+    position: "relative",
     marginBottom: spacing.md,
   },
   profilePicture: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: "rgba(255,255,255,0.15)",
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.25)'
+    borderColor: "rgba(255,255,255,0.25)",
   },
   profilePicturePlaceholder: {
     width: 120,
     height: 120,
     borderRadius: 60,
     backgroundColor: colors.primary.main,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   profilePicturePlaceholderText: {
     fontSize: typography.fontSize.xxxl,
@@ -663,15 +777,15 @@ const styles = StyleSheet.create({
     color: colors.text.light,
   },
   editOverlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     right: 0,
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: colors.primary.main,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 3,
     borderColor: colors.background.primary,
   },
@@ -681,7 +795,7 @@ const styles = StyleSheet.create({
   profilePictureLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.text.light,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.9,
   },
   profileInfo: {
@@ -693,9 +807,9 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semiBold,
-    color: 'rgba(255,255,255,0.8)',
+    color: "rgba(255,255,255,0.8)",
     marginBottom: spacing.sm,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   sectionValue: {
@@ -706,20 +820,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   nameInputsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.sm,
   },
   input: {
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: "rgba(255,255,255,0.3)",
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     color: colors.text.light,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#000',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -730,30 +844,30 @@ const styles = StyleSheet.create({
   },
   biographyInput: {
     height: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     lineHeight: 18,
   },
   characterCount: {
     fontSize: typography.fontSize.xs,
     color: colors.text.secondary,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: spacing.xs,
     opacity: 0.7,
   },
   statusChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: 999,
     borderWidth: 0,
   },
   statusChipOnline: {
-    backgroundColor: 'rgba(33, 192, 4, 0.18)'
+    backgroundColor: "rgba(33, 192, 4, 0.18)",
   },
   statusChipOffline: {
-    backgroundColor: 'rgba(142, 142, 147, 0.18)'
+    backgroundColor: "rgba(142, 142, 147, 0.18)",
   },
   statusDotSmall: {
     width: 8,
@@ -769,16 +883,16 @@ const styles = StyleSheet.create({
     color: colors.text.light,
   },
   statusTextOffline: {
-    color: 'rgba(255,255,255,0.85)'
+    color: "rgba(255,255,255,0.85)",
   },
   actionButtons: {
     paddingBottom: spacing.xxxl,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-    alignItems: 'stretch',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+    alignItems: "stretch",
   },
   sheet: {
     backgroundColor: colors.background.primary,
@@ -789,23 +903,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   sheetGrabber: {
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 48,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: "rgba(0,0,0,0.2)",
     marginBottom: spacing.lg,
   },
   sheetTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: spacing.lg,
   },
   sheetOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.background.secondary,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
@@ -816,8 +930,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: spacing.md,
   },
   optionIconText: {
@@ -843,12 +957,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   sheetCancel: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: colors.ui.border,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   sheetCancelText: {
     fontSize: typography.fontSize.base,
@@ -856,24 +970,24 @@ const styles = StyleSheet.create({
   },
   floatingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   backdrop: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   },
   floatingMenu: {
-    width: '86%',
+    width: "86%",
     backgroundColor: colors.background.primary,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
@@ -883,12 +997,12 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semiBold,
     color: colors.text.primary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: spacing.sm,
   },
   floatingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: spacing.md,
   },
   floatingIcon: {
@@ -904,19 +1018,19 @@ const styles = StyleSheet.create({
   },
   alertOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: spacing.lg,
   },
   alertCard: {
-    width: '100%',
+    width: "100%",
     maxWidth: 320,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderRadius: 14,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 20,
@@ -926,18 +1040,18 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.primary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   alertSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.text.secondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 2,
     marginBottom: spacing.md,
   },
   alertAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: spacing.md,
   },
   alertIcon: {
@@ -949,14 +1063,14 @@ const styles = StyleSheet.create({
   },
   alertCancel: {
     marginTop: spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: "#E5E5EA",
   },
   alertCancelText: {
     fontSize: typography.fontSize.base,
-    color: '#0A84FF',
+    color: "#0A84FF",
     fontWeight: typography.fontWeight.medium,
   },
 });

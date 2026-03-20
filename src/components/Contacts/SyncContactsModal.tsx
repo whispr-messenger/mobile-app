@@ -3,7 +3,7 @@
  * Imports contacts from device phone book
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,17 +15,17 @@ import {
   Alert,
   Linking,
   Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import * as Contacts from 'expo-contacts';
-import { UserSearchResult, PhoneContact } from '../../types/contact';
-import { contactsAPI } from '../../services/contacts/api';
-import { Avatar } from '../Chat/Avatar';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { normalizePhoneToE164, hashPhoneNumber } from '../../utils/phoneUtils';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import * as Contacts from "expo-contacts";
+import { UserSearchResult, PhoneContact } from "../../types/contact";
+import { contactsAPI } from "../../services/contacts/api";
+import { Avatar } from "../Chat/Avatar";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { normalizePhoneToE164, hashPhoneNumber } from "../../utils/phoneUtils";
 
 interface SyncContactsModalProps {
   visible: boolean;
@@ -41,7 +41,12 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [matches, setMatches] = useState<UserSearchResult[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(
+    new Set(),
+  );
+  const [dismissedContacts, setDismissedContacts] = useState<Set<string>>(
+    new Set(),
+  );
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -58,29 +63,32 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
   const requestPermissionAndLoad = async () => {
     try {
       setLoading(true);
-      
+
       // Check current permission status first
       const { status: currentStatus } = await Contacts.getPermissionsAsync();
-      
+
       // If permission was denied, don't ask again
-      if (currentStatus === 'denied') {
+      if (currentStatus === "denied") {
         Alert.alert(
-          'Permission refusée',
-          'L\'accès aux contacts a été refusé. Pour activer la synchronisation, allez dans les paramètres de l\'application et autorisez l\'accès aux contacts.',
+          "Permission refusée",
+          "L'accès aux contacts a été refusé. Pour activer la synchronisation, allez dans les paramètres de l'application et autorisez l'accès aux contacts.",
           [
-            { text: 'Annuler', style: 'cancel', onPress: onClose },
+            { text: "Annuler", style: "cancel", onPress: onClose },
             {
-              text: 'Ouvrir les paramètres',
+              text: "Ouvrir les paramètres",
               onPress: async () => {
                 try {
-                  if (Platform.OS === 'ios') {
-                    await Linking.openURL('app-settings:');
+                  if (Platform.OS === "ios") {
+                    await Linking.openURL("app-settings:");
                   } else {
                     await Linking.openSettings();
                   }
                 } catch (error) {
-                  console.error('[SyncContactsModal] Error opening settings:', error);
-                  Alert.alert('Erreur', 'Impossible d\'ouvrir les paramètres');
+                  console.error(
+                    "[SyncContactsModal] Error opening settings:",
+                    error,
+                  );
+                  Alert.alert("Erreur", "Impossible d'ouvrir les paramètres");
                 }
                 onClose();
               },
@@ -89,16 +97,16 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         );
         return;
       }
-      
+
       // Request permission only if not already granted
-      if (currentStatus !== 'granted') {
+      if (currentStatus !== "granted") {
         const { status } = await Contacts.requestPermissionsAsync();
-        
-        if (status !== 'granted') {
+
+        if (status !== "granted") {
           Alert.alert(
-            'Permission requise',
-            'L\'accès aux contacts est nécessaire pour synchroniser vos contacts.',
-            [{ text: 'OK', onPress: onClose }],
+            "Permission requise",
+            "L'accès aux contacts est nécessaire pour synchroniser vos contacts.",
+            [{ text: "OK", onPress: onClose }],
           );
           return;
         }
@@ -122,7 +130,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
             if (phone.number) {
               const normalized = normalizePhoneToE164(phone.number);
               phoneContactsWithNumbers.push({
-                name: contact.name || 'Contact',
+                name: contact.name || "Contact",
                 phoneNumber: phone.number,
                 normalized,
               });
@@ -134,9 +142,9 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
       // Check limit of 1000 phone numbers per request (spec requirement)
       if (phoneContactsWithNumbers.length > 1000) {
         Alert.alert(
-          'Limite dépassée',
+          "Limite dépassée",
           `Vous avez ${phoneContactsWithNumbers.length} contacts avec numéros. Seuls les 1000 premiers seront traités.`,
-          [{ text: 'OK' }],
+          [{ text: "OK" }],
         );
       }
 
@@ -145,35 +153,37 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
 
       // Hash phone numbers according to specifications
       const phoneHashes = await Promise.all(
-        limitedContacts.map(contact => hashPhoneNumber(contact.normalized))
+        limitedContacts.map((contact) => hashPhoneNumber(contact.normalized)),
       );
 
-      // Create PhoneContact objects with only hashes (no plain phone numbers)
-      const phoneContacts: PhoneContact[] = limitedContacts.map((contact, index) => ({
-        name: contact.name,
-        phoneHash: phoneHashes[index],
-        phoneNumber: contact.phoneNumber,
-      }));
+      // Create PhoneContact objects with name, hash, and phone number
+      const phoneContacts: PhoneContact[] = limitedContacts.map(
+        (contact, index) => ({
+          name: contact.name,
+          phoneHash: phoneHashes[index],
+          phoneNumber: contact.phoneNumber,
+        }),
+      );
 
-      // Match with users (API receives only hashes)
+      // Match with users via API
       const matched = await contactsAPI.importPhoneContacts(phoneContacts);
-      
+
       // Filter out dismissed contacts (ne plus suggérer)
       const filteredMatches = matched.filter(
-        match => !dismissedContacts.has(match.user.id)
+        (match) => !dismissedContacts.has(match.user.id),
       );
-      
+
       setMatches(filteredMatches);
     } catch (error) {
-      console.error('[SyncContactsModal] Error loading contacts:', error);
-      Alert.alert('Erreur', 'Impossible de charger les contacts');
+      console.error("[SyncContactsModal] Error loading contacts:", error);
+      Alert.alert("Erreur", "Impossible de charger les contacts");
     } finally {
       setLoading(false);
     }
   };
 
   const toggleSelection = (userId: string) => {
-    setSelectedContacts(prev => {
+    setSelectedContacts((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(userId)) {
         newSet.delete(userId);
@@ -185,9 +195,9 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
   };
 
   const handleDismiss = (userId: string) => {
-    setDismissedContacts(prev => new Set(prev).add(userId));
-    setMatches(prev => prev.filter(match => match.user.id !== userId));
-    setSelectedContacts(prev => {
+    setDismissedContacts((prev) => new Set(prev).add(userId));
+    setMatches((prev) => prev.filter((match) => match.user.id !== userId));
+    setSelectedContacts((prev) => {
       const newSet = new Set(prev);
       newSet.delete(userId);
       return newSet;
@@ -196,7 +206,10 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
 
   const handleSync = async () => {
     if (selectedContacts.size === 0) {
-      Alert.alert('Aucun contact sélectionné', 'Sélectionnez au moins un contact à ajouter');
+      Alert.alert(
+        "Aucun contact sélectionné",
+        "Sélectionnez au moins un contact à ajouter",
+      );
       return;
     }
 
@@ -210,18 +223,18 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
           await contactsAPI.addContact({ contactId: userId });
           successCount++;
         } catch (error) {
-          console.error('[SyncContactsModal] Error adding contact:', error);
+          console.error("[SyncContactsModal] Error adding contact:", error);
           errorCount++;
         }
       }
 
       if (successCount > 0) {
         Alert.alert(
-          'Synchronisation terminée',
-          `${successCount} contact(s) ajouté(s)${errorCount > 0 ? `, ${errorCount} erreur(s)` : ''}`,
+          "Synchronisation terminée",
+          `${successCount} contact(s) ajouté(s)${errorCount > 0 ? `, ${errorCount} erreur(s)` : ""}`,
           [
             {
-              text: 'OK',
+              text: "OK",
               onPress: () => {
                 onContactsSynced();
                 handleClose();
@@ -230,11 +243,11 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
           ],
         );
       } else {
-        Alert.alert('Erreur', 'Aucun contact n\'a pu être ajouté');
+        Alert.alert("Erreur", "Aucun contact n'a pu être ajouté");
       }
     } catch (error) {
-      console.error('[SyncContactsModal] Error syncing contacts:', error);
-      Alert.alert('Erreur', 'Impossible de synchroniser les contacts');
+      console.error("[SyncContactsModal] Error syncing contacts:", error);
+      Alert.alert("Erreur", "Impossible de synchroniser les contacts");
     } finally {
       setSyncing(false);
     }
@@ -249,7 +262,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
   const renderMatch = ({ item }: { item: UserSearchResult }) => {
     const { user, is_blocked } = item;
     const isSelected = selectedContacts.has(user.id);
-    const displayName = user.first_name || user.username || 'Utilisateur';
+    const displayName = user.first_name || user.username || "Utilisateur";
 
     if (is_blocked) return null;
 
@@ -263,11 +276,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         onPress={() => toggleSelection(user.id)}
         activeOpacity={0.7}
       >
-        <Avatar
-          uri={user.avatar_url}
-          name={displayName}
-          size={48}
-        />
+        <Avatar uri={user.avatar_url} name={displayName} size={48} />
         <View style={styles.matchInfo}>
           <Text
             style={[styles.matchName, { color: themeColors.text.primary }]}
@@ -276,7 +285,10 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
             {displayName}
           </Text>
           <Text
-            style={[styles.matchUsername, { color: themeColors.text.secondary }]}
+            style={[
+              styles.matchUsername,
+              { color: themeColors.text.secondary },
+            ]}
             numberOfLines={1}
           >
             @{user.username}
@@ -319,9 +331,9 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
       >
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
           {/* Header */}
-          <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+          <View style={[styles.header, { backgroundColor: "transparent" }]}>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons
                 name="close"
@@ -329,7 +341,9 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
                 color={themeColors.text.primary}
               />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Synchroniser les contacts
             </Text>
             <View style={styles.placeholder} />
@@ -338,7 +352,12 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary.main} />
-              <Text style={[styles.loadingText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.loadingText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Recherche de correspondances...
               </Text>
             </View>
@@ -349,20 +368,40 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
                 size={64}
                 color={themeColors.text.tertiary}
               />
-              <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Aucune correspondance trouvée
               </Text>
-              <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
+              <Text
+                style={[
+                  styles.emptySubtext,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
                 Aucun de vos contacts téléphoniques n'utilise Whispr
               </Text>
             </View>
           ) : (
             <>
               <View style={styles.infoContainer}>
-                <Text style={[styles.infoText, { color: themeColors.text.secondary }]}>
+                <Text
+                  style={[
+                    styles.infoText,
+                    { color: themeColors.text.secondary },
+                  ]}
+                >
                   {matches.length} correspondance(s) trouvée(s)
                 </Text>
-                <Text style={[styles.infoSubtext, { color: themeColors.text.tertiary }]}>
+                <Text
+                  style={[
+                    styles.infoSubtext,
+                    { color: themeColors.text.tertiary },
+                  ]}
+                >
                   Sélectionnez les contacts à ajouter
                 </Text>
               </View>
@@ -382,7 +421,10 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
                     disabled={syncing}
                   >
                     {syncing ? (
-                      <ActivityIndicator size="small" color={colors.text.light} />
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.text.light}
+                      />
                     ) : (
                       <>
                         <Ionicons
@@ -414,12 +456,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   closeButton: {
     padding: 4,
@@ -427,16 +469,16 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   placeholder: {
     width: 32,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   loadingText: {
@@ -445,30 +487,30 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   infoContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   infoText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   infoSubtext: {
     fontSize: 14,
@@ -480,8 +522,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   matchItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -497,15 +539,15 @@ const styles = StyleSheet.create({
   },
   matchName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   matchUsername: {
     fontSize: 14,
     marginTop: 2,
   },
   matchActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   dismissButton: {
@@ -515,12 +557,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
   },
   syncButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.primary.main,
     paddingVertical: 16,
     borderRadius: 12,
@@ -529,6 +571,6 @@ const styles = StyleSheet.create({
   syncButtonText: {
     color: colors.text.light,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

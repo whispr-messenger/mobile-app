@@ -3,7 +3,7 @@
  * WHISPR-265: Améliorer le sélecteur de media existant
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -14,20 +14,21 @@ import {
   ScrollView,
   Image,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
-import * as Haptics from 'expo-haptics';
-import { useTheme } from '../../context/ThemeContext';
-import { colors, withOpacity } from '../../theme/colors';
-import { typography } from '../../theme/typography';
-import { spacing, borderRadius, shadows } from '../../theme/spacing';
-import { compressImage } from '../../utils/imageCompression';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+// @ts-ignore
+import * as DocumentPicker from "expo-document-picker";
+import * as Haptics from "expo-haptics";
+import { useTheme } from "../../context/ThemeContext";
+import { colors, withOpacity } from "../../theme/colors";
+import { typography, textStyles } from "../../theme/typography";
+import { spacing, borderRadius, shadows } from "../../theme/spacing";
+import { compressImage } from "../../utils/imageCompression";
 
 export interface SelectedMedia {
   uri: string;
-  type: 'image' | 'video' | 'file';
+  type: "image" | "video" | "file";
   filename?: string;
   size?: number;
   mimeType?: string;
@@ -55,10 +56,10 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
   // Request permissions for media library
   const requestMediaPermissions = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
+    if (status !== "granted") {
       Alert.alert(
-        'Permission requise',
-        'Nous avons besoin de votre permission pour accéder à vos médias.'
+        "Permission requise",
+        "Nous avons besoin de votre permission pour accéder à vos médias.",
       );
       return false;
     }
@@ -83,44 +84,59 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         // Process each asset (compress images)
         const processedMedia: SelectedMedia[] = await Promise.all(
-          result.assets.map(async (asset) => {
+          result.assets.map(async (asset: any) => {
             let finalUri = asset.uri;
-            
+
             // Compress images (not videos)
-            if (asset.type === 'image') {
+            if (asset.type === "image") {
               try {
                 finalUri = await compressImage(asset.uri, {
                   maxWidth: 1920,
                   maxHeight: 1920,
                   quality: 0.8,
                 });
-                console.log('[MediaSelector] Image compressed:', asset.uri.substring(0, 50), '->', finalUri.substring(0, 50));
+                console.log(
+                  "[MediaSelector] Image compressed:",
+                  asset.uri.substring(0, 50),
+                  "->",
+                  finalUri.substring(0, 50),
+                );
               } catch (error) {
-                console.error('[MediaSelector] Error compressing image:', error);
+                console.error(
+                  "[MediaSelector] Error compressing image:",
+                  error,
+                );
                 // Use original URI if compression fails
               }
             }
 
             return {
               uri: finalUri,
-              type: asset.type === 'video' ? 'video' : 'image',
-              filename: asset.fileName || `media_${Date.now()}.${asset.type === 'video' ? 'mp4' : 'jpg'}`,
+              type: asset.type === "video" ? "video" : "image",
+              filename:
+                asset.fileName ||
+                `media_${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`,
               size: asset.fileSize || 0,
-              mimeType: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+              mimeType:
+                asset.mimeType ||
+                (asset.type === "video" ? "video/mp4" : "image/jpeg"),
             };
-          })
+          }),
         );
 
         if (allowMultiple) {
-          const combined = [...selectedMedia, ...processedMedia].slice(0, maxSelection);
+          const combined = [...selectedMedia, ...processedMedia].slice(
+            0,
+            maxSelection,
+          );
           setSelectedMedia(combined);
         } else {
           setSelectedMedia(processedMedia.slice(0, 1));
         }
       }
     } catch (error: any) {
-      console.error('[MediaSelector] Error picking media:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner les médias.');
+      console.error("[MediaSelector] Error picking media:", error);
+      Alert.alert("Erreur", "Impossible de sélectionner les médias.");
     }
   }, [allowMultiple, maxSelection, requestMediaPermissions, selectedMedia]);
 
@@ -130,30 +146,33 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
+        type: "*/*",
         multiple: allowMultiple,
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newMedia: SelectedMedia[] = result.assets.map((asset) => ({
+        const newMedia: SelectedMedia[] = result.assets.map((asset: any) => ({
           uri: asset.uri,
-          type: 'file',
+          type: "file",
           filename: asset.name || `document_${Date.now()}`,
           size: asset.size || 0,
-          mimeType: asset.mimeType || 'application/octet-stream',
+          mimeType: asset.mimeType || "application/octet-stream",
         }));
 
         if (allowMultiple) {
-          const combined = [...selectedMedia, ...newMedia].slice(0, maxSelection);
+          const combined = [...selectedMedia, ...newMedia].slice(
+            0,
+            maxSelection,
+          );
           setSelectedMedia(combined);
         } else {
           setSelectedMedia(newMedia.slice(0, 1));
         }
       }
     } catch (error: any) {
-      console.error('[MediaSelector] Error picking documents:', error);
-      Alert.alert('Erreur', 'Impossible de sélectionner les documents.');
+      console.error("[MediaSelector] Error picking documents:", error);
+      Alert.alert("Erreur", "Impossible de sélectionner les documents.");
     }
   }, [allowMultiple, maxSelection, selectedMedia]);
 
@@ -166,7 +185,7 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
   // Confirm selection
   const handleConfirm = useCallback(() => {
     if (selectedMedia.length === 0) {
-      Alert.alert('Aucun média', 'Veuillez sélectionner au moins un média.');
+      Alert.alert("Aucun média", "Veuillez sélectionner au moins un média.");
       return;
     }
 
@@ -191,35 +210,66 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
       onRequestClose={handleCancel}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+        <View
+          style={[
+            styles.modalContent,
+            { backgroundColor: themeColors.background.primary },
+          ]}
+        >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Sélectionner des médias
             </Text>
             <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={themeColors.text.secondary} />
+              <Ionicons
+                name="close"
+                size={24}
+                color={themeColors.text.secondary}
+              />
             </TouchableOpacity>
           </View>
 
           {/* Selection buttons */}
           <View style={styles.selectionButtons}>
             <TouchableOpacity
-              style={[styles.selectionButton, { backgroundColor: withOpacity(themeColors.primary, 0.1) }]}
+              style={[
+                styles.selectionButton,
+                { backgroundColor: withOpacity(themeColors.primary, 0.1) },
+              ]}
               onPress={handlePickMedia}
             >
               <Ionicons name="images" size={24} color={themeColors.primary} />
-              <Text style={[styles.selectionButtonText, { color: themeColors.primary }]}>
+              <Text
+                style={[
+                  styles.selectionButtonText,
+                  { color: themeColors.primary },
+                ]}
+              >
                 Photos/Vidéos
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.selectionButton, { backgroundColor: withOpacity(themeColors.secondary, 0.1) }]}
+              style={[
+                styles.selectionButton,
+                { backgroundColor: withOpacity(themeColors.secondary, 0.1) },
+              ]}
               onPress={handlePickDocuments}
             >
-              <Ionicons name="document" size={24} color={themeColors.secondary} />
-              <Text style={[styles.selectionButtonText, { color: themeColors.secondary }]}>
+              <Ionicons
+                name="document"
+                size={24}
+                color={themeColors.secondary}
+              />
+              <Text
+                style={[
+                  styles.selectionButtonText,
+                  { color: themeColors.secondary },
+                ]}
+              >
                 Documents
               </Text>
             </TouchableOpacity>
@@ -228,23 +278,71 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
           {/* Selected media preview */}
           {selectedMedia.length > 0 && (
             <View style={styles.previewContainer}>
-              <Text style={[styles.previewTitle, { color: themeColors.text.secondary }]}>
-                {selectedMedia.length} média{selectedMedia.length > 1 ? 's' : ''} sélectionné{selectedMedia.length > 1 ? 's' : ''}
+              <Text
+                style={[
+                  styles.previewTitle,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
+                {selectedMedia.length} média
+                {selectedMedia.length > 1 ? "s" : ""} sélectionné
+                {selectedMedia.length > 1 ? "s" : ""}
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.previewScroll}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.previewScroll}
+              >
                 {selectedMedia.map((media, index) => (
                   <View key={index} style={styles.previewItem}>
-                    {media.type === 'image' ? (
-                      <Image source={{ uri: media.uri }} style={styles.previewImage} />
-                    ) : media.type === 'video' ? (
-                      <View style={[styles.previewVideo, { backgroundColor: withOpacity(themeColors.primary, 0.2) }]}>
-                        <Ionicons name="videocam" size={32} color={themeColors.primary} />
+                    {media.type === "image" ? (
+                      <Image
+                        source={{ uri: media.uri }}
+                        style={styles.previewImage}
+                      />
+                    ) : media.type === "video" ? (
+                      <View
+                        style={[
+                          styles.previewVideo,
+                          {
+                            backgroundColor: withOpacity(
+                              themeColors.primary,
+                              0.2,
+                            ),
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="videocam"
+                          size={32}
+                          color={themeColors.primary}
+                        />
                       </View>
                     ) : (
-                      <View style={[styles.previewFile, { backgroundColor: withOpacity(themeColors.secondary, 0.2) }]}>
-                        <Ionicons name="document" size={32} color={themeColors.secondary} />
-                        <Text style={[styles.previewFileName, { color: themeColors.text.secondary }]} numberOfLines={1}>
-                          {media.filename || 'Document'}
+                      <View
+                        style={[
+                          styles.previewFile,
+                          {
+                            backgroundColor: withOpacity(
+                              themeColors.secondary,
+                              0.2,
+                            ),
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="document"
+                          size={32}
+                          color={themeColors.secondary}
+                        />
+                        <Text
+                          style={[
+                            styles.previewFileName,
+                            { color: themeColors.text.secondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {media.filename || "Document"}
                         </Text>
                       </View>
                     )}
@@ -252,7 +350,11 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
                       style={styles.removeButton}
                       onPress={() => handleRemoveMedia(index)}
                     >
-                      <Ionicons name="close-circle" size={20} color={colors.ui.error} />
+                      <Ionicons
+                        name="close-circle"
+                        size={20}
+                        color={colors.ui.error}
+                      />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -263,19 +365,34 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
           {/* Action buttons */}
           <View style={styles.actionButtons}>
             <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: withOpacity(themeColors.text.secondary, 0.1) }]}
+              style={[
+                styles.cancelButton,
+                {
+                  backgroundColor: withOpacity(themeColors.text.secondary, 0.1),
+                },
+              ]}
               onPress={handleCancel}
             >
-              <Text style={[styles.cancelButtonText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.cancelButtonText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Annuler
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.confirmButton, { backgroundColor: themeColors.primary }]}
+              style={[
+                styles.confirmButton,
+                { backgroundColor: themeColors.primary },
+              ]}
               onPress={handleConfirm}
               disabled={selectedMedia.length === 0}
             >
-              <Text style={[styles.confirmButtonText, { color: colors.text.light }]}>
+              <Text
+                style={[styles.confirmButtonText, { color: colors.text.light }]}
+              >
                 Envoyer ({selectedMedia.length})
               </Text>
             </TouchableOpacity>
@@ -289,121 +406,121 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "flex-end",
   },
   modalContent: {
-    borderTopLeftRadius: borderRadius.large,
-    borderTopRightRadius: borderRadius.large,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
     paddingBottom: spacing.base * 2,
-    maxHeight: '80%',
-    ...shadows.large,
+    maxHeight: "80%",
+    ...shadows.xl,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   headerTitle: {
-    ...typography.h3,
-    fontWeight: '600',
+    ...textStyles.h3,
+    fontWeight: "600",
   },
   closeButton: {
-    padding: spacing.small,
+    padding: spacing.sm,
   },
   selectionButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: spacing.base,
     gap: spacing.base,
   },
   selectionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     padding: spacing.base,
-    borderRadius: borderRadius.medium,
-    gap: spacing.small,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
   },
   selectionButtonText: {
-    ...typography.body,
-    fontWeight: '600',
+    ...textStyles.body,
+    fontWeight: "600",
   },
   previewContainer: {
     padding: spacing.base,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: "rgba(255, 255, 255, 0.1)",
   },
   previewTitle: {
-    ...typography.caption,
-    marginBottom: spacing.small,
+    ...textStyles.caption,
+    marginBottom: spacing.sm,
   },
   previewScroll: {
-    marginTop: spacing.small,
+    marginTop: spacing.sm,
   },
   previewItem: {
-    marginRight: spacing.small,
-    position: 'relative',
+    marginRight: spacing.sm,
+    position: "relative",
   },
   previewImage: {
     width: 80,
     height: 80,
-    borderRadius: borderRadius.small,
+    borderRadius: borderRadius.sm,
   },
   previewVideo: {
     width: 80,
     height: 80,
-    borderRadius: borderRadius.small,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: borderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
   },
   previewFile: {
     width: 80,
     height: 80,
-    borderRadius: borderRadius.small,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.small,
+    borderRadius: borderRadius.sm,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.sm,
   },
   previewFileName: {
-    ...typography.caption,
-    marginTop: spacing.small / 2,
+    ...textStyles.caption,
+    marginTop: spacing.sm / 2,
     fontSize: 10,
   },
   removeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -8,
     right: -8,
     backgroundColor: colors.background.dark,
     borderRadius: 12,
   },
   actionButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: spacing.base,
     gap: spacing.base,
   },
   cancelButton: {
     flex: 1,
     padding: spacing.base,
-    borderRadius: borderRadius.medium,
-    alignItems: 'center',
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
   },
   cancelButtonText: {
-    ...typography.body,
-    fontWeight: '600',
+    ...textStyles.body,
+    fontWeight: "600",
   },
   confirmButton: {
     flex: 1,
     padding: spacing.base,
-    borderRadius: borderRadius.medium,
-    alignItems: 'center',
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
   },
   confirmButtonText: {
-    ...typography.body,
-    fontWeight: '600',
+    ...textStyles.body,
+    fontWeight: "600",
   },
 });

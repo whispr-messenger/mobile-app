@@ -3,7 +3,7 @@
  * Security keys and connected devices management
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,31 +16,31 @@ import {
   Animated,
   Platform,
   Dimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import * as Haptics from 'expo-haptics';
-import Toast from '../../components/Toast/Toast';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import * as Haptics from "expo-haptics";
+import Toast from "../../components/Toast/Toast";
 
 const copyToClipboard = async (text: string) => {
   try {
-    const Clipboard = require('expo-clipboard');
+    const Clipboard = require("expo-clipboard");
     await Clipboard.setStringAsync(text);
     return true;
   } catch (error) {
-    console.log('📋 Copy to clipboard (fallback):', text);
+    console.log("📋 Copy to clipboard (fallback):", text);
     return false;
   }
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface ConnectedDevice {
   id: string;
   name: string;
-  type: 'mobile' | 'tablet' | 'desktop' | 'web';
+  type: "mobile" | "tablet" | "desktop" | "web";
   lastActive: string;
   location?: string;
   isCurrent: boolean;
@@ -60,8 +60,8 @@ export const SecurityKeysScreen: React.FC = () => {
   const navigation = useNavigation();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
-  const accentColor = '#9692AC';
-  const accentColorDark = '#727596';
+  const accentColor = "#9692AC";
+  const accentColorDark = "#727596";
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -70,60 +70,66 @@ export const SecurityKeysScreen: React.FC = () => {
 
   const [devices, setDevices] = useState<ConnectedDevice[]>([
     {
-      id: '1',
-      name: 'iPhone 15 Pro',
-      type: 'mobile',
-      lastActive: 'Maintenant',
-      location: 'Paris, France',
+      id: "1",
+      name: "iPhone 15 Pro",
+      type: "mobile",
+      lastActive: "Maintenant",
+      location: "Paris, France",
       isCurrent: true,
     },
     {
-      id: '2',
-      name: 'MacBook Pro',
-      type: 'desktop',
-      lastActive: 'Il y a 2 heures',
-      location: 'Paris, France',
+      id: "2",
+      name: "MacBook Pro",
+      type: "desktop",
+      lastActive: "Il y a 2 heures",
+      location: "Paris, France",
       isCurrent: false,
-      securityCode: 'ABC123-DEF456-GHI789',
+      securityCode: "ABC123-DEF456-GHI789",
     },
     {
-      id: '3',
-      name: 'iPad Air',
-      type: 'tablet',
-      lastActive: 'Il y a 3 jours',
-      location: 'Lyon, France',
+      id: "3",
+      name: "iPad Air",
+      type: "tablet",
+      lastActive: "Il y a 3 jours",
+      location: "Lyon, France",
       isCurrent: false,
-      securityCode: 'XYZ789-UVW456-RST123',
+      securityCode: "XYZ789-UVW456-RST123",
     },
   ]);
 
   const [securityKeys, setSecurityKeys] = useState<SecurityKey[]>([
     {
-      id: '1',
-      deviceId: '1',
-      deviceName: 'iPhone 15 Pro',
-      fingerprint: 'A1B2C3D4E5F6G7H8',
-      createdAt: '2024-01-15T10:30:00Z',
+      id: "1",
+      deviceId: "1",
+      deviceName: "iPhone 15 Pro",
+      fingerprint: "A1B2C3D4E5F6G7H8",
+      createdAt: "2024-01-15T10:30:00Z",
       verified: true,
     },
     {
-      id: '2',
-      deviceId: '2',
-      deviceName: 'MacBook Pro',
-      fingerprint: 'I9J0K1L2M3N4O5P6',
-      createdAt: '2024-01-10T14:20:00Z',
+      id: "2",
+      deviceId: "2",
+      deviceName: "MacBook Pro",
+      fingerprint: "I9J0K1L2M3N4O5P6",
+      createdAt: "2024-01-10T14:20:00Z",
       verified: true,
     },
   ]);
 
   const [showSecurityCodeModal, setShowSecurityCodeModal] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<ConnectedDevice | null>(null);
-  const [verificationCode, setVerificationCode] = useState('');
+  const [selectedDevice, setSelectedDevice] = useState<ConnectedDevice | null>(
+    null,
+  );
+  const [verificationCode, setVerificationCode] = useState("");
   const [showSecurityKeys, setShowSecurityKeys] = useState(false);
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' | 'info' | 'warning' }>({
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+  }>({
     visible: false,
-    message: '',
-    type: 'info',
+    message: "",
+    type: "info",
   });
 
   useEffect(() => {
@@ -172,117 +178,134 @@ export const SecurityKeysScreen: React.FC = () => {
     }
   }, [showSecurityCodeModal]);
 
-  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
-    if (Platform.OS === 'ios') {
+  const triggerHaptic = (type: "light" | "medium" | "heavy" = "light") => {
+    if (Platform.OS === "ios") {
       try {
         Haptics.impactAsync(
-          type === 'light' ? Haptics.ImpactFeedbackStyle.Light :
-          type === 'medium' ? Haptics.ImpactFeedbackStyle.Medium :
-          Haptics.ImpactFeedbackStyle.Heavy
+          type === "light"
+            ? Haptics.ImpactFeedbackStyle.Light
+            : type === "medium"
+              ? Haptics.ImpactFeedbackStyle.Medium
+              : Haptics.ImpactFeedbackStyle.Heavy,
         );
       } catch (error) {
-        console.log('⚠️ Haptic feedback error:', error);
+        console.log("⚠️ Haptic feedback error:", error);
       }
     }
   };
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" | "warning" = "info",
+  ) => {
     setToast({ visible: true, message, type });
   };
 
   const handleDisconnectDevice = (device: ConnectedDevice) => {
     if (device.isCurrent) {
-      triggerHaptic('medium');
-      showToast(getLocalizedText('security.cannotDisconnectCurrentMessage'), 'warning');
+      triggerHaptic("medium");
+      showToast(
+        getLocalizedText("security.cannotDisconnectCurrentMessage"),
+        "warning",
+      );
       return;
     }
 
-    triggerHaptic('light');
+    triggerHaptic("light");
     Alert.alert(
-      getLocalizedText('security.disconnectDevice'),
-      `${getLocalizedText('security.disconnectDeviceMessage')} ${device.name}?`,
+      getLocalizedText("security.disconnectDevice"),
+      `${getLocalizedText("security.disconnectDeviceMessage")} ${device.name}?`,
       [
-        { text: getLocalizedText('common.cancel'), style: 'cancel' },
+        { text: getLocalizedText("common.cancel"), style: "cancel" },
         {
-          text: getLocalizedText('security.disconnect'),
-          style: 'destructive',
+          text: getLocalizedText("security.disconnect"),
+          style: "destructive",
           onPress: () => {
-            triggerHaptic('medium');
-            setDevices(prev => prev.filter(d => d.id !== device.id));
-            showToast(getLocalizedText('security.deviceDisconnected'), 'success');
+            triggerHaptic("medium");
+            setDevices((prev) => prev.filter((d) => d.id !== device.id));
+            showToast(
+              getLocalizedText("security.deviceDisconnected"),
+              "success",
+            );
           },
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   };
 
   const handleShowSecurityCode = (device: ConnectedDevice) => {
-    triggerHaptic('light');
+    triggerHaptic("light");
     setSelectedDevice(device);
     setShowSecurityCodeModal(true);
   };
 
   const handleVerifySecurityCode = () => {
     if (verificationCode.length < 6) {
-      triggerHaptic('heavy');
-      showToast(getLocalizedText('security.invalidCode'), 'error');
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("security.invalidCode"), "error");
       return;
     }
 
-    triggerHaptic('success');
-    showToast(getLocalizedText('security.codeVerified'), 'success');
+    triggerHaptic("light");
+    showToast(getLocalizedText("security.codeVerified"), "success");
     setShowSecurityCodeModal(false);
-    setVerificationCode('');
+    setVerificationCode("");
   };
 
   const handleCopySecurityCode = async (code: string) => {
-    triggerHaptic('light');
+    triggerHaptic("light");
     const success = await copyToClipboard(code);
     if (success) {
-      triggerHaptic('success');
-      showToast(getLocalizedText('security.codeCopied'), 'success');
+      triggerHaptic("light");
+      showToast(getLocalizedText("security.codeCopied"), "success");
     } else {
-      showToast(`${getLocalizedText('security.codeCopied')}: ${code}`, 'info');
+      showToast(`${getLocalizedText("security.codeCopied")}: ${code}`, "info");
     }
   };
 
   const handleScanQRCode = () => {
-    triggerHaptic('light');
+    triggerHaptic("light");
     Alert.alert(
-      '',
-      getLocalizedText('security.qrScannerComingSoon'),
-      [{ text: getLocalizedText('common.ok') }],
-      { cancelable: true }
+      "",
+      getLocalizedText("security.qrScannerComingSoon"),
+      [{ text: getLocalizedText("common.ok") }],
+      { cancelable: true },
     );
   };
 
   const getDeviceIcon = (type: string): { name: any; color: string } => {
     const iconColor = accentColor;
     switch (type) {
-      case 'mobile':
-        return { name: 'phone-portrait', color: iconColor };
-      case 'tablet':
-        return { name: 'tablet-portrait', color: iconColor };
-      case 'desktop':
-        return { name: 'laptop', color: iconColor };
-      case 'web':
-        return { name: 'globe', color: iconColor };
+      case "mobile":
+        return { name: "phone-portrait", color: iconColor };
+      case "tablet":
+        return { name: "tablet-portrait", color: iconColor };
+      case "desktop":
+        return { name: "laptop", color: iconColor };
+      case "web":
+        return { name: "globe", color: iconColor };
       default:
-        return { name: 'device-desktop', color: iconColor };
+        return { name: "device-desktop", color: iconColor };
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
+    return date.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
     });
   };
 
-  const DeviceCard = ({ device, index }: { device: ConnectedDevice; index: number }) => {
+  const DeviceCard = ({
+    device,
+    index,
+  }: {
+    device: ConnectedDevice;
+    index: number;
+  }) => {
     const cardScale = useRef(new Animated.Value(1)).current;
     const cardOpacity = useRef(new Animated.Value(0)).current;
 
@@ -343,10 +366,10 @@ export const SecurityKeysScreen: React.FC = () => {
             {
               backgroundColor: themeColors.background.secondary,
               borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+              borderBottomColor: "rgba(255, 255, 255, 0.1)",
               ...Platform.select({
                 ios: {
-                  shadowColor: '#000',
+                  shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
@@ -364,7 +387,7 @@ export const SecurityKeysScreen: React.FC = () => {
                 style={[
                   styles.deviceIconContainer,
                   {
-                    backgroundColor: deviceIcon.color + '15',
+                    backgroundColor: deviceIcon.color + "15",
                   },
                 ]}
               >
@@ -379,7 +402,10 @@ export const SecurityKeysScreen: React.FC = () => {
                   <Text
                     style={[
                       styles.deviceName,
-                      { color: themeColors.text.primary, fontSize: getFontSize('base') },
+                      {
+                        color: themeColors.text.primary,
+                        fontSize: getFontSize("base"),
+                      },
                     ]}
                   >
                     {device.name}
@@ -391,14 +417,18 @@ export const SecurityKeysScreen: React.FC = () => {
                       end={{ x: 1, y: 0 }}
                       style={styles.currentBadge}
                     >
-                      <Ionicons name="checkmark-circle" size={12} color="#FFFFFF" />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={12}
+                        color="#FFFFFF"
+                      />
                       <Text
                         style={[
                           styles.currentBadgeText,
-                          { color: '#FFFFFF', fontSize: getFontSize('xs') },
+                          { color: "#FFFFFF", fontSize: getFontSize("xs") },
                         ]}
                       >
-                        {getLocalizedText('security.currentDevice')}
+                        {getLocalizedText("security.currentDevice")}
                       </Text>
                     </LinearGradient>
                   )}
@@ -412,14 +442,22 @@ export const SecurityKeysScreen: React.FC = () => {
                   <Text
                     style={[
                       styles.deviceMeta,
-                      { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                      {
+                        color: themeColors.text.secondary,
+                        fontSize: getFontSize("sm"),
+                      },
                     ]}
                   >
                     {device.lastActive}
                   </Text>
                   {device.location && (
                     <>
-                      <Text style={[styles.deviceMetaSeparator, { color: themeColors.text.tertiary }]}>
+                      <Text
+                        style={[
+                          styles.deviceMetaSeparator,
+                          { color: themeColors.text.tertiary },
+                        ]}
+                      >
                         •
                       </Text>
                       <Ionicons
@@ -430,7 +468,10 @@ export const SecurityKeysScreen: React.FC = () => {
                       <Text
                         style={[
                           styles.deviceMeta,
-                          { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                          {
+                            color: themeColors.text.secondary,
+                            fontSize: getFontSize("sm"),
+                          },
                         ]}
                       >
                         {device.location}
@@ -446,12 +487,16 @@ export const SecurityKeysScreen: React.FC = () => {
                 style={[
                   styles.disconnectButton,
                   {
-                    backgroundColor: themeColors.text.tertiary + '20',
+                    backgroundColor: themeColors.text.tertiary + "20",
                   },
                 ]}
                 activeOpacity={0.7}
               >
-                <Ionicons name="log-out-outline" size={20} color={themeColors.text.secondary} />
+                <Ionicons
+                  name="log-out-outline"
+                  size={20}
+                  color={themeColors.text.secondary}
+                />
               </TouchableOpacity>
             )}
           </View>
@@ -460,15 +505,15 @@ export const SecurityKeysScreen: React.FC = () => {
               style={[
                 styles.securityCodeButton,
                 {
-                  borderColor: accentColor + '40',
-                  backgroundColor: accentColor + '08',
+                  borderColor: accentColor + "40",
+                  backgroundColor: accentColor + "08",
                 },
               ]}
               onPress={() => handleShowSecurityCode(device)}
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={[accentColor + '20', accentColor + '10']}
+                colors={[accentColor + "20", accentColor + "10"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.securityCodeButtonGradient}
@@ -477,10 +522,10 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.securityCodeText,
-                    { color: accentColor, fontSize: getFontSize('sm') },
+                    { color: accentColor, fontSize: getFontSize("sm") },
                   ]}
                 >
-                  {getLocalizedText('security.viewSecurityCode')}
+                  {getLocalizedText("security.viewSecurityCode")}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -490,7 +535,13 @@ export const SecurityKeysScreen: React.FC = () => {
     );
   };
 
-  const SecurityKeyCard = ({ securityKey, index }: { securityKey: SecurityKey; index: number }) => {
+  const SecurityKeyCard = ({
+    securityKey,
+    index,
+  }: {
+    securityKey: SecurityKey;
+    index: number;
+  }) => {
     const cardScale = useRef(new Animated.Value(1)).current;
     const cardOpacity = useRef(new Animated.Value(0)).current;
 
@@ -528,12 +579,14 @@ export const SecurityKeysScreen: React.FC = () => {
             {
               backgroundColor: themeColors.background.secondary,
               borderLeftWidth: 4,
-              borderLeftColor: securityKey.verified ? accentColor : themeColors.warning,
+              borderLeftColor: securityKey.verified
+                ? accentColor
+                : themeColors.warning,
               borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+              borderBottomColor: "rgba(255, 255, 255, 0.1)",
               ...Platform.select({
                 ios: {
-                  shadowColor: '#000',
+                  shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
@@ -550,7 +603,9 @@ export const SecurityKeysScreen: React.FC = () => {
               style={[
                 styles.keyIconContainer,
                 {
-                  backgroundColor: (securityKey.verified ? accentColor : themeColors.warning) + '20',
+                  backgroundColor:
+                    (securityKey.verified ? accentColor : themeColors.warning) +
+                    "20",
                 },
               ]}
             >
@@ -565,7 +620,10 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.keyDeviceName,
-                    { color: themeColors.text.primary, fontSize: getFontSize('base') },
+                    {
+                      color: themeColors.text.primary,
+                      fontSize: getFontSize("base"),
+                    },
                   ]}
                 >
                   {securityKey.deviceName}
@@ -583,28 +641,45 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.keyFingerprint,
-                    { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
                   ]}
                 >
                   {securityKey.fingerprint}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => handleCopySecurityCode(securityKey.fingerprint)}
+                  onPress={() =>
+                    handleCopySecurityCode(securityKey.fingerprint)
+                  }
                   style={styles.copyFingerprintButton}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="copy-outline" size={16} color={themeColors.text.tertiary} />
+                  <Ionicons
+                    name="copy-outline"
+                    size={16}
+                    color={themeColors.text.tertiary}
+                  />
                 </TouchableOpacity>
               </View>
               <View style={styles.keyDateRow}>
-                <Ionicons name="calendar-outline" size={12} color={themeColors.text.tertiary} />
+                <Ionicons
+                  name="calendar-outline"
+                  size={12}
+                  color={themeColors.text.tertiary}
+                />
                 <Text
                   style={[
                     styles.keyDate,
-                    { color: themeColors.text.tertiary, fontSize: getFontSize('xs') },
+                    {
+                      color: themeColors.text.tertiary,
+                      fontSize: getFontSize("xs"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('security.createdOn')} {formatDate(securityKey.createdAt)}
+                  {getLocalizedText("security.createdOn")}{" "}
+                  {formatDate(securityKey.createdAt)}
                 </Text>
               </View>
             </View>
@@ -640,24 +715,31 @@ export const SecurityKeysScreen: React.FC = () => {
               style={[
                 styles.backButton,
                 {
-                  backgroundColor: themeColors.background.secondary + '80',
+                  backgroundColor: themeColors.background.secondary + "80",
                 },
               ]}
               onPress={() => {
-                triggerHaptic('light');
+                triggerHaptic("light");
                 navigation.goBack();
               }}
               activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={22} color={themeColors.text.primary} />
+              <Ionicons
+                name="arrow-back"
+                size={22}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
             <Text
               style={[
                 styles.title,
-                { color: themeColors.text.primary, fontSize: getFontSize('xxxl') },
+                {
+                  color: themeColors.text.primary,
+                  fontSize: getFontSize("xxxl"),
+                },
               ]}
             >
-              {getLocalizedText('security.title')}
+              {getLocalizedText("security.title")}
             </Text>
           </View>
 
@@ -666,58 +748,71 @@ export const SecurityKeysScreen: React.FC = () => {
               styles.infoBanner,
               {
                 backgroundColor: themeColors.background.secondary,
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderColor: "rgba(255, 255, 255, 0.1)",
               },
             ]}
           >
             <View
               style={[
                 styles.infoIconContainer,
-                { backgroundColor: accentColor + '20' },
+                { backgroundColor: accentColor + "20" },
               ]}
             >
-              <Ionicons name="information-circle" size={22} color={accentColor} />
+              <Ionicons
+                name="information-circle"
+                size={22}
+                color={accentColor}
+              />
             </View>
             <Text
               style={[
                 styles.infoText,
-                { color: themeColors.text.primary, fontSize: getFontSize('sm') },
+                {
+                  color: themeColors.text.primary,
+                  fontSize: getFontSize("sm"),
+                },
               ]}
             >
-              {getLocalizedText('security.infoMessage')}
+              {getLocalizedText("security.infoMessage")}
             </Text>
           </View>
 
           <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View
-              style={[
-                styles.sectionIconContainer,
-                { backgroundColor: accentColor + '20' },
-              ]}
-            >
-              <Ionicons
-                name="phone-portrait-outline"
-                size={20}
-                color={accentColor}
-              />
-            </View>
+            <View style={styles.sectionHeader}>
+              <View
+                style={[
+                  styles.sectionIconContainer,
+                  { backgroundColor: accentColor + "20" },
+                ]}
+              >
+                <Ionicons
+                  name="phone-portrait-outline"
+                  size={20}
+                  color={accentColor}
+                />
+              </View>
               <View style={styles.sectionTitleContainer}>
                 <Text
                   style={[
                     styles.sectionTitle,
-                    { color: themeColors.text.primary, fontSize: getFontSize('lg') },
+                    {
+                      color: themeColors.text.primary,
+                      fontSize: getFontSize("lg"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('security.connectedDevices')}
+                  {getLocalizedText("security.connectedDevices")}
                 </Text>
                 <Text
                   style={[
                     styles.sectionSubtitle,
-                    { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('security.connectedDevicesSubtitle')}
+                  {getLocalizedText("security.connectedDevicesSubtitle")}
                 </Text>
               </View>
             </View>
@@ -727,49 +822,51 @@ export const SecurityKeysScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View
-              style={[
-                styles.sectionIconContainer,
-                { backgroundColor: accentColor + '20' },
-              ]}
-            >
-              <Ionicons
-                name="key"
-                size={20}
-                color={accentColor}
-              />
-            </View>
+            <View style={styles.sectionHeader}>
+              <View
+                style={[
+                  styles.sectionIconContainer,
+                  { backgroundColor: accentColor + "20" },
+                ]}
+              >
+                <Ionicons name="key" size={20} color={accentColor} />
+              </View>
               <View style={styles.sectionTitleContainer}>
                 <Text
                   style={[
                     styles.sectionTitle,
-                    { color: themeColors.text.primary, fontSize: getFontSize('lg') },
+                    {
+                      color: themeColors.text.primary,
+                      fontSize: getFontSize("lg"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('security.securityKeys')}
+                  {getLocalizedText("security.securityKeys")}
                 </Text>
                 <Text
                   style={[
                     styles.sectionSubtitle,
-                    { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('security.securityKeysSubtitle')}
+                  {getLocalizedText("security.securityKeysSubtitle")}
                 </Text>
               </View>
             </View>
             {!showSecurityKeys ? (
               <TouchableOpacity
                 onPress={() => {
-                  triggerHaptic('light');
+                  triggerHaptic("light");
                   setShowSecurityKeys(true);
                 }}
                 style={[
                   styles.showKeysButton,
                   {
-                    backgroundColor: accentColor + '15',
-                    borderColor: accentColor + '40',
+                    backgroundColor: accentColor + "15",
+                    borderColor: accentColor + "40",
                   },
                 ]}
                 activeOpacity={0.8}
@@ -778,40 +875,51 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.showKeysButtonText,
-                    { color: accentColor, fontSize: getFontSize('base') },
+                    { color: accentColor, fontSize: getFontSize("base") },
                   ]}
                 >
-                  {getLocalizedText('security.showSecurityKeys')}
+                  {getLocalizedText("security.showSecurityKeys")}
                 </Text>
               </TouchableOpacity>
             ) : (
               <>
                 <TouchableOpacity
                   onPress={() => {
-                    triggerHaptic('light');
+                    triggerHaptic("light");
                     setShowSecurityKeys(false);
                   }}
                   style={[
                     styles.hideKeysButton,
                     {
-                      backgroundColor: themeColors.text.tertiary + '15',
-                      borderColor: themeColors.text.tertiary + '30',
+                      backgroundColor: themeColors.text.tertiary + "15",
+                      borderColor: themeColors.text.tertiary + "30",
                     },
                   ]}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="eye-off-outline" size={18} color={themeColors.text.secondary} />
+                  <Ionicons
+                    name="eye-off-outline"
+                    size={18}
+                    color={themeColors.text.secondary}
+                  />
                   <Text
                     style={[
                       styles.hideKeysButtonText,
-                      { color: themeColors.text.secondary, fontSize: getFontSize('base') },
+                      {
+                        color: themeColors.text.secondary,
+                        fontSize: getFontSize("base"),
+                      },
                     ]}
                   >
-                    {getLocalizedText('security.hideSecurityKeys')}
+                    {getLocalizedText("security.hideSecurityKeys")}
                   </Text>
                 </TouchableOpacity>
                 {securityKeys.map((securityKey, index) => (
-                  <SecurityKeyCard key={securityKey.id} securityKey={securityKey} index={index} />
+                  <SecurityKeyCard
+                    key={securityKey.id}
+                    securityKey={securityKey}
+                    index={index}
+                  />
                 ))}
               </>
             )}
@@ -824,7 +932,7 @@ export const SecurityKeysScreen: React.FC = () => {
               style={styles.actionButtonContainer}
             >
               <LinearGradient
-                colors={[themeColors.primary, themeColors.primary + 'DD']}
+                colors={[themeColors.primary, themeColors.primary + "DD"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={[
@@ -846,10 +954,10 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.actionButtonText,
-                    { color: '#FFFFFF', fontSize: getFontSize('base') },
+                    { color: "#FFFFFF", fontSize: getFontSize("base") },
                   ]}
                 >
-                  {getLocalizedText('security.scanQRCode')}
+                  {getLocalizedText("security.scanQRCode")}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -884,7 +992,7 @@ export const SecurityKeysScreen: React.FC = () => {
                 transform: [{ scale: modalScale }],
                 ...Platform.select({
                   ios: {
-                    shadowColor: '#000',
+                    shadowColor: "#000",
                     shadowOffset: { width: 0, height: -4 },
                     shadowOpacity: 0.3,
                     shadowRadius: 20,
@@ -900,10 +1008,13 @@ export const SecurityKeysScreen: React.FC = () => {
               <Text
                 style={[
                   styles.modalTitle,
-                  { color: themeColors.text.primary, fontSize: getFontSize('xl') },
+                  {
+                    color: themeColors.text.primary,
+                    fontSize: getFontSize("xl"),
+                  },
                 ]}
               >
-                {getLocalizedText('security.securityCode')}
+                {getLocalizedText("security.securityCode")}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowSecurityCodeModal(false)}
@@ -913,14 +1024,21 @@ export const SecurityKeysScreen: React.FC = () => {
                 ]}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={20} color={themeColors.text.primary} />
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={themeColors.text.primary}
+                />
               </TouchableOpacity>
             </View>
 
             <Text
               style={[
                 styles.modalSubtitle,
-                { color: themeColors.text.secondary, fontSize: getFontSize('base') },
+                {
+                  color: themeColors.text.secondary,
+                  fontSize: getFontSize("base"),
+                },
               ]}
             >
               {selectedDevice?.name}
@@ -932,7 +1050,7 @@ export const SecurityKeysScreen: React.FC = () => {
                   styles.codeContainer,
                   {
                     backgroundColor: themeColors.background.secondary,
-                    borderColor: themeColors.primary + '30',
+                    borderColor: themeColors.primary + "30",
                     ...Platform.select({
                       ios: {
                         shadowColor: themeColors.primary,
@@ -950,16 +1068,21 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.codeText,
-                    { color: themeColors.text.primary, fontSize: getFontSize('lg') },
+                    {
+                      color: themeColors.text.primary,
+                      fontSize: getFontSize("lg"),
+                    },
                   ]}
                 >
                   {selectedDevice.securityCode}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => handleCopySecurityCode(selectedDevice.securityCode!)}
+                  onPress={() =>
+                    handleCopySecurityCode(selectedDevice.securityCode!)
+                  }
                   style={[
                     styles.copyButton,
-                    { backgroundColor: themeColors.primary + '20' },
+                    { backgroundColor: themeColors.primary + "20" },
                   ]}
                   activeOpacity={0.7}
                 >
@@ -971,10 +1094,13 @@ export const SecurityKeysScreen: React.FC = () => {
             <Text
               style={[
                 styles.verifyLabel,
-                { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                {
+                  color: themeColors.text.secondary,
+                  fontSize: getFontSize("sm"),
+                },
               ]}
             >
-              {getLocalizedText('security.verifyCode')}
+              {getLocalizedText("security.verifyCode")}
             </Text>
             <TextInput
               style={[
@@ -982,13 +1108,13 @@ export const SecurityKeysScreen: React.FC = () => {
                 {
                   backgroundColor: themeColors.background.secondary,
                   color: themeColors.text.primary,
-                  borderColor: themeColors.primary + '40',
-                  fontSize: getFontSize('base'),
+                  borderColor: themeColors.primary + "40",
+                  fontSize: getFontSize("base"),
                 },
               ]}
               value={verificationCode}
               onChangeText={setVerificationCode}
-              placeholder={getLocalizedText('security.enterCode')}
+              placeholder={getLocalizedText("security.enterCode")}
               placeholderTextColor={themeColors.text.tertiary}
               maxLength={6}
               keyboardType="default"
@@ -1001,7 +1127,7 @@ export const SecurityKeysScreen: React.FC = () => {
               style={styles.verifyButtonContainer}
             >
               <LinearGradient
-                colors={[themeColors.primary, themeColors.primary + 'DD']}
+                colors={[themeColors.primary, themeColors.primary + "DD"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={[
@@ -1022,10 +1148,10 @@ export const SecurityKeysScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.verifyButtonText,
-                    { color: '#FFFFFF', fontSize: getFontSize('base') },
+                    { color: "#FFFFFF", fontSize: getFontSize("base") },
                   ]}
                 >
-                  {getLocalizedText('security.verify')}
+                  {getLocalizedText("security.verify")}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -1058,8 +1184,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 24,
@@ -1068,12 +1194,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -1084,24 +1210,24 @@ const styles = StyleSheet.create({
     }),
   },
   title: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     marginHorizontal: 20,
     marginBottom: 32,
     borderRadius: 12,
     borderWidth: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   infoIconContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   infoText: {
@@ -1113,23 +1239,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   sectionIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   sectionTitleContainer: {
     flex: 1,
   },
   sectionTitle: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   sectionSubtitle: {
@@ -1139,54 +1265,54 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   deviceCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
   deviceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   deviceIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   deviceDetails: {
     flex: 1,
   },
   deviceNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   deviceName: {
-    fontWeight: '500',
+    fontWeight: "500",
     marginRight: 8,
   },
   currentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     gap: 4,
   },
   currentBadgeText: {
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.2,
   },
   deviceMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   deviceMeta: {
@@ -1199,8 +1325,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 12,
     marginTop: 2,
   },
@@ -1208,63 +1334,63 @@ const styles = StyleSheet.create({
     marginTop: 16,
     borderRadius: 12,
     borderWidth: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   securityCodeButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 8,
   },
   securityCodeText: {
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.2,
   },
   keyCard: {
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   keyHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   keyIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   keyInfo: {
     flex: 1,
   },
   keyDeviceNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   keyDeviceName: {
-    fontWeight: '500',
+    fontWeight: "500",
   },
   verifiedIcon: {
     marginLeft: 8,
   },
   fingerprintContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderRadius: 8,
   },
   keyFingerprint: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     flex: 1,
     letterSpacing: 1,
   },
@@ -1273,8 +1399,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   keyDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   keyDate: {
@@ -1287,68 +1413,68 @@ const styles = StyleSheet.create({
   },
   actionButtonContainer: {
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 18,
     paddingHorizontal: 24,
     gap: 10,
   },
   actionButtonText: {
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
   },
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    maxHeight: '85%',
+    maxHeight: "85%",
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   modalTitle: {
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.3,
   },
   modalCloseButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalSubtitle: {
     marginBottom: 24,
-    textAlign: 'center',
-    fontWeight: '500',
+    textAlign: "center",
+    fontWeight: "500",
   },
   codeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 20,
     borderRadius: 16,
     marginBottom: 24,
     borderWidth: 1,
   },
   codeText: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    fontWeight: '600',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontWeight: "600",
     flex: 1,
     letterSpacing: 2,
   },
@@ -1356,42 +1482,42 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 12,
   },
   verifyLabel: {
     marginBottom: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   codeInput: {
     padding: 18,
     borderRadius: 16,
     borderWidth: 2,
     marginBottom: 24,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    textAlign: 'center',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    textAlign: "center",
     letterSpacing: 3,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   verifyButtonContainer: {
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   verifyButton: {
     paddingVertical: 18,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   verifyButtonText: {
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
   showKeysButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -1400,13 +1526,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   showKeysButtonText: {
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.2,
   },
   hideKeysButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1415,7 +1541,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   hideKeysButtonText: {
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: 0.2,
   },
 });
