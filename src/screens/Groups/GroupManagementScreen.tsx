@@ -3,7 +3,7 @@
  * WHISPR-213: Gestion de groupe (ajout/suppression membres, transfert admin, modification infos)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -18,14 +18,14 @@ import {
   Modal,
   FlatList,
   Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { StackScreenProps } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { StackScreenProps } from "@react-navigation/stack";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -36,22 +36,30 @@ import Animated, {
   FadeInDown,
   SlideInRight,
   SlideOutRight,
-} from 'react-native-reanimated';
-import { useTheme } from '../../context/ThemeContext';
-import { colors, withOpacity } from '../../theme/colors';
-import { typography } from '../../theme/typography';
-import { Avatar } from '../../components/Chat/Avatar';
-import { logger } from '../../utils/logger';
-import { groupsAPI, GroupDetails, GroupMember } from '../../services/groups/api';
-import { contactsAPI, Contact } from '../../services/contacts/api';
-import { AuthStackParamList } from '../../navigation/AuthNavigator';
+} from "react-native-reanimated";
+import { useTheme } from "../../context/ThemeContext";
+import { colors, withOpacity } from "../../theme/colors";
+import { typography } from "../../theme/typography";
+import { Avatar } from "../../components/Chat/Avatar";
+import { logger } from "../../utils/logger";
+import {
+  groupsAPI,
+  GroupDetails,
+  GroupMember,
+} from "../../services/groups/api";
+import { contactsAPI, Contact } from "../../services/contacts/api";
+import { AuthStackParamList } from "../../navigation/AuthNavigator";
 
-const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
 const AnimatedView = Animated.createAnimatedComponent(View);
 
-type GroupManagementScreenRouteProp = StackScreenProps<AuthStackParamList, 'GroupManagement'>['route'];
+type GroupManagementScreenRouteProp = StackScreenProps<
+  AuthStackParamList,
+  "GroupManagement"
+>["route"];
 
-const CURRENT_USER_ID = 'user-1';
+const CURRENT_USER_ID = "user-1";
 
 export const GroupManagementScreen: React.FC = () => {
   const route = useRoute<GroupManagementScreenRouteProp>();
@@ -64,15 +72,17 @@ export const GroupManagementScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(
+    new Set(),
+  );
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [addingMembers, setAddingMembers] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -96,10 +106,10 @@ export const GroupManagementScreen: React.FC = () => {
       setGroupDetails(details);
       setMembers(membersData.members);
       setNewName(details.name);
-      setNewDescription(details.description || '');
+      setNewDescription(details.description || "");
     } catch (error) {
-      logger.error('GroupManagementScreen', 'Error loading group data', error);
-      Alert.alert('Erreur', 'Impossible de charger les informations du groupe');
+      logger.error("GroupManagementScreen", "Error loading group data", error);
+      Alert.alert("Erreur", "Impossible de charger les informations du groupe");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -116,7 +126,8 @@ export const GroupManagementScreen: React.FC = () => {
     loadGroupData();
   }, [loadGroupData]);
 
-  const isAdmin = members.find(m => m.user_id === CURRENT_USER_ID)?.role === 'admin';
+  const isAdmin =
+    members.find((m) => m.user_id === CURRENT_USER_ID)?.role === "admin";
 
   const handleEditName = useCallback(() => {
     if (!isAdmin) return;
@@ -126,17 +137,19 @@ export const GroupManagementScreen: React.FC = () => {
 
   const handleSaveName = useCallback(async () => {
     if (!newName.trim() || !isAdmin) return;
-    
+
     try {
       setSaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const updated = await groupsAPI.updateGroup(groupId, { name: newName.trim() });
+      const updated = await groupsAPI.updateGroup(groupId, {
+        name: newName.trim(),
+      });
       setGroupDetails(updated);
       setEditingName(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      logger.error('GroupManagementScreen', 'Error updating group name', error);
-      Alert.alert('Erreur', 'Impossible de modifier le nom du groupe');
+      logger.error("GroupManagementScreen", "Error updating group name", error);
+      Alert.alert("Erreur", "Impossible de modifier le nom du groupe");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSaving(false);
@@ -151,17 +164,23 @@ export const GroupManagementScreen: React.FC = () => {
 
   const handleSaveDescription = useCallback(async () => {
     if (!isAdmin) return;
-    
+
     try {
       setSaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const updated = await groupsAPI.updateGroup(groupId, { description: newDescription.trim() || undefined });
+      const updated = await groupsAPI.updateGroup(groupId, {
+        description: newDescription.trim() || undefined,
+      });
       setGroupDetails(updated);
       setEditingDescription(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      logger.error('GroupManagementScreen', 'Error updating group description', error);
-      Alert.alert('Erreur', 'Impossible de modifier la description du groupe');
+      logger.error(
+        "GroupManagementScreen",
+        "Error updating group description",
+        error,
+      );
+      Alert.alert("Erreur", "Impossible de modifier la description du groupe");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSaving(false);
@@ -172,24 +191,28 @@ export const GroupManagementScreen: React.FC = () => {
     if (!isAdmin) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     Alert.alert(
-      'Changer la photo',
-      'Choisissez une option',
+      "Changer la photo",
+      "Choisissez une option",
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: "Annuler", style: "cancel" },
         {
-          text: 'Galerie',
+          text: "Galerie",
           onPress: async () => {
             try {
-              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== 'granted') {
-                Alert.alert('Permission requise', 'L\'accès à la galerie est nécessaire');
+              const { status } =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert(
+                  "Permission requise",
+                  "L'accès à la galerie est nécessaire",
+                );
                 return;
               }
 
               const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: 'images',
+                mediaTypes: "images",
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.8,
@@ -198,13 +221,21 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(groupId, { picture_url: result.assets[0].uri });
+                const updated = await groupsAPI.updateGroup(groupId, {
+                  picture_url: result.assets[0].uri,
+                });
                 setGroupDetails(updated);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
               }
             } catch (error) {
-              logger.error('GroupManagementScreen', 'Error selecting photo', error);
-              Alert.alert('Erreur', 'Impossible de sélectionner la photo');
+              logger.error(
+                "GroupManagementScreen",
+                "Error selecting photo",
+                error,
+              );
+              Alert.alert("Erreur", "Impossible de sélectionner la photo");
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
               setSaving(false);
@@ -212,12 +243,16 @@ export const GroupManagementScreen: React.FC = () => {
           },
         },
         {
-          text: 'Appareil photo',
+          text: "Appareil photo",
           onPress: async () => {
             try {
-              const { status } = await ImagePicker.requestCameraPermissionsAsync();
-              if (status !== 'granted') {
-                Alert.alert('Permission requise', 'L\'accès à l\'appareil photo est nécessaire');
+              const { status } =
+                await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert(
+                  "Permission requise",
+                  "L'accès à l'appareil photo est nécessaire",
+                );
                 return;
               }
 
@@ -230,13 +265,21 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(groupId, { picture_url: result.assets[0].uri });
+                const updated = await groupsAPI.updateGroup(groupId, {
+                  picture_url: result.assets[0].uri,
+                });
                 setGroupDetails(updated);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
               }
             } catch (error) {
-              logger.error('GroupManagementScreen', 'Error taking photo', error);
-              Alert.alert('Erreur', 'Impossible de prendre la photo');
+              logger.error(
+                "GroupManagementScreen",
+                "Error taking photo",
+                error,
+              );
+              Alert.alert("Erreur", "Impossible de prendre la photo");
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
               setSaving(false);
@@ -244,80 +287,112 @@ export const GroupManagementScreen: React.FC = () => {
           },
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   }, [groupId, isAdmin]);
 
-  const handleRemoveMember = useCallback((member: GroupMember) => {
-    if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
+  const handleRemoveMember = useCallback(
+    (member: GroupMember) => {
+      if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    Alert.alert(
-      'Retirer le membre',
-      `Êtes-vous sûr de vouloir retirer ${member.display_name} du groupe ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Retirer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              await groupsAPI.removeMember(groupId, member.id);
-              await loadGroupData();
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (error) {
-              logger.error('GroupManagementScreen', 'Error removing member', error);
-              Alert.alert('Erreur', 'Impossible de retirer le membre');
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            } finally {
-              setSaving(false);
-            }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      Alert.alert(
+        "Retirer le membre",
+        `Êtes-vous sûr de vouloir retirer ${member.display_name} du groupe ?`,
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Retirer",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setSaving(true);
+                await groupsAPI.removeMember(groupId, member.id);
+                await loadGroupData();
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+              } catch (error) {
+                logger.error(
+                  "GroupManagementScreen",
+                  "Error removing member",
+                  error,
+                );
+                Alert.alert("Erreur", "Impossible de retirer le membre");
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Error,
+                );
+              } finally {
+                setSaving(false);
+              }
+            },
           },
-        },
-      ]
-    );
-  }, [groupId, isAdmin, loadGroupData]);
+        ],
+      );
+    },
+    [groupId, isAdmin, loadGroupData],
+  );
 
-  const handleTransferAdmin = useCallback((member: GroupMember) => {
-    // Permettre le transfert même si le membre est déjà admin (pour récupérer les droits)
-    if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
+  const handleTransferAdmin = useCallback(
+    (member: GroupMember) => {
+      // Permettre le transfert même si le membre est déjà admin (pour récupérer les droits)
+      if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    const isTransferringToAdmin = member.role === 'admin';
-    const message = isTransferringToAdmin
-      ? `Voulez-vous récupérer les droits d'administration depuis ${member.display_name} ?`
-      : `Voulez-vous transférer les droits d'administration à ${member.display_name} ? Vous deviendrez membre du groupe.`;
-    
-    Alert.alert(
-      isTransferringToAdmin ? 'Récupérer l\'administration' : 'Transférer l\'administration',
-      message,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: isTransferringToAdmin ? 'Récupérer' : 'Transférer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              await groupsAPI.transferAdmin(groupId, member.user_id);
-              await loadGroupData();
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Succès', isTransferringToAdmin ? 'Vous avez récupéré les droits d\'administration' : 'L\'administration a été transférée avec succès');
-            } catch (error) {
-              logger.error('GroupManagementScreen', 'Error transferring admin', error);
-              Alert.alert('Erreur', 'Impossible de transférer l\'administration');
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            } finally {
-              setSaving(false);
-            }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const isTransferringToAdmin = member.role === "admin";
+      const message = isTransferringToAdmin
+        ? `Voulez-vous récupérer les droits d'administration depuis ${member.display_name} ?`
+        : `Voulez-vous transférer les droits d'administration à ${member.display_name} ? Vous deviendrez membre du groupe.`;
+
+      Alert.alert(
+        isTransferringToAdmin
+          ? "Récupérer l'administration"
+          : "Transférer l'administration",
+        message,
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: isTransferringToAdmin ? "Récupérer" : "Transférer",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setSaving(true);
+                await groupsAPI.transferAdmin(groupId, member.user_id);
+                await loadGroupData();
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+                Alert.alert(
+                  "Succès",
+                  isTransferringToAdmin
+                    ? "Vous avez récupéré les droits d'administration"
+                    : "L'administration a été transférée avec succès",
+                );
+              } catch (error) {
+                logger.error(
+                  "GroupManagementScreen",
+                  "Error transferring admin",
+                  error,
+                );
+                Alert.alert(
+                  "Erreur",
+                  "Impossible de transférer l'administration",
+                );
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Error,
+                );
+              } finally {
+                setSaving(false);
+              }
+            },
           },
-        },
-      ]
-    );
-  }, [groupId, isAdmin, loadGroupData]);
+        ],
+      );
+    },
+    [groupId, isAdmin, loadGroupData],
+  );
 
   const handleAddMembers = useCallback(() => {
     if (!isAdmin) return;
@@ -330,36 +405,42 @@ export const GroupManagementScreen: React.FC = () => {
     try {
       setLoadingContacts(true);
       const result = await contactsAPI.getContacts();
-      const memberUserIds = new Set(members.map(m => m.user_id));
-      const available = result.contacts.filter(c => {
+      const memberUserIds = new Set(members.map((m) => m.user_id));
+      const available = result.contacts.filter((c) => {
         const userId = c.contact_user?.id;
         return userId && !memberUserIds.has(userId);
       });
       setAvailableContacts(available);
     } catch (error) {
-      logger.error('GroupManagementScreen', 'Error loading contacts', error);
-      Alert.alert('Erreur', 'Impossible de charger les contacts');
+      logger.error("GroupManagementScreen", "Error loading contacts", error);
+      Alert.alert("Erreur", "Impossible de charger les contacts");
     } finally {
       setLoadingContacts(false);
     }
   }, [members]);
 
-  const toggleContactSelection = useCallback((contactId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedContacts(prev => {
-      const next = new Set(prev);
-      if (next.has(contactId)) {
-        next.delete(contactId);
-      } else {
-        if (members.length + next.size >= 50) {
-          Alert.alert('Limite atteinte', 'Un groupe ne peut pas contenir plus de 50 membres');
-          return prev;
+  const toggleContactSelection = useCallback(
+    (contactId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedContacts((prev) => {
+        const next = new Set(prev);
+        if (next.has(contactId)) {
+          next.delete(contactId);
+        } else {
+          if (members.length + next.size >= 50) {
+            Alert.alert(
+              "Limite atteinte",
+              "Un groupe ne peut pas contenir plus de 50 membres",
+            );
+            return prev;
+          }
+          next.add(contactId);
         }
-        next.add(contactId);
-      }
-      return next;
-    });
-  }, [members.length]);
+        return next;
+      });
+    },
+    [members.length],
+  );
 
   const handleConfirmAddMembers = useCallback(async () => {
     if (selectedContacts.size === 0) {
@@ -370,24 +451,31 @@ export const GroupManagementScreen: React.FC = () => {
     try {
       setAddingMembers(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
-      const userIds = Array.from(selectedContacts).map(contactId => {
-        const contact = availableContacts.find(c => c.id === contactId);
-        return contact?.contact_user?.id;
-      }).filter(Boolean) as string[];
+
+      const userIds = Array.from(selectedContacts)
+        .map((contactId) => {
+          const contact = availableContacts.find((c) => c.id === contactId);
+          return contact?.contact_user?.id;
+        })
+        .filter(Boolean) as string[];
 
       if (userIds.length === 0) {
-        Alert.alert('Erreur', 'Aucun contact valide sélectionné');
+        Alert.alert("Erreur", "Aucun contact valide sélectionné");
         return;
       }
 
-      const memberInfo = userIds.map(userId => {
-        const contact = availableContacts.find(c => c.contact_user?.id === userId);
+      const memberInfo = userIds.map((userId) => {
+        const contact = availableContacts.find(
+          (c) => c.contact_user?.id === userId,
+        );
         return {
           userId,
-          displayName: contact?.nickname || contact?.contact_user?.first_name || `User ${userId}`,
+          displayName:
+            contact?.nickname ||
+            contact?.contact_user?.first_name ||
+            `User ${userId}`,
           username: contact?.contact_user?.username,
-          avatarUrl: contact?.contact_user?.profile_picture,
+          avatarUrl: contact?.contact_user?.avatar_url,
         };
       });
 
@@ -397,8 +485,8 @@ export const GroupManagementScreen: React.FC = () => {
       setShowAddMembersModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      logger.error('GroupManagementScreen', 'Error adding members', error);
-      Alert.alert('Erreur', 'Impossible d\'ajouter les membres');
+      logger.error("GroupManagementScreen", "Error adding members", error);
+      Alert.alert("Erreur", "Impossible d'ajouter les membres");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setAddingMembers(false);
@@ -407,17 +495,17 @@ export const GroupManagementScreen: React.FC = () => {
 
   const filteredContacts = React.useMemo(() => {
     if (!searchQuery.trim()) return availableContacts;
-    
+
     const query = searchQuery.toLowerCase();
-    return availableContacts.filter(contact => {
+    return availableContacts.filter((contact) => {
       const user = contact.contact_user;
       if (!user) return false;
-      
-      const nickname = contact.nickname?.toLowerCase() || '';
-      const firstName = user.first_name?.toLowerCase() || '';
-      const lastName = user.last_name?.toLowerCase() || '';
-      const username = user.username?.toLowerCase() || '';
-      
+
+      const nickname = contact.nickname?.toLowerCase() || "";
+      const firstName = user.first_name?.toLowerCase() || "";
+      const lastName = user.last_name?.toLowerCase() || "";
+      const username = user.username?.toLowerCase() || "";
+
       return (
         nickname.includes(query) ||
         firstName.includes(query) ||
@@ -437,7 +525,10 @@ export const GroupManagementScreen: React.FC = () => {
   }));
 
   const renderHeader = () => (
-    <Animated.View style={[styles.header, headerAnimatedStyle]} entering={FadeIn.duration(300)}>
+    <Animated.View
+      style={[styles.header, headerAnimatedStyle]}
+      entering={FadeIn.duration(300)}
+    >
       <TouchableOpacity
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -471,7 +562,10 @@ export const GroupManagementScreen: React.FC = () => {
             activeOpacity={0.7}
           >
             {groupDetails.picture_url ? (
-              <Image source={{ uri: groupDetails.picture_url }} style={styles.groupAvatar} />
+              <Image
+                source={{ uri: groupDetails.picture_url }}
+                style={styles.groupAvatar}
+              />
             ) : (
               <View style={[styles.groupAvatar, styles.groupAvatarPlaceholder]}>
                 <Ionicons name="people" size={40} color={colors.primary.main} />
@@ -502,9 +596,16 @@ export const GroupManagementScreen: React.FC = () => {
                   style={styles.saveButton}
                 >
                   {saving ? (
-                    <ActivityIndicator size="small" color={colors.primary.main} />
+                    <ActivityIndicator
+                      size="small"
+                      color={colors.primary.main}
+                    />
                   ) : (
-                    <Ionicons name="checkmark" size={20} color={colors.primary.main} />
+                    <Ionicons
+                      name="checkmark"
+                      size={20}
+                      color={colors.primary.main}
+                    />
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -514,7 +615,11 @@ export const GroupManagementScreen: React.FC = () => {
                   }}
                   style={styles.cancelButton}
                 >
-                  <Ionicons name="close" size={20} color={colors.text.secondary} />
+                  <Ionicons
+                    name="close"
+                    size={20}
+                    color={colors.text.secondary}
+                  />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -528,7 +633,12 @@ export const GroupManagementScreen: React.FC = () => {
                   {groupDetails.name}
                 </Text>
                 {isAdmin && (
-                  <Ionicons name="pencil" size={16} color={withOpacity(colors.text.light, 0.7)} style={styles.editIcon} />
+                  <Ionicons
+                    name="pencil"
+                    size={16}
+                    color={withOpacity(colors.text.light, 0.7)}
+                    style={styles.editIcon}
+                  />
                 )}
               </TouchableOpacity>
             )}
@@ -551,19 +661,30 @@ export const GroupManagementScreen: React.FC = () => {
                     style={styles.saveButton}
                   >
                     {saving ? (
-                      <ActivityIndicator size="small" color={colors.primary.main} />
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.primary.main}
+                      />
                     ) : (
-                      <Ionicons name="checkmark" size={20} color={colors.primary.main} />
+                      <Ionicons
+                        name="checkmark"
+                        size={20}
+                        color={colors.primary.main}
+                      />
                     )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
                       setEditingDescription(false);
-                      setNewDescription(groupDetails.description || '');
+                      setNewDescription(groupDetails.description || "");
                     }}
                     style={styles.cancelButton}
                   >
-                    <Ionicons name="close" size={20} color={colors.text.secondary} />
+                    <Ionicons
+                      name="close"
+                      size={20}
+                      color={colors.text.secondary}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -575,10 +696,15 @@ export const GroupManagementScreen: React.FC = () => {
                 activeOpacity={isAdmin ? 0.7 : 1}
               >
                 <Text style={styles.groupDescription} numberOfLines={2}>
-                  {groupDetails.description || 'Aucune description'}
+                  {groupDetails.description || "Aucune description"}
                 </Text>
                 {isAdmin && (
-                  <Ionicons name="pencil" size={14} color={withOpacity(colors.text.light, 0.7)} style={styles.editIcon} />
+                  <Ionicons
+                    name="pencil"
+                    size={14}
+                    color={withOpacity(colors.text.light, 0.7)}
+                    style={styles.editIcon}
+                  />
                 )}
               </TouchableOpacity>
             )}
@@ -589,9 +715,11 @@ export const GroupManagementScreen: React.FC = () => {
   };
 
   const renderMembers = () => {
-    const currentUserMember = members.find(m => m.user_id === CURRENT_USER_ID);
-    const otherMembers = members.filter(m => m.user_id !== CURRENT_USER_ID);
-    const hasOtherAdmins = otherMembers.some(m => m.role === 'admin');
+    const currentUserMember = members.find(
+      (m) => m.user_id === CURRENT_USER_ID,
+    );
+    const otherMembers = members.filter((m) => m.user_id !== CURRENT_USER_ID);
+    const hasOtherAdmins = otherMembers.some((m) => m.role === "admin");
 
     return (
       <AnimatedView
@@ -620,13 +748,18 @@ export const GroupManagementScreen: React.FC = () => {
         </View>
 
         {!isAdmin && hasOtherAdmins && (
-          <AnimatedView 
+          <AnimatedView
             style={styles.infoBanner}
             entering={FadeInDown.delay(250).duration(400)}
           >
-            <Ionicons name="information-circle-outline" size={20} color={colors.secondary.light} />
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={colors.secondary.light}
+            />
             <Text style={styles.infoBannerText}>
-              Pour récupérer les droits d'administration, demandez à un administrateur de vous les redonner.
+              Pour récupérer les droits d'administration, demandez à un
+              administrateur de vous les redonner.
             </Text>
           </AnimatedView>
         )}
@@ -635,23 +768,30 @@ export const GroupManagementScreen: React.FC = () => {
           <AnimatedView entering={SlideInRight.delay(100)}>
             <View style={styles.memberItem}>
               <Avatar
-                userId={currentUserMember.user_id}
-                displayName={currentUserMember.display_name}
-                avatarUrl={currentUserMember.avatar_url}
+                name={currentUserMember.display_name}
+                uri={currentUserMember.avatar_url}
                 size={50}
               />
               <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{currentUserMember.display_name}</Text>
+                <Text style={styles.memberName}>
+                  {currentUserMember.display_name}
+                </Text>
                 <View style={styles.memberRoleBadge}>
                   <Text style={styles.memberRoleText}>
-                    {currentUserMember.role === 'admin' ? 'Administrateur' : 'Membre'}
+                    {currentUserMember.role === "admin"
+                      ? "Administrateur"
+                      : "Membre"}
                   </Text>
                 </View>
               </View>
               <View style={styles.memberActions}>
-                {currentUserMember.role === 'admin' && (
+                {currentUserMember.role === "admin" && (
                   <View style={styles.adminBadge}>
-                    <Ionicons name="shield-checkmark" size={16} color={colors.primary.main} />
+                    <Ionicons
+                      name="shield-checkmark"
+                      size={16}
+                      color={colors.primary.main}
+                    />
                   </View>
                 )}
               </View>
@@ -660,19 +800,21 @@ export const GroupManagementScreen: React.FC = () => {
         )}
 
         {otherMembers.map((member, index) => (
-          <AnimatedView key={member.id} entering={SlideInRight.delay(150 + index * 50)}>
+          <AnimatedView
+            key={member.id}
+            entering={SlideInRight.delay(150 + index * 50)}
+          >
             <View style={styles.memberItem}>
               <Avatar
-                userId={member.user_id}
-                displayName={member.display_name}
-                avatarUrl={member.avatar_url}
+                name={member.display_name}
+                uri={member.avatar_url}
                 size={50}
               />
               <View style={styles.memberInfo}>
                 <Text style={styles.memberName}>{member.display_name}</Text>
                 <View style={styles.memberRoleBadge}>
                   <Text style={styles.memberRoleText}>
-                    {member.role === 'admin' ? 'Administrateur' : 'Membre'}
+                    {member.role === "admin" ? "Administrateur" : "Membre"}
                   </Text>
                 </View>
               </View>
@@ -683,19 +825,29 @@ export const GroupManagementScreen: React.FC = () => {
                     style={styles.actionButton}
                     activeOpacity={0.7}
                   >
-                    <Ionicons 
-                      name={member.role === 'admin' ? "shield" : "shield-outline"} 
-                      size={20} 
-                      color={member.role === 'admin' ? colors.primary.main : colors.secondary.main} 
+                    <Ionicons
+                      name={
+                        member.role === "admin" ? "shield" : "shield-outline"
+                      }
+                      size={20}
+                      color={
+                        member.role === "admin"
+                          ? colors.primary.main
+                          : colors.secondary.main
+                      }
                     />
                   </TouchableOpacity>
-                  {member.role !== 'admin' && (
+                  {member.role !== "admin" && (
                     <TouchableOpacity
                       onPress={() => handleRemoveMember(member)}
                       style={styles.actionButton}
                       activeOpacity={0.7}
                     >
-                      <Ionicons name="person-remove-outline" size={20} color={colors.ui.error} />
+                      <Ionicons
+                        name="person-remove-outline"
+                        size={20}
+                        color={colors.ui.error}
+                      />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -715,15 +867,15 @@ export const GroupManagementScreen: React.FC = () => {
       onRequestClose={() => {
         setShowAddMembersModal(false);
         setSelectedContacts(new Set());
-        setSearchQuery('');
+        setSearchQuery("");
       }}
     >
-      <SafeAreaView style={styles.modalContainer} edges={['top']}>
+      <SafeAreaView style={styles.modalContainer} edges={["top"]}>
         <LinearGradient
           colors={colors.background.gradient.app}
           style={StyleSheet.absoluteFillObject}
         />
-        <Animated.View 
+        <Animated.View
           style={styles.modalHeader}
           entering={FadeIn.duration(200)}
         >
@@ -732,7 +884,7 @@ export const GroupManagementScreen: React.FC = () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setShowAddMembersModal(false);
               setSelectedContacts(new Set());
-              setSearchQuery('');
+              setSearchQuery("");
             }}
             style={styles.modalCloseButton}
             activeOpacity={0.7}
@@ -740,7 +892,9 @@ export const GroupManagementScreen: React.FC = () => {
             <Ionicons name="close" size={28} color={colors.text.light} />
           </TouchableOpacity>
           <View style={styles.modalTitleContainer}>
-            <Text style={styles.modalTitle} numberOfLines={1}>Ajouter des membres</Text>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              Ajouter des membres
+            </Text>
           </View>
           <TouchableOpacity
             onPress={handleConfirmAddMembers}
@@ -751,7 +905,13 @@ export const GroupManagementScreen: React.FC = () => {
             {addingMembers ? (
               <ActivityIndicator size="small" color={colors.text.light} />
             ) : (
-              <Text style={[styles.modalConfirmText, selectedContacts.size === 0 && styles.modalConfirmTextDisabled]}>
+              <Text
+                style={[
+                  styles.modalConfirmText,
+                  selectedContacts.size === 0 &&
+                    styles.modalConfirmTextDisabled,
+                ]}
+              >
                 Ajouter ({selectedContacts.size})
               </Text>
             )}
@@ -759,7 +919,12 @@ export const GroupManagementScreen: React.FC = () => {
         </Animated.View>
 
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={withOpacity(colors.text.light, 0.7)} style={styles.searchIcon} />
+          <Ionicons
+            name="search"
+            size={20}
+            color={withOpacity(colors.text.light, 0.7)}
+            style={styles.searchIcon}
+          />
           <TextInput
             style={styles.searchInput}
             placeholder="Rechercher un contact..."
@@ -780,7 +945,8 @@ export const GroupManagementScreen: React.FC = () => {
             renderItem={({ item, index }) => {
               const isSelected = selectedContacts.has(item.id);
               const user = item.contact_user;
-              const displayName = item.nickname || user?.first_name || 'Contact';
+              const displayName =
+                item.nickname || user?.first_name || "Contact";
 
               return (
                 <TouchableOpacity
@@ -788,16 +954,13 @@ export const GroupManagementScreen: React.FC = () => {
                   onPress={() => toggleContactSelection(item.id)}
                   activeOpacity={0.7}
                 >
-                  <Avatar
-                    userId={user?.id || ''}
-                    displayName={displayName}
-                    avatarUrl={user?.profile_picture}
-                    size={50}
-                  />
+                  <Avatar name={displayName} uri={user?.avatar_url} size={50} />
                   <View style={styles.contactInfo}>
                     <Text style={styles.contactName}>{displayName}</Text>
                     {user?.username && (
-                      <Text style={styles.contactUsername}>@{user.username}</Text>
+                      <Text style={styles.contactUsername}>
+                        @{user.username}
+                      </Text>
                     )}
                   </View>
                   <View style={styles.contactCheckbox}>
@@ -806,7 +969,11 @@ export const GroupManagementScreen: React.FC = () => {
                         colors={[colors.primary.main, colors.secondary.main]}
                         style={styles.checkboxSelected}
                       >
-                        <Ionicons name="checkmark" size={16} color={colors.text.light} />
+                        <Ionicons
+                          name="checkmark"
+                          size={16}
+                          color={colors.text.light}
+                        />
                       </LinearGradient>
                     ) : (
                       <View style={styles.checkboxUnselected} />
@@ -817,7 +984,11 @@ export const GroupManagementScreen: React.FC = () => {
             }}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="people-outline" size={64} color={withOpacity(colors.text.light, 0.3)} />
+                <Ionicons
+                  name="people-outline"
+                  size={64}
+                  color={withOpacity(colors.text.light, 0.3)}
+                />
                 <Text style={styles.emptyText}>Aucun contact disponible</Text>
               </View>
             }
@@ -830,8 +1001,11 @@ export const GroupManagementScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <LinearGradient colors={colors.background.gradient.app} style={styles.container}>
-        <SafeAreaView style={styles.container} edges={['top']}>
+      <LinearGradient
+        colors={colors.background.gradient.app}
+        style={styles.container}
+      >
+        <SafeAreaView style={styles.container} edges={["top"]}>
           {renderHeader()}
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.main} />
@@ -842,8 +1016,11 @@ export const GroupManagementScreen: React.FC = () => {
   }
 
   return (
-    <LinearGradient colors={colors.background.gradient.app} style={styles.container}>
-      <SafeAreaView style={styles.container} edges={['top']}>
+    <LinearGradient
+      colors={colors.background.gradient.app}
+      style={styles.container}
+    >
+      <SafeAreaView style={styles.container} edges={["top"]}>
         {renderHeader()}
         <ScrollView
           style={styles.scrollView}
@@ -871,9 +1048,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     zIndex: 10,
@@ -883,14 +1060,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     marginHorizontal: 16,
   },
   headerRight: {
@@ -910,10 +1087,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   groupHeader: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   avatarContainer: {
-    position: 'relative',
+    position: "relative",
     marginBottom: 16,
   },
   groupAvatar: {
@@ -923,54 +1100,54 @@ const styles = StyleSheet.create({
     backgroundColor: withOpacity(colors.background.darkCard, 0.3),
   },
   groupAvatarPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   editPhotoBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     right: 0,
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: colors.primary.main,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 3,
     borderColor: colors.background.dark,
   },
   groupInfo: {
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   groupName: {
     fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
-    textAlign: 'center',
+    textAlign: "center",
   },
   editIcon: {
     marginLeft: 8,
   },
   descriptionContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    justifyContent: "center",
   },
   groupDescription: {
     fontSize: typography.fontSize.md,
     color: withOpacity(colors.text.light, 0.7),
-    textAlign: 'center',
+    textAlign: "center",
     flex: 1,
   },
   editContainer: {
-    width: '100%',
+    width: "100%",
     marginTop: 8,
   },
   editInput: {
@@ -984,11 +1161,11 @@ const styles = StyleSheet.create({
   },
   descriptionInput: {
     minHeight: 80,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   editActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     marginTop: 8,
     gap: 8,
   },
@@ -997,21 +1174,21 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: withOpacity(colors.primary.main, 0.2),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   cancelButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   sectionTitle: {
@@ -1021,11 +1198,11 @@ const styles = StyleSheet.create({
   },
   addButton: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   addButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
     gap: 6,
@@ -1036,8 +1213,8 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semiBold,
   },
   memberItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: withOpacity(colors.ui.divider, 0.1),
@@ -1053,7 +1230,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   memberRoleBadge: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     backgroundColor: withOpacity(colors.secondary.main, 0.2),
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -1065,39 +1242,39 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
   },
   memberActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   actionButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   adminBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: withOpacity(colors.primary.main, 0.2),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 64,
   },
   modalContainer: {
     flex: 1,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
     paddingTop: 20,
@@ -1108,28 +1285,28 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: withOpacity(colors.background.darkCard, 0.3),
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   modalTitleContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginHorizontal: 12,
   },
   modalTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalConfirmButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   modalConfirmText: {
@@ -1141,8 +1318,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: withOpacity(colors.background.darkCard, 0.2),
     borderRadius: 12,
     marginHorizontal: 16,
@@ -1163,8 +1340,8 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: withOpacity(colors.ui.divider, 0.1),
@@ -1191,8 +1368,8 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   checkboxUnselected: {
     width: 24,
@@ -1202,8 +1379,8 @@ const styles = StyleSheet.create({
     borderColor: withOpacity(colors.text.light, 0.3),
   },
   emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 64,
   },
   emptyText: {
@@ -1212,8 +1389,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     backgroundColor: withOpacity(colors.secondary.main, 0.15),
     borderRadius: 12,
     padding: 12,

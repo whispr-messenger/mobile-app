@@ -2,21 +2,32 @@
  * MessageBubble - Individual message display component
  */
 
-import React, { memo, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
-import Animated from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { MessageWithRelations } from '../../types/messaging';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { DeliveryStatus } from './DeliveryStatus';
-import { ReactionBar } from './ReactionBar';
-import { ReplyPreview } from './ReplyPreview';
-import { ReactionPicker } from './ReactionPicker';
-import { MediaMessage } from './MediaMessage';
-import { FormattedText } from '../../utils/textFormatter';
+import React, { memo, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Pressable,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import Animated from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import { MessageWithRelations } from "../../types/messaging";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { DeliveryStatus } from "./DeliveryStatus";
+import { ReactionBar } from "./ReactionBar";
+import { ReplyPreview } from "./ReplyPreview";
+import { ReactionPicker } from "./ReactionPicker";
+import { MediaMessage } from "./MediaMessage";
+import { FormattedText } from "../../utils/textFormatter";
 
 interface MessageBubbleProps {
   message: MessageWithRelations;
@@ -44,23 +55,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   // Safety check
-  if (!message || (!message.content && !message.is_deleted && (!message.attachments || message.attachments.length === 0))) {
+  if (
+    !message ||
+    (!message.content &&
+      !message.is_deleted &&
+      (!message.attachments || message.attachments.length === 0))
+  ) {
     return null;
   }
 
   // Check if message has media attachments
   const hasMedia = message.attachments && message.attachments.length > 0;
-  const firstAttachment = hasMedia && message.attachments ? message.attachments[0] : null;
+  const firstAttachment =
+    hasMedia && message.attachments ? message.attachments[0] : null;
 
   // For media messages, only show content if it's not the default placeholder text
-  const isDefaultMediaText = hasMedia && message.content && 
-    ['Photo', 'Vidéo', 'Fichier'].includes(message.content);
-  
-  const displayContent = message.is_deleted && message.delete_for_everyone
-    ? '[Message supprimé]'
-    : (hasMedia && isDefaultMediaText) 
-      ? '' // Don't show default text for media without caption
-      : message.content || '';
+  const isDefaultMediaText =
+    hasMedia &&
+    message.content &&
+    ["Photo", "Vidéo", "Fichier"].includes(message.content);
+
+  const displayContent =
+    message.is_deleted && message.delete_for_everyone
+      ? "[Message supprimé]"
+      : hasMedia && isDefaultMediaText
+        ? "" // Don't show default text for media without caption
+        : message.content || "";
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -88,7 +108,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       stiffness: 150,
     });
     opacity.value = withTiming(1, { duration: 300 });
-    
+
     if (isSent) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -103,7 +123,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     if (isSent) {
       return (
         <LinearGradient
-          colors={['#FFB07B', '#F86F71', '#F04882']}
+          colors={["#FFB07B", "#F86F71", "#F04882"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.sentBubble}
@@ -117,8 +137,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {hasMedia && firstAttachment && firstAttachment.metadata ? (
             <>
               <MediaMessage
-                uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
-                type={firstAttachment.media_type}
+                uri={
+                  firstAttachment.metadata.media_url ||
+                  firstAttachment.metadata.thumbnail_url ||
+                  ""
+                }
+                type={
+                  firstAttachment.media_type === "audio"
+                    ? "file"
+                    : firstAttachment.media_type
+                }
                 filename={firstAttachment.metadata.filename}
                 size={firstAttachment.metadata.size}
                 thumbnailUri={firstAttachment.metadata.thumbnail_url}
@@ -127,40 +155,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ) : null}
           {displayContent ? (
             message.is_deleted && message.delete_for_everyone ? (
-              <Text
-                style={[
-                  styles.sentText,
-                  styles.deletedText,
-                ]}
-              >
+              <Text style={[styles.sentText, styles.deletedText]}>
                 {displayContent}
               </Text>
             ) : (
               <FormattedText
                 text={displayContent}
-                style={[
-                  styles.sentText,
-                  { color: colors.text.light },
-                ]}
+                style={[styles.sentText, { color: colors.text.light }]}
                 boldStyle={{ color: colors.text.light }}
                 italicStyle={{ color: colors.text.light }}
-                codeStyle={{ 
+                codeStyle={{
                   color: colors.text.light,
-                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  backgroundColor: "rgba(0, 0, 0, 0.2)",
                 }}
               />
             )
           ) : null}
           <View style={styles.footer}>
             <Text style={styles.timestamp}>
-              {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
-                hour: '2-digit',
-                minute: '2-digit',
+              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
               })}
             </Text>
             {message.edited_at ? (
-              <Text style={[styles.editedLabel, { color: themeColors.text.tertiary }]}>
-                {' '}édité
+              <Text
+                style={[
+                  styles.editedLabel,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
+                {" "}
+                édité
               </Text>
             ) : null}
             {message.status ? <DeliveryStatus status={message.status} /> : null}
@@ -173,7 +199,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <View
         style={[
           styles.receivedBubble,
-          { backgroundColor: 'rgba(26, 31, 58, 0.6)' }, // Dark card with transparency
+          { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
         ]}
       >
         {message.reply_to ? (
@@ -185,8 +211,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {hasMedia && firstAttachment && firstAttachment.metadata ? (
           <>
             <MediaMessage
-              uri={firstAttachment.metadata.media_url || firstAttachment.metadata.thumbnail_url || ''}
-              type={firstAttachment.media_type}
+              uri={
+                firstAttachment.metadata.media_url ||
+                firstAttachment.metadata.thumbnail_url ||
+                ""
+              }
+              type={firstAttachment.media_type as "image" | "video" | "file"}
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
               thumbnailUri={firstAttachment.metadata.thumbnail_url}
@@ -207,18 +237,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ) : (
             <FormattedText
               text={displayContent}
-              style={[
-                styles.receivedText,
-                { color: themeColors.text.primary },
-              ]}
+              style={[styles.receivedText, { color: themeColors.text.primary }]}
               boldStyle={{ color: themeColors.text.primary }}
               italicStyle={{ color: themeColors.text.primary }}
-              codeStyle={{ 
+              codeStyle={{
                 color: themeColors.text.primary,
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
               }}
               searchQuery={searchQuery}
-              highlightStyle={{ 
+              highlightStyle={{
                 backgroundColor: colors.primary.main,
                 color: colors.text.light,
               }}
@@ -226,17 +253,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )
         ) : null}
         <View style={styles.footer}>
-        <Text style={[styles.timestamp, { color: themeColors.text.tertiary }]}>
-          {new Date(message.sent_at).toLocaleTimeString('fr-FR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
-        {message.edited_at ? (
-          <Text style={[styles.editedLabel, { color: themeColors.text.tertiary }]}>
-            {' '}édité
+          <Text
+            style={[styles.timestamp, { color: themeColors.text.tertiary }]}
+          >
+            {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </Text>
-        ) : null}
+          {message.edited_at ? (
+            <Text
+              style={[styles.editedLabel, { color: themeColors.text.tertiary }]}
+            >
+              {" "}
+              édité
+            </Text>
+          ) : null}
         </View>
       </View>
     );
@@ -244,10 +276,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <>
-      <Pressable
-        onLongPress={handleLongPress}
-        delayLongPress={300}
-      >
+      <Pressable onLongPress={handleLongPress} delayLongPress={300}>
         <Animated.View
           style={[
             isSent ? styles.sentContainer : styles.receivedContainer,
@@ -275,17 +304,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
 const styles = StyleSheet.create({
   sentContainer: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     marginVertical: 4,
     marginHorizontal: 16,
   },
   sentBubble: {
-    maxWidth: '75%',
+    maxWidth: "75%",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
     borderBottomRightRadius: 4,
-    overflow: 'visible', // Allow progress bar to be visible
+    overflow: "visible", // Allow progress bar to be visible
   },
   sentText: {
     color: colors.text.light,
@@ -293,12 +322,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   receivedContainer: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
     marginVertical: 4,
     marginHorizontal: 16,
   },
   receivedBubble: {
-    maxWidth: '75%',
+    maxWidth: "75%",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
@@ -309,9 +338,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
     marginTop: 4,
   },
   timestamp: {
@@ -321,15 +350,15 @@ const styles = StyleSheet.create({
   },
   editedLabel: {
     fontSize: 11,
-    fontStyle: 'italic',
+    fontStyle: "italic",
     marginRight: 4,
   },
   deletedText: {
-    fontStyle: 'italic',
+    fontStyle: "italic",
     opacity: 0.7,
   },
   highlighted: {
-    backgroundColor: 'rgba(254, 122, 92, 0.2)',
+    backgroundColor: "rgba(254, 122, 92, 0.2)",
     borderRadius: 8,
     padding: 2,
   },
@@ -342,7 +371,7 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.status === nextProps.message.status &&
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
-    JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions)
+    JSON.stringify(prevProps.message.reactions) ===
+      JSON.stringify(nextProps.message.reactions)
   );
 });
-

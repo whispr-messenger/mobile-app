@@ -10,40 +10,44 @@ import {
   BlockedUser,
   PhoneContact,
   ContactRequest,
-} from '../../types/contact';
-import { Platform } from 'react-native';
+} from "../../types/contact";
+
+export type { Contact };
+import { Platform } from "react-native";
 
 const API_BASE_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:4000/api/v1'
-    : 'https://api.whispr.local/api/v1';
+  Platform.OS === "web"
+    ? "http://localhost:4000/api/v1"
+    : "https://api.whispr.local/api/v1";
 
 const getAuthHeaders = (): Record<string, string> => {
   return {};
 };
 
 export const contactsAPI = {
-  async getContacts(params?: ContactSearchParams): Promise<{ contacts: Contact[]; total: number }> {
+  async getContacts(
+    params?: ContactSearchParams,
+  ): Promise<{ contacts: Contact[]; total: number }> {
     const query = new URLSearchParams();
 
     if (params?.search) {
-      query.append('search', params.search);
+      query.append("search", params.search);
     }
     if (params?.sort) {
-      query.append('sort', params.sort);
+      query.append("sort", params.sort);
     }
     if (params?.page !== undefined) {
-      query.append('page', String(params.page));
+      query.append("page", String(params.page));
     }
     if (params?.limit !== undefined) {
-      query.append('limit', String(params.limit));
+      query.append("limit", String(params.limit));
     }
     if (params?.favorites !== undefined) {
-      query.append('favorites', params.favorites ? 'true' : 'false');
+      query.append("favorites", params.favorites ? "true" : "false");
     }
 
     const queryString = query.toString();
-    const url = `${API_BASE_URL}/contacts${queryString ? `?${queryString}` : ''}`;
+    const url = `${API_BASE_URL}/contacts${queryString ? `?${queryString}` : ""}`;
 
     const response = await fetch(url, {
       headers: {
@@ -51,38 +55,41 @@ export const contactsAPI = {
       },
     });
     if (!response.ok) {
-      throw new Error('Failed to fetch contacts');
+      throw new Error("Failed to fetch contacts");
     }
 
     const data = await response.json();
     const contacts = Array.isArray(data.contacts) ? data.contacts : [];
     const total =
-      typeof data.total === 'number'
+      typeof data.total === "number"
         ? data.total
         : Array.isArray(data.contacts)
-        ? data.contacts.length
-        : 0;
+          ? data.contacts.length
+          : 0;
 
     return { contacts, total };
   },
 
   async getContact(contactId: string): Promise<Contact> {
-    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      headers: {
-        ...getAuthHeaders(),
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`,
+      {
+        headers: {
+          ...getAuthHeaders(),
+        },
       },
-    });
+    );
     if (!response.ok) {
-      throw new Error('Failed to fetch contact');
+      throw new Error("Failed to fetch contact");
     }
     return response.json();
   },
 
   async addContact(data: AddContactDto): Promise<Contact> {
     const response = await fetch(`${API_BASE_URL}/contacts`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
       body: JSON.stringify({
@@ -92,39 +99,48 @@ export const contactsAPI = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to add contact');
+      throw new Error("Failed to add contact");
     }
 
     return response.json();
   },
 
-  async updateContact(contactId: string, data: UpdateContactDto): Promise<Contact> {
-    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
+  async updateContact(
+    contactId: string,
+    data: UpdateContactDto,
+  ): Promise<Contact> {
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(data),
       },
-      body: JSON.stringify(data),
-    });
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to update contact');
+      throw new Error("Failed to update contact");
     }
 
     return response.json();
   },
 
   async deleteContact(contactId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...getAuthHeaders(),
+        },
       },
-    });
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to delete contact');
+      throw new Error("Failed to delete contact");
     }
   },
 
@@ -136,7 +152,7 @@ export const contactsAPI = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch contact stats');
+      throw new Error("Failed to fetch contact stats");
     }
 
     return response.json();
@@ -146,14 +162,14 @@ export const contactsAPI = {
     const query = new URLSearchParams();
 
     if (params.username) {
-      query.append('username', params.username);
+      query.append("username", params.username);
     }
     if (params.phoneHash) {
-      query.append('phoneHash', params.phoneHash);
+      query.append("phoneHash", params.phoneHash);
     }
 
     const queryString = query.toString();
-    const url = `${API_BASE_URL}/users/search${queryString ? `?${queryString}` : ''}`;
+    const url = `${API_BASE_URL}/users/search${queryString ? `?${queryString}` : ""}`;
 
     const response = await fetch(url, {
       headers: {
@@ -161,7 +177,7 @@ export const contactsAPI = {
       },
     });
     if (!response.ok) {
-      throw new Error('Failed to search users');
+      throw new Error("Failed to search users");
     }
 
     const data = await response.json();
@@ -205,7 +221,7 @@ export const contactsAPI = {
       return normalizeArray(data);
     }
 
-    if (data && typeof data === 'object') {
+    if (data && typeof data === "object") {
       if (Array.isArray((data as any).matches)) {
         return normalizeArray((data as any).matches);
       }
@@ -227,18 +243,20 @@ export const contactsAPI = {
     return [];
   },
 
-  async importPhoneContacts(phoneContacts: PhoneContact[]): Promise<UserSearchResult[]> {
+  async importPhoneContacts(
+    phoneContacts: PhoneContact[],
+  ): Promise<UserSearchResult[]> {
     const response = await fetch(`${API_BASE_URL}/contacts/import`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
       body: JSON.stringify(phoneContacts),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to import phone contacts');
+      throw new Error("Failed to import phone contacts");
     }
 
     const data = await response.json();
@@ -253,19 +271,21 @@ export const contactsAPI = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch contact requests');
+      throw new Error("Failed to fetch contact requests");
     }
 
     const data = await response.json();
-    const requests = Array.isArray((data as any).requests) ? (data as any).requests : [];
+    const requests = Array.isArray((data as any).requests)
+      ? (data as any).requests
+      : [];
     return requests;
   },
 
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
     const response = await fetch(`${API_BASE_URL}/contact_requests`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
       body: JSON.stringify({
@@ -274,7 +294,7 @@ export const contactsAPI = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to send contact request');
+      throw new Error("Failed to send contact request");
     }
 
     return response.json();
@@ -284,15 +304,15 @@ export const contactsAPI = {
     const response = await fetch(
       `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/accept`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
           ...getAuthHeaders(),
         },
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to accept contact request');
+      throw new Error("Failed to accept contact request");
     }
 
     return response.json();
@@ -302,24 +322,27 @@ export const contactsAPI = {
     const response = await fetch(
       `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/refuse`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
           ...getAuthHeaders(),
         },
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to refuse contact request');
+      throw new Error("Failed to refuse contact request");
     }
 
     return response.json();
   },
 
-  async getBlockedUsers(page: number = 1, limit: number = 50): Promise<{ blocked: BlockedUser[]; total: number }> {
+  async getBlockedUsers(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<{ blocked: BlockedUser[]; total: number }> {
     const query = new URLSearchParams();
-    query.append('page', String(page));
-    query.append('limit', String(limit));
+    query.append("page", String(page));
+    query.append("limit", String(limit));
 
     const url = `${API_BASE_URL}/contacts/blocked?${query.toString()}`;
     const response = await fetch(url, {
@@ -329,17 +352,17 @@ export const contactsAPI = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch blocked users');
+      throw new Error("Failed to fetch blocked users");
     }
 
     const data = await response.json();
     const blocked = Array.isArray(data.blocked) ? data.blocked : [];
     const total =
-      typeof data.total === 'number'
+      typeof data.total === "number"
         ? data.total
         : Array.isArray(data.blocked)
-        ? data.blocked.length
-        : 0;
+          ? data.blocked.length
+          : 0;
 
     return { blocked, total };
   },
@@ -348,17 +371,17 @@ export const contactsAPI = {
     const response = await fetch(
       `${API_BASE_URL}/contacts/block/${encodeURIComponent(userId)}`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
         body: data ? JSON.stringify(data) : undefined,
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to block user');
+      throw new Error("Failed to block user");
     }
 
     return response.json();
@@ -368,15 +391,15 @@ export const contactsAPI = {
     const response = await fetch(
       `${API_BASE_URL}/contacts/block/${encodeURIComponent(userId)}`,
       {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
           ...getAuthHeaders(),
         },
-      }
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to unblock user');
+      throw new Error("Failed to unblock user");
     }
   },
 };
