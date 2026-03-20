@@ -140,18 +140,20 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
     return (
       <Text key={segmentIndex}>
         {highlightedParts.map((part, partIndex) => {
-          const baseStyle = (
-            part.highlighted
-              ? [style, highlightStyle || styles.highlight]
-              : style
-          ) as any;
+          const baseStyles: TextStyle[] = part.highlighted
+            ? ([style, highlightStyle || styles.highlight].filter(
+                Boolean,
+              ) as TextStyle[])
+            : style
+              ? [style]
+              : [];
 
           switch (segment.type) {
             case "bold":
               return (
                 <Text
                   key={partIndex}
-                  style={[...baseStyle, styles.bold, boldStyle]}
+                  style={[...baseStyles, styles.bold, boldStyle]}
                 >
                   {part.text}
                 </Text>
@@ -160,7 +162,7 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
               return (
                 <Text
                   key={partIndex}
-                  style={[...baseStyle, styles.italic, italicStyle]}
+                  style={[...baseStyles, styles.italic, italicStyle]}
                 >
                   {part.text}
                 </Text>
@@ -169,14 +171,14 @@ export const FormattedText: React.FC<FormattedTextProps> = ({
               return (
                 <Text
                   key={partIndex}
-                  style={[...baseStyle, styles.code, codeStyle]}
+                  style={[...baseStyles, styles.code, codeStyle]}
                 >
                   {part.text}
                 </Text>
               );
             default:
               return (
-                <Text key={partIndex} style={baseStyle}>
+                <Text key={partIndex} style={baseStyles}>
                   {part.text}
                 </Text>
               );
