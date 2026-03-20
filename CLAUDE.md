@@ -232,7 +232,7 @@ Then pass it as a number in `createJiraIssue`:
 
 | Sprint | ID | Board ID |
 |--------|----|----------|
-| Sprint 5 | `167` | `34` |
+| Sprint 6 | `200` | `34` |
 
 ### Tools that do NOT work
 
