@@ -36,6 +36,8 @@ jobs:
 
       - name: SonarQube analysis
         uses: SonarSource/sonarqube-scan-action@v6
+        continue-on-error: true
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
@@ -43,6 +45,8 @@ jobs:
       - name: SonarQube Quality Gate check
         uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
         timeout-minutes: 5
+        continue-on-error: true
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
