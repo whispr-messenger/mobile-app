@@ -1,0 +1,2 @@
+# Type-check disabled until pre-existing TS errors are resolved (WHISPR-442)
+# npm run type-check
