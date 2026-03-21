@@ -3,9 +3,14 @@ export { TokenService } from './TokenService';
 export { DeviceService } from './DeviceService';
 export { SignalKeyService } from './SignalKeyService';
 export { UserService } from './UserService';
+export { MediaService } from './MediaService';
 export type {
   UserProfile,
   UpdateProfileRequest,
   UpdateProfileResponse,
   PrivacySettings,
 } from './UserService';
+export type {
+  MediaContext,
+  UploadMediaResponse,
+} from './MediaService';
