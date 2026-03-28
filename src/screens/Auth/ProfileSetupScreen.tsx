@@ -37,7 +37,7 @@ function getUserApiBase(): string {
     return `http://${getDevHost()}:3011/user/v1`;
   }
   const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-  const base = extra?.apiBaseUrl ?? 'https://whispr.epitech.beer';
+  const base = extra?.apiBaseUrl ?? 'https://whispr-api.roadmvn.com';
   return `${base}/user/v1`;
 }
 

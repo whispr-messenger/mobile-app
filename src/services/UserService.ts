@@ -48,8 +48,7 @@ export class UserService {
   private baseUrl: string;
 
   private constructor() {
-    // TODO: Get from environment configuration
-    this.baseUrl = 'https://api.whispr.com/api/v1';
+    this.baseUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://whispr-api.roadmvn.com'}/user/v1`;
   }
 
   public static getInstance(): UserService {
