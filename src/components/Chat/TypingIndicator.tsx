@@ -2,13 +2,19 @@
  * TypingIndicator - Animated typing indicator with user name
  */
 
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import { useSharedValue, useAnimatedStyle, withTiming, withRepeat, withSequence } from 'react-native-reanimated';
-import Animated from 'react-native-reanimated';
-import { colors } from '../../theme/colors';
-import { useTheme } from '../../context/ThemeContext';
-import { Avatar } from './Avatar';
+import React, { useEffect } from "react";
+import { View, StyleSheet, Text } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  SharedValue,
+} from "react-native-reanimated";
+import { colors } from "../../theme/colors";
+import { useTheme } from "../../context/ThemeContext";
+import { Avatar } from "./Avatar";
 
 interface TypingIndicatorProps {
   userName?: string;
@@ -16,7 +22,11 @@ interface TypingIndicatorProps {
   avatarUrl?: string;
 }
 
-export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName, userNames, avatarUrl }) => {
+export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
+  userName,
+  userNames,
+  avatarUrl,
+}) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const dot1Y = useSharedValue(0);
@@ -25,15 +35,15 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName, user
 
   useEffect(() => {
     // Animate dots with 150ms stagger
-    const animateDot = (dotY: Animated.SharedValue<number>, delay: number) => {
+    const animateDot = (dotY: SharedValue<number>, delay: number) => {
       setTimeout(() => {
         dotY.value = withRepeat(
           withSequence(
             withTiming(-8, { duration: 400 }),
-            withTiming(0, { duration: 400 })
+            withTiming(0, { duration: 400 }),
           ),
           -1,
-          false
+          false,
         );
       }, delay);
     };
@@ -72,25 +82,46 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName, user
     return "Quelqu'un est en train d'écrire";
   };
 
-  const displayName = userName || (userNames && userNames.length > 0 ? userNames[0] : undefined);
+  const displayName =
+    userName || (userNames && userNames.length > 0 ? userNames[0] : undefined);
 
   return (
     <View style={styles.container}>
       <Avatar
         size={32}
         uri={avatarUrl}
-        name={displayName || 'User'}
+        name={displayName || "User"}
         showOnlineBadge={false}
         isOnline={false}
       />
-      <View style={[styles.bubble, { backgroundColor: 'rgba(26, 31, 58, 0.6)' }]}>
+      <View
+        style={[styles.bubble, { backgroundColor: "rgba(26, 31, 58, 0.6)" }]}
+      >
         <Text style={[styles.text, { color: themeColors.text.secondary }]}>
           {getDisplayText()}
         </Text>
         <View style={styles.dotsContainer}>
-          <Animated.View style={[styles.dot, dot1Style, { backgroundColor: themeColors.text.tertiary }]} />
-          <Animated.View style={[styles.dot, dot2Style, { backgroundColor: themeColors.text.tertiary }]} />
-          <Animated.View style={[styles.dot, dot3Style, { backgroundColor: themeColors.text.tertiary }]} />
+          <Animated.View
+            style={[
+              styles.dot,
+              dot1Style,
+              { backgroundColor: themeColors.text.tertiary },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.dot,
+              dot2Style,
+              { backgroundColor: themeColors.text.tertiary },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.dot,
+              dot3Style,
+              { backgroundColor: themeColors.text.tertiary },
+            ]}
+          />
         </View>
       </View>
     </View>
@@ -99,14 +130,14 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({ userName, user
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 4,
     marginHorizontal: 16,
   },
   bubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
@@ -118,8 +149,8 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   dotsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   dot: {
     width: 6,
@@ -128,8 +159,3 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
 });
-
-
-
-
-
