@@ -1,5 +1,18 @@
-import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import type { JwtPayload, TokenPair } from '../types/auth';
+
+// expo-secure-store doesn't work on web — fallback to localStorage
+const storage = Platform.OS === 'web'
+  ? {
+      getItemAsync: async (key: string) => localStorage.getItem(key),
+      setItemAsync: async (key: string, value: string) => localStorage.setItem(key, value),
+      deleteItemAsync: async (key: string) => localStorage.removeItem(key),
+    }
+  : require('expo-secure-store') as {
+      getItemAsync: (key: string) => Promise<string | null>;
+      setItemAsync: (key: string, value: string) => Promise<void>;
+      deleteItemAsync: (key: string) => Promise<void>;
+    };
 
 const KEYS = {
   ACCESS_TOKEN: 'whispr.auth.accessToken',
@@ -24,29 +37,29 @@ function decodeJwtPayload(token: string): JwtPayload | null {
 
 export const TokenService = {
   async saveTokens(tokens: TokenPair): Promise<void> {
-    await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, tokens.accessToken);
-    await SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    await storage.setItemAsync(KEYS.ACCESS_TOKEN, tokens.accessToken);
+    await storage.setItemAsync(KEYS.REFRESH_TOKEN, tokens.refreshToken);
   },
 
   async getAccessToken(): Promise<string | null> {
-    return SecureStore.getItemAsync(KEYS.ACCESS_TOKEN);
+    return storage.getItemAsync(KEYS.ACCESS_TOKEN);
   },
 
   async getRefreshToken(): Promise<string | null> {
-    return SecureStore.getItemAsync(KEYS.REFRESH_TOKEN);
+    return storage.getItemAsync(KEYS.REFRESH_TOKEN);
   },
 
   async clearTokens(): Promise<void> {
-    await SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN);
-    await SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN);
+    await storage.deleteItemAsync(KEYS.ACCESS_TOKEN);
+    await storage.deleteItemAsync(KEYS.REFRESH_TOKEN);
   },
 
   async saveIdentityPrivateKey(base64Key: string): Promise<void> {
-    await SecureStore.setItemAsync(KEYS.IDENTITY_KEY, base64Key);
+    await storage.setItemAsync(KEYS.IDENTITY_KEY, base64Key);
   },
 
   async getIdentityPrivateKey(): Promise<string | null> {
-    return SecureStore.getItemAsync(KEYS.IDENTITY_KEY);
+    return storage.getItemAsync(KEYS.IDENTITY_KEY);
   },
 
   decodeAccessToken(token: string): JwtPayload | null {

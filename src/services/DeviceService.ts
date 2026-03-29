@@ -1,19 +1,28 @@
 import * as Device from 'expo-device';
-import * as SecureStore from 'expo-secure-store';
 import { randomUUID } from 'expo-crypto';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+
+const storage = Platform.OS === 'web'
+  ? {
+      getItemAsync: async (key: string) => localStorage.getItem(key),
+      setItemAsync: async (key: string, value: string) => localStorage.setItem(key, value),
+    }
+  : require('expo-secure-store') as {
+      getItemAsync: (key: string) => Promise<string | null>;
+      setItemAsync: (key: string, value: string) => Promise<void>;
+    };
 import type { DeviceInfo } from '../types/auth';
 
 const DEVICE_ID_KEY = 'whispr.device.id';
 
 export const DeviceService = {
   async getOrCreateDeviceId(): Promise<string> {
-    const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    const existing = await storage.getItemAsync(DEVICE_ID_KEY);
     if (existing) return existing;
 
     const id = randomUUID();
-    await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
+    await storage.setItemAsync(DEVICE_ID_KEY, id);
     return id;
   },
 
