@@ -48,6 +48,7 @@ import {
   GroupMember,
 } from "../../services/groups/api";
 import { contactsAPI, Contact } from "../../services/contacts/api";
+import { useAuth } from "../../context/AuthContext";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 
 const AnimatedTouchableOpacity =
@@ -58,8 +59,6 @@ type GroupManagementScreenRouteProp = StackScreenProps<
   AuthStackParamList,
   "GroupManagement"
 >["route"];
-
-const CURRENT_USER_ID = "user-1";
 
 export const GroupManagementScreen: React.FC = () => {
   const route = useRoute<GroupManagementScreenRouteProp>();
@@ -86,6 +85,8 @@ export const GroupManagementScreen: React.FC = () => {
 
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+  const { userId: rawUserId } = useAuth();
+  const currentUserId = rawUserId ?? "";
 
   const headerOpacity = useSharedValue(0);
   const contentScale = useSharedValue(0.95);
@@ -127,7 +128,7 @@ export const GroupManagementScreen: React.FC = () => {
   }, [loadGroupData]);
 
   const isAdmin =
-    members.find((m) => m.user_id === CURRENT_USER_ID)?.role === "admin";
+    members.find((m) => m.user_id === currentUserId)?.role === "admin";
 
   const handleEditName = useCallback(() => {
     if (!isAdmin) return;
@@ -293,7 +294,7 @@ export const GroupManagementScreen: React.FC = () => {
 
   const handleRemoveMember = useCallback(
     (member: GroupMember) => {
-      if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
+      if (!isAdmin || member.user_id === currentUserId) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -337,7 +338,7 @@ export const GroupManagementScreen: React.FC = () => {
   const handleTransferAdmin = useCallback(
     (member: GroupMember) => {
       // Permettre le transfert même si le membre est déjà admin (pour récupérer les droits)
-      if (!isAdmin || member.user_id === CURRENT_USER_ID) return;
+      if (!isAdmin || member.user_id === currentUserId) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -715,10 +716,8 @@ export const GroupManagementScreen: React.FC = () => {
   };
 
   const renderMembers = () => {
-    const currentUserMember = members.find(
-      (m) => m.user_id === CURRENT_USER_ID,
-    );
-    const otherMembers = members.filter((m) => m.user_id !== CURRENT_USER_ID);
+    const currentUserMember = members.find((m) => m.user_id === currentUserId);
+    const otherMembers = members.filter((m) => m.user_id !== currentUserId);
     const hasOtherAdmins = otherMembers.some((m) => m.role === "admin");
 
     return (

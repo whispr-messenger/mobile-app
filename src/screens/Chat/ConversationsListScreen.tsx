@@ -3,56 +3,81 @@
  * Displays list of conversations with real-time updates
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, Text, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { Conversation, Message } from '../../types/messaging';
-import { useAuth } from '../../context/AuthContext';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import { SwipeableConversationItem } from '../../components/Chat/SwipeableConversationItem';
-import { EmptyState } from '../../components/Chat/EmptyState';
-import { ConversationSkeleton } from '../../components/Chat/SkeletonLoader';
-import { BottomTabBar } from '../../components/Navigation/BottomTabBar';
-import { NewConversationModal } from '../../components/Chat/NewConversationModal';
-import { useTheme } from '../../context/ThemeContext';
-import { AuthStackParamList } from '../../navigation/AuthNavigator';
-import { colors } from '../../theme/colors';
-import Toast from '../../components/Toast/Toast';
-import { useConversationsStore } from '../../store/conversationsStore';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { Conversation, Message } from "../../types/messaging";
+import { useAuth } from "../../context/AuthContext";
+import { useWebSocket } from "../../hooks/useWebSocket";
+import { TokenService } from "../../services/TokenService";
+import { SwipeableConversationItem } from "../../components/Chat/SwipeableConversationItem";
+import { EmptyState } from "../../components/Chat/EmptyState";
+import { ConversationSkeleton } from "../../components/Chat/SkeletonLoader";
+import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
+import { NewConversationModal } from "../../components/Chat/NewConversationModal";
+import { useTheme } from "../../context/ThemeContext";
+import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { colors } from "../../theme/colors";
+import Toast from "../../components/Toast/Toast";
+import { useConversationsStore } from "../../store/conversationsStore";
 
-type NavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
+type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
 export const ConversationsListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
 
   // Store
-  const conversations = useConversationsStore(s => s.conversations);
-  const status = useConversationsStore(s => s.status);
-  const fetchConversations = useConversationsStore(s => s.fetchConversations);
-  const refreshConversations = useConversationsStore(s => s.refreshConversations);
-  const applyConversationUpdate = useConversationsStore(s => s.applyConversationUpdate);
-  const applyNewMessage = useConversationsStore(s => s.applyNewMessage);
-  const storeDeleteConversation = useConversationsStore(s => s.deleteConversation);
-  const archiveConversation = useConversationsStore(s => s.archiveConversation);
-  const muteConversation = useConversationsStore(s => s.muteConversation);
-  const pinConversation = useConversationsStore(s => s.pinConversation);
+  const conversations = useConversationsStore((s) => s.conversations);
+  const status = useConversationsStore((s) => s.status);
+  const fetchConversations = useConversationsStore((s) => s.fetchConversations);
+  const refreshConversations = useConversationsStore(
+    (s) => s.refreshConversations,
+  );
+  const applyConversationUpdate = useConversationsStore(
+    (s) => s.applyConversationUpdate,
+  );
+  const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
+  const storeDeleteConversation = useConversationsStore(
+    (s) => s.deleteConversation,
+  );
+  const archiveConversation = useConversationsStore(
+    (s) => s.archiveConversation,
+  );
+  const muteConversation = useConversationsStore((s) => s.muteConversation);
+  const pinConversation = useConversationsStore((s) => s.pinConversation);
 
   // UI-only state
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [editMode, setEditMode] = useState(false);
-  const [selectedConversations, setSelectedConversations] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' | 'info' | 'warning' }>({
+  const [selectedConversations, setSelectedConversations] = useState<
+    Set<string>
+  >(new Set());
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+  }>({
     visible: false,
-    message: '',
-    type: 'info',
+    message: "",
+    type: "info",
   });
-  const [showNewConversationModal, setShowNewConversationModal] = useState(false);
+  const [showNewConversationModal, setShowNewConversationModal] =
+    useState(false);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -63,16 +88,19 @@ export const ConversationsListScreen: React.FC = () => {
       return [];
     }
 
-    let filtered = conversations.filter(conv => !conv.is_archived);
+    let filtered = conversations.filter((conv) => !conv.is_archived);
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(conv => {
-        const name = conv.display_name || (conv.type === 'direct'
-          ? 'Contact'
-          : (conv.metadata?.name || 'Group'));
-        const lastMessage = conv.last_message?.content || '';
-        return name.toLowerCase().includes(query) || lastMessage.toLowerCase().includes(query);
+      filtered = filtered.filter((conv) => {
+        const name =
+          conv.display_name ||
+          (conv.type === "direct" ? "Contact" : conv.metadata?.name || "Group");
+        const lastMessage = conv.last_message?.content || "";
+        return (
+          name.toLowerCase().includes(query) ||
+          lastMessage.toLowerCase().includes(query)
+        );
       });
     }
 
@@ -86,8 +114,16 @@ export const ConversationsListScreen: React.FC = () => {
   }, [conversations, searchQuery]);
 
   const { userId: rawUserId } = useAuth();
-  const userId = rawUserId ?? '';
-  const token = userId ? `token-${userId}` : '';
+  const userId = rawUserId ?? "";
+  const [token, setToken] = useState<string>("");
+
+  useEffect(() => {
+    if (!userId) {
+      setToken("");
+      return;
+    }
+    TokenService.getAccessToken().then((t) => setToken(t ?? ""));
+  }, [userId]);
 
   const { joinUserChannel } = useWebSocket({
     userId,
@@ -110,7 +146,7 @@ export const ConversationsListScreen: React.FC = () => {
   const handleConversationPress = useCallback(
     (conversationId: string) => {
       if (editMode) {
-        setSelectedConversations(prev => {
+        setSelectedConversations((prev) => {
           const newSet = new Set(prev);
           if (newSet.has(conversationId)) {
             newSet.delete(conversationId);
@@ -121,17 +157,19 @@ export const ConversationsListScreen: React.FC = () => {
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } else {
-        navigation.navigate('Chat', { conversationId });
+        navigation.navigate("Chat", { conversationId });
       }
     },
-    [navigation, editMode]
+    [navigation, editMode],
   );
 
   const handleSelectAll = useCallback(() => {
     if (selectedConversations.size === filteredAndSortedConversations.length) {
       setSelectedConversations(new Set());
     } else {
-      setSelectedConversations(new Set(filteredAndSortedConversations.map(c => c.id)));
+      setSelectedConversations(
+        new Set(filteredAndSortedConversations.map((c) => c.id)),
+      );
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [filteredAndSortedConversations, selectedConversations]);
@@ -141,51 +179,81 @@ export const ConversationsListScreen: React.FC = () => {
     const ids = Array.from(selectedConversations);
     const count = ids.length;
     try {
-      await Promise.all(ids.map(id => storeDeleteConversation(id).catch(() => {})));
+      await Promise.all(
+        ids.map((id) => storeDeleteConversation(id).catch(() => {})),
+      );
       setSelectedConversations(new Set());
       setEditMode(false);
-      setToast({ visible: true, message: `${count} conversation${count > 1 ? 's' : ''} deleted`, type: 'success' });
+      setToast({
+        visible: true,
+        message: `${count} conversation${count > 1 ? "s" : ""} deleted`,
+        type: "success",
+      });
     } catch {
-      setToast({ visible: true, message: 'Unable to delete conversations', type: 'error' });
+      setToast({
+        visible: true,
+        message: "Unable to delete conversations",
+        type: "error",
+      });
     }
   }, [selectedConversations, storeDeleteConversation]);
 
   const handleBulkArchive = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const count = selectedConversations.size;
-    selectedConversations.forEach(id => archiveConversation(id));
+    selectedConversations.forEach((id) => archiveConversation(id));
     setSelectedConversations(new Set());
     setEditMode(false);
-    setToast({ visible: true, message: `${count} conversation${count > 1 ? 's' : ''} archived`, type: 'success' });
+    setToast({
+      visible: true,
+      message: `${count} conversation${count > 1 ? "s" : ""} archived`,
+      type: "success",
+    });
   }, [selectedConversations, archiveConversation]);
 
-  const handleDelete = useCallback(async (conversationId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    try {
-      await storeDeleteConversation(conversationId);
-    } catch {
-      setToast({ visible: true, message: 'Unable to delete conversation', type: 'error' });
-    }
-  }, [storeDeleteConversation]);
+  const handleDelete = useCallback(
+    async (conversationId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      try {
+        await storeDeleteConversation(conversationId);
+      } catch {
+        setToast({
+          visible: true,
+          message: "Unable to delete conversation",
+          type: "error",
+        });
+      }
+    },
+    [storeDeleteConversation],
+  );
 
-  const handleMute = useCallback((conversationId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    muteConversation(conversationId);
-  }, [muteConversation]);
+  const handleMute = useCallback(
+    (conversationId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      muteConversation(conversationId);
+    },
+    [muteConversation],
+  );
 
   const handleUnread = useCallback((conversationId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // TODO: Call API when backend is ready
   }, []);
 
-  const handleArchive = useCallback((conversationId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    archiveConversation(conversationId);
-  }, [archiveConversation]);
+  const handleArchive = useCallback(
+    (conversationId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      archiveConversation(conversationId);
+    },
+    [archiveConversation],
+  );
 
-  const handlePin = useCallback((conversationId: string) => {
-    pinConversation(conversationId);
-  }, [pinConversation]);
+  const handlePin = useCallback(
+    (conversationId: string) => {
+      pinConversation(conversationId);
+    },
+    [pinConversation],
+  );
 
   const renderItem = useCallback(
     ({ item, index }: { item: Conversation; index: number }) => (
@@ -202,7 +270,16 @@ export const ConversationsListScreen: React.FC = () => {
         isSelected={selectedConversations.has(item.id)}
       />
     ),
-    [handleConversationPress, handleDelete, handleMute, handleUnread, handleArchive, handlePin, editMode, selectedConversations]
+    [
+      handleConversationPress,
+      handleDelete,
+      handleMute,
+      handleUnread,
+      handleArchive,
+      handlePin,
+      editMode,
+      selectedConversations,
+    ],
   );
 
   const keyExtractor = useCallback((item: Conversation) => item.id, []);
@@ -213,7 +290,7 @@ export const ConversationsListScreen: React.FC = () => {
       offset: 72 * index,
       index,
     }),
-    []
+    [],
   );
 
   const onRefresh = useCallback(async () => {
@@ -223,7 +300,7 @@ export const ConversationsListScreen: React.FC = () => {
   }, [refreshConversations]);
 
   const renderContent = () => {
-    if (status === 'loading' || status === 'grace_period') {
+    if (status === "loading" || status === "grace_period") {
       return (
         <View style={styles.loadingContainer}>
           {[...Array(5)].map((_, i) => (
@@ -233,7 +310,7 @@ export const ConversationsListScreen: React.FC = () => {
       );
     }
 
-    if (status === 'empty' || filteredAndSortedConversations.length === 0) {
+    if (status === "empty" || filteredAndSortedConversations.length === 0) {
       return (
         <EmptyState
           onNewConversation={() => {
@@ -277,9 +354,14 @@ export const ConversationsListScreen: React.FC = () => {
       end={{ x: 1, y: 1 }}
       style={styles.gradientContainer}
     >
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: 'rgba(255, 255, 255, 0.1)' }]}>
+        <View
+          style={[
+            styles.header,
+            { borderBottomColor: "rgba(255, 255, 255, 0.1)" },
+          ]}
+        >
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -291,10 +373,12 @@ export const ConversationsListScreen: React.FC = () => {
             style={styles.headerButton}
           >
             <Text style={[styles.editButton, { color: colors.text.light }]}>
-              {editMode ? 'Cancel' : 'Edit'}
+              {editMode ? "Cancel" : "Edit"}
             </Text>
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text.light }]}></Text>
+          <Text
+            style={[styles.headerTitle, { color: colors.text.light }]}
+          ></Text>
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -303,20 +387,34 @@ export const ConversationsListScreen: React.FC = () => {
             style={styles.headerButton}
           >
             <LinearGradient
-              colors={['#FFB07B', '#F04882']}
+              colors={["#FFB07B", "#F04882"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.composeButton}
             >
-              <Ionicons name="create-outline" size={20} color={colors.text.light} />
+              <Ionicons
+                name="create-outline"
+                size={20}
+                color={colors.text.light}
+              />
             </LinearGradient>
           </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <View style={[styles.searchBar, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
-            <Ionicons name="search-outline" size={20} color="rgba(255, 255, 255, 0.7)" style={styles.searchIcon} />
+          <View
+            style={[
+              styles.searchBar,
+              { backgroundColor: "rgba(255, 255, 255, 0.15)" },
+            ]}
+          >
+            <Ionicons
+              name="search-outline"
+              size={20}
+              color="rgba(255, 255, 255, 0.7)"
+              style={styles.searchIcon}
+            />
             <TextInput
               style={[styles.searchInput, { color: colors.text.light }]}
               placeholder="Search for messages or users"
@@ -335,14 +433,18 @@ export const ConversationsListScreen: React.FC = () => {
             {searchQuery.length > 0 && (
               <TouchableOpacity
                 onPress={() => {
-                  setSearchQuery('');
+                  setSearchQuery("");
                   if (searchTimeoutRef.current) {
                     clearTimeout(searchTimeoutRef.current);
                   }
                 }}
                 style={styles.clearButton}
               >
-                <Ionicons name="close-circle" size={20} color="rgba(255, 255, 255, 0.7)" />
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color="rgba(255, 255, 255, 0.7)"
+                />
               </TouchableOpacity>
             )}
           </View>
@@ -352,22 +454,47 @@ export const ConversationsListScreen: React.FC = () => {
 
         {editMode && selectedConversations.size > 0 && (
           <View style={styles.editActionsBar}>
-            <TouchableOpacity style={styles.editActionButton} onPress={handleBulkDelete}>
-              <Ionicons name="trash-outline" size={24} color={colors.ui.error} />
+            <TouchableOpacity
+              style={styles.editActionButton}
+              onPress={handleBulkDelete}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={24}
+                color={colors.ui.error}
+              />
               <Text style={styles.editActionText}>Delete</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.editActionButton} onPress={handleBulkArchive}>
-              <Ionicons name="archive-outline" size={24} color={colors.secondary.main} />
+            <TouchableOpacity
+              style={styles.editActionButton}
+              onPress={handleBulkArchive}
+            >
+              <Ionicons
+                name="archive-outline"
+                size={24}
+                color={colors.secondary.main}
+              />
               <Text style={styles.editActionText}>Archive</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.editActionButton} onPress={handleSelectAll}>
+            <TouchableOpacity
+              style={styles.editActionButton}
+              onPress={handleSelectAll}
+            >
               <Ionicons
-                name={selectedConversations.size === filteredAndSortedConversations.length ? "checkmark-done-outline" : "checkmark-outline"}
+                name={
+                  selectedConversations.size ===
+                  filteredAndSortedConversations.length
+                    ? "checkmark-done-outline"
+                    : "checkmark-outline"
+                }
                 size={24}
                 color={colors.primary.main}
               />
               <Text style={styles.editActionText}>
-                {selectedConversations.size === filteredAndSortedConversations.length ? 'Deselect All' : 'Select All'}
+                {selectedConversations.size ===
+                filteredAndSortedConversations.length
+                  ? "Deselect All"
+                  : "Select All"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -389,7 +516,7 @@ export const ConversationsListScreen: React.FC = () => {
           setShowNewConversationModal(false);
           await fetchConversations();
           setTimeout(() => {
-            navigation.navigate('Chat', { conversationId });
+            navigation.navigate("Chat", { conversationId });
           }, 100);
         }}
       />
@@ -403,48 +530,48 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerButton: {
     padding: 4,
     minWidth: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   editButton: {
     fontSize: 17,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   composeButton: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -463,30 +590,30 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   listContent: {
     paddingVertical: 8,
     flexGrow: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   editActionsBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -498,15 +625,15 @@ const styles = StyleSheet.create({
   },
   editActionButton: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 8,
     borderRadius: 12,
     marginHorizontal: 4,
   },
   editActionText: {
-    color: '#1A1625',
+    color: "#1A1625",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 6,
   },
 });
