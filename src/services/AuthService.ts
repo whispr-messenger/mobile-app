@@ -10,7 +10,7 @@ import type {
 } from '../types/auth';
 
 function getBaseUrl(): string {
-  return `${SERVICE_URLS.auth}/auth`;
+  return SERVICE_URLS.auth;
 }
 
 async function apiFetch<T>(
@@ -54,7 +54,7 @@ export const AuthService = {
     purpose: AuthPurpose
   ): Promise<VerificationRequestResponse> {
     return apiFetch<VerificationRequestResponse>(
-      `/v1/auth/verify/${purpose}/request`,
+      `/verify/${purpose}/request`,
       {
         method: 'POST',
         body: JSON.stringify({ phoneNumber }),
@@ -68,7 +68,7 @@ export const AuthService = {
     purpose: AuthPurpose
   ): Promise<VerificationConfirmResponse> {
     return apiFetch<VerificationConfirmResponse>(
-      `/v1/auth/verify/${purpose}/confirm`,
+      `/verify/${purpose}/confirm`,
       {
         method: 'POST',
         body: JSON.stringify({ verificationId, code }),
@@ -82,7 +82,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>('/v1/auth/register', {
+    const tokens = await apiFetch<TokenPair>('/register', {
       method: 'POST',
       body: JSON.stringify({
         verificationId,
@@ -101,7 +101,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>('/v1/auth/login', {
+    const tokens = await apiFetch<TokenPair>('/login', {
       method: 'POST',
       body: JSON.stringify({
         verificationId,
@@ -118,7 +118,7 @@ export const AuthService = {
     const refreshToken = await TokenService.getRefreshToken();
     if (!refreshToken) throw new Error('No refresh token');
 
-    const tokens = await apiFetch<TokenPair>('/v1/tokens/refresh', {
+    const tokens = await apiFetch<TokenPair>('/tokens/refresh', {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
     });
@@ -128,7 +128,7 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
-    await apiFetch('/v1/auth/logout', {
+    await apiFetch('/logout', {
       method: 'POST',
       token: token ?? undefined,
       body: JSON.stringify({ deviceId, userId }),
