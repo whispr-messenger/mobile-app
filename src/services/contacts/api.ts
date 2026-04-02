@@ -11,12 +11,10 @@ import {
   PhoneContact,
   ContactRequest,
 } from '../../types/contact';
-import { SERVICE_URLS } from '../config/services';
-import { TokenService } from '../TokenService';
-
-export type { Contact };
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
+
+export type { Contact };
 
 const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
 
