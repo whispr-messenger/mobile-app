@@ -1,19 +1,6 @@
 import type { JwtPayload, TokenPair } from "../types/auth";
 import { storage } from "./storage";
 
-// expo-secure-store doesn't work on web — fallback to localStorage
-const storage = Platform.OS === 'web'
-  ? {
-      getItemAsync: async (key: string) => localStorage.getItem(key),
-      setItemAsync: async (key: string, value: string) => localStorage.setItem(key, value),
-      deleteItemAsync: async (key: string) => localStorage.removeItem(key),
-    }
-  : require('expo-secure-store') as {
-      getItemAsync: (key: string) => Promise<string | null>;
-      setItemAsync: (key: string, value: string) => Promise<void>;
-      deleteItemAsync: (key: string) => Promise<void>;
-    };
-
 const KEYS = {
   ACCESS_TOKEN: "whispr.auth.accessToken",
   REFRESH_TOKEN: "whispr.auth.refreshToken",
