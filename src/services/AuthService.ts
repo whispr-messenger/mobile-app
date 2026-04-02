@@ -156,9 +156,9 @@ export const AuthService = {
       }
     }
 
-    // Validate with a network call (GET /users/me via user-service)
+    // Validate with a network call (GET /auth/v1/device)
     try {
-      const response = await fetch(`${getApiBaseUrl()}/user/v1/users/me`, {
+      const response = await fetch(`${getApiBaseUrl()}/auth/v1/device`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

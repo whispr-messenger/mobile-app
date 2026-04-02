@@ -359,7 +359,7 @@ export const messagingAPI = {
     userId: string,
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
     const response = await fetch(
-      `${API_BASE_URL}/users/${encodeURIComponent(userId)}`,
+      `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
       {
         headers: {
           ...(await getAuthHeaders()),
@@ -414,6 +414,13 @@ export const messagingAPI = {
   },
 
   async createDirectConversation(otherUserId: string): Promise<Conversation> {
+    const token = await TokenService.getAccessToken();
+    let currentUserId = "";
+    if (token) {
+      const payload = TokenService.decodeAccessToken(token);
+      currentUserId = payload?.sub ?? "";
+    }
+
     const response = await fetch(`${API_BASE_URL}/conversations`, {
       method: "POST",
       headers: {
@@ -422,7 +429,7 @@ export const messagingAPI = {
       },
       body: JSON.stringify({
         type: "direct",
-        other_user_id: otherUserId,
+        user_ids: [currentUserId, otherUserId],
       }),
     });
 

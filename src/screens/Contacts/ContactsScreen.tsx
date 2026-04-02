@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -18,6 +19,7 @@ import {
   ContactRequest,
 } from "../../types/contact";
 import { contactsAPI } from "../../services/contacts/api";
+import { messagingAPI } from "../../services/messaging/api";
 import { TokenService } from "../../services/TokenService";
 import { ContactItem } from "../../components/Contacts/ContactItem";
 import { AddContactModal } from "../../components/Contacts/AddContactModal";
@@ -159,11 +161,33 @@ export const ContactsScreen: React.FC = () => {
     [loadContactRequests],
   );
 
-  // Handle contact press
-  const handleContactPress = useCallback((contact: Contact) => {
-    // TODO: Navigate to contact details or start conversation
-    console.log("[ContactsScreen] Contact pressed:", contact.id);
-  }, []);
+  // Handle contact press — create or open a direct conversation
+  const handleContactPress = useCallback(
+    async (contact: Contact) => {
+      const otherUserId = contact.contact_user?.id ?? contact.contact_id;
+      if (!otherUserId) {
+        Alert.alert("Erreur", "Impossible d'identifier ce contact");
+        return;
+      }
+
+      try {
+        const conversation =
+          await messagingAPI.createDirectConversation(otherUserId);
+        // @ts-ignore - navigation type will be fixed later
+        navigation.navigate("Chat", { conversationId: conversation.id });
+      } catch (error: any) {
+        console.error(
+          "[ContactsScreen] Error creating conversation:",
+          error,
+        );
+        Alert.alert(
+          "Erreur",
+          error.message || "Impossible de créer la conversation",
+        );
+      }
+    },
+    [navigation],
+  );
 
   // Handle contact long press
   const handleContactLongPress = useCallback((contact: Contact) => {

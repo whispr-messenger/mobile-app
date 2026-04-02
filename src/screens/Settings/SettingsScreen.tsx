@@ -13,6 +13,7 @@ import {
   Switch,
   Alert,
   Modal,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -120,6 +121,15 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(getLocalizedText('notif.logoutConfirm'));
+      if (confirmed) {
+        signOut().then(() => {
+          navigation.reset({ index: 0, routes: [{ name: 'Welcome' as never }] });
+        });
+      }
+      return;
+    }
     Alert.alert(
       getLocalizedText('settings.logout'),
       getLocalizedText('notif.logoutConfirm'),

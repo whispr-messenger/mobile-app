@@ -180,7 +180,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     if (searchQuery.trim() && userSearchResults.length > 0) {
       const existingUserIds = new Set(
         contacts
-          .map(c => c.contact_user?.id)
+          .map(c => c.contact_user?.id ?? c.contact_id)
           .filter((id): id is string => !!id)
       );
 
@@ -233,7 +233,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   // Handle member selection for group with haptics
   const handleMemberToggle = (contact: Contact) => {
-    const userId = contact.contact_user?.id;
+    const userId = contact.contact_user?.id ?? contact.contact_id;
     if (!userId) return;
 
     setSelectedMembers(prev => {
@@ -334,7 +334,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         let userId: string | undefined;
 
         if (selectedDirectTarget.type === 'contact') {
-          userId = selectedDirectTarget.contact.contact_user?.id;
+          userId = selectedDirectTarget.contact.contact_user?.id ?? selectedDirectTarget.contact.contact_id;
         } else {
           userId = selectedDirectTarget.user.user.id;
         }
@@ -795,9 +795,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   // Render group creation screen with animations
   const renderGroupCreation = () => {
-    const selectedContacts = contacts.filter(c =>
-      c.contact_user?.id && selectedMembers.has(c.contact_user.id)
-    );
+    const selectedContacts = contacts.filter(c => {
+      const uid = c.contact_user?.id ?? c.contact_id;
+      return uid && selectedMembers.has(uid);
+    });
 
     return (
       <Animated.View

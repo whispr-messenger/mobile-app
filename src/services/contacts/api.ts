@@ -1,5 +1,6 @@
 import {
   Contact,
+  User,
   AddContactDto,
   UpdateContactDto,
   BlockUserDto,
@@ -55,6 +56,34 @@ const normalizeContact = (c: any): Contact => {
   };
 };
 
+const fetchUserById = async (userId: string): Promise<User | null> => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
+      {
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+    if (!response.ok) return null;
+    const u = await response.json();
+    if (!u) return null;
+    return {
+      id: u.id ?? userId,
+      username: u.username ?? "",
+      phone_number: u.phoneNumber ?? u.phone_number,
+      first_name: u.firstName ?? u.first_name,
+      last_name: u.lastName ?? u.last_name,
+      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      last_seen: u.lastSeen ?? u.last_seen,
+      is_active: u.isActive ?? u.is_active ?? true,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const contactsAPI = {
   async getContacts(
     params?: ContactSearchParams,
@@ -78,7 +107,21 @@ export const contactsAPI = {
         ? data.contacts
         : [];
     const contacts = items.map(normalizeContact);
-    return { contacts, total: contacts.length };
+
+    // Enrich contacts with user data in parallel
+    const enriched = await Promise.all(
+      contacts.map(async (contact) => {
+        if (contact.contact_id) {
+          const user = await fetchUserById(contact.contact_id);
+          if (user) {
+            return { ...contact, contact_user: user };
+          }
+        }
+        return contact;
+      }),
+    );
+
+    return { contacts: enriched, total: enriched.length };
   },
 
   async getContact(contactId: string): Promise<Contact> {

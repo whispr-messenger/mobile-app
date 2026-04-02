@@ -14,7 +14,7 @@ export const getApiBaseUrl = (): string => {
     | { apiBaseUrl?: string }
     | undefined;
   if (__DEV__) return `http://${getDevHost()}:8080`;
-  return extra?.apiBaseUrl ?? "https://whispr.epitech.beer";
+  return extra?.apiBaseUrl ?? "https://whispr-api.roadmvn.com";
 };
 
 export const getWsBaseUrl = (): string => {
