@@ -107,10 +107,12 @@ export const ConversationsListScreen: React.FC = () => {
   });
 
   useEffect(() => {
-    joinUserChannel();
+    if (token) {
+      joinUserChannel();
+    }
     fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const handleConversationPress = useCallback(
     (conversationId: string) => {

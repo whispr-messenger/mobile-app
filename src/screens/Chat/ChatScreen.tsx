@@ -232,18 +232,19 @@ export const ChatScreen: React.FC = () => {
     loadMessages();
     loadPinnedMessages();
 
-    // Join conversation channel
-    const channel = joinConversationChannel(conversationId);
-    conversationChannelRef.current = channel;
+    // Join conversation channel once token is available
+    if (token) {
+      const channel = joinConversationChannel(conversationId);
+      conversationChannelRef.current = channel;
 
-    return () => {
-      channel?.leave();
-      // Clear all typing timeouts on unmount
-      Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
-      typingTimeoutsRef.current = {};
-    };
+      return () => {
+        channel?.leave();
+        Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
+        typingTimeoutsRef.current = {};
+      };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId]);
+  }, [conversationId, token]);
 
   const loadMessages = useCallback(async (before?: string) => {
     try {

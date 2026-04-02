@@ -51,6 +51,10 @@ export class SocketConnection {
   }
 
   connect(userId: string, token: string): void {
+    if (!userId || !token) {
+      return;
+    }
+
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
