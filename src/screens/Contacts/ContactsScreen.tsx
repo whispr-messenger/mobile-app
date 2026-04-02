@@ -21,6 +21,7 @@ import { SyncContactsModal } from '../../components/Contacts/SyncContactsModal';
 import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { useAuth } from '../../context/AuthContext';
+import { TokenService } from '../../services/TokenService';
 import { useWebSocket } from '../../hooks/useWebSocket';
 
 declare module '@expo/vector-icons';
@@ -43,7 +44,11 @@ export const ContactsScreen: React.FC = () => {
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? '';
-  const token = userId ? `token-${userId}` : '';
+  const [token, setToken] = useState('');
+
+  useEffect(() => {
+    TokenService.getAccessToken().then(t => setToken(t ?? ''));
+  }, []);
 
   const { joinUserChannel } = useWebSocket({
     userId,

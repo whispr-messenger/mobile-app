@@ -11,6 +11,7 @@ import { StackScreenProps, StackNavigationProp } from '@react-navigation/stack';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { TokenService } from '../../services/TokenService';
 import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
 import { messagingAPI } from '../../services/messaging/api';
 import { useWebSocket } from '../../hooks/useWebSocket';
@@ -68,7 +69,11 @@ export const ChatScreen: React.FC = () => {
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? '';
-  const token = userId ? `token-${userId}` : '';
+  const [token, setToken] = useState('');
+
+  useEffect(() => {
+    TokenService.getAccessToken().then(t => setToken(t ?? ''));
+  }, []);
 
 
   // WebSocket connection

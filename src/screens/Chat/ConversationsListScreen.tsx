@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Conversation, Message } from '../../types/messaging';
 import { useAuth } from '../../context/AuthContext';
+import { TokenService } from '../../services/TokenService';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { SwipeableConversationItem } from '../../components/Chat/SwipeableConversationItem';
 import { EmptyState } from '../../components/Chat/EmptyState';
@@ -87,7 +88,11 @@ export const ConversationsListScreen: React.FC = () => {
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? '';
-  const token = userId ? `token-${userId}` : '';
+  const [token, setToken] = useState('');
+
+  useEffect(() => {
+    TokenService.getAccessToken().then(t => setToken(t ?? ''));
+  }, []);
 
   const { joinUserChannel } = useWebSocket({
     userId,

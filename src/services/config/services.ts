@@ -6,7 +6,7 @@ const PROD_BASE = process.env.EXPO_PUBLIC_API_BASE_URL;
 export const SERVICE_URLS = PROD_BASE
   ? {
       messagingHttp: `${PROD_BASE}/messaging/api/v1`,
-      messagingWs:   `wss://${PROD_BASE.replace(/^https?:\/\//, '')}/messaging/ws`,
+      messagingWs:   `wss://${PROD_BASE.replace(/^https?:\/\//, '')}/messaging`,
       auth:          `${PROD_BASE}/auth/v1`,
       user:          `${PROD_BASE}/user/v1`,
       media:         `${PROD_BASE}/media/v1`,

@@ -95,7 +95,7 @@ export const ProfileSetupScreen: React.FC = () => {
         username: username.trim(),
       };
 
-      const response = await fetch(`${getUserApiBase()}/users/${userId}/profile`, {
+      const response = await fetch(`${getUserApiBase()}/profile/${userId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

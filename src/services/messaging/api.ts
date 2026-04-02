@@ -1,10 +1,13 @@
 import { Conversation, Message } from '../../types/messaging';
 import { SERVICE_URLS } from '../config/services';
+import { TokenService } from '../TokenService';
 
 const API_BASE_URL = SERVICE_URLS.messagingHttp;
 
-const getAuthHeaders = (): Record<string, string> => {
-  return {};
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const token = await TokenService.getAccessToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
 };
 
 export const messagingAPI = {
@@ -30,7 +33,7 @@ export const messagingAPI = {
 
     const response = await fetch(url, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
     if (!response.ok) {
@@ -44,7 +47,7 @@ export const messagingAPI = {
   async getConversation(id: string): Promise<Conversation> {
     const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}`, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
     if (!response.ok) {
@@ -57,7 +60,7 @@ export const messagingAPI = {
     const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -93,7 +96,7 @@ export const messagingAPI = {
 
     const response = await fetch(url, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
     if (!response.ok) {
@@ -120,7 +123,7 @@ export const messagingAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify({
           content: message.content,
@@ -148,7 +151,7 @@ export const messagingAPI = {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
       body: JSON.stringify({
         content: newContent,
@@ -177,7 +180,7 @@ export const messagingAPI = {
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -197,7 +200,7 @@ export const messagingAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify({
           user_id: userId,
@@ -223,7 +226,7 @@ export const messagingAPI = {
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -237,7 +240,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/reactions`,
       {
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       }
     );
@@ -256,7 +259,7 @@ export const messagingAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify({
           conversation_id: conversationId,
@@ -277,7 +280,7 @@ export const messagingAPI = {
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -291,7 +294,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pins`,
       {
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       }
     );
@@ -309,7 +312,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/attachments`,
       {
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       }
     );
@@ -329,7 +332,7 @@ export const messagingAPI = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify(attachment),
       }
@@ -345,7 +348,7 @@ export const messagingAPI = {
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
     const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -374,7 +377,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
       {
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       }
     );
@@ -400,7 +403,7 @@ export const messagingAPI = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
       body: JSON.stringify({
         type: 'direct',
@@ -425,7 +428,7 @@ export const messagingAPI = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
       body: JSON.stringify({
         name,
@@ -450,7 +453,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}`,
       {
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       }
     );
