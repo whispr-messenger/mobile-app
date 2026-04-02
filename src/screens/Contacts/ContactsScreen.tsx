@@ -73,7 +73,7 @@ export const ContactsScreen: React.FC = () => {
         sort: sortBy,
         favorites: showFavoritesOnly || undefined,
       };
-      const result = await contactsAPI.getContacts(params);
+      const result = await contactsAPI.getContacts(params, userId);
       setContacts(result.contacts);
     } catch (error) {
       console.error('[ContactsScreen] Error loading contacts:', error);

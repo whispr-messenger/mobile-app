@@ -12,18 +12,22 @@ import {
   ContactRequest,
 } from '../../types/contact';
 import { SERVICE_URLS } from '../config/services';
+import { TokenService } from '../TokenService';
 
 export type { Contact };
 
 const API_BASE_URL = SERVICE_URLS.user;
 
-const getAuthHeaders = (): Record<string, string> => {
-  return {};
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const token = await TokenService.getAccessToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
 };
 
 export const contactsAPI = {
   async getContacts(
     params?: ContactSearchParams,
+    userId?: string,
   ): Promise<{ contacts: Contact[]; total: number }> {
     const query = new URLSearchParams();
 
@@ -44,11 +48,12 @@ export const contactsAPI = {
     }
 
     const queryString = query.toString();
-    const url = `${API_BASE_URL}/contacts${queryString ? `?${queryString}` : ""}`;
+    const ownerPath = userId ? `/${encodeURIComponent(userId)}` : "";
+    const url = `${API_BASE_URL}/contacts${ownerPath}${queryString ? `?${queryString}` : ""}`;
 
     const response = await fetch(url, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
     if (!response.ok) {
@@ -56,13 +61,9 @@ export const contactsAPI = {
     }
 
     const data = await response.json();
-    const contacts = Array.isArray(data.contacts) ? data.contacts : [];
-    const total =
-      typeof data.total === "number"
-        ? data.total
-        : Array.isArray(data.contacts)
-          ? data.contacts.length
-          : 0;
+    // Backend returns array directly for /contacts/:ownerId
+    const contacts = Array.isArray(data) ? data : (Array.isArray(data.contacts) ? data.contacts : []);
+    const total = contacts.length;
 
     return { contacts, total };
   },
@@ -72,7 +73,7 @@ export const contactsAPI = {
       `${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`,
       {
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       },
     );
@@ -87,7 +88,7 @@ export const contactsAPI = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
       body: JSON.stringify({
         contact_id: data.contactId,
@@ -112,7 +113,7 @@ export const contactsAPI = {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
         body: JSON.stringify(data),
       },
@@ -131,7 +132,7 @@ export const contactsAPI = {
       {
         method: "DELETE",
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       },
     );
@@ -144,7 +145,7 @@ export const contactsAPI = {
   async getContactStats(): Promise<ContactStats> {
     const response = await fetch(`${API_BASE_URL}/contacts/stats`, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -170,7 +171,7 @@ export const contactsAPI = {
 
     const response = await fetch(url, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
     if (!response.ok) {
@@ -247,7 +248,7 @@ export const contactsAPI = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
       body: JSON.stringify(phoneContacts),
     });
@@ -263,7 +264,7 @@ export const contactsAPI = {
   async getContactRequests(): Promise<ContactRequest[]> {
     const response = await fetch(`${API_BASE_URL}/contact_requests`, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -283,7 +284,7 @@ export const contactsAPI = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
       body: JSON.stringify({
         recipient_id: recipientId,
@@ -303,7 +304,7 @@ export const contactsAPI = {
       {
         method: "POST",
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       },
     );
@@ -321,7 +322,7 @@ export const contactsAPI = {
       {
         method: "POST",
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       },
     );
@@ -344,7 +345,7 @@ export const contactsAPI = {
     const url = `${API_BASE_URL}/contacts/blocked?${query.toString()}`;
     const response = await fetch(url, {
       headers: {
-        ...getAuthHeaders(),
+        ...(await getAuthHeaders()),
       },
     });
 
@@ -371,7 +372,7 @@ export const contactsAPI = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
         body: data ? JSON.stringify(data) : undefined,
       },
@@ -390,7 +391,7 @@ export const contactsAPI = {
       {
         method: "DELETE",
         headers: {
-          ...getAuthHeaders(),
+          ...(await getAuthHeaders()),
         },
       },
     );
