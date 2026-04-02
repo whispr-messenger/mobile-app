@@ -52,7 +52,7 @@ export const AuthService = {
     purpose: AuthPurpose,
   ): Promise<VerificationRequestResponse> {
     return apiFetch<VerificationRequestResponse>(
-      `/verify/${purpose}/request`,
+      `/v1/verify/${purpose}/request`,
       {
         method: "POST",
         body: JSON.stringify({ phoneNumber }),
@@ -66,7 +66,7 @@ export const AuthService = {
     purpose: AuthPurpose,
   ): Promise<VerificationConfirmResponse> {
     return apiFetch<VerificationConfirmResponse>(
-      `/verify/${purpose}/confirm`,
+      `/v1/verify/${purpose}/confirm`,
       {
         method: "POST",
         body: JSON.stringify({ verificationId, code }),
@@ -80,7 +80,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>("/v1/auth/register", {
+    const tokens = await apiFetch<TokenPair>("/v1/register", {
       method: "POST",
       body: JSON.stringify({
         verificationId,
@@ -99,7 +99,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>("/v1/auth/login", {
+    const tokens = await apiFetch<TokenPair>("/v1/login", {
       method: "POST",
       body: JSON.stringify({
         verificationId,
@@ -126,7 +126,7 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
-    await apiFetch("/v1/auth/logout", {
+    await apiFetch("/v1/logout", {
       method: "POST",
       token: token ?? undefined,
       body: JSON.stringify({ deviceId, userId }),
