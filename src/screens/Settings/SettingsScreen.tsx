@@ -13,6 +13,7 @@ import {
   Switch,
   Alert,
   Modal,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -386,7 +387,7 @@ export const SettingsScreen: React.FC = () => {
       style={styles.container}
     >
       <ScrollView
-        style={styles.scrollView}
+        style={[styles.scrollView, Platform.OS === 'web' && { overflowY: 'auto' as any }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
