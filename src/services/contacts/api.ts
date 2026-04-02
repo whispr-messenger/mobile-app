@@ -61,11 +61,45 @@ export const contactsAPI = {
     }
 
     const data = await response.json();
-    // Backend returns array directly for /contacts/:ownerId
-    const contacts = Array.isArray(data) ? data : (Array.isArray(data.contacts) ? data.contacts : []);
-    const total = contacts.length;
+    // Backend returns array of raw contact records for /contacts/:ownerId
+    const rawContacts = Array.isArray(data) ? data : (Array.isArray(data.contacts) ? data.contacts : []);
 
-    return { contacts, total };
+    // Enrich each contact with user profile data
+    const headers = await getAuthHeaders();
+    const enriched: Contact[] = await Promise.all(
+      rawContacts.map(async (c: any) => {
+        const cid = c.contactId || c.contact_id;
+        let contactUser = undefined;
+        if (cid) {
+          try {
+            const profileRes = await fetch(`${API_BASE_URL}/profile/${encodeURIComponent(cid)}`, { headers });
+            if (profileRes.ok) {
+              const p = await profileRes.json();
+              contactUser = {
+                id: p.id,
+                username: p.username,
+                first_name: p.firstName,
+                last_name: p.lastName,
+                avatar_url: p.profilePictureUrl,
+                is_active: p.isActive,
+              };
+            }
+          } catch { /* ignore */ }
+        }
+        return {
+          id: c.id,
+          user_id: c.ownerId || c.owner_id,
+          contact_id: cid,
+          nickname: c.nickname,
+          is_favorite: c.isFavorite || false,
+          added_at: c.createdAt || c.created_at,
+          updated_at: c.updatedAt || c.updated_at,
+          contact_user: contactUser,
+        } as Contact;
+      })
+    );
+
+    return { contacts: enriched, total: enriched.length };
   },
 
   async getContact(contactId: string): Promise<Contact> {
