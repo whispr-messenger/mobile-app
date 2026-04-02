@@ -167,7 +167,7 @@ export const PhoneInputScreen: React.FC = () => {
         style={styles.flex}
         keyboardVerticalOffset={0}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <TouchableWithoutFeedback onPress={Platform.OS !== 'web' ? Keyboard.dismiss : undefined} accessible={false}>
           <Animated.View
             style={[
               styles.content,
@@ -230,7 +230,8 @@ export const PhoneInputScreen: React.FC = () => {
                   keyboardType="phone-pad"
                   value={phoneNumber}
                   onChangeText={(t) => {
-                    setPhoneNumber(t);
+                    const cleaned = t.replace(/[^0-9\s]/g, '');
+                    setPhoneNumber(cleaned);
                     setError('');
                     setShowRegister(false);
                     setShowLogin(false);
