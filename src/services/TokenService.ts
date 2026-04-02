@@ -1,5 +1,5 @@
-import { Platform } from 'react-native';
-import type { JwtPayload, TokenPair } from '../types/auth';
+import type { JwtPayload, TokenPair } from "../types/auth";
+import { storage } from "./storage";
 
 // expo-secure-store doesn't work on web — fallback to localStorage
 const storage = Platform.OS === 'web'
@@ -15,19 +15,19 @@ const storage = Platform.OS === 'web'
     };
 
 const KEYS = {
-  ACCESS_TOKEN: 'whispr.auth.accessToken',
-  REFRESH_TOKEN: 'whispr.auth.refreshToken',
-  IDENTITY_KEY: 'whispr.signal.identityKeyPrivate',
+  ACCESS_TOKEN: "whispr.auth.accessToken",
+  REFRESH_TOKEN: "whispr.auth.refreshToken",
+  IDENTITY_KEY: "whispr.signal.identityKeyPrivate",
 } as const;
 
 function decodeJwtPayload(token: string): JwtPayload | null {
   try {
-    const parts = token.split('.');
+    const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = parts[1];
     // Base64url → base64
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '=='.slice(0, (4 - (base64.length % 4)) % 4);
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
     const decoded = atob(padded);
     return JSON.parse(decoded) as JwtPayload;
   } catch {
@@ -37,29 +37,29 @@ function decodeJwtPayload(token: string): JwtPayload | null {
 
 export const TokenService = {
   async saveTokens(tokens: TokenPair): Promise<void> {
-    await storage.setItemAsync(KEYS.ACCESS_TOKEN, tokens.accessToken);
-    await storage.setItemAsync(KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    await storage.setItem(KEYS.ACCESS_TOKEN, tokens.accessToken);
+    await storage.setItem(KEYS.REFRESH_TOKEN, tokens.refreshToken);
   },
 
   async getAccessToken(): Promise<string | null> {
-    return storage.getItemAsync(KEYS.ACCESS_TOKEN);
+    return storage.getItem(KEYS.ACCESS_TOKEN);
   },
 
   async getRefreshToken(): Promise<string | null> {
-    return storage.getItemAsync(KEYS.REFRESH_TOKEN);
+    return storage.getItem(KEYS.REFRESH_TOKEN);
   },
 
   async clearTokens(): Promise<void> {
-    await storage.deleteItemAsync(KEYS.ACCESS_TOKEN);
-    await storage.deleteItemAsync(KEYS.REFRESH_TOKEN);
+    await storage.deleteItem(KEYS.ACCESS_TOKEN);
+    await storage.deleteItem(KEYS.REFRESH_TOKEN);
   },
 
   async saveIdentityPrivateKey(base64Key: string): Promise<void> {
-    await storage.setItemAsync(KEYS.IDENTITY_KEY, base64Key);
+    await storage.setItem(KEYS.IDENTITY_KEY, base64Key);
   },
 
   async getIdentityPrivateKey(): Promise<string | null> {
-    return storage.getItemAsync(KEYS.IDENTITY_KEY);
+    return storage.getItem(KEYS.IDENTITY_KEY);
   },
 
   decodeAccessToken(token: string): JwtPayload | null {

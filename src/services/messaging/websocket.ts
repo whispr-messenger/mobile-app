@@ -1,6 +1,4 @@
-import { SERVICE_URLS } from '../config/services';
-
-export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+import { getWsBaseUrl } from "../apiBase";
 
 type EventCallback = (data: any) => void;
 
@@ -51,19 +49,15 @@ export class SocketConnection {
   }
 
   connect(userId: string, token: string): void {
-    if (!userId || !token) {
+    if (
+      this.socket &&
+      (this.socket.readyState === WebSocket.OPEN ||
+        this.socket.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
-    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
-      return;
-    }
-
-    this.lastUserId = userId;
-    this.lastToken = token;
-    this.shouldReconnect = true;
-
-    const url = `${SERVICE_URLS.messagingWs}/socket/websocket?user_id=${encodeURIComponent(
+    const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
       userId,
     )}&token=${encodeURIComponent(token)}`;
 
@@ -84,7 +78,7 @@ export class SocketConnection {
       this.pendingTopics.forEach((topic) => {
         const joinMsg = {
           topic,
-          event: 'phx_join',
+          event: "phx_join",
           payload: {},
           ref: Date.now().toString(),
         };
@@ -118,14 +112,18 @@ export class SocketConnection {
       try {
         const msg = JSON.parse(event.data);
 
-        if (msg.topic && msg.event === 'phx_reply' && msg.payload?.status === 'ok') {
+        if (
+          msg.topic &&
+          msg.event === "phx_reply" &&
+          msg.payload?.status === "ok"
+        ) {
           const channel = this.channels[msg.topic];
           if (channel) {
             channel.joined = true;
           }
         }
 
-        if (msg.topic && msg.event && msg.event !== 'phx_reply') {
+        if (msg.topic && msg.event && msg.event !== "phx_reply") {
           const channel = this.channels[msg.topic];
           const cbs = channel?.callbacks[msg.event] || [];
           cbs.forEach((cb) => cb(msg.payload));
@@ -210,24 +208,24 @@ export class SocketConnection {
     const join = async (): Promise<{ status: string }> => {
       if (!this.socket) {
         this.pendingTopics.add(topic);
-        return { status: 'error' };
+        return { status: "error" };
       }
 
       if (this.socket.readyState !== WebSocket.OPEN) {
         this.pendingTopics.add(topic);
-        return { status: 'error' };
+        return { status: "error" };
       }
 
       const joinMsg = {
         topic,
-        event: 'phx_join',
+        event: "phx_join",
         payload: {},
         ref: Date.now().toString(),
       };
 
       this.socket.send(JSON.stringify(joinMsg));
 
-      return { status: 'ok' };
+      return { status: "ok" };
     };
 
     const on = (event: string, callback: EventCallback): void => {
@@ -260,7 +258,7 @@ export class SocketConnection {
 
       const msg = {
         topic,
-        event: 'phx_leave',
+        event: "phx_leave",
         payload: {},
         ref: Date.now().toString(),
       };

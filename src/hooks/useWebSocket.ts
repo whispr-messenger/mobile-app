@@ -25,6 +25,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
 
   useEffect(() => {
+    if (!options.userId || !options.token) {
+      return;
+    }
     const socket = createSocket();
 
     // Track connection state changes from the socket layer
@@ -197,6 +200,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     // if there's a need to re-join or ensure it's active from a component.
     if (userChannelRef.current && socketRef.current?.isConnected()) {
       return userChannelRef.current;
+    }
+    if (!options.userId || !options.token) {
+      return null;
     }
     const socket = createSocket();
     socket.onConnectionStateChange = (state: ConnectionState) => {

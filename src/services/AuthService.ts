@@ -1,39 +1,37 @@
-import { TokenService } from './TokenService';
-import { DeviceService } from './DeviceService';
-import { SignalKeyService } from './SignalKeyService';
-import { SERVICE_URLS } from './config/services';
+import { TokenService } from "./TokenService";
+import { DeviceService } from "./DeviceService";
+import { SignalKeyService } from "./SignalKeyService";
+import { getApiBaseUrl } from "./apiBase";
 import type {
   AuthPurpose,
   TokenPair,
   VerificationConfirmResponse,
   VerificationRequestResponse,
-} from '../types/auth';
-
-function getBaseUrl(): string {
-  return SERVICE_URLS.auth;
-}
+} from "../types/auth";
 
 async function apiFetch<T>(
   path: string,
-  options: RequestInit & { token?: string } = {}
+  options: RequestInit & { token?: string } = {},
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(fetchOptions.headers as Record<string, string>),
   };
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${getBaseUrl()}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth${path}`, {
     ...fetchOptions,
     headers,
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    const error = new Error(body?.message ?? `HTTP ${response.status}`) as Error & {
+    const error = new Error(
+      body?.message ?? `HTTP ${response.status}`,
+    ) as Error & {
       status: number;
       body: unknown;
     };
@@ -51,28 +49,28 @@ async function apiFetch<T>(
 export const AuthService = {
   async requestVerification(
     phoneNumber: string,
-    purpose: AuthPurpose
+    purpose: AuthPurpose,
   ): Promise<VerificationRequestResponse> {
     return apiFetch<VerificationRequestResponse>(
       `/verify/${purpose}/request`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify({ phoneNumber }),
-      }
+      },
     );
   },
 
   async confirmVerification(
     verificationId: string,
     code: string,
-    purpose: AuthPurpose
+    purpose: AuthPurpose,
   ): Promise<VerificationConfirmResponse> {
     return apiFetch<VerificationConfirmResponse>(
       `/verify/${purpose}/confirm`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify({ verificationId, code }),
-      }
+      },
     );
   },
 
@@ -82,8 +80,8 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>('/register', {
-      method: 'POST',
+    const tokens = await apiFetch<TokenPair>("/v1/auth/register", {
+      method: "POST",
       body: JSON.stringify({
         verificationId,
         ...deviceInfo,
@@ -101,8 +99,8 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>('/login', {
-      method: 'POST',
+    const tokens = await apiFetch<TokenPair>("/v1/auth/login", {
+      method: "POST",
       body: JSON.stringify({
         verificationId,
         ...deviceInfo,
@@ -116,10 +114,10 @@ export const AuthService = {
 
   async refreshTokens(): Promise<void> {
     const refreshToken = await TokenService.getRefreshToken();
-    if (!refreshToken) throw new Error('No refresh token');
+    if (!refreshToken) throw new Error("No refresh token");
 
-    const tokens = await apiFetch<TokenPair>('/tokens/refresh', {
-      method: 'POST',
+    const tokens = await apiFetch<TokenPair>("/v1/tokens/refresh", {
+      method: "POST",
       body: JSON.stringify({ refreshToken }),
     });
 
@@ -128,8 +126,8 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
-    await apiFetch('/logout', {
-      method: 'POST',
+    await apiFetch("/v1/auth/logout", {
+      method: "POST",
       token: token ?? undefined,
       body: JSON.stringify({ deviceId, userId }),
     }).catch(() => {
@@ -138,7 +136,10 @@ export const AuthService = {
     await TokenService.clearTokens();
   },
 
-  async validateSession(): Promise<{ userId: string; deviceId: string } | null> {
+  async validateSession(): Promise<{
+    userId: string;
+    deviceId: string;
+  } | null> {
     const token = await TokenService.getAccessToken();
     if (!token) return null;
 
@@ -157,9 +158,7 @@ export const AuthService = {
 
     // Validate with a network call (GET /users/me via user-service)
     try {
-      const userApiBase = SERVICE_URLS.user;
-
-      const response = await fetch(`${userApiBase}/users/me`, {
+      const response = await fetch(`${getApiBaseUrl()}/user/v1/users/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
