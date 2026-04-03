@@ -15,9 +15,18 @@ import { ReplyPreview } from './ReplyPreview';
 import { Avatar } from './Avatar';
 import { CameraCapture, CameraCaptureResult } from './CameraCapture';
 
+// Import expo-av for audio recording
+let AudioModule: any = null;
+try {
+  const expoAv = require('expo-av');
+  AudioModule = expoAv.Audio;
+} catch (error) {
+  console.warn('[MessageInput] expo-av not available for recording:', error);
+}
+
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
-  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => void;
+  onSendMedia?: (uri: string, type: 'image' | 'video' | 'file' | 'audio', replyToId?: string, caption?: string) => void;
   onScheduleSend?: (message: string) => void;
   onTyping?: (typing: boolean) => void;
   placeholder?: string;
@@ -47,6 +56,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [showCameraCapture, setShowCameraCapture] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingRef = useRef<any>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
@@ -242,6 +255,141 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [onSendMedia, replyingTo, onCancelReply]);
 
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current = null;
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    };
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    if (!AudioModule) {
+      Alert.alert('Erreur', 'L\'enregistrement audio n\'est pas disponible.');
+      return;
+    }
+
+    try {
+      console.log('[MessageInput] Requesting audio recording permissions');
+      const permission = await AudioModule.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour enregistrer des messages vocaux.');
+        return;
+      }
+
+      await AudioModule.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      console.log('[MessageInput] Starting audio recording');
+      const { recording } = await AudioModule.Recording.createAsync(
+        AudioModule.RecordingOptionsPresets.HIGH_QUALITY,
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setRecordingDuration(0);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Start duration timer
+      const startTime = Date.now();
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+    } catch (error: any) {
+      console.error('[MessageInput] Error starting recording:', error);
+      Alert.alert('Erreur', 'Impossible de démarrer l\'enregistrement.');
+    }
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    if (!recordingRef.current) return;
+
+    try {
+      console.log('[MessageInput] Stopping audio recording');
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+
+      await recordingRef.current.stopAndUnloadAsync();
+      await AudioModule.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      });
+
+      const uri = recordingRef.current.getURI();
+      const status = await recordingRef.current.getStatusAsync();
+      recordingRef.current = null;
+      setIsRecording(false);
+      setRecordingDuration(0);
+
+      if (!uri) {
+        console.error('[MessageInput] No URI from recording');
+        return;
+      }
+
+      // Only send if recording is at least 1 second
+      const durationSec = (status?.durationMillis || 0) / 1000;
+      if (durationSec < 1) {
+        console.log('[MessageInput] Recording too short, discarding');
+        return;
+      }
+
+      console.log('[MessageInput] Recording complete:', uri, 'duration:', durationSec);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSendMedia?.(uri, 'audio', replyingTo?.id);
+      if (replyingTo) {
+        onCancelReply?.();
+      }
+    } catch (error: any) {
+      console.error('[MessageInput] Error stopping recording:', error);
+      setIsRecording(false);
+      setRecordingDuration(0);
+      recordingRef.current = null;
+    }
+  }, [onSendMedia, replyingTo, onCancelReply]);
+
+  const cancelRecording = useCallback(async () => {
+    if (!recordingRef.current) return;
+
+    try {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      await recordingRef.current.stopAndUnloadAsync();
+      recordingRef.current = null;
+      setIsRecording(false);
+      setRecordingDuration(0);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      console.log('[MessageInput] Recording cancelled');
+    } catch (error) {
+      console.error('[MessageInput] Error cancelling recording:', error);
+      setIsRecording(false);
+      setRecordingDuration(0);
+      recordingRef.current = null;
+    }
+  }, []);
+
+  const handleMicPress = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
+  const formatRecordingTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <View
       style={[
@@ -277,118 +425,168 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </View>
       )}
       <View style={styles.inputContainer}>
-        {!editingMessage && (
-          <View style={styles.attachButtons}>
+        {isRecording ? (
+          <>
             <TouchableOpacity
-              onPress={handleOpenCamera}
+              onPress={cancelRecording}
               style={styles.attachButton}
               activeOpacity={0.7}
             >
-              <Ionicons
-                name="camera-outline"
-                size={24}
-                color={themeColors.text.secondary}
-              />
+              <Ionicons name="trash-outline" size={24} color={colors.ui.error} />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handlePickImage}
-              style={styles.attachButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="image-outline"
-                size={24}
-                color={themeColors.text.secondary}
-              />
-            </TouchableOpacity>
-          </View>
-        )}
-        <View style={styles.inputWrapper}>
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.input,
-              {
-                color: themeColors.text.primary,
-                backgroundColor: 'rgba(26, 31, 58, 0.6)', // Dark card with transparency
-              },
-            ]}
-            value={text}
-            onChangeText={handleTextChange}
-            onKeyPress={(event) => {
-              if (Platform.OS === 'web' && event.nativeEvent.key === 'Enter') {
-                if (typeof (event as any).preventDefault === 'function') {
-                  (event as any).preventDefault();
-                }
-                handleSend();
-              }
-            }}
-            placeholder={
-              editingMessage
-                ? 'Modifier le message'
-                : replyingTo
-                ? 'Répondre'
-                : placeholder
-            }
-            placeholderTextColor={themeColors.text.tertiary}
-            maxLength={1000}
-          />
-          {showMentions && conversationType === 'group' && members.length > 0 && (
-            <View style={[styles.mentionsList, { backgroundColor: 'rgba(26, 31, 58, 0.95)' }]}>
-              <ScrollView style={styles.mentionsScroll} nestedScrollEnabled>
-                {members
-                  .filter(member => {
-                    if (!mentionQuery) return true;
-                    const name = member.display_name.toLowerCase();
-                    const username = member.username?.toLowerCase() || '';
-                    return name.includes(mentionQuery) || username.includes(mentionQuery);
-                  })
-                  .slice(0, 5)
-                  .map((member) => (
-                    <TouchableOpacity
-                      key={member.id}
-                      style={styles.mentionItem}
-                      onPress={() => handleMentionSelect(member)}
-                      activeOpacity={0.7}
-                    >
-                      <Avatar
-                        size={32}
-                        name={member.display_name}
-                        showOnlineBadge={false}
-                        isOnline={false}
-                      />
-                      <View style={styles.mentionInfo}>
-                        <Text style={[styles.mentionName, { color: themeColors.text.primary }]}>
-                          {member.display_name}
-                        </Text>
-                        {member.username && (
-                          <Text style={[styles.mentionUsername, { color: themeColors.text.secondary }]}>
-                            @{member.username}
-                          </Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-              </ScrollView>
+            <View style={styles.recordingIndicator}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingText}>
+                {formatRecordingTime(recordingDuration)}
+              </Text>
             </View>
-          )}
-        </View>
-        <TouchableOpacity
-          onPress={handleSend}
-          onLongPress={handleLongPressSend}
-          delayLongPress={500}
-          disabled={!text.trim()}
-          activeOpacity={0.7}
-        >
-          <LinearGradient
-            colors={['#FFB07B', '#F04882']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
-          >
-            <Text style={styles.sendIcon}>→</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <TouchableOpacity
+              onPress={stopRecording}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={['#FFB07B', '#F04882']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.sendButton}
+              >
+                <Ionicons name="send" size={18} color={colors.text.light} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            {!editingMessage && (
+              <View style={styles.attachButtons}>
+                <TouchableOpacity
+                  onPress={handleOpenCamera}
+                  style={styles.attachButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="camera-outline"
+                    size={24}
+                    color={themeColors.text.secondary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handlePickImage}
+                  style={styles.attachButton}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={24}
+                    color={themeColors.text.secondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+            <View style={styles.inputWrapper}>
+              <TextInput
+                ref={inputRef}
+                style={[
+                  styles.input,
+                  {
+                    color: themeColors.text.primary,
+                    backgroundColor: 'rgba(26, 31, 58, 0.6)',
+                  },
+                ]}
+                value={text}
+                onChangeText={handleTextChange}
+                onKeyPress={(event) => {
+                  if (Platform.OS === 'web' && event.nativeEvent.key === 'Enter') {
+                    if (typeof (event as any).preventDefault === 'function') {
+                      (event as any).preventDefault();
+                    }
+                    handleSend();
+                  }
+                }}
+                placeholder={
+                  editingMessage
+                    ? 'Modifier le message'
+                    : replyingTo
+                    ? 'Répondre'
+                    : placeholder
+                }
+                placeholderTextColor={themeColors.text.tertiary}
+                maxLength={1000}
+              />
+              {showMentions && conversationType === 'group' && members.length > 0 && (
+                <View style={[styles.mentionsList, { backgroundColor: 'rgba(26, 31, 58, 0.95)' }]}>
+                  <ScrollView style={styles.mentionsScroll} nestedScrollEnabled>
+                    {members
+                      .filter(member => {
+                        if (!mentionQuery) return true;
+                        const name = member.display_name.toLowerCase();
+                        const username = member.username?.toLowerCase() || '';
+                        return name.includes(mentionQuery) || username.includes(mentionQuery);
+                      })
+                      .slice(0, 5)
+                      .map((member) => (
+                        <TouchableOpacity
+                          key={member.id}
+                          style={styles.mentionItem}
+                          onPress={() => handleMentionSelect(member)}
+                          activeOpacity={0.7}
+                        >
+                          <Avatar
+                            size={32}
+                            name={member.display_name}
+                            showOnlineBadge={false}
+                            isOnline={false}
+                          />
+                          <View style={styles.mentionInfo}>
+                            <Text style={[styles.mentionName, { color: themeColors.text.primary }]}>
+                              {member.display_name}
+                            </Text>
+                            {member.username && (
+                              <Text style={[styles.mentionUsername, { color: themeColors.text.secondary }]}>
+                                @{member.username}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+            {text.trim() ? (
+              <TouchableOpacity
+                onPress={handleSend}
+                onLongPress={handleLongPressSend}
+                delayLongPress={500}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#FFB07B', '#F04882']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.sendButton}
+                >
+                  <Text style={styles.sendIcon}>→</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleMicPress}
+                onLongPress={startRecording}
+                delayLongPress={300}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#FFB07B', '#F04882']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.sendButton}
+                >
+                  <Ionicons name="mic" size={20} color={colors.text.light} />
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
       </View>
       <CameraCapture
         visible={showCameraCapture}
@@ -502,6 +700,24 @@ const styles = StyleSheet.create({
   sendIcon: {
     color: colors.text.light,
     fontSize: 20,
+    fontWeight: '600',
+  },
+  recordingIndicator: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 12,
+  },
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.ui.error,
+    marginRight: 8,
+  },
+  recordingText: {
+    color: colors.ui.error,
+    fontSize: 16,
     fontWeight: '600',
   },
 });

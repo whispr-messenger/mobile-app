@@ -28,7 +28,7 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: 'Contacts', icon: 'person-outline', route: 'Contacts' },
-  { name: 'Calls', icon: 'call-outline', route: 'ConversationsList' },
+  { name: 'Calls', icon: 'call-outline', route: 'Calls' },
   { name: 'Chats', useLogo: true, logoVariant: 'double', route: 'ConversationsList', badgeKey: 'chats' },
   { name: 'Settings', useLogo: true, logoVariant: 'single', route: 'Settings' },
 ];

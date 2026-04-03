@@ -27,6 +27,7 @@ import { ReactionBar } from "./ReactionBar";
 import { ReplyPreview } from "./ReplyPreview";
 import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
+import { AudioMessage } from "./AudioMessage";
 import { FormattedText } from "../../utils/textFormatter";
 
 interface MessageBubbleProps {
@@ -73,7 +74,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isDefaultMediaText =
     hasMedia &&
     message.content &&
-    ["Photo", "Vidéo", "Fichier"].includes(message.content);
+    ["Photo", "Vidéo", "Fichier", "Message vocal"].includes(message.content);
 
   const displayContent =
     message.is_deleted && message.delete_for_everyone
@@ -141,21 +142,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ) : null}
           {hasMedia && firstAttachment && firstAttachment.metadata ? (
             <>
-              <MediaMessage
-                uri={
-                  firstAttachment.metadata.media_url ||
-                  firstAttachment.metadata.thumbnail_url ||
-                  ""
-                }
-                type={
-                  firstAttachment.media_type === "audio"
-                    ? "file"
-                    : firstAttachment.media_type
-                }
-                filename={firstAttachment.metadata.filename}
-                size={firstAttachment.metadata.size}
-                thumbnailUri={firstAttachment.metadata.thumbnail_url}
-              />
+              {firstAttachment.media_type === "audio" ? (
+                <AudioMessage
+                  uri={firstAttachment.metadata.media_url || ""}
+                  duration={firstAttachment.metadata.duration}
+                  isSent={true}
+                />
+              ) : (
+                <MediaMessage
+                  uri={
+                    firstAttachment.metadata.media_url ||
+                    firstAttachment.metadata.thumbnail_url ||
+                    ""
+                  }
+                  type={firstAttachment.media_type}
+                  filename={firstAttachment.metadata.filename}
+                  size={firstAttachment.metadata.size}
+                  thumbnailUri={firstAttachment.metadata.thumbnail_url}
+                />
+              )}
             </>
           ) : null}
           {displayContent ? (
@@ -220,17 +225,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : null}
         {hasMedia && firstAttachment && firstAttachment.metadata ? (
           <>
-            <MediaMessage
-              uri={
-                firstAttachment.metadata.media_url ||
-                firstAttachment.metadata.thumbnail_url ||
-                ""
-              }
-              type={firstAttachment.media_type as "image" | "video" | "file"}
-              filename={firstAttachment.metadata.filename}
-              size={firstAttachment.metadata.size}
-              thumbnailUri={firstAttachment.metadata.thumbnail_url}
-            />
+            {firstAttachment.media_type === "audio" ? (
+              <AudioMessage
+                uri={firstAttachment.metadata.media_url || ""}
+                duration={firstAttachment.metadata.duration}
+                isSent={false}
+              />
+            ) : (
+              <MediaMessage
+                uri={
+                  firstAttachment.metadata.media_url ||
+                  firstAttachment.metadata.thumbnail_url ||
+                  ""
+                }
+                type={firstAttachment.media_type as "image" | "video" | "file"}
+                filename={firstAttachment.metadata.filename}
+                size={firstAttachment.metadata.size}
+                thumbnailUri={firstAttachment.metadata.thumbnail_url}
+              />
+            )}
           </>
         ) : null}
         {displayContent ? (

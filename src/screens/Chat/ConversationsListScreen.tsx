@@ -34,6 +34,7 @@ import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import Toast from "../../components/Toast/Toast";
 import { useConversationsStore } from "../../store/conversationsStore";
+import { messagingAPI } from "../../services/messaging/api";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
@@ -84,6 +85,9 @@ export const ConversationsListScreen: React.FC = () => {
   const [showNewConversationModal, setShowNewConversationModal] =
     useState(false);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [messageSearchConvIds, setMessageSearchConvIds] = useState<Set<string>>(
+    new Set(),
+  );
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -104,7 +108,8 @@ export const ConversationsListScreen: React.FC = () => {
         const lastMessage = conv.last_message?.content || "";
         return (
           name.toLowerCase().includes(query) ||
-          lastMessage.toLowerCase().includes(query)
+          lastMessage.toLowerCase().includes(query) ||
+          messageSearchConvIds.has(conv.id)
         );
       });
     }
@@ -116,7 +121,7 @@ export const ConversationsListScreen: React.FC = () => {
       const bTime = b.last_message?.sent_at || b.updated_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
     });
-  }, [conversations, searchQuery]);
+  }, [conversations, searchQuery, messageSearchConvIds]);
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? "";
@@ -447,8 +452,27 @@ export const ConversationsListScreen: React.FC = () => {
                 if (searchTimeoutRef.current) {
                   clearTimeout(searchTimeoutRef.current);
                 }
-                searchTimeoutRef.current = setTimeout(() => {
-                  // Future: trigger API search here
+                if (!text.trim()) {
+                  setMessageSearchConvIds(new Set());
+                  return;
+                }
+                searchTimeoutRef.current = setTimeout(async () => {
+                  try {
+                    const results = await messagingAPI.searchMessagesGlobal(
+                      text.trim(),
+                      { limit: 50 },
+                    );
+                    if (results) {
+                      const convIds = new Set(
+                        results.map((msg) => msg.conversation_id),
+                      );
+                      setMessageSearchConvIds(convIds);
+                    } else {
+                      setMessageSearchConvIds(new Set());
+                    }
+                  } catch {
+                    setMessageSearchConvIds(new Set());
+                  }
                 }, 300);
               }}
             />
@@ -456,6 +480,7 @@ export const ConversationsListScreen: React.FC = () => {
               <TouchableOpacity
                 onPress={() => {
                   setSearchQuery("");
+                  setMessageSearchConvIds(new Set());
                   if (searchTimeoutRef.current) {
                     clearTimeout(searchTimeoutRef.current);
                   }

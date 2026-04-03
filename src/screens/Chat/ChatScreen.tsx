@@ -52,6 +52,7 @@ import { MessageSearch } from "../../components/Chat/MessageSearch";
 import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
 import { EmptyChatState } from "../../components/Chat/EmptyChatState";
 import { ChatHeader } from "./ChatHeader";
+import { usePresenceStore } from "../../store/presenceStore";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
@@ -109,6 +110,8 @@ export const ChatScreen: React.FC = () => {
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleMessageText, setScheduleMessageText] = useState("");
   const allConversations = useConversationsStore((s) => s.conversations);
+  const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
+  const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -398,6 +401,10 @@ export const ChatScreen: React.FC = () => {
           // Initial load
           setMessages(messagesWithRelations);
           setHasMore(messagesWithRelations.length === 50);
+          // Mark the newest message as read so the sender gets a read receipt
+          if (messagesWithRelations.length > 0) {
+            markAsRead(conversationId, messagesWithRelations[0].id);
+          }
         }
       } catch (error) {
         logger.error("ChatScreen", "Error loading messages", error);
@@ -511,7 +518,7 @@ export const ChatScreen: React.FC = () => {
   const handleSendMedia = useCallback(
     async (
       uri: string,
-      type: "image" | "video" | "file",
+      type: "image" | "video" | "file" | "audio",
       replyToId?: string,
       caption?: string,
     ) => {
@@ -521,7 +528,7 @@ export const ChatScreen: React.FC = () => {
       // Use caption if provided, otherwise use default text
       const messageContent =
         caption?.trim() ||
-        (type === "image" ? "Photo" : type === "video" ? "Vidéo" : "Fichier");
+        (type === "image" ? "Photo" : type === "video" ? "Vidéo" : type === "audio" ? "Message vocal" : "Fichier");
 
       // Derive filename and MIME type from the local URI
       const filename = uri.split("/").pop() || "media";
@@ -539,6 +546,12 @@ export const ChatScreen: React.FC = () => {
         pdf: "application/pdf",
         doc: "application/msword",
         docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        m4a: "audio/mp4",
+        aac: "audio/aac",
+        mp3: "audio/mpeg",
+        wav: "audio/wav",
+        ogg: "audio/ogg",
+        caf: "audio/x-caf",
       };
       const mimeType =
         mimeMap[extension] ||
@@ -546,7 +559,9 @@ export const ChatScreen: React.FC = () => {
           ? "image/jpeg"
           : type === "video"
             ? "video/mp4"
-            : "application/octet-stream");
+            : type === "audio"
+              ? "audio/mp4"
+              : "application/octet-stream");
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
@@ -966,61 +981,82 @@ export const ChatScreen: React.FC = () => {
     [reactionPickerMessageId, handleReactionPress],
   );
 
-  // Handle search
+  // Handle search — try server-side first, fall back to client-side filtering
   const handleSearch = useCallback(
-    (query: string) => {
+    async (query: string) => {
       setSearchQuery(query);
 
-      if (query.trim()) {
-        try {
-          const results = messages.filter((msg) => {
-            // Skip system messages and deleted messages
+      if (!query.trim()) {
+        setSearchResults([]);
+        setCurrentSearchIndex(0);
+        return;
+      }
+
+      try {
+        // Try server-side search first
+        const apiResults = await messagingAPI.searchMessages(
+          conversationId,
+          query.trim(),
+          { limit: 50 },
+        );
+
+        let results: MessageWithRelations[];
+
+        if (apiResults !== null) {
+          // Server returned results — map them to MessageWithRelations
+          results = apiResults
+            .filter(
+              (msg) => msg.message_type !== "system" && !msg.is_deleted,
+            )
+            .map((msg) => ({
+              ...msg,
+              status: (msg as any).status || ("sent" as const),
+            }));
+        } else {
+          // Fallback: client-side search on loaded messages
+          results = messages.filter((msg) => {
             if (msg.message_type === "system" || msg.is_deleted) return false;
-            // Check if message has content and matches query
             if (!msg.content) return false;
             return msg.content.toLowerCase().includes(query.toLowerCase());
           });
-
-          setSearchResults(results);
-          setCurrentSearchIndex(0);
-
-          // Scroll to first result after a short delay to ensure list is rendered
-          if (results.length > 0 && flatListRef.current) {
-            setTimeout(() => {
-              const firstResultIndex = messagesWithSeparators.findIndex(
-                (item) =>
-                  !(item as any).type &&
-                  (item as MessageWithRelations).id === results[0].id,
-              );
-
-              if (firstResultIndex !== -1 && flatListRef.current) {
-                try {
-                  flatListRef.current.scrollToIndex({
-                    index: firstResultIndex,
-                    animated: true,
-                    viewPosition: 0.5,
-                  });
-                } catch (error) {
-                  logger.warn(
-                    "ChatScreen",
-                    "Error scrolling to search result",
-                    error,
-                  );
-                }
-              }
-            }, 100);
-          }
-        } catch (error) {
-          logger.error("ChatScreen", "Error in search", error);
-          setSearchResults([]);
-          setCurrentSearchIndex(0);
         }
-      } else {
+
+        setSearchResults(results);
+        setCurrentSearchIndex(0);
+
+        // Scroll to first result after a short delay to ensure list is rendered
+        if (results.length > 0 && flatListRef.current) {
+          setTimeout(() => {
+            const firstResultIndex = messagesWithSeparators.findIndex(
+              (item) =>
+                !(item as any).type &&
+                (item as MessageWithRelations).id === results[0].id,
+            );
+
+            if (firstResultIndex !== -1 && flatListRef.current) {
+              try {
+                flatListRef.current.scrollToIndex({
+                  index: firstResultIndex,
+                  animated: true,
+                  viewPosition: 0.5,
+                });
+              } catch (error) {
+                logger.warn(
+                  "ChatScreen",
+                  "Error scrolling to search result",
+                  error,
+                );
+              }
+            }
+          }, 100);
+        }
+      } catch (error) {
+        logger.error("ChatScreen", "Error in search", error);
         setSearchResults([]);
         setCurrentSearchIndex(0);
       }
     },
-    [messages, messagesWithSeparators],
+    [conversationId, messages, messagesWithSeparators],
   );
 
   const handleSearchNext = useCallback(() => {
@@ -1114,6 +1150,14 @@ export const ChatScreen: React.FC = () => {
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
+  // Derive the other user's presence for direct conversations
+  const otherUserId = useMemo(() => {
+    if (conversation?.type !== 'direct') return undefined;
+    return conversation.member_user_ids?.find((id: string) => id !== userId);
+  }, [conversation, userId]);
+  const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
+  const otherLastSeenAt = otherUserId ? lastSeenAt[otherUserId] : undefined;
+
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === "group") {
       // Ensure modal is closed before navigating
@@ -1203,7 +1247,8 @@ export const ChatScreen: React.FC = () => {
           conversationName={conversation?.display_name || "Contact"}
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || "direct"}
-          isOnline={conversation?.type === "direct"}
+          isOnline={isOtherOnline}
+          lastSeenAt={otherLastSeenAt}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}

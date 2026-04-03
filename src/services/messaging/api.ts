@@ -90,6 +90,7 @@ export const messagingAPI = {
       limit?: number;
       before?: string;
       after?: string;
+      search?: string;
     },
   ): Promise<Message[]> {
     const query = new URLSearchParams();
@@ -102,6 +103,9 @@ export const messagingAPI = {
     }
     if (params?.after) {
       query.append("after", params.after);
+    }
+    if (params?.search) {
+      query.append("search", params.search);
     }
 
     const queryString = query.toString();
@@ -491,5 +495,82 @@ export const messagingAPI = {
     }
 
     return unwrap(conversationResponse);
+  },
+
+  /**
+   * Search messages within a specific conversation via the API.
+   * Falls back to null if the backend does not support the search param,
+   * so callers can use client-side filtering as a fallback.
+   */
+  async searchMessages(
+    conversationId: string,
+    query: string,
+    params?: { limit?: number },
+  ): Promise<Message[] | null> {
+    try {
+      const searchParams = new URLSearchParams();
+      searchParams.append("search", query);
+      if (params?.limit !== undefined) {
+        searchParams.append("limit", String(params.limit));
+      }
+
+      const url = `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/messages?${searchParams.toString()}`;
+
+      const response = await fetch(url, {
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      });
+
+      if (!response.ok) {
+        // Backend may not support search param — return null to signal fallback
+        return null;
+      }
+
+      const data = await unwrap(response);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Search messages globally across all conversations.
+   * Calls GET /messaging/api/v1/messages/search?query=...
+   * Returns null if the endpoint is not available so callers can fall back.
+   */
+  async searchMessagesGlobal(
+    query: string,
+    params?: { limit?: number; offset?: number },
+  ): Promise<Message[] | null> {
+    try {
+      const searchParams = new URLSearchParams();
+      searchParams.append("query", query);
+      if (params?.limit !== undefined) {
+        searchParams.append("limit", String(params.limit));
+      }
+      if (params?.offset !== undefined) {
+        searchParams.append("offset", String(params.offset));
+      }
+
+      const url = `${API_BASE_URL}/messages/search?${searchParams.toString()}`;
+
+      const response = await fetch(url, {
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await unwrap(response);
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return null;
+    }
   },
 };
