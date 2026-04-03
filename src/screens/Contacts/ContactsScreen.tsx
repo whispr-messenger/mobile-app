@@ -381,7 +381,7 @@ export const ContactsScreen: React.FC = () => {
                 ? request.requester_user
                 : request.recipient_user;
               const displayName =
-                user?.first_name || user?.username || "Utilisateur";
+                user?.firstName || user?.first_name || user?.username || "Utilisateur";
 
               return (
                 <View

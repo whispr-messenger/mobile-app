@@ -262,7 +262,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
   const renderMatch = ({ item }: { item: UserSearchResult }) => {
     const { user, is_blocked } = item;
     const isSelected = selectedContacts.has(user.id);
-    const displayName = user.first_name || user.username || "Utilisateur";
+    const displayName = user.firstName || user.first_name || user.username || "Utilisateur";
 
     if (is_blocked) return null;
 
@@ -276,7 +276,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         onPress={() => toggleSelection(user.id)}
         activeOpacity={0.7}
       >
-        <Avatar uri={user.avatar_url} name={displayName} size={48} />
+        <Avatar uri={user.profilePictureUrl || user.avatar_url} name={displayName} size={48} />
         <View style={styles.matchInfo}>
           <Text
             style={[styles.matchName, { color: themeColors.text.primary }]}
