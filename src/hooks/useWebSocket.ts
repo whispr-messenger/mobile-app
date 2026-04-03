@@ -1,9 +1,13 @@
 /**
  * useWebSocket Hook - Manage WebSocket connection and channels
+ *
+ * Uses a singleton SocketConnection so all screens share one WebSocket.
+ * The user channel (user:{userId}) is joined once; conversation channels
+ * are joined/left per-screen via joinConversationChannel.
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { createSocket, SocketConnection, ConnectionState } from '../services/messaging/websocket';
+import { getSharedSocket, ConnectionState } from '../services/messaging/websocket';
 import { Conversation, Message } from '../types/messaging';
 
 interface UseWebSocketOptions {
@@ -20,121 +24,121 @@ interface UseWebSocketOptions {
 }
 
 export const useWebSocket = (options: UseWebSocketOptions) => {
-  const socketRef = useRef<SocketConnection | null>(null);
-  const userChannelRef = useRef<any>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
 
+  // Keep callbacks in a ref so channel listeners always call the latest version
+  const callbacksRef = useRef(options);
   useEffect(() => {
-    if (!options.userId || !options.token) {
-      return;
-    }
-    const socket = createSocket();
+    callbacksRef.current = options;
+  });
 
-    // Track connection state changes from the socket layer
-    socket.onConnectionStateChange = (state: ConnectionState) => {
-      setConnectionState(state);
+  // Connect the shared socket and join the user channel (idempotent)
+  useEffect(() => {
+    if (!options.userId || !options.token) return;
+
+    const socket = getSharedSocket();
+    const removeListener = socket.addConnectionStateListener(setConnectionState);
+    setConnectionState(socket.connectionState);
+
+    // connect() is a no-op if already connected
+    socket.connect(options.userId, options.token);
+
+    // channel() is idempotent — returns existing entry if already created.
+    // join() adds to pendingTopics if socket isn't open yet; the onopen
+    // handler deduplicates by skipping topics already marked as joined.
+    const userChannel = socket.channel(`user:${options.userId}`);
+    userChannel.join();
+
+    return () => { removeListener(); };
+  }, [options.userId, options.token]);
+
+  // Register per-instance callbacks on the user channel.
+  // Each screen gets its own set; cleaned up on unmount via off().
+  useEffect(() => {
+    if (!options.userId || !options.token) return;
+
+    const socket = getSharedSocket();
+    const userChannel = socket.channel(`user:${options.userId}`);
+
+    const onMsg = (data: { message: Message }) => {
+      callbacksRef.current.onNewMessage?.(data.message);
+    };
+    const onDelivery = (data: { message_id: string; status: string }) => {
+      callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
+    };
+    const onConvUpdate = (data: { conversation: Conversation }) => {
+      callbacksRef.current.onConversationUpdate?.(data.conversation);
+    };
+    const onContactReq = (data: { request: any }) => {
+      callbacksRef.current.onContactRequest?.(data.request);
     };
 
-    socket.connect(options.userId, options.token);
-    socketRef.current = socket;
-
-    // Join user channel (user:{userId})
-    const userChannel = socket.channel(`user:${options.userId}`);
-    userChannelRef.current = userChannel;
-
-    userChannel.join().then(() => {
-      // Listen for new_message events
-      userChannel.on("new_message", (data: { message: Message }) => {
-        options.onNewMessage?.(data.message);
-      });
-
-      // Listen for delivery_status events
-      userChannel.on(
-        "delivery_status",
-        (data: { message_id: string; status: string }) => {
-          options.onDeliveryStatus?.(data.message_id, data.status);
-        },
-      );
-
-      userChannel.on(
-        "conversation_updated",
-        (data: { conversation: Conversation }) => {
-          options.onConversationUpdate?.(data.conversation);
-        },
-      );
-
-      userChannel.on("contact_request_created", (data: { request: any }) => {
-        options.onContactRequest?.(data.request);
-      });
-    });
+    userChannel.on("new_message", onMsg);
+    userChannel.on("delivery_status", onDelivery);
+    userChannel.on("conversation_updated", onConvUpdate);
+    userChannel.on("contact_request_created", onContactReq);
+    userChannel.on("contact_request_updated", onContactReq);
 
     return () => {
-      userChannel.leave();
-      socket.disconnect();
+      userChannel.off("new_message", onMsg);
+      userChannel.off("delivery_status", onDelivery);
+      userChannel.off("conversation_updated", onConvUpdate);
+      userChannel.off("contact_request_created", onContactReq);
+      userChannel.off("contact_request_updated", onContactReq);
     };
   }, [options.userId, options.token]);
 
   const joinConversationChannel = useCallback(
     (conversationId: string) => {
-      if (!socketRef.current) return null;
+      const socket = getSharedSocket();
 
-      const channel = socketRef.current.channel(
-        `conversation:${conversationId}`,
-      );
-      channel.join().then(() => {
-        // Listen for typing events
-        channel.on(
-          "user_typing",
-          (data: { user_id: string; typing: boolean }) => {
-            options.onTyping?.(data.user_id, data.typing);
-          },
-        );
+      const channel = socket.channel(`conversation:${conversationId}`);
+      channel.join();
 
-        // Listen for new messages in conversation
-        channel.on("new_message", (data: { message: Message }) => {
-          options.onNewMessage?.(data.message);
-        });
-
-        // Listen for message edits
-        channel.on('message_updated', (data: { message: Message }) => {
-          options.onMessageUpdated?.(data.message);
-        });
-
-        // Listen for message deletions
-        channel.on('message_deleted', (data: { message_id: string; delete_for_everyone: boolean }) => {
-          options.onMessageDeleted?.(data.message_id, data.delete_for_everyone);
-        });
-
-        // Listen for delivery status updates in conversation
-        channel.on('delivery_status', (data: { message_id: string; status: string }) => {
-          options.onDeliveryStatus?.(data.message_id, data.status);
-        });
-
-        // Listen for presence updates from conversation participants
-        channel.on('presence_diff', (data: { joins?: Record<string, any>; leaves?: Record<string, any> }) => {
-          if (data.joins) {
-            Object.keys(data.joins).forEach((uid) => {
-              options.onPresenceUpdate?.(uid, true);
-            });
-          }
-          if (data.leaves) {
-            Object.keys(data.leaves).forEach((uid) => {
-              options.onPresenceUpdate?.(uid, false);
-            });
-          }
-        });
-
-        // Listen for presence_state (initial full sync when joining)
-        channel.on('presence_state', (data: Record<string, any>) => {
-          Object.keys(data).forEach((uid) => {
-            options.onPresenceUpdate?.(uid, true);
+      const onMsg = (data: { message: Message }) => {
+        callbacksRef.current.onNewMessage?.(data.message);
+      };
+      const onTyping = (data: { user_id: string; typing: boolean }) => {
+        callbacksRef.current.onTyping?.(data.user_id, data.typing);
+      };
+      const onMsgUpdated = (data: { message: Message }) => {
+        callbacksRef.current.onMessageUpdated?.(data.message);
+      };
+      const onMsgDeleted = (data: { message_id: string; delete_for_everyone: boolean }) => {
+        callbacksRef.current.onMessageDeleted?.(data.message_id, data.delete_for_everyone);
+      };
+      const onDelivery = (data: { message_id: string; status: string }) => {
+        callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
+      };
+      const onPresenceDiff = (data: { joins?: Record<string, any>; leaves?: Record<string, any> }) => {
+        if (data.joins) {
+          Object.keys(data.joins).forEach((uid) => {
+            callbacksRef.current.onPresenceUpdate?.(uid, true);
           });
+        }
+        if (data.leaves) {
+          Object.keys(data.leaves).forEach((uid) => {
+            callbacksRef.current.onPresenceUpdate?.(uid, false);
+          });
+        }
+      };
+      const onPresenceState = (data: Record<string, any>) => {
+        Object.keys(data).forEach((uid) => {
+          callbacksRef.current.onPresenceUpdate?.(uid, true);
         });
-      });
+      };
+
+      channel.on("new_message", onMsg);
+      channel.on("user_typing", onTyping);
+      channel.on("message_updated", onMsgUpdated);
+      channel.on("message_deleted", onMsgDeleted);
+      channel.on("delivery_status", onDelivery);
+      channel.on("presence_diff", onPresenceDiff);
+      channel.on("presence_state", onPresenceState);
 
       return channel;
     },
-    [options],
+    [],
   );
 
   const sendMessage = useCallback(
@@ -144,11 +148,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       messageType: "text" | "media" | "system" = "text",
       clientRandom?: number,
     ) => {
-      if (!socketRef.current) return;
+      const socket = getSharedSocket();
+      if (!socket.isConnected()) return;
 
-      const channel = socketRef.current.channel(
-        `conversation:${conversationId}`,
-      );
+      const channel = socket.channel(`conversation:${conversationId}`);
       const random = clientRandom || Math.floor(Math.random() * 1000000);
 
       channel.push("new_message", {
@@ -157,100 +160,31 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         message_type: messageType,
         client_random: random,
       });
-
-
-      // Listen for reply to update message status
-      const replyKey = `${channel['topic']}:phx_reply`;
-      const replyHandler = (data: { status: string; response?: { message: Message } } | null) => {
-        if (!data || !data.status) {
-          return;
-        }
-        if (data.status === 'ok' && data.response?.message) {
-          options.onNewMessage?.(data.response.message);
-        }
-        socketRef.current?.emit(replyKey, null);
-      };
-
-      socketRef.current.on(replyKey, replyHandler);
     },
-    [options],
+    [],
   );
 
   const sendTyping = useCallback((conversationId: string, typing: boolean) => {
-    if (!socketRef.current) return;
+    const socket = getSharedSocket();
+    if (!socket.isConnected()) return;
 
-    const channel = socketRef.current.channel(`conversation:${conversationId}`);
-    channel.push("typing", { typing });
+    const channel = socket.channel(`conversation:${conversationId}`);
+    channel.push("user_typing", { typing });
   }, []);
 
   const markAsRead = useCallback(
     (conversationId: string, messageId: string) => {
-      if (!socketRef.current) return;
+      const socket = getSharedSocket();
+      if (!socket.isConnected()) return;
 
-      const channel = socketRef.current.channel(
-        `conversation:${conversationId}`,
-      );
+      const channel = socket.channel(`conversation:${conversationId}`);
       channel.push("message_read", { message_id: messageId });
     },
     [],
   );
 
-  const joinUserChannel = useCallback(() => {
-    // This channel is already joined in the useEffect, but this function can be exposed
-    // if there's a need to re-join or ensure it's active from a component.
-    if (userChannelRef.current && socketRef.current?.isConnected()) {
-      return userChannelRef.current;
-    }
-    if (!options.userId || !options.token) {
-      return null;
-    }
-    const socket = createSocket();
-    socket.onConnectionStateChange = (state: ConnectionState) => {
-      setConnectionState(state);
-    };
-    socket.connect(options.userId, options.token);
-    socketRef.current = socket;
-    const userChannel = socket.channel(`user:${options.userId}`);
-    userChannelRef.current = userChannel;
-    userChannel.join().then(() => {
-      userChannel.on("new_message", (data: { message: Message }) => {
-        options.onNewMessage?.(data.message);
-      });
-      userChannel.on(
-        "delivery_status",
-        (data: { message_id: string; status: string }) => {
-          options.onDeliveryStatus?.(data.message_id, data.status);
-        },
-      );
-
-      userChannel.on(
-        "conversation_updated",
-        (data: { conversation: Conversation }) => {
-          options.onConversationUpdate?.(data.conversation);
-        },
-      );
-
-      userChannel.on("contact_request_created", (data: { request: any }) => {
-        options.onContactRequest?.(data.request);
-      });
-
-      userChannel.on("contact_request_updated", (data: { request: any }) => {
-        options.onContactRequest?.(data.request);
-      });
-    });
-    return userChannel;
-  }, [
-    options.userId,
-    options.token,
-    options.onNewMessage,
-    options.onDeliveryStatus,
-    options.onConversationUpdate,
-    options.onContactRequest,
-  ]);
-
   return {
     connectionState,
-    joinUserChannel,
     joinConversationChannel,
     sendMessage,
     sendTyping,

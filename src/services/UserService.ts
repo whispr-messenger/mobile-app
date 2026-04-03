@@ -3,7 +3,8 @@
  * Handles all user-related API calls
  */
 
-import { Alert } from 'react-native';
+import { TokenService } from './TokenService';
+import { getApiBaseUrl } from './apiBase';
 
 // Types
 export interface UserProfile {
@@ -48,7 +49,7 @@ export class UserService {
   private baseUrl: string;
 
   private constructor() {
-    this.baseUrl = `${process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://whispr-api.roadmvn.com'}/user/v1`;
+    this.baseUrl = `${getApiBaseUrl()}/user/v1`;
   }
 
   public static getInstance(): UserService {
@@ -63,16 +64,25 @@ export class UserService {
    */
   async getProfile(): Promise<{ success: boolean; profile?: UserProfile; message?: string }> {
     try {
-      return {
-        success: false,
-        message: 'Profil non disponible (API non implémentée)',
-      };
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
+
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
+
+      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { success: true, profile: data };
     } catch (error) {
       console.error('Erreur récupération profil:', error);
-      return {
-        success: false,
-        message: 'Impossible de récupérer le profil',
-      };
+      return { success: false, message: 'Impossible de récupérer le profil' };
     }
   }
 
@@ -81,40 +91,35 @@ export class UserService {
    */
   async updateProfile(profileData: UpdateProfileRequest): Promise<UpdateProfileResponse> {
     try {
-      console.log('📝 Mise à jour du profil:', profileData);
-      
-      // Validation
       const validation = this.validateProfileData(profileData);
       if (!validation.isValid) {
-        return {
-          success: false,
-          message: validation.error,
-        };
+        return { success: false, message: validation.error };
       }
 
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/users/me`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(profileData),
-      // });
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
 
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
 
-      return {
-        success: true,
-        message: 'Profil mis à jour avec succès',
-      };
+      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { success: true, message: 'Profil mis à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur mise à jour profil:', error);
-      return {
-        success: false,
-        message: 'Impossible de mettre à jour le profil',
-      };
+      return { success: false, message: 'Impossible de mettre à jour le profil' };
     }
   }
 

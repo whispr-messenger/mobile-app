@@ -7,9 +7,73 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'rec
 type Channel = {
   join: (params?: Record<string, any>) => Promise<{ status: string }>;
   on: (event: string, callback: EventCallback) => void;
+  off: (event: string, callback: EventCallback) => void;
   push: (event: string, payload: Record<string, any>) => void;
   leave: () => void;
 };
+
+/**
+ * Phoenix protocol message (normalised from v1 object or v2 array).
+ */
+interface PhxMessage {
+  join_ref: string | null;
+  ref: string | null;
+  topic: string;
+  event: string;
+  payload: any;
+}
+
+/**
+ * Parse an incoming WebSocket frame into a normalised PhxMessage.
+ * Supports both Phoenix v2 (array) and v1 (object) formats.
+ */
+function parseMessage(raw: string): PhxMessage | null {
+  const data = JSON.parse(raw);
+
+  // v2 format: [join_ref, ref, topic, event, payload]
+  if (Array.isArray(data) && data.length >= 5) {
+    return {
+      join_ref: data[0] ?? null,
+      ref: data[1] ?? null,
+      topic: data[2],
+      event: data[3],
+      payload: data[4],
+    };
+  }
+
+  // v1 format: { topic, event, payload, ref }
+  if (data && typeof data === 'object' && data.topic && data.event) {
+    return {
+      join_ref: data.join_ref ?? null,
+      ref: data.ref ?? null,
+      topic: data.topic,
+      event: data.event,
+      payload: data.payload,
+    };
+  }
+
+  return null;
+}
+
+/** Monotonically increasing ref counter for Phoenix protocol */
+let refCounter = 0;
+function nextRef(): string {
+  refCounter += 1;
+  return String(refCounter);
+}
+
+/**
+ * Encode a message in Phoenix v2 array format.
+ */
+function encodeMessage(
+  join_ref: string | null,
+  ref: string | null,
+  topic: string,
+  event: string,
+  payload: any,
+): string {
+  return JSON.stringify([join_ref, ref, topic, event, payload]);
+}
 
 export class SocketConnection {
   private socket: WebSocket | null = null;
@@ -18,34 +82,36 @@ export class SocketConnection {
     {
       callbacks: Record<string, EventCallback[]>;
       joined: boolean;
+      joinRef: string | null; // tracks the join_ref for this channel
     }
   > = {};
   private pendingTopics: Set<string> = new Set();
 
   // Reconnection state
   private _connectionState: ConnectionState = 'disconnected';
-  private _onConnectionStateChange: ((state: ConnectionState) => void) | null = null;
+  private connectionStateListeners: Set<(state: ConnectionState) => void> = new Set();
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private maxReconnectDelay = 30000; // 30s cap
-  private baseReconnectDelay = 1000; // 1s base
+  private maxReconnectDelay = 30000;
+  private baseReconnectDelay = 1000;
   private shouldReconnect = false;
   private lastUserId: string | null = null;
   private lastToken: string | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private heartbeatInterval = 30000; // 30s — matches Phoenix default
+  private heartbeatInterval = 30000;
 
   get connectionState(): ConnectionState {
     return this._connectionState;
   }
 
-  set onConnectionStateChange(cb: ((state: ConnectionState) => void) | null) {
-    this._onConnectionStateChange = cb;
+  addConnectionStateListener(cb: (state: ConnectionState) => void): () => void {
+    this.connectionStateListeners.add(cb);
+    return () => { this.connectionStateListeners.delete(cb); };
   }
 
   private setConnectionState(state: ConnectionState): void {
     this._connectionState = state;
-    this._onConnectionStateChange?.(state);
+    this.connectionStateListeners.forEach((cb) => cb(state));
   }
 
   isConnected(): boolean {
@@ -61,99 +127,101 @@ export class SocketConnection {
       return;
     }
 
-    // Save credentials for auto-reconnect
     this.lastUserId = userId;
     this.lastToken = token;
     this.shouldReconnect = true;
 
+    // Explicitly request v2 serializer so both sides agree on array format
     const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
       userId,
-    )}&token=${encodeURIComponent(token)}`;
+    )}&token=${encodeURIComponent(token)}&vsn=2.0.0`;
 
     this.setConnectionState(this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
-
     this.socket = new WebSocket(url);
+    console.log('[WS] Connecting to', url);
 
     this.socket.onopen = () => {
       const socket = this.socket;
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        return;
-      }
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-      // Reset reconnect counter on successful connection
+      console.log('[WS] Connected');
       this.reconnectAttempt = 0;
       this.setConnectionState('connected');
-
-      // Start heartbeat to keep connection alive (Phoenix requires this)
       this.startHeartbeat();
 
+      // Join pending topics
       this.pendingTopics.forEach((topic) => {
-        const joinMsg = {
-          topic,
-          event: "phx_join",
-          payload: {},
-          ref: Date.now().toString(),
-        };
-
-        socket.send(JSON.stringify(joinMsg));
-
-        const channel = this.channels[topic];
-        if (channel) {
-          channel.joined = true;
-        }
+        this.sendJoin(socket, topic);
       });
-
       this.pendingTopics.clear();
 
-      // Rejoin all existing channels after reconnect
+      // Rejoin existing channels after reconnect
       Object.keys(this.channels).forEach((topic) => {
-        const channel = this.channels[topic];
-        if (channel && !channel.joined) {
-          const joinMsg = {
-            topic,
-            event: 'phx_join',
-            payload: {},
-            ref: Date.now().toString(),
-          };
-          socket.send(JSON.stringify(joinMsg));
+        const ch = this.channels[topic];
+        if (ch && !ch.joined) {
+          this.sendJoin(socket, topic);
         }
       });
     };
 
     this.socket.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
-
-        if (
-          msg.topic &&
-          msg.event === "phx_reply" &&
-          msg.payload?.status === "ok"
-        ) {
-          const channel = this.channels[msg.topic];
-          if (channel) {
-            channel.joined = true;
-          }
+        const msg = parseMessage(event.data);
+        if (!msg) {
+          console.warn('[WS] Unparseable frame:', event.data?.substring?.(0, 200));
+          return;
         }
 
-        if (msg.topic && msg.event && msg.event !== "phx_reply") {
-          const channel = this.channels[msg.topic];
-          const cbs = channel?.callbacks[msg.event] || [];
-          cbs.forEach((cb) => cb(msg.payload));
+        // Handle join reply
+        if (msg.event === "phx_reply") {
+          const ch = this.channels[msg.topic];
+          console.log('[WS] phx_reply', msg.topic, msg.payload?.status);
+          if (ch && msg.payload?.status === "ok") {
+            ch.joined = true;
+          }
+          // Don't dispatch phx_reply to user callbacks
+          return;
+        }
+
+        // Handle phx_error (channel crashed server-side)
+        if (msg.event === "phx_error") {
+          const ch = this.channels[msg.topic];
+          if (ch) {
+            ch.joined = false;
+          }
+          return;
+        }
+
+        // Handle phx_close
+        if (msg.event === "phx_close") {
+          const ch = this.channels[msg.topic];
+          if (ch) {
+            ch.joined = false;
+          }
+          return;
+        }
+
+        // Dispatch to user callbacks
+        if (msg.topic && msg.event) {
+          const ch = this.channels[msg.topic];
+          const cbs = ch?.callbacks[msg.event] || [];
+          console.log('[WS] Event:', msg.topic, msg.event, 'callbacks:', cbs.length);
+          cbs.forEach((cb) => {
+            try { cb(msg.payload); } catch { /* isolate bad callbacks */ }
+          });
         }
       } catch {
-        // ignore invalid messages
+        // ignore unparseable frames
       }
     };
 
-    this.socket.onclose = () => {
-      // Stop heartbeat
+    this.socket.onclose = (ev) => {
+      console.log('[WS] Closed, code:', ev.code, 'reason:', ev.reason);
       this.stopHeartbeat();
-
-      // Mark all channels as not joined so they rejoin on reconnect
       Object.values(this.channels).forEach((ch) => {
         ch.joined = false;
+        ch.joinRef = null;
       });
-
       if (this.shouldReconnect) {
         this.setConnectionState('reconnecting');
         this.scheduleReconnect();
@@ -162,23 +230,28 @@ export class SocketConnection {
       }
     };
 
-    this.socket.onerror = () => {
-      // onclose will fire after onerror, reconnect handled there
+    this.socket.onerror = (err) => {
+      console.error('[WS] Error:', err);
     };
+  }
+
+  /** Send a phx_join for a topic using v2 array format */
+  private sendJoin(socket: WebSocket, topic: string): void {
+    const ref = nextRef();
+    const joinRef = ref;
+    const ch = this.channels[topic];
+    if (ch) ch.joinRef = joinRef;
+    const payload = encodeMessage(joinRef, ref, topic, "phx_join", {});
+    console.log('[WS] Joining', topic, 'ref:', ref);
+    socket.send(payload);
   }
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(
-          JSON.stringify({
-            topic: 'phoenix',
-            event: 'heartbeat',
-            payload: {},
-            ref: Date.now().toString(),
-          }),
-        );
+        const ref = nextRef();
+        this.socket.send(encodeMessage(null, ref, "phoenix", "heartbeat", {}));
       }
     }, this.heartbeatInterval);
   }
@@ -191,25 +264,17 @@ export class SocketConnection {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
 
-    if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) {
-      return;
-    }
-
-    // Exponential backoff: 1s, 2s, 4s, 8s, ... capped at 30s
     const delay = Math.min(
       this.baseReconnectDelay * Math.pow(2, this.reconnectAttempt),
       this.maxReconnectDelay,
     );
-
     this.reconnectAttempt++;
 
     this.reconnectTimer = setTimeout(() => {
       if (this.shouldReconnect && this.lastUserId && this.lastToken) {
-        // Clear the old socket ref so connect() doesn't bail out
         this.socket = null;
         this.connect(this.lastUserId, this.lastToken);
       }
@@ -218,21 +283,17 @@ export class SocketConnection {
 
   disconnect(): void {
     this.shouldReconnect = false;
-
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-
     this.stopHeartbeat();
-
     if (this.socket) {
       this.socket.close();
       this.socket = null;
       this.channels = {};
       this.pendingTopics.clear();
     }
-
     this.reconnectAttempt = 0;
     this.setConnectionState('disconnected');
   }
@@ -242,81 +303,75 @@ export class SocketConnection {
       this.channels[topic] = {
         callbacks: {},
         joined: false,
+        joinRef: null,
       };
     }
 
+    const self = this;
+
     const join = async (): Promise<{ status: string }> => {
-      if (!this.socket) {
-        this.pendingTopics.add(topic);
-        return { status: "error" };
+      const ch = self.channels[topic];
+      if (ch?.joined) return { status: "ok" };
+
+      if (!self.socket || self.socket.readyState !== WebSocket.OPEN) {
+        self.pendingTopics.add(topic);
+        return { status: "pending" };
       }
 
-      if (this.socket.readyState !== WebSocket.OPEN) {
-        this.pendingTopics.add(topic);
-        return { status: "error" };
-      }
-
-      const joinMsg = {
-        topic,
-        event: "phx_join",
-        payload: {},
-        ref: Date.now().toString(),
-      };
-
-      this.socket.send(JSON.stringify(joinMsg));
-
+      self.sendJoin(self.socket, topic);
       return { status: "ok" };
     };
 
     const on = (event: string, callback: EventCallback): void => {
-      const channel = this.channels[topic];
-      if (!channel.callbacks[event]) {
-        channel.callbacks[event] = [];
-      }
-      channel.callbacks[event].push(callback);
+      const ch = self.channels[topic];
+      if (!ch) return;
+      if (!ch.callbacks[event]) ch.callbacks[event] = [];
+      ch.callbacks[event].push(callback);
+    };
+
+    const off = (event: string, callback: EventCallback): void => {
+      const ch = self.channels[topic];
+      if (!ch?.callbacks[event]) return;
+      ch.callbacks[event] = ch.callbacks[event].filter((cb) => cb !== callback);
     };
 
     const push = (event: string, payload: Record<string, any>): void => {
-      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-        return;
-      }
-
-      const msg = {
-        topic,
-        event,
-        payload,
-        ref: Date.now().toString(),
-      };
-
-      this.socket.send(JSON.stringify(msg));
+      if (!self.socket || self.socket.readyState !== WebSocket.OPEN) return;
+      const ch = self.channels[topic];
+      const ref = nextRef();
+      self.socket.send(encodeMessage(ch?.joinRef ?? null, ref, topic, event, payload));
     };
 
     const leave = (): void => {
-      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-        return;
+      if (self.socket && self.socket.readyState === WebSocket.OPEN) {
+        const ch = self.channels[topic];
+        const ref = nextRef();
+        self.socket.send(encodeMessage(ch?.joinRef ?? null, ref, topic, "phx_leave", {}));
       }
-
-      const msg = {
-        topic,
-        event: "phx_leave",
-        payload: {},
-        ref: Date.now().toString(),
-      };
-
-      this.socket.send(JSON.stringify(msg));
-      delete this.channels[topic];
-      this.pendingTopics.delete(topic);
+      delete self.channels[topic];
+      self.pendingTopics.delete(topic);
     };
 
-    return {
-      join,
-      on,
-      push,
-      leave,
-    };
+    return { join, on, off, push, leave };
   }
 }
 
+// Singleton
+let sharedSocket: SocketConnection | null = null;
+
+export const getSharedSocket = (): SocketConnection => {
+  if (!sharedSocket) sharedSocket = new SocketConnection();
+  return sharedSocket;
+};
+
+export const destroySharedSocket = (): void => {
+  if (sharedSocket) {
+    sharedSocket.disconnect();
+    sharedSocket = null;
+  }
+};
+
+/** @deprecated Use getSharedSocket() instead */
 export const createSocket = (): SocketConnection => {
   return new SocketConnection();
 };

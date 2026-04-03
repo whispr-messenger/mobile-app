@@ -60,7 +60,7 @@ export const ContactsScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  const { joinUserChannel } = useWebSocket({
+  useWebSocket({
     userId,
     token,
     onContactRequest: (request: ContactRequest) => {
@@ -104,25 +104,11 @@ export const ContactsScreen: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!userId || !token) {
-      return;
-    }
-    joinUserChannel();
-  }, [userId, token, joinUserChannel]);
-
   // Initial load
   useEffect(() => {
     loadContacts();
     loadContactRequests();
   }, [loadContacts, loadContactRequests]);
-
-  useEffect(() => {
-    if (!userId || !token) {
-      return;
-    }
-    joinUserChannel();
-  }, [userId, token, joinUserChannel]);
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {

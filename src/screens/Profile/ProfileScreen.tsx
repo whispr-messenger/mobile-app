@@ -23,7 +23,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { Logo, Button } from "../../components";
 import {
@@ -77,26 +76,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // States
   const [profile, setProfile] = useState<UserProfile>({
-    id: params?.userId || userId || "demo-user-id",
-    firstName: params?.firstName || "John",
-    lastName: params?.lastName || "Doe",
-    username: params?.username || "johndoe",
-    phoneNumber: params?.phoneNumber || "+33 07 12 34 56 78",
-    biography:
-      params?.biography ||
-      "Développeur passionné par les technologies mobiles et la sécurité.",
+    id: params?.userId || userId || "",
+    firstName: params?.firstName || "",
+    lastName: params?.lastName || "",
+    username: params?.username || "",
+    phoneNumber: params?.phoneNumber || "",
+    biography: params?.biography || "",
     profilePicture: params?.profilePicture,
     isOnline: true,
     lastSeen: "Maintenant",
-    createdAt: "2024-01-15T10:30:00Z",
+    createdAt: "",
   });
   useEffect(() => {}, []);
 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
-  const [showFloatingMenu, setShowFloatingMenu] = useState(false);
-  const STORAGE_KEY = "whispr.profile.v1";
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -118,36 +113,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-    // Charger depuis le stockage local, sinon depuis l'API si pas de params navigation
+    // Load from API unless navigation params already provided full data
     const loadProfile = async () => {
+      if (params?.firstName && params?.lastName) return;
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setProfile((prev) => ({ ...prev, ...parsed }));
-          return;
+        const service = UserService.getInstance();
+        const res = await service.getProfile();
+        if (res.success && res.profile) {
+          setProfile((prev) => ({
+            ...prev,
+            firstName: res.profile!.firstName,
+            lastName: res.profile!.lastName,
+            username: res.profile!.username,
+            phoneNumber: res.profile!.phoneNumber,
+            biography: res.profile!.biography,
+            profilePicture: res.profile!.profilePicture,
+            createdAt: res.profile!.createdAt || prev.createdAt,
+          }));
         }
       } catch (e) {}
-
-      if (!params?.firstName && !params?.lastName) {
-        try {
-          const service = UserService.getInstance();
-          const res = await service.getProfile();
-          if (res.success && res.profile) {
-            setProfile((prev) => ({
-              ...prev,
-              firstName: res.profile!.firstName,
-              lastName: res.profile!.lastName,
-              username: res.profile!.username,
-              phoneNumber: res.profile!.phoneNumber,
-              biography: res.profile!.biography,
-              profilePicture: res.profile!.profilePicture,
-              createdAt: res.profile!.createdAt || prev.createdAt,
-            }));
-          } else {
-          }
-        } catch (e) {}
-      }
     };
 
     loadProfile();
@@ -264,10 +248,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     ]).start();
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-      } catch (e) {}
+      const service = UserService.getInstance();
+      const res = await service.updateProfile({
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        username: profile.username,
+        biography: profile.biography,
+      });
+
+      if (!res.success) {
+        Alert.alert("Erreur", res.message || "Impossible de mettre à jour le profil");
+        return;
+      }
+
+      if (res.profile) {
+        setProfile((prev) => ({ ...prev, ...res.profile }));
+      }
 
       setIsEditing(false);
       Alert.alert("Succès", "Profil mis à jour avec succès");

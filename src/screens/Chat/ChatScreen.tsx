@@ -95,6 +95,7 @@ export const ChatScreen: React.FC = () => {
   const [conversationMembers, setConversationMembers] = useState<
     Array<{ id: string; display_name: string; username?: string }>
   >([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});

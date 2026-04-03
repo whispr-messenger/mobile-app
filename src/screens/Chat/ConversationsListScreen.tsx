@@ -125,7 +125,7 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  const { joinUserChannel } = useWebSocket({
+  useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -138,9 +138,6 @@ export const ConversationsListScreen: React.FC = () => {
   });
 
   useEffect(() => {
-    if (token) {
-      joinUserChannel();
-    }
     fetchConversations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);

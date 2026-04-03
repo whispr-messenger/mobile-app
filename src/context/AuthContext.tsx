@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AuthService } from '../services/AuthService';
 import { TokenService } from '../services/TokenService';
+import { destroySharedSocket } from '../services/messaging/websocket';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -46,6 +47,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = useCallback(async () => {
+    // Tear down WebSocket before clearing auth state
+    destroySharedSocket();
+
     if (state.deviceId && state.userId) {
       await AuthService.logout(state.deviceId, state.userId);
     } else {
