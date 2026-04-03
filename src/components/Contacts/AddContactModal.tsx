@@ -3,7 +3,7 @@
  * Supports search by username or phone number
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,29 +40,37 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingContactId, setAddingContactId] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
 
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     if (!query.trim()) {
       setSearchResults([]);
+      setLoading(false);
       return;
     }
 
-    try {
-      setLoading(true);
-      const results = await contactsAPI.searchUsers({
-        username: query.trim(),
-      });
-      setSearchResults(results);
-    } catch (error) {
-      console.error('[AddContactModal] Error searching users:', error);
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results = await contactsAPI.searchUsers({
+          username: query.trim(),
+        });
+        setSearchResults(results);
+      } catch (error) {
+        console.error('[AddContactModal] Error searching users:', error);
+        setSearchResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
   }, []);
 
   const handleAddContact = useCallback(async (user: UserSearchResult) => {
@@ -209,7 +217,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               />
               <TextInput
                 style={[styles.searchInput, { color: colors.text.light }]}
-                placeholder="Rechercher par nom d'utilisateur..."
+                placeholder="Rechercher par nom, username ou téléphone..."
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={searchQuery}
                 onChangeText={handleSearch}
@@ -251,7 +259,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 Aucun utilisateur trouvé
               </Text>
               <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
-                Essayez avec un autre nom d'utilisateur
+                Essayez avec un autre nom, username ou numéro
               </Text>
             </View>
           ) : !searchQuery.trim() ? (
@@ -265,7 +273,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 Rechercher un utilisateur
               </Text>
               <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
-                Entrez un nom d'utilisateur pour commencer
+                Entrez un nom, username ou numéro de téléphone
               </Text>
             </View>
           ) : (

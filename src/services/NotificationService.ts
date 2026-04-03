@@ -1,27 +1,11 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { AuthService } from './AuthService';
 import { TokenService } from './TokenService';
+import { getApiBaseUrl } from './apiBase';
 
 type ApiError = Error & { status?: number; body?: unknown };
 
-function getDevHost(): string {
-  if (Platform.OS === 'android') return '10.0.2.2';
-  const debuggerHost =
-    Constants.expoConfig?.hostUri ??
-    (Constants.manifest2 as any)?.extra?.expoGo?.debuggerHost;
-  if (debuggerHost) return debuggerHost.split(':')[0];
-  return 'localhost';
-}
-
 function getNotificationBaseUrl(): string {
-  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-  if (__DEV__) {
-    const configured = extra?.devNotificationApiUrl;
-    if (configured) return configured.replace(/\/+$/, '');
-    return `http://${getDevHost()}:3004`;
-  }
-  return `${(extra?.apiBaseUrl ?? 'https://whispr-api.roadmvn.com').replace(/\/+$/, '')}/notification`;
+  return `${getApiBaseUrl()}/notification`;
 }
 
 async function apiFetch<T>(

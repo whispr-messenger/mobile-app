@@ -19,26 +19,14 @@ import { Button, Input } from '../../components';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { TokenService } from '../../services/TokenService';
-import Constants from 'expo-constants';
+import { getApiBaseUrl } from '../../services/apiBase';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'ProfileSetup'>;
 
-function getDevHost(): string {
-  if (Platform.OS === 'android') return '10.0.2.2';
-  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
-  if (debuggerHost) return debuggerHost.split(':')[0];
-  return 'localhost';
-}
-
 function getUserApiBase(): string {
-  if (__DEV__) {
-    return `http://${getDevHost()}:3011/user/v1`;
-  }
-  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-  const base = extra?.apiBaseUrl ?? 'https://whispr-api.roadmvn.com';
-  return `${base}/user/v1`;
+  return `${getApiBaseUrl()}/user/v1`;
 }
 
 export const ProfileSetupScreen: React.FC = () => {

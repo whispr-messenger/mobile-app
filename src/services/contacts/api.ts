@@ -84,6 +84,21 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
   }
 };
 
+const buildSearchResult = (u: any): UserSearchResult => ({
+  user: {
+    id: u.id,
+    username: u.username ?? "",
+    phone_number: u.phoneNumber ?? u.phone_number,
+    first_name: u.firstName ?? u.first_name,
+    last_name: u.lastName ?? u.last_name,
+    avatar_url: u.profilePictureUrl ?? u.avatar_url,
+    last_seen: u.lastSeen ?? u.last_seen,
+    is_active: u.isActive ?? u.is_active ?? true,
+  },
+  is_contact: false,
+  is_blocked: false,
+});
+
 export const contactsAPI = {
   async getContacts(
     params?: ContactSearchParams,
@@ -211,40 +226,75 @@ export const contactsAPI = {
   },
 
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
-    if (!params.username) {
+    const query = params.username?.trim() || params.phoneHash?.trim();
+    if (!query) {
       return [];
     }
 
-    const url = `${API_BASE_URL}/search/username?username=${encodeURIComponent(params.username)}`;
-    const response = await fetch(url, {
-      headers: {
-        ...(await getAuthHeaders()),
-      },
-    });
+    // Run all search strategies in parallel for fuzzy matching
+    const searches: Promise<UserSearchResult[]>[] = [];
 
-    if (!response.ok) {
-      return [];
+    // 1. Search by username (exact match from API)
+    searches.push(
+      fetch(`${API_BASE_URL}/search/username?username=${encodeURIComponent(query)}`, {
+        headers: { ...(await getAuthHeaders()) },
+      })
+        .then(async (r) => {
+          if (!r.ok) return [];
+          const user = await r.json().catch(() => null);
+          if (!user?.id) return [];
+          return [buildSearchResult(user)];
+        })
+        .catch(() => [])
+    );
+
+    // 2. Search by name (fuzzy — backend supports partial match)
+    searches.push(
+      fetch(`${API_BASE_URL}/search/name?query=${encodeURIComponent(query)}&limit=20`, {
+        headers: { ...(await getAuthHeaders()) },
+      })
+        .then(async (r) => {
+          if (!r.ok) return [];
+          const data = await r.json().catch(() => []);
+          const items = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
+          return items.filter((u: any) => u?.id).map(buildSearchResult);
+        })
+        .catch(() => [])
+    );
+
+    // 3. Search by phone number (if input looks like a phone number)
+    const looksLikePhone = /^[+\d\s()-]{3,}$/.test(query);
+    if (looksLikePhone) {
+      searches.push(
+        fetch(`${API_BASE_URL}/search/phone?phoneNumber=${encodeURIComponent(query)}`, {
+          headers: { ...(await getAuthHeaders()) },
+        })
+          .then(async (r) => {
+            if (!r.ok) return [];
+            const data = await r.json().catch(() => null);
+            if (!data) return [];
+            const items = Array.isArray(data) ? data : data?.id ? [data] : [];
+            return items.filter((u: any) => u?.id).map(buildSearchResult);
+          })
+          .catch(() => [])
+      );
     }
 
-    const user = await response.json().catch(() => null);
-    if (!user) return [];
+    const allResults = await Promise.all(searches);
 
-    return [
-      {
-        user: {
-          id: user.id,
-          username: user.username,
-          phone_number: user.phoneNumber,
-          first_name: user.firstName,
-          last_name: user.lastName,
-          avatar_url: user.profilePictureUrl,
-          last_seen: user.lastSeen,
-          is_active: user.isActive ?? true,
-        },
-        is_contact: false,
-        is_blocked: false,
-      },
-    ];
+    // Deduplicate by user id
+    const seen = new Set<string>();
+    const merged: UserSearchResult[] = [];
+    for (const batch of allResults) {
+      for (const result of batch) {
+        if (!seen.has(result.user.id)) {
+          seen.add(result.user.id);
+          merged.push(result);
+        }
+      }
+    }
+
+    return merged;
   },
 
   async importPhoneContacts(
