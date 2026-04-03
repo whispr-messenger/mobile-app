@@ -199,6 +199,33 @@ export class UserService {
   }
 
   /**
+   * Get privacy settings
+   */
+  async getPrivacySettings(): Promise<{ success: boolean; settings?: PrivacySettings; message?: string }> {
+    try {
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
+
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
+
+      const response = await fetch(`${this.baseUrl}/privacy/${payload.sub}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { success: true, settings: data };
+    } catch (error) {
+      console.error('Erreur récupération paramètres confidentialité:', error);
+      return { success: false, message: 'Impossible de récupérer les paramètres de confidentialité' };
+    }
+  }
+
+  /**
    * Update privacy settings
    */
   async updatePrivacySettings(settings: PrivacySettings): Promise<UpdateProfileResponse> {

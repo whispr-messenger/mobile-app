@@ -50,7 +50,7 @@ const normalizeContact = (c: any): Contact => {
     user_id: String(c?.ownerId ?? c?.owner_id ?? ""),
     contact_id: String(c?.contactId ?? c?.contact_id ?? ""),
     nickname: c?.nickname ?? undefined,
-    is_favorite: false,
+    is_favorite: c?.isFavorite ?? c?.is_favorite ?? false,
     added_at: toIso(c?.createdAt ?? c?.created_at),
     updated_at: toIso(c?.updatedAt ?? c?.updated_at),
   };
@@ -300,58 +300,105 @@ export const contactsAPI = {
   async importPhoneContacts(
     phoneContacts: PhoneContact[],
   ): Promise<UserSearchResult[]> {
-    void phoneContacts;
-    return [];
+    if (!phoneContacts.length) return [];
+
+    const headers = await getAuthHeaders();
+    const results: UserSearchResult[] = [];
+    const seen = new Set<string>();
+
+    for (const contact of phoneContacts) {
+      const phone = contact.phoneNumber?.trim();
+      if (!phone) continue;
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/search/phone?phoneNumber=${encodeURIComponent(phone)}`,
+          { headers },
+        );
+        if (!response.ok) continue;
+
+        const data = await response.json().catch(() => null);
+        if (!data) continue;
+
+        const items = Array.isArray(data)
+          ? data
+          : data?.id || data?.userId
+            ? [data]
+            : [];
+
+        for (const u of items) {
+          const id = u?.id ?? u?.userId;
+          if (id && !seen.has(id)) {
+            seen.add(id);
+            results.push(buildSearchResult(u));
+          }
+        }
+      } catch {
+        // Skip contacts that fail to resolve
+      }
+    }
+
+    return results;
   },
 
+  // The backend (user-service) has no contact request system — contacts are
+  // added/removed directly. This returns an empty array by design.
   async getContactRequests(): Promise<ContactRequest[]> {
     return [];
   },
 
+  // The backend has no request system — contacts are added directly.
+  // This calls addContact and returns a ContactRequest-shaped response
+  // for callers that expect the request/accept flow.
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
     const requesterId = await getOwnerId();
-    await this.addContact({ contactId: recipientId });
-    const now = new Date().toISOString();
+    const contact = await this.addContact({ contactId: recipientId });
     return {
-      id: `req_${Date.now()}`,
+      id: contact.id,
       requester_id: requesterId,
       recipient_id: recipientId,
       status: "accepted",
-      created_at: now,
-      updated_at: now,
+      created_at: contact.added_at,
+      updated_at: contact.updated_at,
     };
   },
 
+  // No-op: the backend adds contacts directly (no request/accept flow).
+  // Returns a ContactRequest-shaped response for interface compatibility.
   async acceptContactRequest(requestId: string): Promise<ContactRequest> {
+    const ownerId = await getOwnerId();
     const now = new Date().toISOString();
     return {
       id: requestId,
       requester_id: "",
-      recipient_id: "",
+      recipient_id: ownerId,
       status: "accepted",
       created_at: now,
       updated_at: now,
     };
   },
 
+  // No-op: the backend has no contact request system, so there is nothing
+  // to refuse. Returns a ContactRequest-shaped response for interface compatibility.
   async refuseContactRequest(requestId: string): Promise<ContactRequest> {
+    const ownerId = await getOwnerId();
     const now = new Date().toISOString();
     return {
       id: requestId,
       requester_id: "",
-      recipient_id: "",
+      recipient_id: ownerId,
       status: "rejected",
       created_at: now,
       updated_at: now,
     };
   },
 
+  // The backend returns all blocked users at once (no pagination support).
+  // page/limit are kept in the signature for interface compatibility.
   async getBlockedUsers(
-    page: number = 1,
-    limit: number = 50,
+    _page: number = 1,
+    _limit: number = 50,
   ): Promise<{ blocked: BlockedUser[]; total: number }> {
-    void page;
-    void limit;
     const ownerId = await getOwnerId();
     const response = await fetch(
       `${API_BASE_URL}/blocked-users/${encodeURIComponent(ownerId)}`,

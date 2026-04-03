@@ -22,7 +22,7 @@ async function apiFetch<T>(
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const response = await fetch(`${getAuthBaseUrl()}/auth/v1${path}`, {
+  const response = await fetch(`${getAuthBaseUrl()}${path}`, {
     ...options,
     headers,
   });
