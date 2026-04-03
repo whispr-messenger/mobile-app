@@ -18,6 +18,7 @@ import { CameraCapture, CameraCaptureResult } from './CameraCapture';
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
   onSendMedia?: (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => void;
+  onScheduleSend?: (message: string) => void;
   onTyping?: (typing: boolean) => void;
   placeholder?: string;
   replyingTo?: Message | null;
@@ -31,6 +32,7 @@ interface MessageInputProps {
 export const MessageInput: React.FC<MessageInputProps> = ({
   onSend,
   onSendMedia,
+  onScheduleSend,
   onTyping,
   placeholder = '',
   replyingTo,
@@ -155,6 +157,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       onCancelEdit?.();
     }
   }, [text, onSend, replyingTo, onCancelReply, onCancelEdit, members]);
+
+  const handleLongPressSend = useCallback(() => {
+    if (text.trim() && onScheduleSend) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      onScheduleSend(text.trim());
+    }
+  }, [text, onScheduleSend]);
 
   // Open camera capture modal
   const handleOpenCamera = useCallback(() => {
@@ -366,6 +375,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </View>
         <TouchableOpacity
           onPress={handleSend}
+          onLongPress={handleLongPressSend}
+          delayLongPress={500}
           disabled={!text.trim()}
           activeOpacity={0.7}
         >

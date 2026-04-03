@@ -16,6 +16,7 @@ import {
   Platform,
   Dimensions,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +26,7 @@ import * as Haptics from 'expo-haptics';
 import Toast from '../../components/Toast/Toast';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { Circle, Path } from 'react-native-svg';
+import { TwoFactorAuthService } from '../../services/SecurityService';
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -87,10 +89,15 @@ export const TwoFactorAuthScreen: React.FC = () => {
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [expandedQR, setExpandedQR] = useState(false);
   const [expandedRecoveryCodes, setExpandedRecoveryCodes] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  const [qrCodeSecret] = useState('JBSWY3DPEHPK3PXP');
+  const [qrCodeSecret, setQrCodeSecret] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [disableMode, setDisableMode] = useState(false);
   const renderStylizedPiece = useCallback(
     ({ x, y, pieceSize, bitMatrix }: { x: number; y: number; pieceSize: number; bitMatrix: number[][] }) => {
       if (!bitMatrix[y] || bitMatrix[y][x] === 0) {
@@ -130,16 +137,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
   const recoveryCodesOpacity = useRef(new Animated.Value(0)).current;
   const qrChevronRotation = useRef(new Animated.Value(0)).current;
   const recoveryCodesChevronRotation = useRef(new Animated.Value(0)).current;
-  const [recoveryCodes] = useState<RecoveryCode[]>([
-    { id: '1', code: '1234-5678', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '2', code: '2345-6789', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '3', code: '3456-7890', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '4', code: '4567-8901', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '5', code: '5678-9012', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '6', code: '6789-0123', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '7', code: '7890-1234', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '8', code: '8901-2345', used: false, createdAt: '2024-01-15T10:30:00Z' },
-  ]);
+  const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCode[]>([]);
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' | 'info' | 'warning' }>({
     visible: false,
     message: '',
@@ -221,6 +219,20 @@ export const TwoFactorAuthScreen: React.FC = () => {
     }
   }, [expandedRecoveryCodes]);
 
+  // Fetch 2FA status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const status = await TwoFactorAuthService.getStatus();
+        setTwoFactorEnabled(status.enabled);
+      } catch (error) {
+        console.error('Failed to fetch 2FA status:', error);
+      } finally {
+        setStatusLoading(false);
+      }
+    })();
+  }, []);
+
   const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' = 'light') => {
     if (Platform.OS === 'ios') {
       try {
@@ -243,11 +255,32 @@ export const TwoFactorAuthScreen: React.FC = () => {
     setToast({ visible: true, message, type });
   };
 
-  const handleToggle2FA = (value: boolean) => {
+  const handleToggle2FA = async (value: boolean) => {
     triggerHaptic('light');
     if (value) {
-      setTwoFactorEnabled(true);
-      setExpandedQR(true);
+      setSetupLoading(true);
+      try {
+        const result = await TwoFactorAuthService.setup();
+        setQrCodeSecret(result.secret);
+        setQrCodeUrl(result.qr_code_url);
+        if (result.backup_codes) {
+          setRecoveryCodes(
+            result.backup_codes.map((code, i) => ({
+              id: String(i + 1),
+              code,
+              used: false,
+              createdAt: new Date().toISOString(),
+            }))
+          );
+        }
+        setTwoFactorEnabled(true);
+        setExpandedQR(true);
+      } catch (error) {
+        console.error('Failed to setup 2FA:', error);
+        showToast('Failed to setup 2FA', 'error');
+      } finally {
+        setSetupLoading(false);
+      }
     } else {
       Alert.alert(
         getLocalizedText('twoFactor.disable'),
@@ -259,8 +292,8 @@ export const TwoFactorAuthScreen: React.FC = () => {
             style: 'destructive',
             onPress: () => {
               triggerHaptic('medium');
-              setTwoFactorEnabled(false);
-              showToast(getLocalizedText('twoFactor.disabled'), 'success');
+              setDisableMode(true);
+              setExpandedQR(true);
             },
           },
         ],
@@ -269,17 +302,51 @@ export const TwoFactorAuthScreen: React.FC = () => {
     }
   };
 
-  const handleVerifyQRCode = () => {
+  const handleVerifyQRCode = async () => {
     if (verificationCode.length < 6) {
       triggerHaptic('heavy');
       showToast(getLocalizedText('twoFactor.invalidCode'), 'error');
       return;
     }
 
-    triggerHaptic('success');
-    setVerificationCode('');
-    setExpandedQR(false);
-    showToast(getLocalizedText('twoFactor.enabled'), 'success');
+    setVerifyLoading(true);
+    try {
+      if (disableMode) {
+        await TwoFactorAuthService.disable(verificationCode);
+        setTwoFactorEnabled(false);
+        setRecoveryCodes([]);
+        setQrCodeSecret('');
+        setDisableMode(false);
+        triggerHaptic('success');
+        showToast(getLocalizedText('twoFactor.disabled'), 'success');
+      } else {
+        await TwoFactorAuthService.enable(verificationCode);
+        // Fetch backup codes after enabling
+        try {
+          const backupResult = await TwoFactorAuthService.generateBackupCodes();
+          setRecoveryCodes(
+            backupResult.backup_codes.map((code, i) => ({
+              id: String(i + 1),
+              code,
+              used: false,
+              createdAt: new Date().toISOString(),
+            }))
+          );
+        } catch (backupError) {
+          console.error('Failed to fetch backup codes:', backupError);
+        }
+        triggerHaptic('success');
+        showToast(getLocalizedText('twoFactor.enabled'), 'success');
+      }
+      setVerificationCode('');
+      setExpandedQR(false);
+    } catch (error) {
+      console.error('Failed to verify 2FA code:', error);
+      triggerHaptic('heavy');
+      showToast(getLocalizedText('twoFactor.invalidCode'), 'error');
+    } finally {
+      setVerifyLoading(false);
+    }
   };
 
   const handleCopyRecoveryCode = async (code: string) => {
@@ -436,12 +503,17 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     {getLocalizedText('twoFactor.enable2FASubtitle')}
                   </Text>
                 </View>
-                <Switch
-                  value={twoFactorEnabled}
-                  onValueChange={handleToggle2FA}
-                  trackColor={{ false: themeColors.text.tertiary, true: themeColors.primary }}
-                  thumbColor="#FFFFFF"
-                />
+                {statusLoading || setupLoading ? (
+                  <ActivityIndicator size="small" color={accentColor} />
+                ) : (
+                  <Switch
+                    value={twoFactorEnabled}
+                    onValueChange={handleToggle2FA}
+                    trackColor={{ false: themeColors.text.tertiary, true: themeColors.primary }}
+                    thumbColor="#FFFFFF"
+                    disabled={setupLoading}
+                  />
+                )}
               </View>
             </View>
           </View>
@@ -555,79 +627,83 @@ export const TwoFactorAuthScreen: React.FC = () => {
                       },
                     ]}
                   >
-                    <View style={styles.qrCard}>
-                      <View style={styles.qrOuterFrame}>
-                        <View style={styles.qrInnerFrame}>
-                          <LinearGradient
-                            colors={['#FFF3F0', '#FDDDEA']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.qrCanvas}
+                    {!disableMode && qrCodeSecret ? (
+                      <>
+                        <View style={styles.qrCard}>
+                          <View style={styles.qrOuterFrame}>
+                            <View style={styles.qrInnerFrame}>
+                              <LinearGradient
+                                colors={['#FFF3F0', '#FDDDEA']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.qrCanvas}
+                              >
+                                <QRCodeStyled
+                                  data={qrCodeUrl || `otpauth://totp/WHISPR?secret=${qrCodeSecret}&issuer=Whispr`}
+                                  padding={10}
+                                  size={190}
+                                  pieceCornerType="rounded"
+                                  pieceBorderRadius={60}
+                                  pieceLiquidRadius={50}
+                                  pieceScale={1.05}
+                                  isPiecesGlued
+                                  gradient={{
+                                    type: 'linear',
+                                    options: {
+                                      colors: qrGradientColors,
+                                      start: [0, 0],
+                                      end: [1, 1],
+                                    },
+                                  }}
+                                  outerEyesOptions={{
+                                    topLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
+                                    topRight: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
+                                    bottomLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
+                                  }}
+                                  innerEyesOptions={{
+                                    topLeft: { borderRadius: 18, color: '#2D1935' },
+                                    topRight: { borderRadius: 18, color: '#2D1935' },
+                                    bottomLeft: { borderRadius: 18, color: '#2D1935' },
+                                  }}
+                                  color="#F66E7E"
+                                  renderCustomPieceItem={renderStylizedPiece}
+                                />
+                              </LinearGradient>
+                            </View>
+                          </View>
+                          <Text
+                            style={[
+                              styles.qrSecretLabel,
+                              { color: themeColors.text.primary, fontSize: getFontSize('sm') },
+                            ]}
                           >
-                            <QRCodeStyled
-                              data={`otpauth://totp/WHISPR?secret=${qrCodeSecret}&issuer=Whispr`}
-                              padding={10}
-                              size={190}
-                              pieceCornerType="rounded"
-                              pieceBorderRadius={60}
-                              pieceLiquidRadius={50}
-                              pieceScale={1.05}
-                              isPiecesGlued
-                              gradient={{
-                                type: 'linear',
-                                options: {
-                                  colors: qrGradientColors,
-                                  start: [0, 0],
-                                  end: [1, 1],
-                                },
-                              }}
-                              outerEyesOptions={{
-                                topLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
-                                topRight: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
-                                bottomLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
-                              }}
-                              innerEyesOptions={{
-                                topLeft: { borderRadius: 18, color: '#2D1935' },
-                                topRight: { borderRadius: 18, color: '#2D1935' },
-                                bottomLeft: { borderRadius: 18, color: '#2D1935' },
-                              }}
-                              color="#F66E7E"
-                              renderCustomPieceItem={renderStylizedPiece}
-                            />
-                          </LinearGradient>
+                            {qrCodeSecret}
+                          </Text>
                         </View>
-                      </View>
-                      <Text
-                        style={[
-                          styles.qrSecretLabel,
-                          { color: themeColors.text.primary, fontSize: getFontSize('sm') },
-                        ]}
-                      >
-                        {qrCodeSecret}
-                      </Text>
-                    </View>
 
-                    <TouchableOpacity
-                      onPress={handleScanQRCode}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.scanButton,
-                        {
-                          backgroundColor: themeColors.background.primary,
-                          borderColor: accentColor + '40',
-                        },
-                      ]}
-                    >
-                      <Ionicons name="camera" size={20} color={accentColor} />
-                      <Text
-                        style={[
-                          styles.scanButtonText,
-                          { color: accentColor, fontSize: getFontSize('base') },
-                        ]}
-                      >
-                        {getLocalizedText('twoFactor.scanQRCode')}
-                      </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={handleScanQRCode}
+                          activeOpacity={0.8}
+                          style={[
+                            styles.scanButton,
+                            {
+                              backgroundColor: themeColors.background.primary,
+                              borderColor: accentColor + '40',
+                            },
+                          ]}
+                        >
+                          <Ionicons name="camera" size={20} color={accentColor} />
+                          <Text
+                            style={[
+                              styles.scanButtonText,
+                              { color: accentColor, fontSize: getFontSize('base') },
+                            ]}
+                          >
+                            {getLocalizedText('twoFactor.scanQRCode')}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : null}
 
                     <Text
                       style={[
@@ -658,7 +734,8 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     <TouchableOpacity
                       onPress={handleVerifyQRCode}
                       activeOpacity={0.9}
-                      style={styles.verifyButtonContainer}
+                      disabled={verifyLoading}
+                      style={[styles.verifyButtonContainer, verifyLoading && { opacity: 0.6 }]}
                     >
                       <LinearGradient
                         colors={[themeColors.primary, themeColors.primary + 'DD']}
@@ -679,14 +756,20 @@ export const TwoFactorAuthScreen: React.FC = () => {
                           }),
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.verifyButtonText,
-                            { color: '#FFFFFF', fontSize: getFontSize('base') },
-                          ]}
-                        >
-                          {getLocalizedText('twoFactor.verify')}
-                        </Text>
+                        {verifyLoading ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text
+                            style={[
+                              styles.verifyButtonText,
+                              { color: '#FFFFFF', fontSize: getFontSize('base') },
+                            ]}
+                          >
+                            {disableMode
+                              ? (getLocalizedText('twoFactor.disable') || 'Disable')
+                              : getLocalizedText('twoFactor.verify')}
+                          </Text>
+                        )}
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>

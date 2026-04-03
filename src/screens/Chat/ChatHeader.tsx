@@ -17,6 +17,7 @@ interface ChatHeaderProps {
   conversationType: 'direct' | 'group';
   onSearchPress?: () => void;
   onInfoPress?: () => void;
+  onScheduledPress?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -26,6 +27,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationType,
   onSearchPress,
   onInfoPress,
+  onScheduledPress,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -72,6 +74,18 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
+        {onScheduledPress && (
+          <TouchableOpacity
+            onPress={onScheduledPress}
+            style={styles.actionButton}
+          >
+            <Ionicons
+              name="timer-outline"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
         {onSearchPress && (
           <TouchableOpacity
             onPress={onSearchPress}

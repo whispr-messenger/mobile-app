@@ -21,6 +21,7 @@ interface MessageActionsMenuProps {
   onDelete?: (deleteForEveryone: boolean) => void;
   onReact?: () => void;
   onPin?: () => void;
+  onForward?: () => void;
 }
 
 export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
@@ -34,6 +35,7 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   onDelete,
   onReact,
   onPin,
+  onForward,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -124,13 +126,29 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons 
-                  name={isPinned ? "pin" : "pin-outline"} 
-                  size={20} 
-                  color={colors.primary.main} 
+                <Ionicons
+                  name={isPinned ? "pin" : "pin-outline"}
+                  size={20}
+                  color={colors.primary.main}
                 />
                 <Text style={[styles.actionText, { color: colors.text.light }]}>
                   {isPinned ? 'Désépingler' : 'Épingler'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {onForward && (
+              <TouchableOpacity
+                style={styles.actionItem}
+                onPress={() => {
+                  onForward();
+                  onClose();
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-redo-outline" size={20} color={colors.primary.main} />
+                <Text style={[styles.actionText, { color: colors.text.light }]}>
+                  Transférer
                 </Text>
               </TouchableOpacity>
             )}
