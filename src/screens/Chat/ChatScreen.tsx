@@ -259,6 +259,20 @@ export const ChatScreen: React.FC = () => {
   const loadConversation = useCallback(async () => {
     try {
       const conv = await messagingAPI.getConversation(conversationId);
+
+      // Resolve display name for direct conversations
+      if (conv.type === "direct" && !conv.display_name && conv.member_user_ids) {
+        const otherUserId = conv.member_user_ids.find((id: string) => id !== userId);
+        if (otherUserId) {
+          try {
+            const userInfo = await messagingAPI.getUserInfo(otherUserId);
+            if (userInfo) {
+              conv.display_name = userInfo.display_name;
+            }
+          } catch {}
+        }
+      }
+
       setConversation(conv);
 
       // Load members if it's a group
@@ -274,7 +288,7 @@ export const ChatScreen: React.FC = () => {
     } catch (error) {
       logger.error("ChatScreen", "Error loading conversation", error);
     }
-  }, [conversationId]);
+  }, [conversationId, userId]);
 
   useEffect(() => {
     // Load data

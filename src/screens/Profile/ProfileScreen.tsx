@@ -87,18 +87,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     lastSeen: "Maintenant",
     createdAt: "",
   });
-  useEffect(() => {}, []);
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showImagePicker, setShowImagePicker] = useState(false);
-
-  // Animation refs
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  // Animation on mount
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -131,7 +119,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             createdAt: res.profile!.createdAt || prev.createdAt,
           }));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("[ProfileScreen] Failed to load profile:", e);
+      }
     };
 
     loadProfile();
