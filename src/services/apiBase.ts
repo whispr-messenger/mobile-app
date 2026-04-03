@@ -1,21 +1,12 @@
 import Constants from "expo-constants";
-import { Platform } from "react-native";
 
-const getDevHost = (): string => {
-  if (Platform.OS === "android") return "10.0.2.2";
-  const hostUri =
-    Constants.expoGoConfig?.debuggerHost ?? Constants.expoConfig?.hostUri;
-  if (hostUri) return hostUri.split(":")[0];
-  return "localhost";
-};
+const PROD_API_URL = "https://whispr-api.roadmvn.com";
 
 export const getApiBaseUrl = (): string => {
   const extra = Constants.expoConfig?.extra as
     | { apiBaseUrl?: string }
     | undefined;
-  if (extra?.apiBaseUrl) return extra.apiBaseUrl;
-  if (__DEV__) return `http://${getDevHost()}:8080`;
-  return "https://whispr-api.roadmvn.com";
+  return extra?.apiBaseUrl || PROD_API_URL;
 };
 
 export const getWsBaseUrl = (): string => {
