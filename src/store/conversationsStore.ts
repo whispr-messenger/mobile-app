@@ -2,8 +2,43 @@ import { create } from 'zustand';
 import { Conversation, Message } from '../types/messaging';
 import { messagingAPI } from '../services/messaging/api';
 import { cacheService } from '../services/messaging/cache';
+import { TokenService } from '../services/TokenService';
 
 const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
+
+async function getCurrentUserId(): Promise<string | null> {
+  const token = await TokenService.getAccessToken();
+  if (!token) return null;
+  const payload = TokenService.decodeAccessToken(token);
+  return payload?.sub ?? null;
+}
+
+async function enrichWithDisplayNames(
+  conversations: Conversation[],
+  currentUserId: string,
+): Promise<Conversation[]> {
+  const enriched = await Promise.all(
+    conversations.map(async (conv) => {
+      if (conv.type === 'direct' && !conv.display_name) {
+        const otherUserId = conv.member_user_ids?.find(
+          (id: string) => id !== currentUserId,
+        );
+        if (otherUserId) {
+          try {
+            const userInfo = await messagingAPI.getUserInfo(otherUserId);
+            if (userInfo) {
+              return { ...conv, display_name: userInfo.display_name };
+            }
+          } catch {
+            // Silently fail - will show "Contact" as fallback
+          }
+        }
+      }
+      return conv;
+    }),
+  );
+  return enriched;
+}
 
 export type ConversationsStatus =
   | 'loading'
@@ -82,8 +117,10 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
       }
 
       const data = await messagingAPI.getConversations();
-      await cacheService.saveConversations(data);
-      _setConversations(data);
+      const userId = await getCurrentUserId();
+      const enriched = userId ? await enrichWithDisplayNames(data, userId) : data;
+      await cacheService.saveConversations(enriched);
+      _setConversations(enriched);
     } catch (err) {
       console.error('[conversationsStore] fetchConversations error:', err);
       // If we already have cached data shown, stay on it but start grace period
@@ -100,8 +137,10 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     const { _setConversations } = get();
     try {
       const data = await messagingAPI.getConversations();
-      await cacheService.saveConversations(data);
-      _setConversations(data, true);
+      const userId = await getCurrentUserId();
+      const enriched = userId ? await enrichWithDisplayNames(data, userId) : data;
+      await cacheService.saveConversations(enriched);
+      _setConversations(enriched, true);
     } catch (err) {
       console.error('[conversationsStore] refreshConversations error:', err);
       set({ error: 'Failed to refresh conversations' });
