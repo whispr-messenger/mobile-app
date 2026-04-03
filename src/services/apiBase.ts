@@ -13,8 +13,9 @@ export const getApiBaseUrl = (): string => {
   const extra = Constants.expoConfig?.extra as
     | { apiBaseUrl?: string }
     | undefined;
+  if (extra?.apiBaseUrl) return extra.apiBaseUrl;
   if (__DEV__) return `http://${getDevHost()}:8080`;
-  return extra?.apiBaseUrl ?? "https://whispr-api.roadmvn.com";
+  return "https://whispr-api.roadmvn.com";
 };
 
 export const getWsBaseUrl = (): string => {
