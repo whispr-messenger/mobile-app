@@ -2,6 +2,7 @@ import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
 const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
+const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
@@ -126,40 +127,57 @@ export const groupsAPI = {
     groupId: string,
     params?: { page?: number; limit?: number; role?: string },
   ): Promise<{ members: GroupMember[]; total: number }> {
-    void groupId;
     void params;
     const ownerId = await getOwnerId();
+    const headers = await getAuthHeaders();
 
-    const profileResponse = await fetch(
-      `${API_BASE_URL}/profile/${encodeURIComponent(ownerId)}`,
-      {
-        headers: {
-          ...(await getAuthHeaders()),
-        },
-      },
-    ).catch(() => null);
+    // Fetch conversation to get member_user_ids
+    const convResponse = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
+      { headers },
+    );
+    if (!convResponse.ok) {
+      throw new Error("Failed to fetch conversation for group members");
+    }
+    const convJson = await convResponse.json();
+    const conv = convJson?.data !== undefined ? convJson.data : convJson;
+    const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
+      ? conv.member_user_ids
+      : [];
 
-    const profile =
-      profileResponse && profileResponse.ok
-        ? await profileResponse.json().catch(() => null)
-        : null;
-    const displayName = profile?.firstName || profile?.username || "Owner";
+    // Resolve each member's profile
+    const members: GroupMember[] = await Promise.all(
+      memberUserIds.map(async (userId: string) => {
+        const profileResponse = await fetch(
+          `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
+          { headers },
+        ).catch(() => null);
 
-    return {
-      members: [
-        {
-          id: ownerId,
-          user_id: ownerId,
+        const profile =
+          profileResponse && profileResponse.ok
+            ? await profileResponse.json().catch(() => null)
+            : null;
+
+        const displayName =
+          profile?.firstName || profile?.username || "Utilisateur";
+
+        return {
+          id: userId,
+          user_id: userId,
           display_name: displayName,
           username: profile?.username ?? undefined,
           avatar_url: profile?.profilePictureUrl ?? undefined,
-          role: "admin",
-          joined_at: new Date().toISOString(),
+          role: (userId === ownerId ? "admin" : "member") as
+            | "admin"
+            | "moderator"
+            | "member",
+          joined_at: conv?.created_at ?? new Date().toISOString(),
           is_active: true,
-        },
-      ],
-      total: 1,
-    };
+        };
+      }),
+    );
+
+    return { members, total: members.length };
   },
 
   /**
@@ -167,19 +185,34 @@ export const groupsAPI = {
    * Get group statistics
    */
   async getGroupStats(groupId: string): Promise<GroupStats> {
-    void groupId;
+    const headers = await getAuthHeaders();
+
+    const convResponse = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
+      { headers },
+    );
+    if (!convResponse.ok) {
+      throw new Error("Failed to fetch conversation for group stats");
+    }
+    const convJson = await convResponse.json();
+    const conv = convJson?.data !== undefined ? convJson.data : convJson;
+
+    const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
+      ? conv.member_user_ids
+      : [];
+
     return {
-      memberCount: 1,
-      adminCount: 1,
-      messageCount: 0,
-      createdAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString(),
+      memberCount: memberUserIds.length,
+      adminCount: 1, // Only the creator is admin; no dedicated endpoint to resolve this
+      messageCount: conv?.message_count ?? 0,
+      createdAt: conv?.created_at ?? new Date().toISOString(),
+      lastActivity: conv?.updated_at ?? conv?.created_at ?? new Date().toISOString(),
     };
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/logs
-   * Get group activity logs
+   * No backend endpoint exists for group activity logs.
+   * Returns an empty array until a logging service is implemented.
    */
   async getGroupLogs(
     groupId: string,
@@ -191,8 +224,8 @@ export const groupsAPI = {
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/settings
-   * Get group settings
+   * No dedicated backend endpoint for group settings.
+   * Returns sensible defaults until a settings service is implemented.
    */
   async getGroupSettings(groupId: string): Promise<GroupSettings> {
     void groupId;
@@ -221,10 +254,54 @@ export const groupsAPI = {
       avatarUrl?: string;
     }>,
   ): Promise<GroupMember[]> {
-    void groupId;
-    void userIds;
     void memberInfo;
-    return [];
+    const headers = await getAuthHeaders();
+
+    const results: GroupMember[] = [];
+    for (const userId of userIds) {
+      const response = await fetch(
+        `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...headers,
+          },
+          body: JSON.stringify({ user_id: userId }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to add member ${userId} to group`);
+      }
+
+      // Resolve the new member's profile
+      const profileResponse = await fetch(
+        `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
+        { headers },
+      ).catch(() => null);
+
+      const profile =
+        profileResponse && profileResponse.ok
+          ? await profileResponse.json().catch(() => null)
+          : null;
+
+      const displayName =
+        profile?.firstName || profile?.username || "Utilisateur";
+
+      results.push({
+        id: userId,
+        user_id: userId,
+        display_name: displayName,
+        username: profile?.username ?? undefined,
+        avatar_url: profile?.profilePictureUrl ?? undefined,
+        role: "member",
+        joined_at: new Date().toISOString(),
+        is_active: true,
+      });
+    }
+
+    return results;
   },
 
   /**
@@ -232,13 +309,24 @@ export const groupsAPI = {
    * Remove member from group
    */
   async removeMember(groupId: string, memberId: string): Promise<void> {
-    void groupId;
-    void memberId;
+    const response = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to remove member from group");
+    }
   },
 
   /**
-   * POST /api/v1/groups/{groupId}/admin/{userId}
-   * Transfer admin rights
+   * No backend endpoint for admin transfer yet.
+   * This is a no-op until the user-service exposes a role management endpoint.
    */
   async transferAdmin(groupId: string, userId: string): Promise<void> {
     void groupId;
@@ -292,9 +380,21 @@ export const groupsAPI = {
    * POST /api/v1/groups/{groupId}/leave
    * Leave group
    */
-  async leaveGroup(groupId: string, userId: string = "user-1"): Promise<void> {
-    void groupId;
-    void userId;
+  async leaveGroup(groupId: string, userId?: string): Promise<void> {
+    const memberId = userId ?? (await getOwnerId());
+    const response = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to leave group");
+    }
   },
 
   /**

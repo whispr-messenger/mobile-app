@@ -3,7 +3,7 @@
  * WHISPR-133: Implement SettingsScreen with app configuration
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,11 +15,13 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { UserService, PrivacySettings } from '../../services/UserService';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -32,6 +34,15 @@ export const SettingsScreen: React.FC = () => {
   const [showFontSizeModal, setShowFontSizeModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [selectedPrivacyItem, setSelectedPrivacyItem] = useState<string | null>(null);
+
+  // AsyncStorage keys
+  const STORAGE_KEYS = {
+    privacy: '@whispr_settings_privacy',
+    notifications: '@whispr_settings_notifications',
+    messaging: '@whispr_settings_messaging',
+    app: '@whispr_settings_app',
+    security: '@whispr_settings_security',
+  };
 
   // Privacy settings
   const [privacySettings, setPrivacySettings] = useState({
@@ -65,21 +76,125 @@ export const SettingsScreen: React.FC = () => {
     biometricAuth: false,
   });
 
+  /**
+   * Persist a settings category to AsyncStorage
+   */
+  const persistSettings = useCallback(async (key: string, value: Record<string, any>) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error('Error persisting settings:', error);
+    }
+  }, []);
+
+  /**
+   * Map local privacy values (Everyone/Contacts/Nobody) to API format (everyone/contacts/nobody)
+   */
+  const privacyToApi = useCallback((local: typeof privacySettings): PrivacySettings => ({
+    profilePictureVisibility: local.profilePhoto.toLowerCase() as 'everyone' | 'contacts' | 'nobody',
+    firstNameVisibility: local.firstName.toLowerCase() as 'everyone' | 'contacts' | 'nobody',
+    lastNameVisibility: local.lastName.toLowerCase() as 'everyone' | 'contacts' | 'nobody',
+    biographyVisibility: local.biography.toLowerCase() as 'everyone' | 'contacts' | 'nobody',
+    searchVisibility: true,
+    phoneNumberSearch: 'everyone',
+  }), []);
+
+  /**
+   * Map API privacy format back to local format
+   */
+  const apiToPrivacy = useCallback((api: PrivacySettings) => {
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    return {
+      profilePhoto: capitalize(api.profilePictureVisibility),
+      firstName: capitalize(api.firstNameVisibility),
+      lastName: capitalize(api.lastNameVisibility),
+      biography: capitalize(api.biographyVisibility),
+    };
+  }, []);
+
+  /**
+   * Sync privacy settings to the backend API
+   */
+  const syncPrivacyToBackend = useCallback(async (localPrivacy: typeof privacySettings) => {
+    try {
+      const userService = UserService.getInstance();
+      const apiSettings = privacyToApi(localPrivacy);
+      const result = await userService.updatePrivacySettings(apiSettings);
+      if (!result.success) {
+        console.error('Failed to sync privacy settings:', result.message);
+      }
+    } catch (error) {
+      console.error('Error syncing privacy to backend:', error);
+    }
+  }, [privacyToApi]);
+
+  /**
+   * Load all settings from AsyncStorage and privacy from API on mount
+   */
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const [privacyJson, notifJson, msgJson, appJson, secJson] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.privacy),
+          AsyncStorage.getItem(STORAGE_KEYS.notifications),
+          AsyncStorage.getItem(STORAGE_KEYS.messaging),
+          AsyncStorage.getItem(STORAGE_KEYS.app),
+          AsyncStorage.getItem(STORAGE_KEYS.security),
+        ]);
+
+        if (privacyJson) setPrivacySettings(JSON.parse(privacyJson));
+        if (notifJson) setNotificationSettings(JSON.parse(notifJson));
+        if (msgJson) setMessagingSettings(JSON.parse(msgJson));
+        if (appJson) setAppSettings(JSON.parse(appJson));
+        if (secJson) setSecuritySettings(JSON.parse(secJson));
+
+        // Also fetch privacy settings from backend API (takes precedence over local)
+        const userService = UserService.getInstance();
+        const result = await userService.getPrivacySettings();
+        if (result.success && result.settings) {
+          const localPrivacy = apiToPrivacy(result.settings);
+          setPrivacySettings(localPrivacy);
+          await AsyncStorage.setItem(STORAGE_KEYS.privacy, JSON.stringify(localPrivacy));
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+      }
+    };
+
+    loadSettings();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleToggle = (category: string, key: string, value: boolean) => {
-    console.log(`🔄 Toggle ${category}.${key}:`, value);
-    
+    console.log(`Toggle ${category}.${key}:`, value);
+
     switch (category) {
       case 'notifications':
-        setNotificationSettings(prev => ({ ...prev, [key]: value }));
+        setNotificationSettings(prev => {
+          const updated = { ...prev, [key]: value };
+          persistSettings(STORAGE_KEYS.notifications, updated);
+          return updated;
+        });
         break;
       case 'messaging':
-        setMessagingSettings(prev => ({ ...prev, [key]: value }));
+        setMessagingSettings(prev => {
+          const updated = { ...prev, [key]: value };
+          persistSettings(STORAGE_KEYS.messaging, updated);
+          return updated;
+        });
         break;
       case 'app':
-        setAppSettings(prev => ({ ...prev, [key]: value }));
+        setAppSettings(prev => {
+          const updated = { ...prev, [key]: value };
+          persistSettings(STORAGE_KEYS.app, updated);
+          return updated;
+        });
         break;
       case 'security':
-        setSecuritySettings(prev => ({ ...prev, [key]: value }));
+        setSecuritySettings(prev => {
+          const updated = { ...prev, [key]: value };
+          persistSettings(STORAGE_KEYS.security, updated);
+          return updated;
+        });
         break;
     }
   };
@@ -106,7 +221,12 @@ export const SettingsScreen: React.FC = () => {
           await updateSettings({ fontSize: value as 'small' | 'medium' | 'large' });
         }, 100);
       } else if (type === 'privacy' && selectedPrivacyItem) {
-        setPrivacySettings(prev => ({ ...prev, [selectedPrivacyItem]: value }));
+        setPrivacySettings(prev => {
+          const updated = { ...prev, [selectedPrivacyItem]: value };
+          persistSettings(STORAGE_KEYS.privacy, updated);
+          syncPrivacyToBackend(updated);
+          return updated;
+        });
         setShowPrivacyModal(false);
         setSelectedPrivacyItem(null);
       }
@@ -148,15 +268,30 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleDeleteAccount = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        'This action is irreversible. All your data, messages, and contacts will be permanently deleted. Are you sure you want to delete your account?'
+      );
+      if (confirmed) {
+        // TODO: Replace signOut() with a real DELETE /user/v1/account endpoint
+        // that permanently removes the user's data from the backend
+        signOut().then(() => {
+          navigation.reset({ index: 0, routes: [{ name: 'Welcome' as never }] });
+        });
+      }
+      return;
+    }
     Alert.alert(
       getLocalizedText('settings.deleteAccount'),
-      getLocalizedText('notif.deleteAccountConfirm'),
+      'This action is irreversible. All your data, messages, and contacts will be permanently deleted. Are you sure you want to delete your account?',
       [
         { text: getLocalizedText('common.cancel'), style: 'cancel' },
         {
           text: getLocalizedText('common.delete'),
           style: 'destructive',
           onPress: async () => {
+            // TODO: Replace signOut() with a real DELETE /user/v1/account endpoint
+            // that permanently removes the user's data from the backend
             await signOut();
             navigation.reset({ index: 0, routes: [{ name: 'Welcome' as never }] });
           },
