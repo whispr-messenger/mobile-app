@@ -123,7 +123,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const renderSearchResult = useCallback(
     ({ item }: { item: UserSearchResult }) => {
       const { user, is_blocked } = item;
-      const displayName = user.first_name || user.username || 'Utilisateur';
+      const displayName = user.firstName || user.first_name || user.username || 'Utilisateur';
       const isAdding = addingContactId === user.id;
 
       return (
@@ -138,7 +138,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           activeOpacity={0.7}
         >
           <Avatar
-            uri={user.avatar_url}
+            uri={user.profilePictureUrl || user.avatar_url}
             name={displayName}
             size={48}
           />

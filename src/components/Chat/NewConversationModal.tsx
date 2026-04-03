@@ -142,8 +142,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const user = contact.contact_user;
       const nickname = contact.nickname?.toLowerCase() || '';
       const username = user?.username?.toLowerCase() || '';
-      const firstName = user?.first_name?.toLowerCase() || '';
-      const lastName = user?.last_name?.toLowerCase() || '';
+      const firstName = (user?.firstName || user?.first_name)?.toLowerCase() || '';
+      const lastName = (user?.lastName || user?.last_name)?.toLowerCase() || '';
       return (
         nickname.includes(query) ||
         username.includes(query) ||
@@ -160,8 +160,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const user = contact.contact_user;
       const nickname = contact.nickname?.toLowerCase() || '';
       const username = user?.username?.toLowerCase() || '';
-      const firstName = user?.first_name?.toLowerCase() || '';
-      const lastName = user?.last_name?.toLowerCase() || '';
+      const firstName = (user?.firstName || user?.first_name)?.toLowerCase() || '';
+      const lastName = (user?.lastName || user?.last_name)?.toLowerCase() || '';
       return (
         nickname.includes(query) ||
         username.includes(query) ||
@@ -628,7 +628,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               const contact = item.contact;
               const user = contact.contact_user;
               const displayName =
-                contact.nickname || user?.first_name || user?.username || 'Contact';
+                contact.nickname || user?.firstName || user?.first_name || user?.username || 'Contact';
               const isSelected =
                 selectedDirectTarget?.type === 'contact' &&
                 selectedDirectTarget.contact.id === contact.id;
@@ -646,7 +646,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   entering={FadeIn.duration(200)}
                 >
                   <Avatar
-                    uri={user?.avatar_url}
+                    uri={user?.profilePictureUrl || user?.avatar_url}
                     name={displayName}
                     size={48}
                     showOnlineBadge={false}
@@ -690,7 +690,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
             const result = item.user;
             const user = result.user;
-            const displayName = user.first_name || user.username || 'Utilisateur';
+            const displayName = user.firstName || user.first_name || user.username || 'Utilisateur';
             const isSelected =
               selectedDirectTarget?.type === 'user' &&
               selectedDirectTarget.user.user.id === user.id;
@@ -711,7 +711,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 entering={FadeIn.duration(200)}
               >
                 <Avatar
-                  uri={user.avatar_url}
+                  uri={user.profilePictureUrl || user.avatar_url}
                   name={displayName}
                   size={48}
                   showOnlineBadge={false}
@@ -1020,7 +1020,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {selectedContacts.map((contact, index) => {
                     const user = contact.contact_user;
-                    const displayName = contact.nickname || user?.first_name || user?.username || 'Contact';
+                    const displayName = contact.nickname || user?.firstName || user?.first_name || user?.username || 'Contact';
                     return (
                       <Animated.View
                         key={contact.id}
@@ -1028,7 +1028,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         entering={FadeIn.delay(index * 50).springify()}
                       >
                         <Avatar
-                          uri={user?.avatar_url}
+                          uri={user?.profilePictureUrl || user?.avatar_url}
                           name={displayName}
                           size={32}
                           showOnlineBadge={false}
@@ -1060,7 +1060,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 renderItem={({ item }) => {
                   const user = item.contact_user;
                   const userId = user?.id;
-                  const displayName = item.nickname || user?.first_name || user?.username || 'Contact';
+                  const displayName = item.nickname || user?.firstName || user?.first_name || user?.username || 'Contact';
                   const isSelected = userId ? selectedMembers.has(userId) : false;
 
                   if (!userId) return null;
@@ -1078,7 +1078,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                       entering={FadeIn.duration(200)}
                     >
                       <Avatar
-                        uri={user?.avatar_url}
+                        uri={user?.profilePictureUrl || user?.avatar_url}
                         name={displayName}
                         size={48}
                         showOnlineBadge={false}
