@@ -1,14 +1,38 @@
-import { Conversation, Message } from '../../types/messaging';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { Conversation, Message } from '../../types/messaging';
+import { TokenService } from '../TokenService';
 
-const API_BASE_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:4000/api/v1'
-    : 'https://api.whispr.local/api/v1';
+/**
+ * Messaging REST base: `{apiBaseUrl}/api/v1` (see app.json `extra.apiBaseUrl`).
+ * Web dev keeps localhost:4000 for local messaging service.
+ */
+function getMessagingApiBaseUrl(): string {
+  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
+  if (Platform.OS === 'web') {
+    return 'http://localhost:4000/api/v1';
+  }
+  const configured = extra?.apiBaseUrl;
+  if (configured) {
+    return `${configured.replace(/\/+$/, '')}/api/v1`;
+  }
+  if (__DEV__) {
+    const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+    return `http://${host}:4000/api/v1`;
+  }
+  return 'https://whispr.epitech.beer/api/v1';
+}
 
-const getAuthHeaders = (): Record<string, string> => {
-  return {};
-};
+const API_BASE_URL = getMessagingApiBaseUrl();
+
+async function buildAuthHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  const token = await TokenService.getAccessToken();
+  const headers: Record<string, string> = { ...extra };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 export const messagingAPI = {
   async getConversations(params?: {
@@ -32,9 +56,7 @@ export const messagingAPI = {
     const url = `${API_BASE_URL}/conversations${queryString ? `?${queryString}` : ''}`;
 
     const response = await fetch(url, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to fetch conversations');
@@ -46,9 +68,7 @@ export const messagingAPI = {
 
   async getConversation(id: string): Promise<Conversation> {
     const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to fetch conversation');
@@ -59,9 +79,7 @@ export const messagingAPI = {
   async deleteConversation(id: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -95,9 +113,7 @@ export const messagingAPI = {
     )}/messages${queryString ? `?${queryString}` : ''}`;
 
     const response = await fetch(url, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to fetch messages');
@@ -121,10 +137,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/messages`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           content: message.content,
           message_type: message.message_type,
@@ -149,10 +162,7 @@ export const messagingAPI = {
   ): Promise<Message> {
     const response = await fetch(`${API_BASE_URL}/messages/${encodeURIComponent(messageId)}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         content: newContent,
         conversation_id: conversationId,
@@ -179,9 +189,7 @@ export const messagingAPI = {
 
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -198,10 +206,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/reactions`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           user_id: userId,
           reaction,
@@ -225,9 +230,7 @@ export const messagingAPI = {
 
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -239,9 +242,7 @@ export const messagingAPI = {
     const response = await fetch(
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/reactions`,
       {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders(),
       }
     );
 
@@ -257,10 +258,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/pin`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           conversation_id: conversationId,
         }),
@@ -279,9 +277,7 @@ export const messagingAPI = {
 
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -293,9 +289,7 @@ export const messagingAPI = {
     const response = await fetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pins`,
       {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders(),
       }
     );
 
@@ -311,9 +305,7 @@ export const messagingAPI = {
     const response = await fetch(
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/attachments`,
       {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders(),
       }
     );
 
@@ -330,10 +322,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/attachments`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(attachment),
       }
     );
@@ -347,9 +336,7 @@ export const messagingAPI = {
     userId: string
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
     const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -376,9 +363,7 @@ export const messagingAPI = {
     const response = await fetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
       {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders(),
       }
     );
 
@@ -401,10 +386,7 @@ export const messagingAPI = {
   async createDirectConversation(otherUserId: string): Promise<Conversation> {
     const response = await fetch(`${API_BASE_URL}/conversations`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         type: 'direct',
         other_user_id: otherUserId,
@@ -426,10 +408,7 @@ export const messagingAPI = {
   ): Promise<Conversation> {
     const response = await fetch(`${API_BASE_URL}/groups`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         name,
         description,
@@ -452,9 +431,7 @@ export const messagingAPI = {
     const conversationResponse = await fetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}`,
       {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await buildAuthHeaders(),
       }
     );
 
@@ -463,5 +440,145 @@ export const messagingAPI = {
     }
 
     return conversationResponse.json();
+  },
+
+  // ─── Conversation management ────────────────────────────────────────────────
+
+  async updateConversation(
+    id: string,
+    updates: { name?: string; description?: string; picture_url?: string }
+  ): Promise<Conversation> {
+    const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) throw new Error('Failed to update conversation');
+    return response.json();
+  },
+
+  async pinConversation(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}/pin`, {
+      method: 'POST',
+      headers: await buildAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to pin conversation');
+  },
+
+  async unpinConversation(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/conversations/${encodeURIComponent(id)}/pin`, {
+      method: 'DELETE',
+      headers: await buildAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to unpin conversation');
+  },
+
+  async searchConversations(query: string): Promise<Conversation[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/conversations/search?q=${encodeURIComponent(query)}`,
+      { headers: await buildAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Failed to search conversations');
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  },
+
+  // ─── Member management ──────────────────────────────────────────────────────
+
+  async addConversationMember(conversationId: string, userId: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
+      {
+        method: 'POST',
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ user_id: userId }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to add member');
+  },
+
+  async removeConversationMember(conversationId: string, userId: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(userId)}`,
+      {
+        method: 'DELETE',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to remove member');
+  },
+
+  async changeConversationMemberRole(
+    conversationId: string,
+    userId: string,
+    role: 'admin' | 'moderator' | 'member'
+  ): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(userId)}/role`,
+      {
+        method: 'PATCH',
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ role }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to change member role');
+  },
+
+  // ─── Message delivery/read status ───────────────────────────────────────────
+
+  async markMessageDelivered(messageId: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/delivered`,
+      {
+        method: 'POST',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to mark message as delivered');
+  },
+
+  async markMessageRead(messageId: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/read`,
+      {
+        method: 'POST',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to mark message as read');
+  },
+
+  // ─── Standalone attachments ──────────────────────────────────────────────────
+
+  async uploadAttachment(
+    file: { uri: string; name: string; type: string },
+    conversationId?: string
+  ): Promise<{ id: string; url: string; name: string; size: number; mime_type: string }> {
+    const formData = new FormData();
+    formData.append('file', { uri: file.uri, name: file.name, type: file.type } as any);
+    if (conversationId) formData.append('conversation_id', conversationId);
+
+    const token = await TokenService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`${API_BASE_URL}/attachments/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to upload attachment');
+    return response.json();
+  },
+
+  async downloadAttachment(attachmentId: string): Promise<string> {
+    const response = await fetch(
+      `${API_BASE_URL}/attachments/${encodeURIComponent(attachmentId)}/download`,
+      { headers: await buildAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Failed to download attachment');
+    // Returns the blob URL or redirect URL
+    const data = await response.json().catch(() => null);
+    return data?.url ?? response.url;
   },
 };

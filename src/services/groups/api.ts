@@ -1,10 +1,37 @@
-import { Conversation } from '../../types/messaging';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { TokenService } from '../TokenService';
 
-const API_BASE_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:4000/api/v1'
-    : 'https://api.whispr.local/api/v1';
+function getDevHost(): string {
+  if (Platform.OS === 'android') return '10.0.2.2';
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ??
+    (Constants.manifest2 as any)?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost) return debuggerHost.split(':')[0];
+  return 'localhost';
+}
+
+function getGroupsBaseUrl(): string {
+  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
+  if (__DEV__) {
+    const configured = extra?.devUserApiUrl;
+    if (configured) return configured.replace(/\/+$/, '');
+    return `http://${getDevHost()}:3002`;
+  }
+  return (extra?.apiBaseUrl ?? 'https://whispr-api.roadmvn.com').replace(/\/+$/, '');
+}
+
+const API_BASE_URL = `${getGroupsBaseUrl()}/user/v1`;
+
+async function buildAuthHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  const token = await TokenService.getAccessToken();
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...extra,
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
 
 export interface GroupMember {
   id: string;
@@ -58,105 +85,201 @@ export interface GroupDetails {
 
 export const groupsAPI = {
   /**
-   * GET /api/v1/groups/{groupId}
-   * Get group details
+   * GET /user/v1/groups/:ownerId
+   * List groups for the current user
    */
-  async getGroupDetails(groupId: string, conversationId?: string): Promise<GroupDetails> {
-    throw new Error('Not implemented');
+  async getUserGroups(ownerId: string): Promise<GroupDetails[]> {
+    const response = await fetch(`${API_BASE_URL}/groups/${encodeURIComponent(ownerId)}`, {
+      headers: await buildAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch groups');
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/members
-   * Get group members
+   * POST /user/v1/groups/:ownerId
+   * Create a group
+   */
+  async createGroup(
+    ownerId: string,
+    payload: { name: string; description?: string; picture_url?: string; member_ids?: string[] }
+  ): Promise<GroupDetails> {
+    const response = await fetch(`${API_BASE_URL}/groups/${encodeURIComponent(ownerId)}`, {
+      method: 'POST',
+      headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Failed to create group');
+    return response.json();
+  },
+
+  /**
+   * PATCH /user/v1/groups/:ownerId/:groupId
+   * Update group details
+   */
+  async updateGroup(
+    ownerId: string,
+    groupId: string,
+    updates: { name?: string; description?: string; picture_url?: string }
+  ): Promise<GroupDetails> {
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(ownerId)}/${encodeURIComponent(groupId)}`,
+      {
+        method: 'PATCH',
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(updates),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to update group');
+    return response.json();
+  },
+
+  /**
+   * DELETE /user/v1/groups/:ownerId/:groupId
+   * Delete a group
+   */
+  async deleteGroup(ownerId: string, groupId: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(ownerId)}/${encodeURIComponent(groupId)}`,
+      {
+        method: 'DELETE',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to delete group');
+  },
+
+  /**
+   * GET group members via messaging-service conversation members endpoint
+   * (user-service groups don't expose /members directly)
    */
   async getGroupMembers(
     groupId: string,
     params?: { page?: number; limit?: number; role?: string }
   ): Promise<{ members: GroupMember[]; total: number }> {
-    return {
-      members: [],
-      total: 0,
-    };
+    const query = new URLSearchParams();
+    if (params?.page !== undefined) query.append('page', String(params.page));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    if (params?.role) query.append('role', params.role);
+
+    const qs = query.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/members${qs ? `?${qs}` : ''}`,
+      { headers: await buildAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Failed to fetch group members');
+    const data = await response.json();
+    const members = Array.isArray(data.members) ? data.members : Array.isArray(data) ? data : [];
+    return { members, total: data.total ?? members.length };
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/stats
-   * Get group statistics
+   * GET /user/v1/groups/:groupId/stats
    */
   async getGroupStats(groupId: string): Promise<GroupStats> {
-    throw new Error('Not implemented');
+    const response = await fetch(`${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/stats`, {
+      headers: await buildAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to fetch group stats');
+    return response.json();
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/logs
-   * Get group activity logs
+   * GET /user/v1/groups/:groupId/logs
    */
   async getGroupLogs(
     groupId: string,
     params?: { page?: number; limit?: number; actionType?: string }
   ): Promise<{ logs: GroupLog[]; total: number }> {
-    return {
-      logs: [],
-      total: 0,
-    };
+    const query = new URLSearchParams();
+    if (params?.page !== undefined) query.append('page', String(params.page));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    if (params?.actionType) query.append('action_type', params.actionType);
+
+    const qs = query.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/logs${qs ? `?${qs}` : ''}`,
+      { headers: await buildAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Failed to fetch group logs');
+    const data = await response.json();
+    const logs = Array.isArray(data.logs) ? data.logs : [];
+    return { logs, total: data.total ?? logs.length };
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/settings
-   * Get group settings
+   * GET /user/v1/groups/:groupId/settings
    */
   async getGroupSettings(groupId: string): Promise<GroupSettings> {
-    throw new Error('Not implemented');
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/settings`,
+      { headers: await buildAuthHeaders() }
+    );
+    if (!response.ok) throw new Error('Failed to fetch group settings');
+    return response.json();
   },
 
   /**
-   * POST /api/v1/groups/{groupId}/members
-   * Add members to group
+   * POST /user/v1/groups/:groupId/members
    */
-  async addMembers(groupId: string, userIds: string[], memberInfo?: Array<{ userId: string; displayName: string; username?: string; avatarUrl?: string }>): Promise<GroupMember[]> {
-    throw new Error('Not implemented');
+  async addMembers(
+    groupId: string,
+    userIds: string[],
+    memberInfo?: Array<{ userId: string; displayName: string; username?: string; avatarUrl?: string }>
+  ): Promise<GroupMember[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/members`,
+      {
+        method: 'POST',
+        headers: await buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ user_ids: userIds, member_info: memberInfo }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to add members');
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
   },
 
   /**
-   * DELETE /api/v1/groups/{groupId}/members/{memberId}
-   * Remove member from group
+   * DELETE /user/v1/groups/:groupId/members/:memberId
    */
   async removeMember(groupId: string, memberId: string): Promise<void> {
-    throw new Error('Not implemented');
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}`,
+      {
+        method: 'DELETE',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to remove member');
   },
 
   /**
-   * POST /api/v1/groups/{groupId}/admin/{userId}
-   * Transfer admin rights
+   * POST /user/v1/groups/:groupId/admin/:userId
    */
   async transferAdmin(groupId: string, userId: string): Promise<void> {
-    throw new Error('Not implemented');
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/admin/${encodeURIComponent(userId)}`,
+      {
+        method: 'POST',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to transfer admin');
   },
 
   /**
-   * PUT /api/v1/groups/{groupId}
-   * Update group details
+   * POST /user/v1/groups/:groupId/leave
    */
-  async updateGroup(
-    groupId: string,
-    updates: { name?: string; description?: string; picture_url?: string }
-  ): Promise<GroupDetails> {
-    throw new Error('Not implemented');
-  },
-
-  /**
-   * POST /api/v1/groups/{groupId}/leave
-   * Leave group
-   */
-  async leaveGroup(groupId: string, userId: string = 'user-1'): Promise<void> {
-    throw new Error('Not implemented');
-  },
-
-  /**
-   * DELETE /api/v1/groups/{groupId}
-   * Delete group
-   */
-  async deleteGroup(groupId: string): Promise<void> {
-    throw new Error('Not implemented');
+  async leaveGroup(groupId: string): Promise<void> {
+    const response = await fetch(
+      `${API_BASE_URL}/groups/${encodeURIComponent(groupId)}/leave`,
+      {
+        method: 'POST',
+        headers: await buildAuthHeaders(),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to leave group');
   },
 };

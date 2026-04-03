@@ -12,15 +12,39 @@ import {
   ContactRequest,
 } from '../../types/contact';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import { logger } from '../../utils/logger';
+import { TokenService } from '../TokenService';
 
-const API_BASE_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:4000/api/v1'
-    : 'https://api.whispr.local/api/v1';
+function getDevHost(): string {
+  if (Platform.OS === 'android') return '10.0.2.2';
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ??
+    (Constants.manifest2 as any)?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost) return debuggerHost.split(':')[0];
+  return 'localhost';
+}
 
-const getAuthHeaders = (): Record<string, string> => {
-  return {};
-};
+function getContactsBaseUrl(): string {
+  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
+  if (__DEV__) {
+    const configured = extra?.devUserApiUrl;
+    if (configured) return configured.replace(/\/+$/, '');
+    return `http://${getDevHost()}:3002`;
+  }
+  return (extra?.apiBaseUrl ?? 'https://whispr-api.roadmvn.com').replace(/\/+$/, '');
+}
+
+const API_BASE_URL = `${getContactsBaseUrl()}/user/v1`;
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const token = await TokenService.getAccessToken();
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
 
 export const contactsAPI = {
   async getContacts(params?: ContactSearchParams): Promise<{ contacts: Contact[]; total: number }> {
@@ -46,9 +70,7 @@ export const contactsAPI = {
     const url = `${API_BASE_URL}/contacts${queryString ? `?${queryString}` : ''}`;
 
     const response = await fetch(url, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to fetch contacts');
@@ -68,10 +90,9 @@ export const contactsAPI = {
 
   async getContact(contactId: string): Promise<Contact> {
     const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
+
     if (!response.ok) {
       throw new Error('Failed to fetch contact');
     }
@@ -81,10 +102,7 @@ export const contactsAPI = {
   async addContact(data: AddContactDto): Promise<Contact> {
     const response = await fetch(`${API_BASE_URL}/contacts`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contact_id: data.contactId,
         nickname: data.nickname,
@@ -101,10 +119,7 @@ export const contactsAPI = {
   async updateContact(contactId: string, data: UpdateContactDto): Promise<Contact> {
     const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
@@ -118,9 +133,7 @@ export const contactsAPI = {
   async deleteContact(contactId: string): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
       method: 'DELETE',
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -130,9 +143,7 @@ export const contactsAPI = {
 
   async getContactStats(): Promise<ContactStats> {
     const response = await fetch(`${API_BASE_URL}/contacts/stats`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -156,9 +167,7 @@ export const contactsAPI = {
     const url = `${API_BASE_URL}/users/search${queryString ? `?${queryString}` : ''}`;
 
     const response = await fetch(url, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
     if (!response.ok) {
       throw new Error('Failed to search users');
@@ -228,34 +237,59 @@ export const contactsAPI = {
   },
 
   async importPhoneContacts(phoneContacts: PhoneContact[]): Promise<UserSearchResult[]> {
-    const response = await fetch(`${API_BASE_URL}/contacts/import`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(phoneContacts),
+    const url = `${API_BASE_URL}/contacts/import`;
+    logger.warn('contactsAPI', 'importPhoneContacts POST', {
+      url,
+      platform: Platform.OS,
+      contactCount: phoneContacts.length,
+    });
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify(phoneContacts),
+      });
+    } catch (error) {
+      logger.error('contactsAPI', 'importPhoneContacts fetch threw (network?)', error);
+      throw error;
+    }
+
+    logger.warn('contactsAPI', 'importPhoneContacts response', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
     });
 
     if (!response.ok) {
-      throw new Error('Failed to import phone contacts');
+      let bodyPreview = '';
+      try {
+        bodyPreview = (await response.text()).slice(0, 500);
+      } catch {
+        /* ignore */
+      }
+      logger.error('contactsAPI', 'importPhoneContacts HTTP error body preview', {
+        status: response.status,
+        bodyPreview,
+      });
+      throw new Error(`Failed to import phone contacts: HTTP ${response.status}`);
     }
 
     const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    const list = Array.isArray(data) ? data : [];
+    logger.warn('contactsAPI', 'importPhoneContacts parsed', { resultCount: list.length });
+    return list;
   },
 
   async getContactRequests(): Promise<ContactRequest[]> {
     const response = await fetch(`${API_BASE_URL}/contact_requests`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
 
     if (!response.ok) {
       throw new Error('Failed to fetch contact requests');
     }
-
     const data = await response.json();
     const requests = Array.isArray((data as any).requests) ? (data as any).requests : [];
     return requests;
@@ -264,10 +298,7 @@ export const contactsAPI = {
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
     const response = await fetch(`${API_BASE_URL}/contact_requests`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
+      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         recipient_id: recipientId,
       }),
@@ -285,9 +316,7 @@ export const contactsAPI = {
       `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/accept`,
       {
         method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await getAuthHeaders(),
       }
     );
 
@@ -303,9 +332,7 @@ export const contactsAPI = {
       `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/refuse`,
       {
         method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await getAuthHeaders(),
       }
     );
 
@@ -321,11 +348,9 @@ export const contactsAPI = {
     query.append('page', String(page));
     query.append('limit', String(limit));
 
-    const url = `${API_BASE_URL}/contacts/blocked?${query.toString()}`;
+    const url = `${API_BASE_URL}/blocked-users/${query.toString()}`;
     const response = await fetch(url, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: await getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -344,16 +369,13 @@ export const contactsAPI = {
     return { blocked, total };
   },
 
-  async blockUser(userId: string, data?: BlockUserDto): Promise<BlockedUser> {
+  async blockUser(userId: string, blockerId: string, data?: BlockUserDto): Promise<BlockedUser> {
     const response = await fetch(
-      `${API_BASE_URL}/contacts/block/${encodeURIComponent(userId)}`,
+      `${API_BASE_URL}/blocked-users/${encodeURIComponent(blockerId)}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: data ? JSON.stringify(data) : undefined,
+        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocked_id: userId, ...data }),
       }
     );
 
@@ -364,14 +386,12 @@ export const contactsAPI = {
     return response.json();
   },
 
-  async unblockUser(userId: string): Promise<void> {
+  async unblockUser(blockerId: string, blockedId: string): Promise<void> {
     const response = await fetch(
-      `${API_BASE_URL}/contacts/block/${encodeURIComponent(userId)}`,
+      `${API_BASE_URL}/blocked-users/${encodeURIComponent(blockerId)}/${encodeURIComponent(blockedId)}`,
       {
         method: 'DELETE',
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: await getAuthHeaders(),
       }
     );
 
