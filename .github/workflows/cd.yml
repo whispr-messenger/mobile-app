@@ -1,0 +1,195 @@
+name: CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["🚀 CI Pipeline"]
+    types: [completed]
+    branches: [main, deploy/avant-preprod, deploy/preprod]
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to deploy (leave empty for latest)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/mobile-web
+
+jobs:
+  update-deployment:
+    if: ${{ github.event.workflow_run.event == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    name: Update Deployment Manifest
+
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+      - name: Generate GitHub App Token
+        id: generate_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.ACTIONS_CD }}
+          private_key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
+
+      - name: Checkout mobile-app
+        uses: actions/checkout@v4
+        with:
+          path: mobile-app
+          ref: ${{ github.event.workflow_run.head_branch || 'main' }}
+          fetch-depth: 0
+          token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Validate and determine commit SHA
+        id: validate_commit
+        working-directory: mobile-app
+        env:
+          INPUT_SHA: ${{ inputs.commit_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          WF_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          FALLBACK_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -n "$INPUT_SHA" ]; then
+              COMMIT_SHA="$INPUT_SHA"
+              echo "Validating manually provided commit SHA: $COMMIT_SHA"
+
+              if ! echo "$COMMIT_SHA" | grep -qE '^[a-fA-F0-9]{7,40}$'; then
+                echo "❌ Error: Invalid commit SHA format."
+                exit 1
+              fi
+
+              if ! git rev-parse --verify "${COMMIT_SHA}^{commit}" >/dev/null 2>&1; then
+                echo "❌ Error: Commit SHA '${COMMIT_SHA}' does not exist."
+                exit 1
+              fi
+
+              COMMIT_SHA=$(git rev-parse --verify "${COMMIT_SHA}^{commit}")
+              echo "✅ Commit SHA validated: $COMMIT_SHA"
+            else
+              COMMIT_SHA="$FALLBACK_SHA"
+              echo "Using current commit SHA: $COMMIT_SHA"
+            fi
+          else
+            COMMIT_SHA="$WF_HEAD_SHA"
+            if [ -z "$COMMIT_SHA" ]; then
+              COMMIT_SHA="$FALLBACK_SHA"
+              echo "Using fallback SHA: $COMMIT_SHA"
+            fi
+          fi
+
+          echo "commit_sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Verify image exists in registry
+        env:
+          COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
+        run: |
+          SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          FULL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+          FULL_IMAGE=$(echo "${FULL_IMAGE}" | tr '[:upper:]' '[:lower:]')
+
+          echo "Verifying image: ${FULL_IMAGE}"
+          if ! docker manifest inspect "${FULL_IMAGE}" > /dev/null 2>&1; then
+            echo "❌ Error: Docker image ${FULL_IMAGE} not found in registry."
+            exit 1
+          fi
+          echo "✅ Image found in registry"
+
+      - name: Checkout infrastructure repository
+        uses: actions/checkout@v4
+        with:
+          repository: whispr-messenger/infrastructure
+          path: infrastructure
+          ref: main
+          token: ${{ steps.generate_token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Validate deployment manifest path
+        run: |
+          MANIFEST_PATH="infrastructure/k8s/whispr/citadel/mobile-web/deployment.yaml"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "❌ Error: Deployment manifest not found at $MANIFEST_PATH"
+            exit 1
+          fi
+          echo "✅ Deployment manifest found"
+
+      - name: Update image tag in deployment
+        env:
+          COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
+        run: |
+          SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          FULL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+          FULL_IMAGE=$(echo "${FULL_IMAGE}" | tr '[:upper:]' '[:lower:]')
+
+          echo "Updating deployment image to: ${FULL_IMAGE}"
+          yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/citadel/mobile-web/deployment.yaml
+
+      - name: Verify update
+        run: |
+          echo "Updated deployment manifest:"
+          yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/citadel/mobile-web/deployment.yaml
+
+      - name: Commit and push changes
+        working-directory: infrastructure
+        env:
+          COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          if git diff --quiet k8s/whispr/citadel/mobile-web/deployment.yaml; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
+          else
+            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA}"
+          fi
+
+          git add k8s/whispr/citadel/mobile-web/deployment.yaml
+          git commit -m "${COMMIT_MSG}"
+
+          MAX_RETRIES=3
+          for attempt in $(seq 1 "$MAX_RETRIES"); do
+            echo "Attempt ${attempt}/${MAX_RETRIES}..."
+
+            if ! git pull origin main --rebase; then
+              git rebase --abort 2>/dev/null || true
+              git reset --soft HEAD~1
+              git commit -m "${COMMIT_MSG}"
+              sleep $((attempt * 2))
+              continue
+            fi
+
+            if git push "https://x-access-token:${GH_TOKEN}@github.com/whispr-messenger/infrastructure.git" main; then
+              echo "✅ Push successful"
+              exit 0
+            fi
+
+            sleep $((attempt * 2))
+          done
+
+          echo "❌ Failed to push after ${MAX_RETRIES} attempts"
+          exit 1
