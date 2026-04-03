@@ -9,6 +9,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { getSharedSocket, ConnectionState } from '../services/messaging/websocket';
 import { Conversation, Message } from '../types/messaging';
+import { usePresenceStore } from '../store/presenceStore';
 
 interface UseWebSocketOptions {
   userId: string;
@@ -111,19 +112,20 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
       };
       const onPresenceDiff = (data: { joins?: Record<string, any>; leaves?: Record<string, any> }) => {
-        if (data.joins) {
-          Object.keys(data.joins).forEach((uid) => {
-            callbacksRef.current.onPresenceUpdate?.(uid, true);
-          });
-        }
-        if (data.leaves) {
-          Object.keys(data.leaves).forEach((uid) => {
-            callbacksRef.current.onPresenceUpdate?.(uid, false);
-          });
-        }
+        const joins = data.joins ? Object.keys(data.joins) : [];
+        const leaves = data.leaves ? Object.keys(data.leaves) : [];
+        usePresenceStore.getState().applyPresenceDiff(joins, leaves);
+        joins.forEach((uid) => {
+          callbacksRef.current.onPresenceUpdate?.(uid, true);
+        });
+        leaves.forEach((uid) => {
+          callbacksRef.current.onPresenceUpdate?.(uid, false);
+        });
       };
       const onPresenceState = (data: Record<string, any>) => {
-        Object.keys(data).forEach((uid) => {
+        const userIds = Object.keys(data);
+        usePresenceStore.getState().setPresenceState(userIds);
+        userIds.forEach((uid) => {
           callbacksRef.current.onPresenceUpdate?.(uid, true);
         });
       };

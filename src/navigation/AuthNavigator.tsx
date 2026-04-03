@@ -16,6 +16,7 @@ import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
 import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
 import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
 import { ScheduledMessagesScreen } from '../screens/Chat/ScheduledMessagesScreen';
+import { CallsScreen } from '../screens/Calls/CallsScreen';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme/colors';
 import type { AuthPurpose } from '../types/auth';
@@ -50,6 +51,7 @@ export type AuthStackParamList = {
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
+  Calls: undefined;
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -101,6 +103,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
       <Stack.Screen name="GroupManagement" component={GroupManagementScreen} />
       <Stack.Screen name="ScheduledMessages" component={ScheduledMessagesScreen} />
+      <Stack.Screen name="Calls" component={CallsScreen} />
     </Stack.Navigator>
   );
 };

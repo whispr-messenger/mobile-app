@@ -14,6 +14,7 @@ interface ChatHeaderProps {
   conversationName: string;
   avatarUrl?: string;
   isOnline?: boolean;
+  lastSeenAt?: string;
   conversationType: 'direct' | 'group';
   onSearchPress?: () => void;
   onInfoPress?: () => void;
@@ -24,6 +25,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationName,
   avatarUrl,
   isOnline = false,
+  lastSeenAt,
   conversationType,
   onSearchPress,
   onInfoPress,
@@ -66,10 +68,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         </Text>
         {conversationType === 'direct' && (
           <Text
-            style={[styles.status, { color: themeColors.text.secondary }]}
+            style={[styles.status, { color: isOnline ? colors.status.online : themeColors.text.secondary }]}
             numberOfLines={1}
           >
-            {isOnline ? 'En ligne' : 'Hors ligne'}
+            {isOnline
+              ? 'En ligne'
+              : lastSeenAt
+                ? `Vu \u00e0 ${new Date(lastSeenAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+                : 'Hors ligne'}
           </Text>
         )}
       </View>

@@ -12,6 +12,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors } from '../../theme/colors';
 import { Avatar } from './Avatar';
 import { Ionicons } from '@expo/vector-icons';
+import { usePresenceStore } from '../../store/presenceStore';
+import { useAuth } from '../../context/AuthContext';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -30,6 +32,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+  const { userId: currentUserId } = useAuth();
+  const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
+
+  // For direct conversations, check if the other user is online
+  const otherUserId = conversation.type === 'direct'
+    ? conversation.member_user_ids?.find((id: string) => id !== currentUserId)
+    : undefined;
+  const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
 
   const translateX = useSharedValue(50);
   const opacity = useSharedValue(0);
@@ -156,7 +166,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 : conversation.metadata?.name || 'Group')
             }
             showOnlineBadge={conversation.type === 'direct'}
-            isOnline={conversation.type === 'direct'}
+            isOnline={isOtherOnline}
           />
         </View>
         <View style={styles.textContainer}>

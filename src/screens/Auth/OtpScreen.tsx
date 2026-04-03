@@ -19,6 +19,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { AuthService } from '../../services/AuthService';
 import { TokenService } from '../../services/TokenService';
+import { SignalKeyService } from '../../services/SignalKeyService';
+import { SignalKeysService } from '../../services/SecurityService';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 
@@ -80,6 +82,37 @@ export const OtpScreen: React.FC = () => {
 
   const submittingRef = useRef(false);
 
+  /**
+   * Generate Signal Protocol keys and upload them to the backend.
+   * Non-blocking: errors are logged but do not prevent the user from proceeding.
+   */
+  const generateAndUploadSignalKeys = async (): Promise<void> => {
+    try {
+      console.log('[OtpScreen] Generating Signal key bundle...');
+      const bundle = await SignalKeyService.generateKeyBundle();
+
+      // Upload signed prekey (map camelCase DTO → snake_case API)
+      await SignalKeysService.uploadSignedPrekey({
+        key_id: bundle.signedPreKey.keyId,
+        public_key: bundle.signedPreKey.publicKey,
+        signature: bundle.signedPreKey.signature,
+      });
+      console.log('[OtpScreen] Signed prekey uploaded');
+
+      // Upload one-time prekeys
+      await SignalKeysService.uploadPrekeys(
+        bundle.preKeys.map((pk) => ({
+          key_id: pk.keyId,
+          public_key: pk.publicKey,
+        }))
+      );
+      console.log('[OtpScreen] One-time prekeys uploaded');
+    } catch (err) {
+      // Do not block the auth flow — keys can be uploaded later
+      console.warn('[OtpScreen] Signal key upload failed (non-blocking):', err);
+    }
+  };
+
   const handleSubmit = useCallback(
     async (code: string) => {
       if (submittingRef.current) return;
@@ -111,6 +144,11 @@ export const OtpScreen: React.FC = () => {
         if (!payload) throw new Error('Invalid token');
 
         signIn(payload.sub, payload.deviceId);
+
+        // Generate and upload Signal Protocol keys after successful auth.
+        // Runs for both register and login so every device gets keys.
+        // Fire-and-forget: don't await — navigate immediately.
+        generateAndUploadSignalKeys();
 
         if (purpose === 'register') {
           navigation.reset({ index: 0, routes: [{ name: 'ProfileSetup' }] });
