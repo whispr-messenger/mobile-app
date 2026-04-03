@@ -23,18 +23,33 @@ async function enrichWithDisplayNames(
   const enriched = await Promise.all(
     conversations.map(async (conv) => {
       if (conv.type === 'direct' && !conv.display_name) {
-        const otherUserId = conv.member_user_ids?.find(
-          (id: string) => id !== currentUserId,
-        );
-        if (otherUserId) {
-          try {
+        try {
+          // The list endpoint doesn't return members, so fetch conversation detail
+          let memberIds = conv.member_user_ids;
+          if (!memberIds || memberIds.length === 0) {
+            const detail = await messagingAPI.getConversation(conv.id);
+            if (detail?.members) {
+              memberIds = detail.members.map((m: { user_id: string }) => m.user_id);
+            } else if (detail?.member_user_ids) {
+              memberIds = detail.member_user_ids;
+            }
+          }
+
+          const otherUserId = memberIds?.find(
+            (id: string) => id !== currentUserId,
+          );
+          if (otherUserId) {
             const userInfo = await messagingAPI.getUserInfo(otherUserId);
             if (userInfo) {
-              return { ...conv, display_name: userInfo.display_name };
+              return {
+                ...conv,
+                display_name: userInfo.display_name,
+                member_user_ids: memberIds,
+              };
             }
-          } catch {
-            // Silently fail - will show "Contact" as fallback
           }
+        } catch {
+          // Silently fail - will show "Contact" as fallback
         }
       }
       return conv;
