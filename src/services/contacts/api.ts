@@ -86,7 +86,7 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
 
 const buildSearchResult = (u: any): UserSearchResult => ({
   user: {
-    id: u.id,
+    id: u.id ?? u.userId,
     username: u.username ?? "",
     phone_number: u.phoneNumber ?? u.phone_number,
     first_name: u.firstName ?? u.first_name,
@@ -242,7 +242,7 @@ export const contactsAPI = {
         .then(async (r) => {
           if (!r.ok) return [];
           const user = await r.json().catch(() => null);
-          if (!user?.id) return [];
+          if (!user?.id && !user?.userId) return [];
           return [buildSearchResult(user)];
         })
         .catch(() => [])
@@ -257,7 +257,7 @@ export const contactsAPI = {
           if (!r.ok) return [];
           const data = await r.json().catch(() => []);
           const items = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
-          return items.filter((u: any) => u?.id).map(buildSearchResult);
+          return items.filter((u: any) => u?.id || u?.userId).map(buildSearchResult);
         })
         .catch(() => [])
     );
@@ -273,8 +273,8 @@ export const contactsAPI = {
             if (!r.ok) return [];
             const data = await r.json().catch(() => null);
             if (!data) return [];
-            const items = Array.isArray(data) ? data : data?.id ? [data] : [];
-            return items.filter((u: any) => u?.id).map(buildSearchResult);
+            const items = Array.isArray(data) ? data : (data?.id || data?.userId) ? [data] : [];
+            return items.filter((u: any) => u?.id || u?.userId).map(buildSearchResult);
           })
           .catch(() => [])
       );

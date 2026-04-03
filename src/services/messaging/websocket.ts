@@ -2,6 +2,8 @@ import { getWsBaseUrl } from "../apiBase";
 
 type EventCallback = (data: any) => void;
 
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+
 type Channel = {
   join: (params?: Record<string, any>) => Promise<{ status: string }>;
   on: (event: string, callback: EventCallback) => void;
@@ -30,6 +32,8 @@ export class SocketConnection {
   private shouldReconnect = false;
   private lastUserId: string | null = null;
   private lastToken: string | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private heartbeatInterval = 30000; // 30s — matches Phoenix default
 
   get connectionState(): ConnectionState {
     return this._connectionState;
@@ -57,6 +61,11 @@ export class SocketConnection {
       return;
     }
 
+    // Save credentials for auto-reconnect
+    this.lastUserId = userId;
+    this.lastToken = token;
+    this.shouldReconnect = true;
+
     const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
       userId,
     )}&token=${encodeURIComponent(token)}`;
@@ -74,6 +83,9 @@ export class SocketConnection {
       // Reset reconnect counter on successful connection
       this.reconnectAttempt = 0;
       this.setConnectionState('connected');
+
+      // Start heartbeat to keep connection alive (Phoenix requires this)
+      this.startHeartbeat();
 
       this.pendingTopics.forEach((topic) => {
         const joinMsg = {
@@ -134,6 +146,9 @@ export class SocketConnection {
     };
 
     this.socket.onclose = () => {
+      // Stop heartbeat
+      this.stopHeartbeat();
+
       // Mark all channels as not joined so they rejoin on reconnect
       Object.values(this.channels).forEach((ch) => {
         ch.joined = false;
@@ -150,6 +165,29 @@ export class SocketConnection {
     this.socket.onerror = () => {
       // onclose will fire after onerror, reconnect handled there
     };
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.send(
+          JSON.stringify({
+            topic: 'phoenix',
+            event: 'heartbeat',
+            payload: {},
+            ref: Date.now().toString(),
+          }),
+        );
+      }
+    }, this.heartbeatInterval);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private scheduleReconnect(): void {
@@ -185,6 +223,8 @@ export class SocketConnection {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+
+    this.stopHeartbeat();
 
     if (this.socket) {
       this.socket.close();
