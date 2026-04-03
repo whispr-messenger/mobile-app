@@ -20,6 +20,7 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -42,6 +43,8 @@ import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
 import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
+import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
+import { useConversationsStore } from "../../store/conversationsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
 import { SystemMessage } from "../../components/Chat/SystemMessage";
@@ -54,6 +57,8 @@ import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
+import { SchedulingService } from "../../services/SchedulingService";
+import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
@@ -97,6 +102,13 @@ export const ChatScreen: React.FC = () => {
     Array<{ id: string; display_name: string; username?: string }>
   >([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardingMessage, setForwardingMessage] =
+    useState<MessageWithRelations | null>(null);
+  const [forwardSending, setForwardSending] = useState(false);
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [scheduleMessageText, setScheduleMessageText] = useState("");
+  const allConversations = useConversationsStore((s) => s.conversations);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -668,6 +680,41 @@ export const ChatScreen: React.FC = () => {
     [conversationId, userId, sendTyping, replyingTo],
   );
 
+  const handleScheduleSend = useCallback(
+    (messageText: string) => {
+      setScheduleMessageText(messageText);
+      setShowSchedulePicker(true);
+    },
+    [],
+  );
+
+  const handleScheduleConfirm = useCallback(
+    async (date: Date) => {
+      setShowSchedulePicker(false);
+      if (!scheduleMessageText.trim()) return;
+
+      try {
+        await SchedulingService.createScheduledMessage({
+          conversation_id: conversationId,
+          content: scheduleMessageText.trim(),
+          message_type: 'text',
+          scheduled_at: date.toISOString(),
+        });
+        logger.info("ChatScreen", `Message scheduled for ${date.toISOString()}`);
+        Alert.alert("Message programmé", "Votre message sera envoyé à l'heure prévue.");
+      } catch (error) {
+        logger.error("ChatScreen", "Error scheduling message", error);
+        Alert.alert("Erreur", "Impossible de programmer le message.");
+      }
+      setScheduleMessageText("");
+    },
+    [conversationId, scheduleMessageText],
+  );
+
+  const handleScheduledPress = useCallback(() => {
+    navigation.navigate("ScheduledMessages", { conversationId });
+  }, [navigation, conversationId]);
+
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
       try {
@@ -763,6 +810,42 @@ export const ChatScreen: React.FC = () => {
       setShowActionsMenu(true);
     },
     [],
+  );
+
+  const handleForwardMessage = useCallback(() => {
+    if (selectedMessage) {
+      setForwardingMessage(selectedMessage);
+      setShowActionsMenu(false);
+      setSelectedMessage(null);
+      setShowForwardModal(true);
+    }
+  }, [selectedMessage]);
+
+  const handleForwardSelect = useCallback(
+    async (targetConversationId: string) => {
+      if (!forwardingMessage) return;
+
+      setForwardSending(true);
+      try {
+        await messagingAPI.sendMessage(targetConversationId, {
+          content: forwardingMessage.content,
+          message_type: forwardingMessage.message_type,
+          client_random: Math.floor(Math.random() * 1000000),
+          metadata: {
+            forwarded: true,
+            original_sender: forwardingMessage.sender_id,
+            original_timestamp: forwardingMessage.sent_at,
+          },
+        });
+        setShowForwardModal(false);
+        setForwardingMessage(null);
+      } catch (error) {
+        logger.error("ChatScreen", "Error forwarding message", error);
+      } finally {
+        setForwardSending(false);
+      }
+    },
+    [forwardingMessage],
   );
 
   const handleEditMessage = useCallback(() => {
@@ -1123,6 +1206,7 @@ export const ChatScreen: React.FC = () => {
           isOnline={conversation?.type === "direct"}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
+          onScheduledPress={handleScheduledPress}
         />
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar
@@ -1174,6 +1258,7 @@ export const ChatScreen: React.FC = () => {
           <MessageInput
             onSend={handleSendMessage}
             onSendMedia={handleSendMedia}
+            onScheduleSend={handleScheduleSend}
             onTyping={(typing) => sendTyping(conversationId, typing)}
             replyingTo={replyingTo}
             onCancelReply={() => setReplyingTo(null)}
@@ -1197,6 +1282,18 @@ export const ChatScreen: React.FC = () => {
           onDelete={handleDeleteMessage}
           onReact={handleStartReaction}
           onPin={handlePinMessage}
+          onForward={handleForwardMessage}
+        />
+        <ForwardMessageModal
+          visible={showForwardModal}
+          conversations={allConversations}
+          currentConversationId={conversationId}
+          sending={forwardSending}
+          onClose={() => {
+            setShowForwardModal(false);
+            setForwardingMessage(null);
+          }}
+          onSelect={handleForwardSelect}
         />
         {showReactionPicker && (
           <ReactionPicker
@@ -1220,6 +1317,14 @@ export const ChatScreen: React.FC = () => {
           currentIndex={currentSearchIndex}
           onNext={handleSearchNext}
           onPrevious={handleSearchPrevious}
+        />
+        <ScheduleDateTimePicker
+          visible={showSchedulePicker}
+          onClose={() => {
+            setShowSchedulePicker(false);
+            setScheduleMessageText("");
+          }}
+          onConfirm={handleScheduleConfirm}
         />
         <Modal
           visible={showInfoModal && conversation?.type !== "group"}

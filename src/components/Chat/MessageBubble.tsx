@@ -119,6 +119,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     opacity: opacity.value,
   }));
 
+  const isForwarded = message.metadata?.forwarded === true;
+
   const renderBubbleContent = () => {
     if (isSent) {
       return (
@@ -128,6 +130,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           end={{ x: 1, y: 1 }}
           style={styles.sentBubble}
         >
+          {isForwarded ? (
+            <Text style={styles.forwardedLabel}>Transféré</Text>
+          ) : null}
           {message.reply_to ? (
             <ReplyPreview
               replyTo={message.reply_to}
@@ -202,6 +207,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
         ]}
       >
+        {isForwarded ? (
+          <Text style={[styles.forwardedLabel, { color: themeColors.text.tertiary }]}>
+            Transféré
+          </Text>
+        ) : null}
         {message.reply_to ? (
           <ReplyPreview
             replyTo={message.reply_to}
@@ -356,6 +366,12 @@ const styles = StyleSheet.create({
   deletedText: {
     fontStyle: "italic",
     opacity: 0.7,
+  },
+  forwardedLabel: {
+    fontSize: 11,
+    fontStyle: "italic",
+    color: "rgba(255, 255, 255, 0.7)",
+    marginBottom: 4,
   },
   highlighted: {
     backgroundColor: "rgba(254, 122, 92, 0.2)",
