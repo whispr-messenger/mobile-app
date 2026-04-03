@@ -4,6 +4,12 @@ import { getApiBaseUrl } from "../apiBase";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
+// Backend wraps responses in { data: ... } — unwrap if present
+const unwrap = async (response: Response) => {
+  const json = await response.json();
+  return json?.data !== undefined ? json.data : json;
+};
+
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
   if (!token) return {};
@@ -43,7 +49,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch conversations");
     }
 
-    const data = await response.json();
+    const data = await unwrap(response);
     return Array.isArray(data) ? data : [];
   },
 
@@ -59,7 +65,7 @@ export const messagingAPI = {
     if (!response.ok) {
       throw new Error("Failed to fetch conversation");
     }
-    return response.json();
+    return unwrap(response);
   },
 
   async deleteConversation(id: string): Promise<void> {
@@ -112,7 +118,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch messages");
     }
 
-    const data = await response.json();
+    const data = await unwrap(response);
     return Array.isArray(data) ? data : [];
   },
 
@@ -148,7 +154,7 @@ export const messagingAPI = {
       throw new Error("Failed to send message");
     }
 
-    return response.json();
+    return unwrap(response);
   },
 
   async editMessage(
@@ -175,7 +181,7 @@ export const messagingAPI = {
       throw new Error("Failed to edit message");
     }
 
-    return response.json();
+    return unwrap(response);
   },
 
   async deleteMessage(
@@ -261,7 +267,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch message reactions");
     }
 
-    return response.json();
+    return unwrap(response);
   },
 
   async pinMessage(conversationId: string, messageId: string): Promise<void> {
@@ -315,7 +321,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch pinned messages");
     }
 
-    const data = await response.json();
+    const data = await unwrap(response);
     return Array.isArray(data) ? data : [];
   },
 
@@ -333,7 +339,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch attachments");
     }
 
-    const data = await response.json();
+    const data = await unwrap(response);
     return Array.isArray(data) ? data : [];
   },
 
@@ -401,7 +407,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch conversation members");
     }
 
-    const data = await response.json();
+    const data = await unwrap(response);
     if (!Array.isArray(data)) {
       return [];
     }
@@ -437,7 +443,7 @@ export const messagingAPI = {
       throw new Error("Failed to create direct conversation");
     }
 
-    return response.json();
+    return unwrap(response);
   },
 
   async createGroupConversation(
@@ -464,7 +470,7 @@ export const messagingAPI = {
       throw new Error("Failed to create group");
     }
 
-    const group = await response.json();
+    const group = await unwrap(response);
     const conversationId = group.conversation_id;
 
     if (!conversationId) {
