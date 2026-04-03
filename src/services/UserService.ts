@@ -128,23 +128,27 @@ export class UserService {
    */
   async updateProfilePicture(imageUri: string): Promise<UpdateProfileResponse> {
     try {
-      console.log('📸 Mise à jour de la photo de profil:', imageUri);
-      
-      // TODO: Real API call with FormData
-      // const formData = new FormData();
-      // formData.append('picture', {
-      //   uri: imageUri,
-      //   type: 'image/jpeg',
-      //   name: 'profile-picture.jpg',
-      // });
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
 
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
 
-      return {
-        success: true,
-        message: 'Photo de profil mise à jour avec succès',
-      };
+      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ profilePicture: imageUri }),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { success: true, message: 'Photo de profil mise à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur mise à jour photo:', error);
       return {
@@ -159,33 +163,32 @@ export class UserService {
    */
   async updateUsername(username: string): Promise<UpdateProfileResponse> {
     try {
-      
-      // Validation username
       const validation = this.validateUsername(username);
       if (!validation.isValid) {
-        return {
-          success: false,
-          message: validation.error,
-        };
+        return { success: false, message: validation.error };
       }
 
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/users/me/username`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ username }),
-      // });
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
 
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
 
-      return {
-        success: true,
-        message: 'Nom d\'utilisateur mis à jour avec succès',
-      };
+      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username }),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { success: true, message: 'Nom d\'utilisateur mis à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur mise à jour username:', error);
       return {
@@ -200,20 +203,24 @@ export class UserService {
    */
   async updatePrivacySettings(settings: PrivacySettings): Promise<UpdateProfileResponse> {
     try {
-      console.log('🔒 Mise à jour des paramètres de confidentialité:', settings);
-      
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/users/me/privacy`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(settings),
-      // });
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
 
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
+
+      const response = await fetch(`${this.baseUrl}/privacy/${payload.sub}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
 
       return {
         success: true,
@@ -233,33 +240,32 @@ export class UserService {
    */
   async changePhoneNumber(newPhoneNumber: string): Promise<UpdateProfileResponse> {
     try {
-      
-      // Validation phone number
       const validation = this.validatePhoneNumber(newPhoneNumber);
       if (!validation.isValid) {
-        return {
-          success: false,
-          message: validation.error,
-        };
+        return { success: false, message: validation.error };
       }
 
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/auth/phone`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ phoneNumber: newPhoneNumber }),
-      // });
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: 'Non authentifié' };
 
-      // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const payload = TokenService.decodeAccessToken(token);
+      if (!payload?.sub) return { success: false, message: 'Token invalide' };
 
-      return {
-        success: true,
-        message: 'Numéro de téléphone mis à jour avec succès',
-      };
+      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber: newPhoneNumber }),
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { success: true, message: 'Numéro de téléphone mis à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur changement numéro:', error);
       return {

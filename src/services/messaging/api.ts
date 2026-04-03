@@ -490,6 +490,6 @@ export const messagingAPI = {
       throw new Error("Failed to fetch group conversation");
     }
 
-    return conversationResponse.json();
+    return unwrap(conversationResponse);
   },
 };
