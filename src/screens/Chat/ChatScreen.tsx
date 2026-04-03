@@ -277,8 +277,12 @@ export const ChatScreen: React.FC = () => {
       const conv = await messagingAPI.getConversation(conversationId);
 
       // Resolve display name for direct conversations
-      if (conv.type === "direct" && !conv.display_name && conv.member_user_ids) {
-        const otherUserId = conv.member_user_ids.find((id: string) => id !== userId);
+      // The detail endpoint returns members array, not member_user_ids
+      const memberIds = conv.member_user_ids
+        || conv.members?.map((m: { user_id: string }) => m.user_id);
+      if (conv.type === "direct" && !conv.display_name && memberIds) {
+        conv.member_user_ids = memberIds;
+        const otherUserId = memberIds.find((id: string) => id !== userId);
         if (otherUserId) {
           try {
             const userInfo = await messagingAPI.getUserInfo(otherUserId);
