@@ -1,10 +1,13 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Conversation, Message } from '../types/messaging';
 import { messagingAPI } from '../services/messaging/api';
 import { cacheService } from '../services/messaging/cache';
 import { TokenService } from '../services/TokenService';
+import { NotificationService } from '../services/NotificationService';
 
 const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
+const MANUALLY_UNREAD_KEY = '@whispr/manually_unread_ids';
 
 async function getCurrentUserId(): Promise<string | null> {
   const token = await TokenService.getAccessToken();
@@ -51,6 +54,7 @@ interface ConversationsState {
   conversations: Conversation[];
   status: ConversationsStatus;
   error: string | null;
+  manuallyUnreadIds: Set<string>;
   _gracePeriodTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -61,8 +65,11 @@ interface ConversationsActions {
   applyNewMessage: (message: Message) => void;
   deleteConversation: (id: string) => Promise<void>;
   archiveConversation: (id: string) => void;
-  muteConversation: (id: string) => void;
+  muteConversation: (id: string) => Promise<void>;
   pinConversation: (id: string) => void;
+  markAsUnread: (id: string) => Promise<void>;
+  clearManualUnread: (id: string) => Promise<void>;
+  loadManuallyUnreadIds: () => Promise<void>;
   _startGracePeriod: () => void;
   _cancelGracePeriod: () => void;
   _setConversations: (conversations: Conversation[], fromRefresh?: boolean) => void;
@@ -72,6 +79,7 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
   conversations: [],
   status: 'loading',
   error: null,
+  manuallyUnreadIds: new Set<string>(),
   _gracePeriodTimer: null,
 
   _startGracePeriod: () => {
@@ -200,13 +208,29 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     });
   },
 
-  muteConversation: (id) => {
+  muteConversation: async (id) => {
     const { conversations } = get();
+    const conversation = conversations.find(c => c.id === id);
+    const wasMuted = conversation?.is_muted ?? false;
+
+    // Optimistic update
     set({
       conversations: conversations.map(c =>
         c.id === id ? { ...c, is_muted: !c.is_muted, updated_at: new Date().toISOString() } : c
       ),
     });
+
+    try {
+      if (wasMuted) {
+        await NotificationService.unmuteConversation(id);
+      } else {
+        await NotificationService.muteConversation(id);
+      }
+    } catch (err) {
+      console.error('[conversationsStore] muteConversation error:', err);
+      // Rollback on failure
+      set({ conversations });
+    }
   },
 
   pinConversation: (id) => {
@@ -216,5 +240,54 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
         c.id === id ? { ...c, is_pinned: !c.is_pinned } : c
       ),
     });
+  },
+
+  markAsUnread: async (id) => {
+    const { conversations, manuallyUnreadIds } = get();
+    const nextIds = new Set(manuallyUnreadIds);
+    nextIds.add(id);
+    set({
+      manuallyUnreadIds: nextIds,
+      conversations: conversations.map(c =>
+        c.id === id ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) } : c
+      ),
+    });
+    try {
+      await AsyncStorage.setItem(MANUALLY_UNREAD_KEY, JSON.stringify([...nextIds]));
+    } catch {
+      // Storage write failed — local state is still correct for this session
+    }
+  },
+
+  clearManualUnread: async (id) => {
+    const { manuallyUnreadIds } = get();
+    if (!manuallyUnreadIds.has(id)) return;
+    const nextIds = new Set(manuallyUnreadIds);
+    nextIds.delete(id);
+    set({ manuallyUnreadIds: nextIds });
+    try {
+      await AsyncStorage.setItem(MANUALLY_UNREAD_KEY, JSON.stringify([...nextIds]));
+    } catch {
+      // Storage write failed — local state is still correct for this session
+    }
+  },
+
+  loadManuallyUnreadIds: async () => {
+    try {
+      const raw = await AsyncStorage.getItem(MANUALLY_UNREAD_KEY);
+      if (raw) {
+        const ids: string[] = JSON.parse(raw);
+        const idSet = new Set(ids);
+        const { conversations } = get();
+        set({
+          manuallyUnreadIds: idSet,
+          conversations: conversations.map(c =>
+            idSet.has(c.id) ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) } : c
+          ),
+        });
+      }
+    } catch {
+      // Storage read failed — start with empty set
+    }
   },
 }));

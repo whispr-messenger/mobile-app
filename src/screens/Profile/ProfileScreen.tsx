@@ -33,6 +33,7 @@ import {
   shadows,
 } from "../../theme";
 import { UserService } from "../../services";
+import { MediaService } from "../../services/MediaService";
 
 // Types
 interface UserProfile {
@@ -87,6 +88,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     lastSeen: "Maintenant",
     createdAt: "",
   });
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -238,12 +247,44 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     ]).start();
 
     try {
+      // Upload avatar if it's a local URI (not already a remote URL)
+      let profilePictureUrl = profile.profilePicture;
+      if (
+        profilePictureUrl &&
+        (profilePictureUrl.startsWith("file://") ||
+          profilePictureUrl.startsWith("content://") ||
+          profilePictureUrl.startsWith("ph://"))
+      ) {
+        try {
+          const fileName = profilePictureUrl.split("/").pop() || "avatar.jpg";
+          const fileType = fileName.endsWith(".png")
+            ? "image/png"
+            : "image/jpeg";
+          const uploadResult = await MediaService.uploadMedia({
+            uri: profilePictureUrl,
+            name: fileName,
+            type: fileType,
+          });
+          profilePictureUrl = uploadResult.url;
+          setProfile((prev) => ({
+            ...prev,
+            profilePicture: uploadResult.url,
+          }));
+        } catch (uploadError) {
+          console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
+          Alert.alert("Erreur", "Impossible de télécharger la photo de profil");
+          setLoading(false);
+          return;
+        }
+      }
+
       const service = UserService.getInstance();
       const res = await service.updateProfile({
         firstName: profile.firstName,
         lastName: profile.lastName,
         username: profile.username,
         biography: profile.biography,
+        profilePicture: profilePictureUrl,
       });
 
       if (!res.success) {

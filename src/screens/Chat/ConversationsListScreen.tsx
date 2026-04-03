@@ -59,6 +59,11 @@ export const ConversationsListScreen: React.FC = () => {
   );
   const muteConversation = useConversationsStore((s) => s.muteConversation);
   const pinConversation = useConversationsStore((s) => s.pinConversation);
+  const markAsUnread = useConversationsStore((s) => s.markAsUnread);
+  const clearManualUnread = useConversationsStore((s) => s.clearManualUnread);
+  const loadManuallyUnreadIds = useConversationsStore(
+    (s) => s.loadManuallyUnreadIds,
+  );
 
   // UI-only state
   const [refreshing, setRefreshing] = useState(false);
@@ -139,6 +144,7 @@ export const ConversationsListScreen: React.FC = () => {
 
   useEffect(() => {
     fetchConversations();
+    loadManuallyUnreadIds();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -156,10 +162,11 @@ export const ConversationsListScreen: React.FC = () => {
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } else {
+        clearManualUnread(conversationId);
         navigation.navigate("Chat", { conversationId });
       }
     },
-    [navigation, editMode],
+    [navigation, editMode, clearManualUnread],
   );
 
   const handleSelectAll = useCallback(() => {
@@ -227,17 +234,33 @@ export const ConversationsListScreen: React.FC = () => {
   );
 
   const handleMute = useCallback(
-    (conversationId: string) => {
+    async (conversationId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      muteConversation(conversationId);
+      try {
+        await muteConversation(conversationId);
+      } catch {
+        setToast({
+          visible: true,
+          message: "Unable to update mute status",
+          type: "error",
+        });
+      }
     },
     [muteConversation],
   );
 
-  const handleUnread = useCallback((conversationId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // TODO: Call API when backend is ready
-  }, []);
+  const handleUnread = useCallback(
+    (conversationId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      markAsUnread(conversationId);
+      setToast({
+        visible: true,
+        message: "Conversation marked as unread",
+        type: "info",
+      });
+    },
+    [markAsUnread],
+  );
 
   const handleArchive = useCallback(
     (conversationId: string) => {
