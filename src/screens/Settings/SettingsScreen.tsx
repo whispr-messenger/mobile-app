@@ -22,12 +22,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { UserService, PrivacySettings } from '../../services/UserService';
+import { NotificationService, NotificationSettings } from '../../services/NotificationService';
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { settings, updateSettings, getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
-  const { signOut } = useAuth();
+  const { signOut, userId } = useAuth();
   
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -113,6 +114,36 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   /**
+   * Map local notification settings to the notification-service API format
+   */
+  const notificationToApi = useCallback((local: typeof notificationSettings): Partial<NotificationSettings> => ({
+    push_enabled: local.notifications,
+    sound_enabled: local.sound,
+    vibration_enabled: local.mentions,
+  }), []);
+
+  /**
+   * Map notification-service API format back to local format
+   */
+  const apiToNotification = useCallback((api: NotificationSettings) => ({
+    notifications: api.push_enabled,
+    sound: api.sound_enabled,
+    mentions: api.vibration_enabled,
+  }), []);
+
+  /**
+   * Sync notification settings to the notification-service backend
+   */
+  const syncNotificationsToBackend = useCallback(async (local: typeof notificationSettings) => {
+    if (!userId) return;
+    try {
+      await NotificationService.updateSettings(userId, notificationToApi(local));
+    } catch (error) {
+      console.error('Error syncing notification settings to backend:', error);
+    }
+  }, [userId, notificationToApi]);
+
+  /**
    * Sync privacy settings to the backend API
    */
   const syncPrivacyToBackend = useCallback(async (localPrivacy: typeof privacySettings) => {
@@ -156,6 +187,18 @@ export const SettingsScreen: React.FC = () => {
           setPrivacySettings(localPrivacy);
           await AsyncStorage.setItem(STORAGE_KEYS.privacy, JSON.stringify(localPrivacy));
         }
+
+        // Fetch notification settings from notification-service backend (takes precedence over local)
+        if (userId) {
+          try {
+            const backendNotif = await NotificationService.getSettings(userId);
+            const localNotif = apiToNotification(backendNotif);
+            setNotificationSettings(localNotif);
+            await AsyncStorage.setItem(STORAGE_KEYS.notifications, JSON.stringify(localNotif));
+          } catch (notifError) {
+            console.error('Error fetching notification settings from backend:', notifError);
+          }
+        }
       } catch (error) {
         console.error('Error loading settings:', error);
       }
@@ -172,6 +215,7 @@ export const SettingsScreen: React.FC = () => {
         setNotificationSettings(prev => {
           const updated = { ...prev, [key]: value };
           persistSettings(STORAGE_KEYS.notifications, updated);
+          syncNotificationsToBackend(updated);
           return updated;
         });
         break;

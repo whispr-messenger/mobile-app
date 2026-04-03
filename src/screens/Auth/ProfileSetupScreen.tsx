@@ -19,6 +19,7 @@ import { Button, Input } from '../../components';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { TokenService } from '../../services/TokenService';
+import { MediaService } from '../../services/MediaService';
 import { getApiBaseUrl } from '../../services/apiBase';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
@@ -82,6 +83,23 @@ export const ProfileSetupScreen: React.FC = () => {
         lastName: lastName.trim(),
         username: username.trim(),
       };
+
+      // Upload avatar image if one was selected
+      if (avatarUri) {
+        try {
+          const fileName = avatarUri.split('/').pop() || 'avatar.jpg';
+          const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
+          const uploadResult = await MediaService.uploadMedia({
+            uri: avatarUri,
+            name: fileName,
+            type: fileType,
+          });
+          body.profilePicture = uploadResult.url;
+        } catch (uploadError) {
+          console.warn('[ProfileSetup] Avatar upload failed:', uploadError);
+          // Continue without avatar rather than blocking profile creation
+        }
+      }
 
       const response = await fetch(`${getUserApiBase()}/profile/${userId}`, {
         method: 'PATCH',

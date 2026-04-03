@@ -53,6 +53,7 @@ import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
+import { MediaService } from "../../services/MediaService";
 
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
@@ -510,7 +511,32 @@ export const ChatScreen: React.FC = () => {
         caption?.trim() ||
         (type === "image" ? "Photo" : type === "video" ? "Vidéo" : "Fichier");
 
-      // Create optimistic message
+      // Derive filename and MIME type from the local URI
+      const filename = uri.split("/").pop() || "media";
+      const extension = filename.split(".").pop()?.toLowerCase() || "";
+      const mimeMap: Record<string, string> = {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        gif: "image/gif",
+        webp: "image/webp",
+        heic: "image/heic",
+        mp4: "video/mp4",
+        mov: "video/quicktime",
+        avi: "video/x-msvideo",
+        pdf: "application/pdf",
+        doc: "application/msword",
+        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      };
+      const mimeType =
+        mimeMap[extension] ||
+        (type === "image"
+          ? "image/jpeg"
+          : type === "video"
+            ? "video/mp4"
+            : "application/octet-stream");
+
+      // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
       const tempMessage: MessageWithRelations = {
         id: tempMessageId,
@@ -537,7 +563,7 @@ export const ChatScreen: React.FC = () => {
             media_id: `media-temp-${Date.now()}`,
             media_type: type,
             metadata: {
-              filename: uri.split("/").pop() || "media",
+              filename,
               media_url: uri,
               thumbnail_url: uri,
             },
@@ -550,23 +576,72 @@ export const ChatScreen: React.FC = () => {
       setReplyingTo(null);
 
       try {
-        // Send via API
+        // 1. Upload file to media-service
+        console.log("[ChatScreen] Uploading media to media-service:", filename);
+        const uploadResult = await MediaService.uploadMedia(
+          { uri, name: filename, type: mimeType },
+          (percent) => {
+            console.log(`[ChatScreen] Upload progress: ${percent}%`);
+          },
+        );
+        console.log("[ChatScreen] Media uploaded:", uploadResult.id, uploadResult.url);
+
+        // Build metadata with the remote URLs from the upload result
+        const mediaMetadata = {
+          media_type: type,
+          media_id: uploadResult.id,
+          media_url: uploadResult.url,
+          thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
+          filename: uploadResult.filename || filename,
+          mime_type: uploadResult.mime_type || mimeType,
+          size: uploadResult.size,
+        };
+
+        // Update optimistic message with remote URLs so preview uses the hosted image
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempMessageId
+              ? {
+                  ...msg,
+                  metadata: mediaMetadata,
+                  attachments: msg.attachments?.map((att) => ({
+                    ...att,
+                    media_id: uploadResult.id,
+                    metadata: {
+                      ...att.metadata,
+                      media_url: uploadResult.url,
+                      thumbnail_url:
+                        uploadResult.thumbnail_url || uploadResult.url,
+                    },
+                  })),
+                }
+              : msg,
+          ),
+        );
+
+        // 2. Send message via messaging-service with remote media URLs
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
-          content: tempMessage.content,
+          content: messageContent,
           message_type: "media",
           client_random: tempMessage.client_random,
-          metadata: tempMessage.metadata,
+          metadata: mediaMetadata,
           reply_to_id: replyToId,
         });
 
-        if (tempMessage.attachments && tempMessage.attachments[0]) {
-          await messagingAPI.addAttachment(
-            sentMessage.id,
-            tempMessage.attachments[0],
-          );
-        }
+        // 3. Attach media record to the message
+        await messagingAPI.addAttachment(sentMessage.id, {
+          media_id: uploadResult.id,
+          media_type: type,
+          metadata: {
+            filename: uploadResult.filename || filename,
+            size: uploadResult.size,
+            mime_type: uploadResult.mime_type || mimeType,
+            media_url: uploadResult.url,
+            thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
+          },
+        });
 
-        // Update message with real ID
+        // 4. Update optimistic message with the real server ID
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempMessageId
