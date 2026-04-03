@@ -21,6 +21,7 @@ export interface Conversation {
   is_archived?: boolean; // Frontend local state
   avatar_url?: string; // For direct conversations (other user) or groups
   display_name?: string; // Computed display name
+  member_user_ids?: string[]; // For direct conversations - to resolve display names
 }
 
 export interface ConversationParticipant {

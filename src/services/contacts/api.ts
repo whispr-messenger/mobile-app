@@ -1,5 +1,6 @@
 import {
   Contact,
+  User,
   AddContactDto,
   UpdateContactDto,
   BlockUserDto,
@@ -11,392 +12,364 @@ import {
   PhoneContact,
   ContactRequest,
 } from '../../types/contact';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-import { logger } from '../../utils/logger';
-import { TokenService } from '../TokenService';
+import { TokenService } from "../TokenService";
+import { getApiBaseUrl } from "../apiBase";
 
-function getDevHost(): string {
-  if (Platform.OS === 'android') return '10.0.2.2';
-  const debuggerHost =
-    Constants.expoConfig?.hostUri ??
-    (Constants.manifest2 as any)?.extra?.expoGo?.debuggerHost;
-  if (debuggerHost) return debuggerHost.split(':')[0];
-  return 'localhost';
-}
+export type { Contact };
 
-function getContactsBaseUrl(): string {
-  const extra = Constants.expoConfig?.extra as Record<string, string> | undefined;
-  if (__DEV__) {
-    const configured = extra?.devUserApiUrl;
-    if (configured) return configured.replace(/\/+$/, '');
-    return `http://${getDevHost()}:3002`;
-  }
-  return (extra?.apiBaseUrl ?? 'https://whispr-api.roadmvn.com').replace(/\/+$/, '');
-}
+const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
 
-const API_BASE_URL = `${getContactsBaseUrl()}/user/v1`;
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+};
+
+const getOwnerId = async (): Promise<string> => {
+  const token = await TokenService.getAccessToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+  const payload = TokenService.decodeAccessToken(token);
+  if (!payload?.sub) {
+    throw new Error("Invalid token payload");
+  }
+  return payload.sub;
+};
+
+const toIso = (value: unknown): string => {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return new Date(value).toISOString();
+  return new Date().toISOString();
+};
+
+const normalizeContact = (c: any): Contact => {
+  return {
+    id: String(c?.id ?? ""),
+    user_id: String(c?.ownerId ?? c?.owner_id ?? ""),
+    contact_id: String(c?.contactId ?? c?.contact_id ?? ""),
+    nickname: c?.nickname ?? undefined,
+    is_favorite: false,
+    added_at: toIso(c?.createdAt ?? c?.created_at),
+    updated_at: toIso(c?.updatedAt ?? c?.updated_at),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return headers;
-}
+};
+
+const fetchUserById = async (userId: string): Promise<User | null> => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
+      {
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+    if (!response.ok) return null;
+    const u = await response.json();
+    if (!u) return null;
+    return {
+      id: u.id ?? userId,
+      username: u.username ?? "",
+      phone_number: u.phoneNumber ?? u.phone_number,
+      first_name: u.firstName ?? u.first_name,
+      last_name: u.lastName ?? u.last_name,
+      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      last_seen: u.lastSeen ?? u.last_seen,
+      is_active: u.isActive ?? u.is_active ?? true,
+    };
+  } catch {
+    return null;
+  }
+};
 
 export const contactsAPI = {
-  async getContacts(params?: ContactSearchParams): Promise<{ contacts: Contact[]; total: number }> {
-    const query = new URLSearchParams();
-
-    if (params?.search) {
-      query.append('search', params.search);
-    }
-    if (params?.sort) {
-      query.append('sort', params.sort);
-    }
-    if (params?.page !== undefined) {
-      query.append('page', String(params.page));
-    }
-    if (params?.limit !== undefined) {
-      query.append('limit', String(params.limit));
-    }
-    if (params?.favorites !== undefined) {
-      query.append('favorites', params.favorites ? 'true' : 'false');
-    }
-
-    const queryString = query.toString();
-    const url = `${API_BASE_URL}/contacts${queryString ? `?${queryString}` : ''}`;
-
+  async getContacts(
+    params?: ContactSearchParams,
+    userId?: string,
+  ): Promise<{ contacts: Contact[]; total: number }> {
+    const ownerId = await getOwnerId();
+    const url = `${API_BASE_URL}/contacts/${encodeURIComponent(ownerId)}`;
     const response = await fetch(url, {
-      headers: await getAuthHeaders(),
+      headers: {
+        ...(await getAuthHeaders()),
+      },
     });
     if (!response.ok) {
-      throw new Error('Failed to fetch contacts');
+      throw new Error("Failed to fetch contacts");
     }
 
     const data = await response.json();
-    const contacts = Array.isArray(data.contacts) ? data.contacts : [];
-    const total =
-      typeof data.total === 'number'
-        ? data.total
-        : Array.isArray(data.contacts)
-        ? data.contacts.length
-        : 0;
+    const items = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.contacts)
+        ? data.contacts
+        : [];
+    const contacts = items.map(normalizeContact);
 
-    return { contacts, total };
+    // Enrich contacts with user data in parallel
+    const enriched = await Promise.all(
+      contacts.map(async (contact) => {
+        if (contact.contact_id) {
+          const user = await fetchUserById(contact.contact_id);
+          if (user) {
+            return { ...contact, contact_user: user };
+          }
+        }
+        return contact;
+      }),
+    );
+
+    return { contacts: enriched, total: enriched.length };
   },
 
   async getContact(contactId: string): Promise<Contact> {
-    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      headers: await getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch contact');
+    const { contacts } = await this.getContacts();
+    const found = contacts.find(
+      (c) => c.id === contactId || c.contact_id === contactId,
+    );
+    if (!found) {
+      throw new Error("Contact not found");
     }
-    return response.json();
+    return found;
   },
 
   async addContact(data: AddContactDto): Promise<Contact> {
-    const response = await fetch(`${API_BASE_URL}/contacts`, {
-      method: 'POST',
-      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contact_id: data.contactId,
-        nickname: data.nickname,
-      }),
-    });
+    const ownerId = await getOwnerId();
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/${encodeURIComponent(ownerId)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({
+          contactId: data.contactId,
+          nickname: data.nickname,
+        }),
+      },
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to add contact');
+      throw new Error("Failed to add contact");
     }
 
-    return response.json();
+    return normalizeContact(await response.json());
   },
 
-  async updateContact(contactId: string, data: UpdateContactDto): Promise<Contact> {
-    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      method: 'PUT',
-      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
+  async updateContact(
+    contactId: string,
+    data: UpdateContactDto,
+  ): Promise<Contact> {
+    const ownerId = await getOwnerId();
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/${encodeURIComponent(ownerId)}/${encodeURIComponent(contactId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ nickname: data.nickname }),
+      },
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to update contact');
+      throw new Error("Failed to update contact");
     }
 
-    return response.json();
+    return normalizeContact(await response.json());
   },
 
   async deleteContact(contactId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/contacts/${encodeURIComponent(contactId)}`, {
-      method: 'DELETE',
-      headers: await getAuthHeaders(),
-    });
+    const ownerId = await getOwnerId();
+    const response = await fetch(
+      `${API_BASE_URL}/contacts/${encodeURIComponent(ownerId)}/${encodeURIComponent(contactId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to delete contact');
+      throw new Error("Failed to delete contact");
     }
   },
 
   async getContactStats(): Promise<ContactStats> {
-    const response = await fetch(`${API_BASE_URL}/contacts/stats`, {
-      headers: await getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch contact stats');
-    }
-
-    return response.json();
+    const { contacts } = await this.getContacts();
+    return {
+      total: contacts.length,
+      favorites: contacts.filter((c) => c.is_favorite).length,
+      recently_added: 0,
+      recently_active: 0,
+    };
   },
 
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
-    const query = new URLSearchParams();
-
-    if (params.username) {
-      query.append('username', params.username);
-    }
-    if (params.phoneHash) {
-      query.append('phoneHash', params.phoneHash);
+    if (!params.username) {
+      return [];
     }
 
-    const queryString = query.toString();
-    const url = `${API_BASE_URL}/users/search${queryString ? `?${queryString}` : ''}`;
-
+    const url = `${API_BASE_URL}/search/username?username=${encodeURIComponent(params.username)}`;
     const response = await fetch(url, {
-      headers: await getAuthHeaders(),
+      headers: {
+        ...(await getAuthHeaders()),
+      },
     });
+
     if (!response.ok) {
-      throw new Error('Failed to search users');
+      return [];
     }
 
-    const data = await response.json();
+    const user = await response.json().catch(() => null);
+    if (!user) return [];
 
-    const normalizeArray = (items: any[]): UserSearchResult[] => {
-      return items
-        .map((item) => {
-          if (!item) return null;
+    return [
+      {
+        user: {
+          id: user.id,
+          username: user.username,
+          phone_number: user.phoneNumber,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          avatar_url: user.profilePictureUrl,
+          last_seen: user.lastSeen,
+          is_active: user.isActive ?? true,
+        },
+        is_contact: false,
+        is_blocked: false,
+      },
+    ];
+  },
 
-          if (item.user && item.user.id) {
-            return {
-              user: item.user,
-              is_contact: !!item.is_contact,
-              is_blocked: !!item.is_blocked,
-            };
-          }
-
-          if (item.id && item.username) {
-            return {
-              user: {
-                id: item.id,
-                username: item.username,
-                phone_number: item.phone_number,
-                first_name: item.first_name,
-                last_name: item.last_name,
-                avatar_url: item.avatar_url || item.profile_picture,
-                last_seen: item.last_seen,
-                is_active: item.is_active ?? true,
-              },
-              is_contact: !!item.is_contact,
-              is_blocked: !!item.is_blocked,
-            };
-          }
-
-          return null;
-        })
-        .filter((item): item is UserSearchResult => item !== null);
-    };
-
-    if (Array.isArray(data)) {
-      return normalizeArray(data);
-    }
-
-    if (data && typeof data === 'object') {
-      if (Array.isArray((data as any).matches)) {
-        return normalizeArray((data as any).matches);
-      }
-
-      if (Array.isArray((data as any).results)) {
-        return normalizeArray((data as any).results);
-      }
-
-      if (Array.isArray((data as any).users)) {
-        return normalizeArray((data as any).users);
-      }
-
-      const single = normalizeArray([data]);
-      if (single.length > 0) {
-        return single;
-      }
-    }
-
+  async importPhoneContacts(
+    phoneContacts: PhoneContact[],
+  ): Promise<UserSearchResult[]> {
+    void phoneContacts;
     return [];
   },
 
-  async importPhoneContacts(phoneContacts: PhoneContact[]): Promise<UserSearchResult[]> {
-    const url = `${API_BASE_URL}/contacts/import`;
-    logger.warn('contactsAPI', 'importPhoneContacts POST', {
-      url,
-      platform: Platform.OS,
-      contactCount: phoneContacts.length,
-    });
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
-        body: JSON.stringify(phoneContacts),
-      });
-    } catch (error) {
-      logger.error('contactsAPI', 'importPhoneContacts fetch threw (network?)', error);
-      throw error;
-    }
-
-    logger.warn('contactsAPI', 'importPhoneContacts response', {
-      ok: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-    });
-
-    if (!response.ok) {
-      let bodyPreview = '';
-      try {
-        bodyPreview = (await response.text()).slice(0, 500);
-      } catch {
-        /* ignore */
-      }
-      logger.error('contactsAPI', 'importPhoneContacts HTTP error body preview', {
-        status: response.status,
-        bodyPreview,
-      });
-      throw new Error(`Failed to import phone contacts: HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const list = Array.isArray(data) ? data : [];
-    logger.warn('contactsAPI', 'importPhoneContacts parsed', { resultCount: list.length });
-    return list;
-  },
-
   async getContactRequests(): Promise<ContactRequest[]> {
-    const response = await fetch(`${API_BASE_URL}/contact_requests`, {
-      headers: await getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch contact requests');
-    }
-    const data = await response.json();
-    const requests = Array.isArray((data as any).requests) ? (data as any).requests : [];
-    return requests;
+    return [];
   },
 
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
-    const response = await fetch(`${API_BASE_URL}/contact_requests`, {
-      method: 'POST',
-      headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        recipient_id: recipientId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send contact request');
-    }
-
-    return response.json();
+    const requesterId = await getOwnerId();
+    await this.addContact({ contactId: recipientId });
+    const now = new Date().toISOString();
+    return {
+      id: `req_${Date.now()}`,
+      requester_id: requesterId,
+      recipient_id: recipientId,
+      status: "accepted",
+      created_at: now,
+      updated_at: now,
+    };
   },
 
   async acceptContactRequest(requestId: string): Promise<ContactRequest> {
-    const response = await fetch(
-      `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/accept`,
-      {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to accept contact request');
-    }
-
-    return response.json();
+    const now = new Date().toISOString();
+    return {
+      id: requestId,
+      requester_id: "",
+      recipient_id: "",
+      status: "accepted",
+      created_at: now,
+      updated_at: now,
+    };
   },
 
   async refuseContactRequest(requestId: string): Promise<ContactRequest> {
+    const now = new Date().toISOString();
+    return {
+      id: requestId,
+      requester_id: "",
+      recipient_id: "",
+      status: "rejected",
+      created_at: now,
+      updated_at: now,
+    };
+  },
+
+  async getBlockedUsers(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<{ blocked: BlockedUser[]; total: number }> {
+    void page;
+    void limit;
+    const ownerId = await getOwnerId();
     const response = await fetch(
-      `${API_BASE_URL}/contact_requests/${encodeURIComponent(requestId)}/refuse`,
+      `${API_BASE_URL}/blocked-users/${encodeURIComponent(ownerId)}`,
       {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-      }
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to refuse contact request');
+      return { blocked: [], total: 0 };
     }
 
-    return response.json();
+    const data = await response.json().catch(() => []);
+    const entries = Array.isArray(data) ? data : [];
+    const blocked = entries.map((e: any) => ({
+      id: String(e?.id ?? ""),
+      user_id: String(e?.blockerId ?? e?.blocker_id ?? ""),
+      blocked_user_id: String(e?.blockedId ?? e?.blocked_id ?? ""),
+      blocked_at: toIso(e?.createdAt ?? e?.created_at),
+    }));
+
+    return { blocked, total: blocked.length };
   },
 
-  async getBlockedUsers(page: number = 1, limit: number = 50): Promise<{ blocked: BlockedUser[]; total: number }> {
-    const query = new URLSearchParams();
-    query.append('page', String(page));
-    query.append('limit', String(limit));
-
-    const url = `${API_BASE_URL}/blocked-users/${query.toString()}`;
-    const response = await fetch(url, {
-      headers: await getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch blocked users');
-    }
-
-    const data = await response.json();
-    const blocked = Array.isArray(data.blocked) ? data.blocked : [];
-    const total =
-      typeof data.total === 'number'
-        ? data.total
-        : Array.isArray(data.blocked)
-        ? data.blocked.length
-        : 0;
-
-    return { blocked, total };
-  },
-
-  async blockUser(userId: string, blockerId: string, data?: BlockUserDto): Promise<BlockedUser> {
+  async blockUser(userId: string, data?: BlockUserDto): Promise<BlockedUser> {
+    void data;
+    const ownerId = await getOwnerId();
     const response = await fetch(
-      `${API_BASE_URL}/blocked-users/${encodeURIComponent(blockerId)}`,
+      `${API_BASE_URL}/blocked-users/${encodeURIComponent(ownerId)}`,
       {
-        method: 'POST',
-        headers: { ...(await getAuthHeaders()), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blocked_id: userId, ...data }),
-      }
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(await getAuthHeaders()),
+        },
+        body: JSON.stringify({ blockedId: userId }),
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to block user');
+      throw new Error("Failed to block user");
     }
 
-    return response.json();
+    const blocked = await response.json();
+    return {
+      id: String(blocked?.id ?? ""),
+      user_id: String(blocked?.blockerId ?? blocked?.blocker_id ?? ""),
+      blocked_user_id: String(blocked?.blockedId ?? blocked?.blocked_id ?? ""),
+      blocked_at: toIso(blocked?.createdAt ?? blocked?.created_at),
+    };
   },
 
-  async unblockUser(blockerId: string, blockedId: string): Promise<void> {
+  async unblockUser(userId: string): Promise<void> {
+    const ownerId = await getOwnerId();
     const response = await fetch(
-      `${API_BASE_URL}/blocked-users/${encodeURIComponent(blockerId)}/${encodeURIComponent(blockedId)}`,
+      `${API_BASE_URL}/blocked-users/${encodeURIComponent(ownerId)}/${encodeURIComponent(userId)}`,
       {
-        method: 'DELETE',
-        headers: await getAuthHeaders(),
-      }
+        method: "DELETE",
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
     );
 
     if (!response.ok) {
-      throw new Error('Failed to unblock user');
+      throw new Error("Failed to unblock user");
     }
   },
 };
