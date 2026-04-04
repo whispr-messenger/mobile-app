@@ -1,4 +1,6 @@
 import { getWsBaseUrl } from "../apiBase";
+import { TokenService } from "../TokenService";
+import { AuthService } from "../AuthService";
 
 type EventCallback = (data: any) => void;
 
@@ -94,6 +96,7 @@ export class SocketConnection {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private maxReconnectDelay = 30000;
   private baseReconnectDelay = 1000;
+  private maxReconnectAttempts = 20;
   private shouldReconnect = false;
   private lastUserId: string | null = null;
   private lastToken: string | null = null;
@@ -138,7 +141,7 @@ export class SocketConnection {
 
     this.setConnectionState(this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
     this.socket = new WebSocket(url);
-    console.log('[WS] Connecting to', url);
+    console.log('[WS] Connecting to', url.replace(/token=[^&]+/, 'token=***'));
 
     this.socket.onopen = () => {
       const socket = this.socket;
@@ -267,17 +270,47 @@ export class SocketConnection {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
 
+    // Stop reconnecting after max attempts (~10 minutes with exponential backoff)
+    if (this.reconnectAttempt >= this.maxReconnectAttempts) {
+      console.warn('[WS] Max reconnect attempts reached, giving up');
+      this.shouldReconnect = false;
+      this.setConnectionState('disconnected');
+      return;
+    }
+
     const delay = Math.min(
       this.baseReconnectDelay * Math.pow(2, this.reconnectAttempt),
       this.maxReconnectDelay,
     );
     this.reconnectAttempt++;
 
-    this.reconnectTimer = setTimeout(() => {
-      if (this.shouldReconnect && this.lastUserId && this.lastToken) {
-        this.socket = null;
-        this.connect(this.lastUserId, this.lastToken);
+    this.reconnectTimer = setTimeout(async () => {
+      if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
+
+      // If the token is expired, try to refresh it before reconnecting
+      if (TokenService.isTokenExpired(this.lastToken)) {
+        try {
+          console.log('[WS] Token expired, attempting refresh before reconnect');
+          await AuthService.refreshTokens();
+          const newToken = await TokenService.getAccessToken();
+          if (newToken) {
+            this.lastToken = newToken;
+          } else {
+            console.warn('[WS] Token refresh returned null, stopping reconnect');
+            this.shouldReconnect = false;
+            this.setConnectionState('disconnected');
+            return;
+          }
+        } catch (err) {
+          console.warn('[WS] Token refresh failed, stopping reconnect', err);
+          this.shouldReconnect = false;
+          this.setConnectionState('disconnected');
+          return;
+        }
       }
+
+      this.socket = null;
+      this.connect(this.lastUserId!, this.lastToken!);
     }, delay);
   }
 

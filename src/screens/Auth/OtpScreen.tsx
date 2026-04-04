@@ -81,6 +81,7 @@ export const OtpScreen: React.FC = () => {
   };
 
   const submittingRef = useRef(false);
+  const justSubmittedViaRef = useRef(false);
 
   /**
    * Generate Signal Protocol keys and upload them to the backend.
@@ -177,6 +178,9 @@ export const OtpScreen: React.FC = () => {
       const newDigits = value.slice(0, OTP_LENGTH).split('');
       setDigits(newDigits);
       inputRefs.current[OTP_LENGTH - 1]?.focus();
+      // Guard against the auto-submit below re-firing after React re-render
+      justSubmittedViaRef.current = true;
+      setTimeout(() => { justSubmittedViaRef.current = false; }, 500);
       handleSubmit(newDigits.join(''));
       return;
     }
@@ -192,7 +196,7 @@ export const OtpScreen: React.FC = () => {
     }
 
     const code = newDigits.join('');
-    if (newDigits.every((d) => d !== '') && code.length === OTP_LENGTH) {
+    if (newDigits.every((d) => d !== '') && code.length === OTP_LENGTH && !justSubmittedViaRef.current) {
       handleSubmit(code);
     }
   };

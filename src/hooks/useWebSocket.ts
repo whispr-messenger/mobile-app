@@ -6,7 +6,7 @@
  * are joined/left per-screen via joinConversationChannel.
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { getSharedSocket, ConnectionState } from '../services/messaging/websocket';
 import { Conversation, Message } from '../types/messaging';
 import { usePresenceStore } from '../store/presenceStore';
@@ -53,6 +53,24 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     return () => { removeListener(); };
   }, [options.userId, options.token]);
 
+  // Stable handler references for the user channel so that off() reliably
+  // removes the exact same function that on() registered, even across
+  // re-renders triggered by reconnection state changes.
+  const userHandlers = useMemo(() => ({
+    onMsg: (data: { message: Message }) => {
+      callbacksRef.current.onNewMessage?.(data.message);
+    },
+    onDelivery: (data: { message_id: string; status: string }) => {
+      callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
+    },
+    onConvUpdate: (data: { conversation: Conversation }) => {
+      callbacksRef.current.onConversationUpdate?.(data.conversation);
+    },
+    onContactReq: (data: { request: any }) => {
+      callbacksRef.current.onContactRequest?.(data.request);
+    },
+  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Register per-instance callbacks on the user channel.
   // Each screen gets its own set; cleaned up on unmount via off().
   useEffect(() => {
@@ -61,33 +79,28 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     const socket = getSharedSocket();
     const userChannel = socket.channel(`user:${options.userId}`);
 
-    const onMsg = (data: { message: Message }) => {
-      callbacksRef.current.onNewMessage?.(data.message);
-    };
-    const onDelivery = (data: { message_id: string; status: string }) => {
-      callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
-    };
-    const onConvUpdate = (data: { conversation: Conversation }) => {
-      callbacksRef.current.onConversationUpdate?.(data.conversation);
-    };
-    const onContactReq = (data: { request: any }) => {
-      callbacksRef.current.onContactRequest?.(data.request);
-    };
+    // Remove any prior listeners before registering new ones to prevent
+    // duplicate subscriptions when the component re-renders during reconnect.
+    userChannel.off("new_message", userHandlers.onMsg);
+    userChannel.off("delivery_status", userHandlers.onDelivery);
+    userChannel.off("conversation_updated", userHandlers.onConvUpdate);
+    userChannel.off("contact_request_created", userHandlers.onContactReq);
+    userChannel.off("contact_request_updated", userHandlers.onContactReq);
 
-    userChannel.on("new_message", onMsg);
-    userChannel.on("delivery_status", onDelivery);
-    userChannel.on("conversation_updated", onConvUpdate);
-    userChannel.on("contact_request_created", onContactReq);
-    userChannel.on("contact_request_updated", onContactReq);
+    userChannel.on("new_message", userHandlers.onMsg);
+    userChannel.on("delivery_status", userHandlers.onDelivery);
+    userChannel.on("conversation_updated", userHandlers.onConvUpdate);
+    userChannel.on("contact_request_created", userHandlers.onContactReq);
+    userChannel.on("contact_request_updated", userHandlers.onContactReq);
 
     return () => {
-      userChannel.off("new_message", onMsg);
-      userChannel.off("delivery_status", onDelivery);
-      userChannel.off("conversation_updated", onConvUpdate);
-      userChannel.off("contact_request_created", onContactReq);
-      userChannel.off("contact_request_updated", onContactReq);
+      userChannel.off("new_message", userHandlers.onMsg);
+      userChannel.off("delivery_status", userHandlers.onDelivery);
+      userChannel.off("conversation_updated", userHandlers.onConvUpdate);
+      userChannel.off("contact_request_created", userHandlers.onContactReq);
+      userChannel.off("contact_request_updated", userHandlers.onContactReq);
     };
-  }, [options.userId, options.token]);
+  }, [options.userId, options.token, userHandlers]);
 
   const joinConversationChannel = useCallback(
     (conversationId: string) => {
@@ -138,7 +151,17 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       channel.on("presence_diff", onPresenceDiff);
       channel.on("presence_state", onPresenceState);
 
-      return channel;
+      const cleanup = () => {
+        channel.off("new_message", onMsg);
+        channel.off("user_typing", onTyping);
+        channel.off("message_updated", onMsgUpdated);
+        channel.off("message_deleted", onMsgDeleted);
+        channel.off("delivery_status", onDelivery);
+        channel.off("presence_diff", onPresenceDiff);
+        channel.off("presence_state", onPresenceState);
+      };
+
+      return { channel, cleanup };
     },
     [],
   );

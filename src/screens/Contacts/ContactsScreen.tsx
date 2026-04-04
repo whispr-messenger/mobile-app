@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -38,6 +38,8 @@ export const ContactsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sortBy, setSortBy] = useState<ContactSearchParams["sort"]>("name");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -74,12 +76,23 @@ export const ContactsScreen: React.FC = () => {
     },
   });
 
+  // Debounce search query updates
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(text);
+    }, 300);
+  }, []);
+
   // Load contacts
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
       const params: ContactSearchParams = {
-        search: searchQuery || undefined,
+        search: debouncedSearchQuery || undefined,
         sort: sortBy,
         favorites: showFavoritesOnly || undefined,
       };
@@ -90,7 +103,7 @@ export const ContactsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, sortBy, showFavoritesOnly]);
+  }, [debouncedSearchQuery, sortBy, showFavoritesOnly]);
 
   const loadContactRequests = useCallback(async () => {
     try {
@@ -182,8 +195,25 @@ export const ContactsScreen: React.FC = () => {
 
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
-    return contacts;
-  }, [contacts]);
+    let result = contacts;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c) => {
+        const user = c.contact_user;
+        const name =
+          c.nickname ||
+          user?.firstName ||
+          user?.first_name ||
+          user?.username ||
+          "";
+        return name.toLowerCase().includes(q);
+      });
+    }
+    if (showFavoritesOnly) {
+      result = result.filter((c) => c.is_favorite);
+    }
+    return result;
+  }, [contacts, searchQuery, showFavoritesOnly]);
 
   const pendingRequests = useMemo(() => {
     if (!userId) {
@@ -262,11 +292,11 @@ export const ContactsScreen: React.FC = () => {
               placeholder="Rechercher un contact..."
               placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchChange}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity
-                onPress={() => setSearchQuery("")}
+                onPress={() => handleSearchChange("")}
                 style={styles.clearButton}
               >
                 <Ionicons
@@ -502,6 +532,7 @@ export const ContactsScreen: React.FC = () => {
           visible={showAddModal}
           onClose={() => setShowAddModal(false)}
           onContactAdded={() => {
+            loadContacts();
             loadContactRequests();
           }}
         />

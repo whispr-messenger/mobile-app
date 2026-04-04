@@ -77,7 +77,7 @@ interface ConversationsActions {
   fetchConversations: () => Promise<void>;
   refreshConversations: () => Promise<void>;
   applyConversationUpdate: (conversation: Conversation) => void;
-  applyNewMessage: (message: Message) => void;
+  applyNewMessage: (message: Message) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   archiveConversation: (id: string) => void;
   muteConversation: (id: string) => Promise<void>;
@@ -186,17 +186,38 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     }
   },
 
-  applyNewMessage: (message) => {
-    const { conversations } = get();
-    const next = conversations.map(conv => {
-      if (conv.id !== message.conversation_id) return conv;
-      return {
-        ...conv,
-        last_message: message,
-        updated_at: message.sent_at,
-        unread_count: (conv.unread_count || 0) + 1,
-      };
-    });
+  applyNewMessage: async (message) => {
+    const { conversations, _cancelGracePeriod } = get();
+    const index = conversations.findIndex(conv => conv.id === message.conversation_id);
+
+    if (index === -1) {
+      // Bug C fix: conversation not in the list — fetch it from the API and prepend
+      try {
+        const fetched = await messagingAPI.getConversation(message.conversation_id);
+        if (fetched) {
+          const newConv: Conversation = {
+            ...fetched,
+            last_message: message,
+            updated_at: message.sent_at,
+            unread_count: 1,
+          };
+          _cancelGracePeriod();
+          set({ conversations: [newConv, ...get().conversations], status: 'loaded' });
+        }
+      } catch (err) {
+        console.error('[conversationsStore] applyNewMessage: failed to fetch unknown conversation', err);
+      }
+      return;
+    }
+
+    const updated = {
+      ...conversations[index],
+      last_message: message,
+      updated_at: message.sent_at,
+      unread_count: (conversations[index].unread_count || 0) + 1,
+    };
+    // Bug B fix: move the updated conversation to the top, sorted by recency
+    const next = [updated, ...conversations.filter((_, i) => i !== index)];
     set({ conversations: next });
   },
 

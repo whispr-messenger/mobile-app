@@ -4,6 +4,13 @@
 
 export type ConversationType = 'direct' | 'group';
 
+export interface ConversationMember {
+  user_id: string;
+  role: string;
+  is_active: boolean;
+  joined_at: string;
+}
+
 export interface Conversation {
   id: string;
   type: ConversationType;
@@ -16,6 +23,7 @@ export interface Conversation {
   last_message?: Message;
   unread_count?: number;
   participants?: ConversationParticipant[];
+  members?: ConversationMember[]; // Returned by API
   is_pinned?: boolean; // From conversation_members for current user
   is_muted?: boolean; // Frontend local state
   is_archived?: boolean; // Frontend local state
@@ -44,11 +52,13 @@ export interface Message {
   message_type: MessageType;
   content: string; // Decrypted content for display
   metadata: Record<string, any>;
-  client_random: number;
+  client_random: number | string;
   sent_at: string;
   edited_at?: string;
   is_deleted: boolean;
-  delete_for_everyone: boolean;
+  delete_for_everyone?: boolean;
+  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  reply_to?: Message; // Populated reply chain
 }
 
 export interface DeliveryStatus {

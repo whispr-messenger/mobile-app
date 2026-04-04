@@ -27,14 +27,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // On mount: validate existing session via network call
   useEffect(() => {
-    AuthService.validateSession().then((session) => {
-      setState({
-        isAuthenticated: session !== null,
-        isLoading: false,
-        userId: session?.userId ?? null,
-        deviceId: session?.deviceId ?? null,
+    AuthService.validateSession()
+      .then((session) => {
+        setState({
+          isAuthenticated: session !== null,
+          isLoading: false,
+          userId: session?.userId ?? null,
+          deviceId: session?.deviceId ?? null,
+        });
+      })
+      .catch(() => {
+        setState({
+          isAuthenticated: false,
+          isLoading: false,
+          userId: null,
+          deviceId: null,
+        });
       });
-    });
   }, []);
 
   const signIn = useCallback((userId: string, deviceId: string) => {

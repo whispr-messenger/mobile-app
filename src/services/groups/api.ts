@@ -110,7 +110,7 @@ export const groupsAPI = {
       id: String(group.id),
       name: String(group.name ?? ""),
       description: group.description ?? undefined,
-      picture_url: undefined,
+      picture_url: group.picture_url ?? group.avatar_url ?? undefined,
       created_by: String(group.ownerId ?? ownerId),
       created_at: String(group.createdAt ?? new Date().toISOString()),
       updated_at: String(group.updatedAt ?? new Date().toISOString()),
@@ -341,8 +341,14 @@ export const groupsAPI = {
     groupId: string,
     updates: { name?: string; description?: string; picture_url?: string },
   ): Promise<GroupDetails> {
-    void updates.picture_url;
     const ownerId = await getOwnerId();
+    const body: Record<string, string | undefined> = {
+      name: updates.name,
+      description: updates.description,
+    };
+    if (updates.picture_url !== undefined) {
+      body.picture_url = updates.picture_url;
+    }
     const response = await fetch(
       `${API_BASE_URL}/groups/${encodeURIComponent(ownerId)}/${encodeURIComponent(groupId)}`,
       {
@@ -351,10 +357,7 @@ export const groupsAPI = {
           "Content-Type": "application/json",
           ...(await getAuthHeaders()),
         },
-        body: JSON.stringify({
-          name: updates.name,
-          description: updates.description,
-        }),
+        body: JSON.stringify(body),
       },
     );
 
@@ -367,7 +370,7 @@ export const groupsAPI = {
       id: String(group.id),
       name: String(group.name ?? ""),
       description: group.description ?? undefined,
-      picture_url: undefined,
+      picture_url: group.picture_url ?? group.avatar_url ?? undefined,
       created_by: String(group.ownerId ?? ownerId),
       created_at: String(group.createdAt ?? new Date().toISOString()),
       updated_at: String(group.updatedAt ?? new Date().toISOString()),

@@ -334,6 +334,10 @@ export const TwoFactorAuthScreen: React.FC = () => {
           );
         } catch (backupError) {
           console.error('Failed to fetch backup codes:', backupError);
+          Alert.alert(
+            'Attention',
+            "La double authentification est activée mais les codes de secours n'ont pas pu être générés. Réessayez depuis les paramètres."
+          );
         }
         triggerHaptic('success');
         showToast(getLocalizedText('twoFactor.enabled'), 'success');
