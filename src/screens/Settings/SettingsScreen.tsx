@@ -132,12 +132,25 @@ export const SettingsScreen: React.FC = () => {
   }), []);
 
   /**
-   * Sync notification settings to the notification-service backend
+   * Sync notification settings to the notification-service backend.
+   * Uses a PATCH-style merge: reads current backend settings first, then
+   * updates only the fields we manage locally, preserving backend-only
+   * fields (message_previews, show_sender_name, quiet_hours_*).
    */
   const syncNotificationsToBackend = useCallback(async (local: typeof notificationSettings) => {
     if (!userId) return;
     try {
-      await NotificationService.updateSettings(userId, notificationToApi(local));
+      let existing: Partial<NotificationSettings> = {};
+      try {
+        existing = await NotificationService.getSettings(userId);
+      } catch {
+        // If fetching fails, proceed with only local fields
+      }
+      const merged: Partial<NotificationSettings> = {
+        ...existing,
+        ...notificationToApi(local),
+      };
+      await NotificationService.updateSettings(userId, merged);
     } catch (error) {
       console.error('Error syncing notification settings to backend:', error);
     }

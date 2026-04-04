@@ -45,6 +45,14 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [videoStatus, setVideoStatus] = useState<any>({});
   const [thumbnailError, setThumbnailError] = useState(false);
 
+  // Cleanup video refs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      thumbnailVideoRef.current?.unloadAsync?.().catch(() => {});
+      playerVideoRef.current?.unloadAsync?.().catch(() => {});
+    };
+  }, []);
+
   // Preload and auto-play video when modal opens
   useEffect(() => {
     if (showVideoPlayer && Video && playerVideoRef.current && type === 'video') {
@@ -178,7 +186,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     console.log('[MediaMessage] Closing video player');
     if (playerVideoRef.current && Video) {
       try {
-        playerVideoRef.current.pauseAsync();
+        playerVideoRef.current.pauseAsync()
+          .then(() => playerVideoRef.current?.unloadAsync?.())
+          .catch((error: any) => {
+            console.error('[MediaMessage] Error stopping video:', error);
+          });
       } catch (error) {
         console.error('[MediaMessage] Error pausing video:', error);
       }

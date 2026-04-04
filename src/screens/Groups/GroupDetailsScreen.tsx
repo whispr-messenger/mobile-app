@@ -32,6 +32,7 @@ import Animated, {
   SlideInRight,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import { colors, withOpacity } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { Avatar } from '../../components/Chat/Avatar';
@@ -44,11 +45,11 @@ const AnimatedView = Animated.createAnimatedComponent(View);
 
 type GroupDetailsScreenRouteProp = StackScreenProps<AuthStackParamList, 'GroupDetails'>['route'];
 
-const CURRENT_USER_ID = 'user-1';
-
 export const GroupDetailsScreen: React.FC = () => {
   const route = useRoute<GroupDetailsScreenRouteProp>();
   const navigation = useNavigation();
+  const { userId } = useAuth();
+  const CURRENT_USER_ID = userId ?? '';
   const { groupId, conversationId } = route.params;
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);

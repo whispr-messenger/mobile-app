@@ -84,20 +84,23 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
   }
 };
 
-const buildSearchResult = (u: any): UserSearchResult => ({
-  user: {
-    id: u.id ?? u.userId,
-    username: u.username ?? "",
-    phone_number: u.phoneNumber ?? u.phone_number,
-    first_name: u.firstName ?? u.first_name,
-    last_name: u.lastName ?? u.last_name,
-    avatar_url: u.profilePictureUrl ?? u.avatar_url,
-    last_seen: u.lastSeen ?? u.last_seen,
-    is_active: u.isActive ?? u.is_active ?? true,
-  },
-  is_contact: false,
-  is_blocked: false,
-});
+const buildSearchResult = (u: any, contactIds?: Set<string>): UserSearchResult => {
+  const userId = u.id ?? u.userId;
+  return {
+    user: {
+      id: userId,
+      username: u.username ?? "",
+      phone_number: u.phoneNumber ?? u.phone_number,
+      first_name: u.firstName ?? u.first_name,
+      last_name: u.lastName ?? u.last_name,
+      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      last_seen: u.lastSeen ?? u.last_seen,
+      is_active: u.isActive ?? u.is_active ?? true,
+    },
+    is_contact: contactIds ? contactIds.has(userId) : false,
+    is_blocked: false,
+  };
+};
 
 export const contactsAPI = {
   async getContacts(
@@ -231,6 +234,15 @@ export const contactsAPI = {
       return [];
     }
 
+    // Fetch current contacts to mark search results
+    let contactIds: Set<string>;
+    try {
+      const { contacts } = await this.getContacts();
+      contactIds = new Set(contacts.map((c) => c.contact_id));
+    } catch {
+      contactIds = new Set();
+    }
+
     // Run all search strategies in parallel for fuzzy matching
     const searches: Promise<UserSearchResult[]>[] = [];
 
@@ -243,7 +255,7 @@ export const contactsAPI = {
           if (!r.ok) return [];
           const user = await r.json().catch(() => null);
           if (!user?.id && !user?.userId) return [];
-          return [buildSearchResult(user)];
+          return [buildSearchResult(user, contactIds)];
         })
         .catch(() => [])
     );
@@ -257,7 +269,7 @@ export const contactsAPI = {
           if (!r.ok) return [];
           const data = await r.json().catch(() => []);
           const items = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
-          return items.filter((u: any) => u?.id || u?.userId).map(buildSearchResult);
+          return items.filter((u: any) => u?.id || u?.userId).map((u: any) => buildSearchResult(u, contactIds));
         })
         .catch(() => [])
     );
@@ -274,7 +286,7 @@ export const contactsAPI = {
             const data = await r.json().catch(() => null);
             if (!data) return [];
             const items = Array.isArray(data) ? data : (data?.id || data?.userId) ? [data] : [];
-            return items.filter((u: any) => u?.id || u?.userId).map(buildSearchResult);
+            return items.filter((u: any) => u?.id || u?.userId).map((u: any) => buildSearchResult(u, contactIds));
           })
           .catch(() => [])
       );

@@ -249,6 +249,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     try {
       // Upload avatar if it's a local URI (not already a remote URL)
       let profilePictureUrl = profile.profilePicture;
+      const previousProfilePicture = profile.profilePicture;
       if (
         profilePictureUrl &&
         (profilePictureUrl.startsWith("file://") ||
@@ -272,6 +273,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           }));
         } catch (uploadError) {
           console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
+          // Revert to previous profile picture to avoid broken state
+          setProfile((prev) => ({
+            ...prev,
+            profilePicture: previousProfilePicture,
+          }));
           Alert.alert("Erreur", "Impossible de télécharger la photo de profil");
           setLoading(false);
           return;

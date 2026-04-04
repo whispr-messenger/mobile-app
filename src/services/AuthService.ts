@@ -46,6 +46,8 @@ async function apiFetch<T>(
   return response.json() as Promise<T>;
 }
 
+let refreshPromise: Promise<void> | null = null;
+
 export const AuthService = {
   async requestVerification(
     phoneNumber: string,
@@ -113,15 +115,25 @@ export const AuthService = {
   },
 
   async refreshTokens(): Promise<void> {
-    const refreshToken = await TokenService.getRefreshToken();
-    if (!refreshToken) throw new Error("No refresh token");
+    if (refreshPromise) return refreshPromise;
 
-    const tokens = await apiFetch<TokenPair>("/v1/tokens/refresh", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken }),
-    });
+    refreshPromise = (async () => {
+      try {
+        const refreshToken = await TokenService.getRefreshToken();
+        if (!refreshToken) throw new Error("No refresh token");
 
-    await TokenService.saveTokens(tokens);
+        const tokens = await apiFetch<TokenPair>("/v1/tokens/refresh", {
+          method: "POST",
+          body: JSON.stringify({ refreshToken }),
+        });
+
+        await TokenService.saveTokens(tokens);
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
   },
 
   async logout(deviceId: string, userId: string): Promise<void> {

@@ -210,8 +210,8 @@ export const ChatScreen: React.FC = () => {
         );
       }
     },
-    onMessageDeleted: (messageId: string, deleteForEveryone: boolean) => {
-      if (deleteForEveryone) {
+    onMessageDeleted: (messageId: string, deleteForEveryone: boolean | string) => {
+      if (deleteForEveryone === true || deleteForEveryone === 'true') {
         setMessages(prev =>
           prev.map(msg =>
             msg.id === messageId
@@ -318,10 +318,11 @@ export const ChatScreen: React.FC = () => {
 
     // Join conversation channel once token is available
     if (token) {
-      const channel = joinConversationChannel(conversationId);
+      const { channel, cleanup } = joinConversationChannel(conversationId);
       conversationChannelRef.current = channel;
 
       return () => {
+        cleanup();
         channel?.leave();
         Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
         typingTimeoutsRef.current = {};
@@ -402,8 +403,17 @@ export const ChatScreen: React.FC = () => {
           });
           setHasMore(messagesWithRelations.length === 50);
         } else {
-          // Initial load
-          setMessages(messagesWithRelations);
+          // Initial load — merge with any messages already received via WS
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const merged = [...prev];
+            for (const msg of messagesWithRelations) {
+              if (!existingIds.has(msg.id)) {
+                merged.push(msg);
+              }
+            }
+            return merged.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+          });
           setHasMore(messagesWithRelations.length === 50);
           // Mark the newest message as read so the sender gets a read receipt
           if (messagesWithRelations.length > 0) {
@@ -455,6 +465,8 @@ export const ChatScreen: React.FC = () => {
           setEditingMessage(null);
         } catch (error) {
           logger.error("ChatScreen", "Error editing message", error);
+          Alert.alert("Erreur", "Impossible de modifier le message");
+          setEditingMessage(null);
         }
         return;
       }
@@ -907,6 +919,7 @@ export const ChatScreen: React.FC = () => {
         }
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
+        Alert.alert("Erreur", "Impossible de supprimer le message");
       }
     },
     [selectedMessage, conversationId],
