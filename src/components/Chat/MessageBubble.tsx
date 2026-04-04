@@ -2,13 +2,14 @@
  * MessageBubble - Individual message display component
  */
 
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Pressable,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -84,13 +85,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         : message.content || "";
 
   const handleLongPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     if (onLongPress) {
       onLongPress();
     } else {
       setShowReactionPicker(true);
     }
   };
+
+  const handleContextMenu = useCallback((e: any) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault();
+      handleLongPress();
+    }
+  }, [onLongPress]);
 
   const handleReactionSelect = (emoji: string) => {
     if (onReactionPress) {
@@ -299,7 +309,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <>
-      <Pressable onLongPress={handleLongPress} delayLongPress={300}>
+      <Pressable
+        onLongPress={handleLongPress}
+        delayLongPress={300}
+        {...(Platform.OS === 'web' ? { onContextMenu: handleContextMenu } as any : {})}
+      >
         <Animated.View
           style={[
             isSent ? styles.sentContainer : styles.receivedContainer,
