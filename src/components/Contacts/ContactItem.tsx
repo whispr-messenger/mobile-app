@@ -47,8 +47,8 @@ export const ContactItem: React.FC<ContactItemProps> = ({
         uri={user?.profilePictureUrl || user?.avatar_url}
         name={displayName}
         size={48}
-        showOnlineBadge={true}
-        isOnline={user?.isActive || user?.is_active || false}
+        showOnlineBadge={false}
+        isOnline={false}
       />
       <View style={styles.info}>
         <View style={styles.nameRow}>

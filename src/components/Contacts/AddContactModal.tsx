@@ -133,8 +133,8 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             { backgroundColor: themeColors.background.secondary },
             is_blocked && styles.resultItemBlocked,
           ]}
-          onPress={() => !is_blocked && handleAddContact(item)}
-          disabled={is_blocked || isAdding}
+          onPress={() => !is_blocked && !item.is_contact && handleAddContact(item)}
+          disabled={is_blocked || isAdding || item.is_contact}
           activeOpacity={0.7}
         >
           <Avatar
@@ -161,6 +161,12 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               name="ban"
               size={20}
               color={colors.ui.error}
+            />
+          ) : item.is_contact ? (
+            <Ionicons
+              name="checkmark-circle"
+              size={24}
+              color={colors.status.online}
             />
           ) : isAdding ? (
             <ActivityIndicator size="small" color={colors.primary.main} />

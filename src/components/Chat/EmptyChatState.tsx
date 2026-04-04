@@ -24,7 +24,7 @@ export const EmptyChatState: React.FC<EmptyChatStateProps> = ({
         Aucun message
       </Text>
       <Text style={[styles.subtitle, { color: themeColors.text.secondary }]}>
-        Commencez la conversation avec {conversationName}
+        Envoyez un message pour commencer la conversation
       </Text>
     </View>
   );

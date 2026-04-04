@@ -1303,9 +1303,9 @@ export const ChatScreen: React.FC = () => {
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               !loading ? (
-                <EmptyChatState
-                  conversationName={conversation?.display_name || "Contact"}
-                />
+                <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
+                  <EmptyChatState />
+                </View>
               ) : null
             }
             ListFooterComponent={
