@@ -10,10 +10,11 @@ import { Message } from '../../types/messaging';
 
 interface ReplyPreviewProps {
   replyTo: Message;
+  currentUserId?: string;
   onPress?: () => void;
 }
 
-export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, onPress }) => {
+export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, currentUserId, onPress }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -39,7 +40,7 @@ export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, onPress }) 
         style={[styles.senderName, { color: themeColors.primary }]}
         numberOfLines={1}
       >
-        {replyTo.sender_id === 'user-1' ? 'Vous' : 'Contact'}
+        {replyTo.sender_id === currentUserId ? 'Vous' : ((replyTo as any).sender_name || 'Contact')}
       </Text>
       <Text
         style={[styles.content, { color: themeColors.text.secondary }]}

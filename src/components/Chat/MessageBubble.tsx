@@ -35,6 +35,7 @@ interface MessageBubbleProps {
   message: MessageWithRelations;
   isSent: boolean;
   currentUserId: string;
+  senderName?: string;
   onReactionPress?: (messageId: string, emoji: string) => void;
   onReplyPress?: (messageId: string) => void;
   onLongPress?: () => void;
@@ -46,6 +47,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isSent,
   currentUserId,
+  senderName,
   onReactionPress,
   onReplyPress,
   onLongPress,
@@ -147,6 +149,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {message.reply_to ? (
             <ReplyPreview
               replyTo={message.reply_to}
+              currentUserId={currentUserId}
               onPress={() => onReplyPress?.(message.reply_to!.id)}
             />
           ) : null}
@@ -222,6 +225,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
         ]}
       >
+        {senderName ? (
+          <Text style={styles.senderNameLabel}>{senderName}</Text>
+        ) : null}
         {isForwarded ? (
           <Text style={[styles.forwardedLabel, { color: themeColors.text.tertiary }]}>
             Transféré
@@ -230,6 +236,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {message.reply_to ? (
           <ReplyPreview
             replyTo={message.reply_to}
+            currentUserId={currentUserId}
             onPress={() => onReplyPress?.(message.reply_to!.id)}
           />
         ) : null}
@@ -400,6 +407,12 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.7)",
     marginBottom: 4,
   },
+  senderNameLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary.main,
+    marginBottom: 4,
+  },
   highlighted: {
     backgroundColor: "rgba(254, 122, 92, 0.2)",
     borderRadius: 8,
@@ -414,6 +427,7 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.status === nextProps.message.status &&
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
+    prevProps.senderName === nextProps.senderName &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );

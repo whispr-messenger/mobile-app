@@ -112,8 +112,18 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     return colors.ui.error; // Red for high counts
   }, [conversation.unread_count]);
 
-  // Safety check for last_message content
-  const lastMessageContent = conversation.last_message?.content || '';
+  // Media-aware last message preview
+  const getLastMessagePreview = () => {
+    const msg = conversation.last_message;
+    if (!msg) return '';
+    if (msg.message_type === 'image' || msg.content === 'Photo') return '📷 Photo';
+    if (msg.message_type === 'video' || msg.content === 'Vidéo') return '🎥 Vidéo';
+    if (msg.message_type === 'audio' || msg.content === 'Message vocal') return '🎵 Message vocal';
+    if (msg.message_type === 'file' || msg.content === 'Fichier') return '📎 Fichier';
+    return msg.content || '';
+  };
+
+  const lastMessageContent = getLastMessagePreview();
 
   const isEditMode = editMode === true;
   const isItemSelected = isSelected === true;
@@ -171,6 +181,9 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         </View>
         <View style={styles.textContainer}>
           <View style={styles.nameRow}>
+            {conversation.type === 'group' && (
+              <Ionicons name="people" size={16} color="rgba(255, 255, 255, 0.7)" style={{ marginRight: 4 }} />
+            )}
             <Text
               style={[styles.name, { color: '#FFFFFF' }]}
               numberOfLines={1}
@@ -183,14 +196,21 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
               <Ionicons name="notifications-off" size={14} color="rgba(255, 255, 255, 0.6)" style={styles.mutedIcon} />
             )}
           </View>
-          {conversation.last_message && lastMessageContent ? (
+          {lastMessageContent ? (
             <Text
               style={[styles.lastMessage, { color: 'rgba(255, 255, 255, 0.7)' }]}
               numberOfLines={1}
             >
               {lastMessageContent}
             </Text>
-          ) : null}
+          ) : (
+            <Text
+              style={[styles.lastMessage, { color: 'rgba(255, 255, 255, 0.4)', fontStyle: 'italic' }]}
+              numberOfLines={1}
+            >
+              Pas encore de messages
+            </Text>
+          )}
         </View>
         <View style={styles.metaContainer}>
           <View style={styles.metaRow}>
