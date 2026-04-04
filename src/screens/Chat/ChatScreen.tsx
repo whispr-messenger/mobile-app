@@ -1220,11 +1220,19 @@ export const ChatScreen: React.FC = () => {
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
 
+      // Resolve sender name for group conversations
+      const senderName =
+        !isSent && conversation?.type === "group"
+          ? conversationMembers.find((m) => m.id === message.sender_id)
+              ?.display_name
+          : undefined;
+
       return (
         <MessageBubble
           message={message}
           isSent={isSent}
           currentUserId={userId}
+          senderName={senderName}
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
@@ -1235,6 +1243,8 @@ export const ChatScreen: React.FC = () => {
     },
     [
       userId,
+      conversation,
+      conversationMembers,
       handleReactionPress,
       handleReplyPress,
       handleMessageLongPress,

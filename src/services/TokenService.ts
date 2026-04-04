@@ -56,6 +56,6 @@ export const TokenService = {
   isTokenExpired(token: string): boolean {
     const payload = decodeJwtPayload(token);
     if (!payload) return true;
-    return Date.now() / 1000 >= payload.exp;
+    return Date.now() / 1000 >= payload.exp - 60;
   },
 };
