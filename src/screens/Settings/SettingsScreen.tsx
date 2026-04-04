@@ -221,8 +221,6 @@ export const SettingsScreen: React.FC = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (category: string, key: string, value: boolean) => {
-    console.log(`Toggle ${category}.${key}:`, value);
-
     switch (category) {
       case 'notifications':
         setNotificationSettings(prev => {
@@ -257,8 +255,6 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleSelect = async (type: 'theme' | 'language' | 'fontSize' | 'privacy', value: string) => {
-    console.log(`🎯 Select ${type}:`, value);
-    
     try {
       if (type === 'theme') {
         // Fermer le modal d'abord pour éviter les conflits de re-render
