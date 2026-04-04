@@ -139,7 +139,7 @@ export const groupsAPI = {
     if (!convResponse.ok) {
       throw new Error("Failed to fetch conversation for group members");
     }
-    const convJson = await convResponse.json();
+    const convJson = await convResponse.json().catch(() => null);
     const conv = convJson?.data !== undefined ? convJson.data : convJson;
     const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
       ? conv.member_user_ids
@@ -194,7 +194,7 @@ export const groupsAPI = {
     if (!convResponse.ok) {
       throw new Error("Failed to fetch conversation for group stats");
     }
-    const convJson = await convResponse.json();
+    const convJson = await convResponse.json().catch(() => null);
     const conv = convJson?.data !== undefined ? convJson.data : convJson;
 
     const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
@@ -365,7 +365,10 @@ export const groupsAPI = {
       throw new Error("Failed to update group");
     }
 
-    const group = await response.json();
+    const group = await response.json().catch(() => null);
+    if (!group) {
+      throw new Error("Failed to parse group update response");
+    }
     return {
       id: String(group.id),
       name: String(group.name ?? ""),

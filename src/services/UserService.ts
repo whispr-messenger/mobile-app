@@ -78,7 +78,7 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       return { success: true, profile: data };
     } catch (error) {
       console.error('Erreur récupération profil:', error);
@@ -115,7 +115,7 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       return { success: true, message: 'Profil mis à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur mise à jour profil:', error);
@@ -147,7 +147,7 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       return { success: true, message: 'Photo de profil mise à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur mise à jour photo:', error);
@@ -187,7 +187,7 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       return { success: true, message: 'Nom d\'utilisateur mis à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur mise à jour username:', error);
@@ -217,7 +217,7 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       return { success: true, settings: data };
     } catch (error) {
       console.error('Erreur récupération paramètres confidentialité:', error);
@@ -291,7 +291,7 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       return { success: true, message: 'Numéro de téléphone mis à jour avec succès', profile: data };
     } catch (error) {
       console.error('Erreur changement numéro:', error);

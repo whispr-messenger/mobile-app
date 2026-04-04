@@ -396,10 +396,11 @@ export const ChatScreen: React.FC = () => {
         );
 
         if (before) {
-          // Loading older messages - append to end
+          // Loading older messages - append to end (oldest last for inverted FlatList)
           setMessages((prev) => {
-            const newMessages = [...prev, ...messagesWithRelations];
-            return newMessages;
+            const existingIds = new Set(prev.map(m => m.id));
+            const deduped = messagesWithRelations.filter(m => !existingIds.has(m.id));
+            return [...prev, ...deduped];
           });
           setHasMore(messagesWithRelations.length === 50);
         } else {
