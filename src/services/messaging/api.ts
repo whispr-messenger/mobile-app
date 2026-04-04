@@ -407,40 +407,35 @@ export const messagingAPI = {
   async createGroupConversation(
     name: string,
     memberIds: string[],
-    description?: string,
-    photoUri?: string,
+    _description?: string,
+    _photoUri?: string,
   ): Promise<Conversation> {
-    const response = await authenticatedFetch(`${API_BASE_URL}/groups`, {
+    const token = await TokenService.getAccessToken();
+    let currentUserId = "";
+    if (token) {
+      const payload = TokenService.decodeAccessToken(token);
+      currentUserId = payload?.sub ?? "";
+    }
+
+    const allIds = currentUserId
+      ? [currentUserId, ...memberIds.filter((id) => id !== currentUserId)]
+      : memberIds;
+
+    const response = await authenticatedFetch(`${API_BASE_URL}/conversations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        type: "group",
         name,
-        description,
-        picture_url: photoUri,
-        member_ids: memberIds,
+        user_ids: allIds,
       }),
     });
 
     if (!response.ok) {
-      throw new Error("Failed to create group");
+      throw new Error("Failed to create group conversation");
     }
 
-    const group = await unwrap(response);
-    const conversationId = group.conversation_id;
-
-    if (!conversationId) {
-      throw new Error("Group created without conversation_id");
-    }
-
-    const conversationResponse = await authenticatedFetch(
-      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}`,
-    );
-
-    if (!conversationResponse.ok) {
-      throw new Error("Failed to fetch group conversation");
-    }
-
-    return unwrap(conversationResponse);
+    return unwrap(response);
   },
 
   /**

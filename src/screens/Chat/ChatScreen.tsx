@@ -1300,6 +1300,13 @@ export const ChatScreen: React.FC = () => {
               minIndexForVisible: 0,
             }}
             keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              !loading ? (
+                <EmptyChatState
+                  conversationName={conversation?.display_name || "Contact"}
+                />
+              ) : null
+            }
             ListFooterComponent={
               loadingMore ? (
                 <View style={styles.loadingMore}>

@@ -84,6 +84,7 @@ interface ConversationsActions {
   pinConversation: (id: string) => void;
   markAsUnread: (id: string) => Promise<void>;
   clearManualUnread: (id: string) => Promise<void>;
+  reset: () => void;
   loadManuallyUnreadIds: () => Promise<void>;
   _startGracePeriod: () => void;
   _cancelGracePeriod: () => void;
@@ -96,6 +97,20 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
   error: null,
   manuallyUnreadIds: new Set<string>(),
   _gracePeriodTimer: null,
+
+  reset: () => {
+    const { _gracePeriodTimer } = get();
+    if (_gracePeriodTimer) {
+      clearTimeout(_gracePeriodTimer);
+    }
+    set({
+      conversations: [],
+      status: 'loading',
+      error: null,
+      manuallyUnreadIds: new Set<string>(),
+      _gracePeriodTimer: null,
+    });
+  },
 
   _startGracePeriod: () => {
     const { _gracePeriodTimer } = get();

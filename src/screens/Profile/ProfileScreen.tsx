@@ -189,7 +189,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
-        console.log("📸 Photo prise:", result.assets[0].uri);
         setProfile((prev) => ({
           ...prev,
           profilePicture: result.assets[0].uri,
@@ -205,8 +204,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Handle profile update
   const handleSaveProfile = async () => {
-    console.log("💾 Sauvegarde du profil avec:", profile);
-
     // Validation globale avant sauvegarde
     const errors: string[] = [];
 

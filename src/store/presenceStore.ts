@@ -15,6 +15,7 @@ interface PresenceActions {
   /** Apply a presence_diff payload */
   applyPresenceDiff: (joins: string[], leaves: string[]) => void;
   isOnline: (userId: string) => boolean;
+  reset: () => void;
 }
 
 export const usePresenceStore = create<PresenceState & PresenceActions>((set, get) => ({
@@ -61,5 +62,9 @@ export const usePresenceStore = create<PresenceState & PresenceActions>((set, ge
 
   isOnline: (userId) => {
     return get().onlineUserIds.has(userId);
+  },
+
+  reset: () => {
+    set({ onlineUserIds: new Set<string>(), lastSeenAt: {} });
   },
 }));

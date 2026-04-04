@@ -1,7 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthService } from '../services/AuthService';
 import { TokenService } from '../services/TokenService';
 import { destroySharedSocket } from '../services/messaging/websocket';
+import { useConversationsStore } from '../store/conversationsStore';
+import { usePresenceStore } from '../store/presenceStore';
+import { cacheService } from '../services/messaging/cache';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -58,6 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = useCallback(async () => {
     // Tear down WebSocket before clearing auth state
     destroySharedSocket();
+
+    // Reset stores and caches to prevent data leaking between users
+    useConversationsStore.getState().reset();
+    usePresenceStore.getState().reset();
+    await cacheService.clearCache();
+    await AsyncStorage.removeItem('@whispr/manually_unread_ids');
 
     if (state.deviceId && state.userId) {
       await AuthService.logout(state.deviceId, state.userId);

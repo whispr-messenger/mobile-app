@@ -187,8 +187,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   // Handle camera capture result
   const handleCameraCapture = useCallback(
     (result: CameraCaptureResult) => {
-      console.log('[MessageInput] Camera capture:', result.type, 'with caption:', result.caption || 'none');
-      
       // Send media with caption integrated in the same message
       onSendMedia?.(result.uri, result.type, replyingTo?.id, result.caption?.trim() || undefined);
 
@@ -200,21 +198,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
 
   const handlePickImage = useCallback(async () => {
-    console.log('[MessageInput] Starting image picker');
     try {
       // Request permissions
-      console.log('[MessageInput] Requesting media library permissions');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log('[MessageInput] Permission status:', status);
 
       if (status !== 'granted') {
-        console.log('[MessageInput] Permission denied');
         Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour accéder à vos photos.');
         return;
       }
 
       // Launch image picker
-      console.log('[MessageInput] Launching image picker');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -222,24 +215,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         quality: 0.8,
       });
 
-      console.log('[MessageInput] Image picker result:', {
-        canceled: result.canceled,
-        assetsCount: result.assets?.length || 0,
-      });
-
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        console.log('[MessageInput] Image selected:', {
-          uri: asset.uri?.substring(0, 50) + '...',
-          width: asset.width,
-          height: asset.height,
-          type: asset.type,
-        });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         onSendMedia?.(asset.uri, 'image', replyingTo?.id);
         onCancelReply?.();
-      } else {
-        console.log('[MessageInput] Image picker canceled or no assets');
       }
     } catch (error: any) {
       console.error('[MessageInput] Error picking image:', {
@@ -275,7 +255,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
 
     try {
-      console.log('[MessageInput] Requesting audio recording permissions');
       const permission = await AudioModule.requestPermissionsAsync();
       if (permission.status !== 'granted') {
         Alert.alert('Permission requise', 'Nous avons besoin de votre permission pour enregistrer des messages vocaux.');
@@ -287,7 +266,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         playsInSilentModeIOS: true,
       });
 
-      console.log('[MessageInput] Starting audio recording');
       const { recording } = await AudioModule.Recording.createAsync(
         AudioModule.RecordingOptionsPresets.HIGH_QUALITY,
       );
@@ -311,7 +289,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (!recordingRef.current) return;
 
     try {
-      console.log('[MessageInput] Stopping audio recording');
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
@@ -336,11 +313,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // Only send if recording is at least 1 second
       const durationSec = (status?.durationMillis || 0) / 1000;
       if (durationSec < 1) {
-        console.log('[MessageInput] Recording too short, discarding');
         return;
       }
 
-      console.log('[MessageInput] Recording complete:', uri, 'duration:', durationSec);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSendMedia?.(uri, 'audio', replyingTo?.id);
       if (replyingTo) {
@@ -367,7 +342,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setIsRecording(false);
       setRecordingDuration(0);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      console.log('[MessageInput] Recording cancelled');
     } catch (error) {
       console.error('[MessageInput] Error cancelling recording:', error);
       setIsRecording(false);
