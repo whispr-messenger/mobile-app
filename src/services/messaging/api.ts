@@ -7,8 +7,12 @@ const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 // Backend wraps responses in { data: ... } — unwrap if present
 const unwrap = async (response: Response) => {
-  const json = await response.json();
-  return json?.data !== undefined ? json.data : json;
+  try {
+    const json = await response.json();
+    return json?.data !== undefined ? json.data : json;
+  } catch {
+    return null;
+  }
 };
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
@@ -343,7 +347,7 @@ export const messagingAPI = {
       throw new Error("Failed to fetch user info");
     }
 
-    const user = await response.json();
+    const user = await response.json().catch(() => null);
     if (!user) {
       return null;
     }
