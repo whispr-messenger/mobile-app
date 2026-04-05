@@ -1,7 +1,16 @@
-import { loadTensorflowModel } from "react-native-fast-tflite";
+import { Platform } from "react-native";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
 
-type TFLiteModel = Awaited<ReturnType<typeof loadTensorflowModel>>;
+let loadTensorflowModel: any = null;
+try {
+    if (Platform.OS !== "web") {
+        loadTensorflowModel = require("react-native-fast-tflite").loadTensorflowModel;
+    }
+} catch {
+    // Module not available (web build or not installed)
+}
+
+type TFLiteModel = any;
 
 export type GateResult = {
     allowed: boolean;
@@ -20,7 +29,7 @@ class TfliteModerationService {
     private INPUT_W = 224;
     private INPUT_H = 224;
 
-    private MODEL = require("../../../assets/models/whispr.tflite");
+    private MODEL = Platform.OS !== "web" ? require("../../../assets/models/whispr.tflite") : null;
 
     private CLASS_NAMES = [
         "Baked Potato",
@@ -33,6 +42,9 @@ class TfliteModerationService {
     ];
 
     async init(): Promise<TFLiteModel> {
+        if (!loadTensorflowModel || !this.MODEL) {
+            throw new Error("TFLite not available on this platform");
+        }
         if (this.model) return this.model;
         if (this.loading) return this.loading;
 
