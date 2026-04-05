@@ -34,7 +34,6 @@ const copyToClipboard = async (text: string) => {
     await Clipboard.setStringAsync(text);
     return true;
   } catch (error) {
-    console.log('📋 Copy to clipboard (fallback):', text);
     return false;
   }
 };
@@ -246,7 +245,6 @@ export const TwoFactorAuthScreen: React.FC = () => {
           );
         }
       } catch (error) {
-        console.log('⚠️ Haptic feedback error:', error);
       }
     }
   };
