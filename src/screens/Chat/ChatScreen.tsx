@@ -2,37 +2,62 @@
  * ChatScreen - Individual conversation chat interface
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, Text, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { StackScreenProps, StackNavigationProp } from '@react-navigation/stack';
-import * as Haptics from 'expo-haptics';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { Message, MessageWithStatus, MessageWithRelations, Conversation } from '../../types/messaging';
-import { messagingAPI } from '../../services/messaging/api';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import { MessageBubble } from '../../components/Chat/MessageBubble';
-import { MessageInput } from '../../components/Chat/MessageInput';
-import { TypingIndicator } from '../../components/Chat/TypingIndicator';
-import { Avatar } from '../../components/Chat/Avatar';
-import { MessageActionsMenu } from '../../components/Chat/MessageActionsMenu';
-import { ReactionPicker } from '../../components/Chat/ReactionPicker';
-import { DateSeparator } from '../../components/Chat/DateSeparator';
-import { SystemMessage } from '../../components/Chat/SystemMessage';
-import { MessageSearch } from '../../components/Chat/MessageSearch';
-import { PinnedMessagesBar } from '../../components/Chat/PinnedMessagesBar';
-import { EmptyChatState } from '../../components/Chat/EmptyChatState';
-import { ChatHeader } from './ChatHeader';
-import { AuthStackParamList } from '../../navigation/AuthNavigator';
-import { colors, withOpacity } from '../../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
-import { logger } from '../../utils/logger';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { StackScreenProps, StackNavigationProp } from "@react-navigation/stack";
+import * as Haptics from "expo-haptics";
+import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
+import {
+  Message,
+  MessageWithStatus,
+  MessageWithRelations,
+  Conversation,
+} from "../../types/messaging";
+import { messagingAPI } from "../../services/messaging/api";
+import { useWebSocket } from "../../hooks/useWebSocket";
+import { MessageBubble } from "../../components/Chat/MessageBubble";
+import { MessageInput } from "../../components/Chat/MessageInput";
+import { TypingIndicator } from "../../components/Chat/TypingIndicator";
+import { Avatar } from "../../components/Chat/Avatar";
+import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
+import { ReactionPicker } from "../../components/Chat/ReactionPicker";
+import { DateSeparator } from "../../components/Chat/DateSeparator";
+import { SystemMessage } from "../../components/Chat/SystemMessage";
+import { MessageSearch } from "../../components/Chat/MessageSearch";
+import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
+import { EmptyChatState } from "../../components/Chat/EmptyChatState";
+import { ChatHeader } from "./ChatHeader";
+import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { colors, withOpacity } from "../../theme/colors";
+import { Ionicons } from "@expo/vector-icons";
+import { logger } from "../../utils/logger";
 
-type ChatScreenRouteProp = StackScreenProps<AuthStackParamList, 'Chat'>['route'];
-type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, 'Chat'>;
+type ChatScreenRouteProp = StackScreenProps<
+  AuthStackParamList,
+  "Chat"
+>["route"];
+type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
@@ -44,55 +69,81 @@ export const ChatScreen: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [typingUsersNames, setTypingUsersNames] = useState<Record<string, string>>({});
+  const [typingUsersNames, setTypingUsersNames] = useState<
+    Record<string, string>
+  >({});
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [editingMessage, setEditingMessage] = useState<MessageWithRelations | null>(null);
+  const [editingMessage, setEditingMessage] =
+    useState<MessageWithRelations | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [selectedMessage, setSelectedMessage] = useState<MessageWithRelations | null>(null);
+  const [selectedMessage, setSelectedMessage] =
+    useState<MessageWithRelations | null>(null);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<
+    string | null
+  >(null);
   const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<MessageWithRelations[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MessageWithRelations[]>(
+    [],
+  );
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [conversationMembers, setConversationMembers] = useState<Array<{ id: string; display_name: string; username?: string }>>([]);
+  const [conversationMembers, setConversationMembers] = useState<
+    Array<{ id: string; display_name: string; username?: string }>
+  >([]);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
   const { userId: rawUserId } = useAuth();
-  const userId = rawUserId ?? '';
-  const token = userId ? `token-${userId}` : '';
-
+  const userId = rawUserId ?? "";
+  const token = userId ? `token-${userId}` : "";
 
   // WebSocket connection
-  const { joinConversationChannel, sendMessage: wsSendMessage, markAsRead, sendTyping } = useWebSocket({
+  const {
+    joinConversationChannel,
+    sendMessage: wsSendMessage,
+    markAsRead,
+    sendTyping,
+  } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
       if (message.conversation_id === conversationId) {
-        setMessages(prev => {
+        setMessages((prev) => {
           // Check if message already exists (avoid duplicates)
-          if (prev.some(m => m.id === message.id)) {
-            return prev.map(m => (m.id === message.id ? { ...message, status: (message as any).status || 'sent' as const } : m));
+          if (prev.some((m) => m.id === message.id)) {
+            return prev.map((m) =>
+              m.id === message.id
+                ? {
+                    ...message,
+                    status: (message as any).status || ("sent" as const),
+                  }
+                : m,
+            );
           }
           // Replace optimistic message if it matches client_random
           const optimisticMessageIndex = prev.findIndex(
-            m => m.id.startsWith('temp-') && m.client_random === message.client_random
+            (m) =>
+              m.id.startsWith("temp-") &&
+              m.client_random === message.client_random,
           );
           if (optimisticMessageIndex !== -1) {
             const newMessages = [...prev];
-            newMessages[optimisticMessageIndex] = { ...message, status: (message as any).status || 'sent' as const };
+            newMessages[optimisticMessageIndex] = {
+              ...message,
+              status: (message as any).status || ("sent" as const),
+            };
             return newMessages;
           }
           return [
             {
               ...message,
-              status: (message as any).status || 'sent' as const,
+              status: (message as any).status || ("sent" as const),
             },
             ...prev,
           ];
@@ -103,13 +154,13 @@ export const ChatScreen: React.FC = () => {
     },
     onTyping: (typingUserId: string, typing: boolean) => {
       if (typingUserId !== userId) {
-        setTypingUsers(prev => {
+        setTypingUsers((prev) => {
           if (typing) {
             if (prev.includes(typingUserId)) return prev;
             // Fetch user name when user starts typing
-            messagingAPI.getUserInfo(typingUserId).then(userInfo => {
+            messagingAPI.getUserInfo(typingUserId).then((userInfo) => {
               if (userInfo) {
-                setTypingUsersNames(prevNames => ({
+                setTypingUsersNames((prevNames) => ({
                   ...prevNames,
                   [typingUserId]: userInfo.display_name,
                 }));
@@ -117,14 +168,14 @@ export const ChatScreen: React.FC = () => {
             });
             return [...prev, typingUserId];
           } else {
-            return prev.filter(id => id !== typingUserId);
+            return prev.filter((id) => id !== typingUserId);
           }
         });
       }
     },
     onConversationUpdate: (updatedConversation: Conversation) => {
       if (updatedConversation.id === conversationId) {
-        setConversation(prev => {
+        setConversation((prev) => {
           if (!prev) return updatedConversation;
           return { ...prev, ...updatedConversation };
         });
@@ -137,7 +188,7 @@ export const ChatScreen: React.FC = () => {
       const pinned = await messagingAPI.getPinnedMessages(conversationId);
       setPinnedMessages(pinned);
     } catch (error) {
-      logger.error('ChatScreen', 'Error loading pinned messages', error);
+      logger.error("ChatScreen", "Error loading pinned messages", error);
       setPinnedMessages([]);
     }
   }, [conversationId]);
@@ -148,16 +199,17 @@ export const ChatScreen: React.FC = () => {
       setConversation(conv);
 
       // Load members if it's a group
-      if (conv.type === 'group') {
+      if (conv.type === "group") {
         try {
-          const members = await messagingAPI.getConversationMembers(conversationId);
+          const members =
+            await messagingAPI.getConversationMembers(conversationId);
           setConversationMembers(members);
         } catch (error) {
-          logger.error('ChatScreen', 'Error loading members', error);
+          logger.error("ChatScreen", "Error loading members", error);
         }
       }
     } catch (error) {
-      logger.error('ChatScreen', 'Error loading conversation', error);
+      logger.error("ChatScreen", "Error loading conversation", error);
     }
   }, [conversationId]);
 
@@ -177,82 +229,94 @@ export const ChatScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
-  const loadMessages = useCallback(async (before?: string) => {
-    try {
-      if (before) {
-        setLoadingMore(true);
-      } else {
-        setLoading(true);
-      }
+  const loadMessages = useCallback(
+    async (before?: string) => {
+      try {
+        if (before) {
+          setLoadingMore(true);
+        } else {
+          setLoading(true);
+        }
 
-      const data = await messagingAPI.getMessages(conversationId, {
-        limit: 50,
-        before,
-      });
-
-      // Load reactions and enrich messages
-      const messagesWithRelations: MessageWithRelations[] = await Promise.all(
-        data
-          .filter(msg => msg && (msg.content || msg.is_deleted || msg.message_type === 'media' || msg.message_type === 'system')) // Include all message types
-          .map(async (msg) => {
-            const status = (msg as any)?.status || 'sent' as const;
-
-            // Load reactions for this message
-            let reactions = [];
-            try {
-              const reactionData = await messagingAPI.getMessageReactions(msg.id);
-              reactions = reactionData.reactions || [];
-            } catch (error) {
-              // Ignore errors for reactions
-            }
-
-            // Load attachments for this message
-            let attachments = [];
-            try {
-              attachments = await messagingAPI.getAttachments(msg.id);
-            } catch (error) {
-              // Ignore errors for attachments
-            }
-
-            // Find reply_to message if exists (search in current batch only)
-            let replyTo: Message | undefined;
-            if (msg.reply_to_id) {
-              // Search in current batch
-              replyTo = data.find(m => m.id === msg.reply_to_id);
-            }
-
-            return {
-              ...msg,
-              status,
-              reactions,
-              attachments,
-              reply_to: replyTo,
-            } as MessageWithRelations;
-          })
-      );
-
-      if (before) {
-        // Loading older messages - append to end
-        setMessages(prev => {
-          const newMessages = [...prev, ...messagesWithRelations];
-          return newMessages;
+        const data = await messagingAPI.getMessages(conversationId, {
+          limit: 50,
+          before,
         });
-        setHasMore(messagesWithRelations.length === 50);
-      } else {
-        // Initial load
-        setMessages(messagesWithRelations);
-        setHasMore(messagesWithRelations.length === 50);
+
+        // Load reactions and enrich messages
+        const messagesWithRelations: MessageWithRelations[] = await Promise.all(
+          data
+            .filter(
+              (msg) =>
+                msg &&
+                (msg.content ||
+                  msg.is_deleted ||
+                  msg.message_type === "media" ||
+                  msg.message_type === "system"),
+            ) // Include all message types
+            .map(async (msg) => {
+              const status = (msg as any)?.status || ("sent" as const);
+
+              // Load reactions for this message
+              let reactions = [];
+              try {
+                const reactionData = (await messagingAPI.getMessageReactions(
+                  msg.id,
+                )) as any;
+                reactions = reactionData.reactions || [];
+              } catch (error) {
+                // Ignore errors for reactions
+              }
+
+              // Load attachments for this message
+              let attachments = [];
+              try {
+                attachments = await messagingAPI.getAttachments(msg.id);
+              } catch (error) {
+                // Ignore errors for attachments
+              }
+
+              // Find reply_to message if exists (search in current batch only)
+              let replyTo: Message | undefined;
+              if (msg.reply_to_id) {
+                // Search in current batch
+                replyTo = data.find((m) => m.id === msg.reply_to_id);
+              }
+
+              return {
+                ...msg,
+                status,
+                reactions,
+                attachments,
+                reply_to: replyTo,
+              } as MessageWithRelations;
+            }),
+        );
+
+        if (before) {
+          // Loading older messages - append to end
+          setMessages((prev) => {
+            const newMessages = [...prev, ...messagesWithRelations];
+            return newMessages;
+          });
+          setHasMore(messagesWithRelations.length === 50);
+        } else {
+          // Initial load
+          setMessages(messagesWithRelations);
+          setHasMore(messagesWithRelations.length === 50);
+        }
+      } catch (error) {
+        logger.error("ChatScreen", "Error loading messages", error);
+        if (!before) {
+          setMessages([]);
+        }
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
-    } catch (error) {
-      logger.error('ChatScreen', 'Error loading messages', error);
-      if (!before) {
-        setMessages([]);
-      }
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [conversationId]);
+    },
+    [conversationId],
+  );
 
   const loadMoreMessages = useCallback(() => {
     if (loadingMore || !hasMore || messages.length === 0) {
@@ -274,18 +338,18 @@ export const ChatScreen: React.FC = () => {
           const updated = await messagingAPI.editMessage(
             editingMessage.id,
             conversationId,
-            content
+            content,
           );
-          setMessages(prev =>
-            prev.map(msg =>
+          setMessages((prev) =>
+            prev.map((msg) =>
               msg.id === editingMessage.id
                 ? { ...msg, ...updated, edited_at: updated.edited_at }
-                : msg
-            )
+                : msg,
+            ),
           );
           setEditingMessage(null);
         } catch (error) {
-          logger.error('ChatScreen', 'Error editing message', error);
+          logger.error("ChatScreen", "Error editing message", error);
         }
         return;
       }
@@ -294,36 +358,39 @@ export const ChatScreen: React.FC = () => {
         id: `temp-${Date.now()}`,
         conversation_id: conversationId,
         sender_id: userId,
-        message_type: 'text',
+        message_type: "text",
         content,
         metadata: {},
         client_random: Math.floor(Math.random() * 1000000),
         sent_at: new Date().toISOString(),
         is_deleted: false,
         delete_for_everyone: false,
-        status: 'sending',
+        status: "sending",
         reply_to_id: replyToId,
         reply_to: replyingTo || undefined,
       };
 
-      setMessages(prev => [tempMessage, ...prev]);
+      setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
       try {
         const sent = await messagingAPI.sendMessage(conversationId, {
           content,
-          message_type: 'text',
+          message_type: "text",
           client_random: tempMessage.client_random,
           metadata: {},
           reply_to_id: replyToId,
         });
 
-        setMessages(prev => {
-          const next: MessageWithRelations[] = prev.map(m => {
-            if (m.id.startsWith('temp-') && m.client_random === tempMessage.client_random) {
+        setMessages((prev) => {
+          const next: MessageWithRelations[] = prev.map((m) => {
+            if (
+              m.id.startsWith("temp-") &&
+              m.client_random === tempMessage.client_random
+            ) {
               const updated: MessageWithRelations = {
                 ...(sent as any),
-                status: 'sent',
+                status: "sent",
                 reply_to: tempMessage.reply_to,
               };
               return updated;
@@ -333,35 +400,42 @@ export const ChatScreen: React.FC = () => {
           return next;
         });
       } catch (error) {
-        logger.error('ChatScreen', 'Error sending message', error);
-        setMessages(prev => {
-          return prev.map(m => {
+        logger.error("ChatScreen", "Error sending message", error);
+        setMessages((prev) => {
+          return prev.map((m) => {
             if (m.id === tempMessage.id) {
-              return { ...m, status: 'failed' };
+              return { ...m, status: "failed" };
             }
             return m;
           });
         });
       }
     },
-    [conversationId, userId, sendTyping, editingMessage, replyingTo]
+    [conversationId, userId, sendTyping, editingMessage, replyingTo],
   );
 
   const handleSendMedia = useCallback(
-    async (uri: string, type: 'image' | 'video' | 'file', replyToId?: string, caption?: string) => {
+    async (
+      uri: string,
+      type: "image" | "video" | "file",
+      replyToId?: string,
+      caption?: string,
+    ) => {
       // Stop typing indicator
       sendTyping(conversationId, false);
 
       // Use caption if provided, otherwise use default text
-      const messageContent = caption?.trim() || (type === 'image' ? 'Photo' : type === 'video' ? 'Vidéo' : 'Fichier');
-      
+      const messageContent =
+        caption?.trim() ||
+        (type === "image" ? "Photo" : type === "video" ? "Vidéo" : "Fichier");
+
       // Create optimistic message
       const tempMessageId = `temp-${Date.now()}`;
       const tempMessage: MessageWithRelations = {
         id: tempMessageId,
         conversation_id: conversationId,
         sender_id: userId,
-        message_type: 'media',
+        message_type: "media",
         content: messageContent,
         metadata: {
           media_type: type,
@@ -372,7 +446,7 @@ export const ChatScreen: React.FC = () => {
         sent_at: new Date().toISOString(),
         is_deleted: false,
         delete_for_everyone: false,
-        status: 'sending',
+        status: "sending",
         reply_to_id: replyToId,
         reply_to: replyingTo || undefined,
         attachments: [
@@ -382,7 +456,7 @@ export const ChatScreen: React.FC = () => {
             media_id: `media-temp-${Date.now()}`,
             media_type: type,
             metadata: {
-              filename: uri.split('/').pop() || 'media',
+              filename: uri.split("/").pop() || "media",
               media_url: uri,
               thumbnail_url: uri,
             },
@@ -391,50 +465,52 @@ export const ChatScreen: React.FC = () => {
         ],
       };
 
-      setMessages(prev => [tempMessage, ...prev]);
+      setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
       try {
         // Send via API
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: tempMessage.content,
-          message_type: 'media',
+          message_type: "media",
           client_random: tempMessage.client_random,
           metadata: tempMessage.metadata,
           reply_to_id: replyToId,
         });
 
         if (tempMessage.attachments && tempMessage.attachments[0]) {
-          await messagingAPI.addAttachment(sentMessage.id, tempMessage.attachments[0]);
+          await messagingAPI.addAttachment(
+            sentMessage.id,
+            tempMessage.attachments[0],
+          );
         }
 
         // Update message with real ID
-        setMessages(prev =>
-          prev.map(msg =>
+        setMessages((prev) =>
+          prev.map((msg) =>
             msg.id === tempMessageId
               ? {
                   ...msg,
                   id: sentMessage.id,
-                  status: 'sent' as const,
+                  status: "sent" as const,
                 }
-              : msg
-          )
+              : msg,
+          ),
         );
       } catch (error) {
-        console.error('[ChatScreen] Error sending media:', error);
+        console.error("[ChatScreen] Error sending media:", error);
         // Update message status to failed
-        setMessages(prev =>
-          prev.map(msg =>
+        setMessages((prev) =>
+          prev.map((msg) =>
             msg.id === tempMessageId
-              ? { ...msg, status: 'failed' as const }
-              : msg
-          )
+              ? { ...msg, status: "failed" as const }
+              : msg,
+          ),
         );
       }
     },
-    [conversationId, userId, sendTyping, replyingTo]
+    [conversationId, userId, sendTyping, replyingTo],
   );
-
 
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
@@ -442,26 +518,30 @@ export const ChatScreen: React.FC = () => {
         await messagingAPI.addReaction(messageId, userId, emoji);
 
         // Reload reactions and update local state
-        const reactionData = await messagingAPI.getMessageReactions(messageId);
-        setMessages(prev =>
-          prev.map(msg =>
+        const reactionData = (await messagingAPI.getMessageReactions(
+          messageId,
+        )) as any;
+        setMessages((prev) =>
+          prev.map((msg) =>
             msg.id === messageId
               ? { ...msg, reactions: reactionData.reactions || [] }
-              : msg
-          )
+              : msg,
+          ),
         );
       } catch (error) {
-        logger.error('ChatScreen', 'Error adding reaction', error);
+        logger.error("ChatScreen", "Error adding reaction", error);
       }
     },
-    [userId]
+    [userId],
   );
 
   // Group messages by date and add date separators
   const messagesWithSeparators = useMemo(() => {
     if (messages.length === 0) return [];
 
-    const result: Array<MessageWithRelations | { type: 'date'; date: Date; id: string }> = [];
+    const result: Array<
+      MessageWithRelations | { type: "date"; date: Date; id: string }
+    > = [];
     let lastDate: string | null = null;
 
     messages.forEach((message) => {
@@ -471,7 +551,7 @@ export const ChatScreen: React.FC = () => {
       // Add date separator if date changed
       if (lastDate !== dateKey) {
         result.push({
-          type: 'date',
+          type: "date",
           date: messageDate,
           id: `date-${dateKey}`,
         } as any);
@@ -484,37 +564,52 @@ export const ChatScreen: React.FC = () => {
     return result;
   }, [messages]);
 
-  const scrollToMessage = useCallback((messageId: string) => {
-    const index = messagesWithSeparators.findIndex(
-      item => !(item as any).type && (item as MessageWithRelations).id === messageId
-    );
+  const scrollToMessage = useCallback(
+    (messageId: string) => {
+      const index = messagesWithSeparators.findIndex(
+        (item) =>
+          !(item as any).type &&
+          (item as MessageWithRelations).id === messageId,
+      );
 
-    if (index !== -1 && flatListRef.current) {
-      try {
-        flatListRef.current.scrollToIndex({
-          index,
-          animated: true,
-          viewPosition: 0.5,
-        });
-      } catch (error) {
-        logger.error('ChatScreen', `Error scrolling to message ${messageId}`, error);
+      if (index !== -1 && flatListRef.current) {
+        try {
+          flatListRef.current.scrollToIndex({
+            index,
+            animated: true,
+            viewPosition: 0.5,
+          });
+        } catch (error) {
+          logger.error(
+            "ChatScreen",
+            `Error scrolling to message ${messageId}`,
+            error,
+          );
+        }
+      } else {
+        logger.warn(
+          "ChatScreen",
+          `Cannot scroll to message ${messageId} (index: ${index})`,
+        );
       }
-    } else {
-      logger.warn('ChatScreen', `Cannot scroll to message ${messageId} (index: ${index})`);
-    }
-  }, [messagesWithSeparators]);
+    },
+    [messagesWithSeparators],
+  );
 
   const handleReplyPress = useCallback(
     (messageId: string) => {
       scrollToMessage(messageId);
     },
-    [scrollToMessage]
+    [scrollToMessage],
   );
 
-  const handleMessageLongPress = useCallback((message: MessageWithRelations) => {
-    setSelectedMessage(message);
-    setShowActionsMenu(true);
-  }, []);
+  const handleMessageLongPress = useCallback(
+    (message: MessageWithRelations) => {
+      setSelectedMessage(message);
+      setShowActionsMenu(true);
+    },
+    [],
+  );
 
   const handleEditMessage = useCallback(() => {
     if (selectedMessage) {
@@ -531,32 +626,34 @@ export const ChatScreen: React.FC = () => {
         await messagingAPI.deleteMessage(
           selectedMessage.id,
           conversationId,
-          deleteForEveryone
+          deleteForEveryone,
         );
 
         if (deleteForEveryone) {
           // Update message to show "[Message supprimé]"
-          setMessages(prev =>
-            prev.map(msg =>
+          setMessages((prev) =>
+            prev.map((msg) =>
               msg.id === selectedMessage.id
                 ? {
                     ...msg,
                     is_deleted: true,
                     delete_for_everyone: true,
-                    content: '[Message supprimé]',
+                    content: "[Message supprimé]",
                   }
-                : msg
-            )
+                : msg,
+            ),
           );
         } else {
           // Remove from view
-          setMessages(prev => prev.filter(msg => msg.id !== selectedMessage.id));
+          setMessages((prev) =>
+            prev.filter((msg) => msg.id !== selectedMessage.id),
+          );
         }
       } catch (error) {
-        logger.error('ChatScreen', 'Error deleting message', error);
+        logger.error("ChatScreen", "Error deleting message", error);
       }
     },
-    [selectedMessage, conversationId]
+    [selectedMessage, conversationId],
   );
 
   const handleStartReply = useCallback(() => {
@@ -578,8 +675,10 @@ export const ChatScreen: React.FC = () => {
     if (!selectedMessage) return;
 
     try {
-      const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
-      const action = isCurrentlyPinned ? 'unpin' : 'pin';
+      const isCurrentlyPinned = pinnedMessages.some(
+        (m) => m.id === selectedMessage.id,
+      );
+      const action = isCurrentlyPinned ? "unpin" : "pin";
 
       if (isCurrentlyPinned) {
         await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
@@ -589,28 +688,34 @@ export const ChatScreen: React.FC = () => {
 
       await loadPinnedMessages();
 
-      setMessages(prev =>
-        prev.map(msg =>
+      setMessages((prev) =>
+        prev.map((msg) =>
           msg.id === selectedMessage.id
             ? { ...msg, is_pinned: !isCurrentlyPinned }
-            : msg
-        )
+            : msg,
+        ),
       );
     } catch (error) {
-      const isCurrentlyPinned = pinnedMessages.some(m => m.id === selectedMessage.id);
-      logger.error('ChatScreen', `Error ${isCurrentlyPinned ? 'unpinning' : 'pinning'} message`, error);
+      const isCurrentlyPinned = pinnedMessages.some(
+        (m) => m.id === selectedMessage.id,
+      );
+      logger.error(
+        "ChatScreen",
+        `Error ${isCurrentlyPinned ? "unpinning" : "pinning"} message`,
+        error,
+      );
     }
   }, [selectedMessage, conversationId, pinnedMessages, loadPinnedMessages]);
 
   const handlePinnedMessagePress = useCallback(
     (messageId: string) => {
-      if (!messages.some(m => m.id === messageId)) {
-        logger.warn('ChatScreen', `Pinned message not found: ${messageId}`);
+      if (!messages.some((m) => m.id === messageId)) {
+        logger.warn("ChatScreen", `Pinned message not found: ${messageId}`);
         return;
       }
       scrollToMessage(messageId);
     },
-    [scrollToMessage, messages]
+    [scrollToMessage, messages],
   );
 
   const handleReactionSelectFromPicker = useCallback(
@@ -621,69 +726,86 @@ export const ChatScreen: React.FC = () => {
         setReactionPickerMessageId(null);
       }
     },
-    [reactionPickerMessageId, handleReactionPress]
+    [reactionPickerMessageId, handleReactionPress],
   );
 
   // Handle search
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
+  const handleSearch = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
 
-    if (query.trim()) {
-      try {
-        const results = messages.filter(msg => {
-          // Skip system messages and deleted messages
-          if (msg.message_type === 'system' || msg.is_deleted) return false;
-          // Check if message has content and matches query
-          if (!msg.content) return false;
-          return msg.content.toLowerCase().includes(query.toLowerCase());
-        });
+      if (query.trim()) {
+        try {
+          const results = messages.filter((msg) => {
+            // Skip system messages and deleted messages
+            if (msg.message_type === "system" || msg.is_deleted) return false;
+            // Check if message has content and matches query
+            if (!msg.content) return false;
+            return msg.content.toLowerCase().includes(query.toLowerCase());
+          });
 
-        setSearchResults(results);
-        setCurrentSearchIndex(0);
+          setSearchResults(results);
+          setCurrentSearchIndex(0);
 
-        // Scroll to first result after a short delay to ensure list is rendered
-        if (results.length > 0 && flatListRef.current) {
-          setTimeout(() => {
-            const firstResultIndex = messagesWithSeparators.findIndex(
-              item => !(item as any).type && (item as MessageWithRelations).id === results[0].id
-            );
+          // Scroll to first result after a short delay to ensure list is rendered
+          if (results.length > 0 && flatListRef.current) {
+            setTimeout(() => {
+              const firstResultIndex = messagesWithSeparators.findIndex(
+                (item) =>
+                  !(item as any).type &&
+                  (item as MessageWithRelations).id === results[0].id,
+              );
 
-            if (firstResultIndex !== -1 && flatListRef.current) {
-              try {
-                flatListRef.current.scrollToIndex({
-                  index: firstResultIndex,
-                  animated: true,
-                  viewPosition: 0.5,
-                });
-              } catch (error) {
-                logger.warn('ChatScreen', 'Error scrolling to search result', error);
+              if (firstResultIndex !== -1 && flatListRef.current) {
+                try {
+                  flatListRef.current.scrollToIndex({
+                    index: firstResultIndex,
+                    animated: true,
+                    viewPosition: 0.5,
+                  });
+                } catch (error) {
+                  logger.warn(
+                    "ChatScreen",
+                    "Error scrolling to search result",
+                    error,
+                  );
+                }
               }
-            }
-          }, 100);
+            }, 100);
+          }
+        } catch (error) {
+          logger.error("ChatScreen", "Error in search", error);
+          setSearchResults([]);
+          setCurrentSearchIndex(0);
         }
-      } catch (error) {
-        logger.error('ChatScreen', 'Error in search', error);
+      } else {
         setSearchResults([]);
         setCurrentSearchIndex(0);
       }
-    } else {
-      setSearchResults([]);
-      setCurrentSearchIndex(0);
-    }
-  }, [messages, messagesWithSeparators]);
+    },
+    [messages, messagesWithSeparators],
+  );
 
   const handleSearchNext = useCallback(() => {
-    if (currentSearchIndex < searchResults.length - 1 && searchResults.length > 0) {
+    if (
+      currentSearchIndex < searchResults.length - 1 &&
+      searchResults.length > 0
+    ) {
       try {
         const newIndex = currentSearchIndex + 1;
         setCurrentSearchIndex(newIndex);
         const result = searchResults[newIndex];
         if (!result) {
-          logger.warn('ChatScreen', `Search result not found at index: ${newIndex}`);
+          logger.warn(
+            "ChatScreen",
+            `Search result not found at index: ${newIndex}`,
+          );
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
-          item => !(item as any).type && (item as MessageWithRelations).id === result.id
+          (item) =>
+            !(item as any).type &&
+            (item as MessageWithRelations).id === result.id,
         );
         if (resultIndex !== -1 && flatListRef.current) {
           try {
@@ -693,13 +815,20 @@ export const ChatScreen: React.FC = () => {
               viewPosition: 0.5,
             });
           } catch (error) {
-            logger.warn('ChatScreen', 'Error scrolling to next search result', error);
+            logger.warn(
+              "ChatScreen",
+              "Error scrolling to next search result",
+              error,
+            );
           }
         } else {
-          logger.warn('ChatScreen', `Search result not found in messages list: ${result.id}`);
+          logger.warn(
+            "ChatScreen",
+            `Search result not found in messages list: ${result.id}`,
+          );
         }
       } catch (error) {
-        logger.error('ChatScreen', 'Error in handleSearchNext', error);
+        logger.error("ChatScreen", "Error in handleSearchNext", error);
       }
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
@@ -711,11 +840,16 @@ export const ChatScreen: React.FC = () => {
         setCurrentSearchIndex(newIndex);
         const result = searchResults[newIndex];
         if (!result) {
-          logger.warn('ChatScreen', `Search result not found at index: ${newIndex}`);
+          logger.warn(
+            "ChatScreen",
+            `Search result not found at index: ${newIndex}`,
+          );
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
-          item => !(item as any).type && (item as MessageWithRelations).id === result.id
+          (item) =>
+            !(item as any).type &&
+            (item as MessageWithRelations).id === result.id,
         );
         if (resultIndex !== -1 && flatListRef.current) {
           try {
@@ -725,26 +859,36 @@ export const ChatScreen: React.FC = () => {
               viewPosition: 0.5,
             });
           } catch (error) {
-            logger.warn('ChatScreen', 'Error scrolling to previous search result', error);
+            logger.warn(
+              "ChatScreen",
+              "Error scrolling to previous search result",
+              error,
+            );
           }
         } else {
-          logger.warn('ChatScreen', `Search result not found in messages list: ${result.id}`);
+          logger.warn(
+            "ChatScreen",
+            `Search result not found in messages list: ${result.id}`,
+          );
         }
       } catch (error) {
-        logger.error('ChatScreen', 'Error in handleSearchPrevious', error);
+        logger.error("ChatScreen", "Error in handleSearchPrevious", error);
       }
     }
   }, [currentSearchIndex, searchResults, messagesWithSeparators]);
 
   const handleInfoPress = useCallback(() => {
-    if (conversation?.type === 'group') {
+    if (conversation?.type === "group") {
       // Ensure modal is closed before navigating
       setShowInfoModal(false);
-      const groupId = conversation.external_group_id || conversation.metadata?.group_id || conversation.id;
+      const groupId =
+        conversation.external_group_id ||
+        conversation.metadata?.group_id ||
+        conversation.id;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       // Use setTimeout to ensure modal is closed before navigation
       setTimeout(() => {
-        navigation.navigate('GroupDetails', {
+        navigation.navigate("GroupDetails", {
           groupId,
           conversationId: conversation.id,
         });
@@ -755,22 +899,28 @@ export const ChatScreen: React.FC = () => {
   }, [conversation, navigation]);
 
   const renderItem = useCallback(
-    ({ item }: { item: MessageWithRelations | { type: 'date'; date: Date; id: string } }) => {
+    ({
+      item,
+    }: {
+      item: MessageWithRelations | { type: "date"; date: Date; id: string };
+    }) => {
       // Check if it's a date separator
-      if ((item as any).type === 'date') {
+      if ((item as any).type === "date") {
         return <DateSeparator date={(item as any).date} />;
       }
 
       const message = item as MessageWithRelations;
 
       // Handle system messages
-      if (message.message_type === 'system') {
+      if (message.message_type === "system") {
         return <SystemMessage content={message.content} />;
       }
 
       const isSent = message.sender_id === userId;
-      const isHighlighted = Boolean(searchQuery.trim() && searchResults.some(r => r.id === message.id));
-      
+      const isHighlighted = Boolean(
+        searchQuery.trim() && searchResults.some((r) => r.id === message.id),
+      );
+
       return (
         <MessageBubble
           message={message}
@@ -784,17 +934,24 @@ export const ChatScreen: React.FC = () => {
         />
       );
     },
-    [userId, handleReactionPress, handleReplyPress, handleMessageLongPress, searchQuery, searchResults]
+    [
+      userId,
+      handleReactionPress,
+      handleReplyPress,
+      handleMessageLongPress,
+      searchQuery,
+      searchResults,
+    ],
   );
 
   const keyExtractor = useCallback(
-    (item: MessageWithRelations | { type: 'date'; date: Date; id: string }) => {
-      if ((item as any).type === 'date') {
+    (item: MessageWithRelations | { type: "date"; date: Date; id: string }) => {
+      if ((item as any).type === "date") {
         return (item as any).id;
       }
       return (item as MessageWithRelations).id;
     },
-    []
+    [],
   );
 
   return (
@@ -804,12 +961,12 @@ export const ChatScreen: React.FC = () => {
       end={{ x: 1, y: 1 }}
       style={styles.gradientContainer}
     >
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
         <ChatHeader
-          conversationName={conversation?.display_name || 'Contact'}
+          conversationName={conversation?.display_name || "Contact"}
           avatarUrl={conversation?.avatar_url}
-          conversationType={conversation?.type || 'direct'}
-          isOnline={conversation?.type === 'direct'}
+          conversationType={conversation?.type || "direct"}
+          isOnline={conversation?.type === "direct"}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
         />
@@ -822,8 +979,8 @@ export const ChatScreen: React.FC = () => {
         )}
         <KeyboardAvoidingView
           style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
           <FlatList
             ref={flatListRef}
@@ -854,130 +1011,135 @@ export const ChatScreen: React.FC = () => {
           {typingUsers.length > 0 && (
             <View style={styles.typingContainer}>
               <TypingIndicator
-                userNames={typingUsers.map(id => typingUsersNames[id] || "Quelqu'un")}
+                userNames={typingUsers.map(
+                  (id) => typingUsersNames[id] || "Quelqu'un",
+                )}
               />
             </View>
           )}
-        <MessageInput
-          onSend={handleSendMessage}
-          onSendMedia={handleSendMedia}
-          onTyping={(typing) => sendTyping(conversationId, typing)}
-          replyingTo={replyingTo}
-          onCancelReply={() => setReplyingTo(null)}
-          editingMessage={editingMessage}
-          onCancelEdit={() => setEditingMessage(null)}
-          conversationType={conversation?.type || 'direct'}
-          members={conversationMembers}
-        />
-      </KeyboardAvoidingView>
-      <MessageActionsMenu
-        visible={showActionsMenu}
-        message={selectedMessage}
-        isSent={selectedMessage?.sender_id === userId}
-        isPinned={pinnedMessages.some(m => m.id === selectedMessage?.id)}
-        onClose={() => {
-          setShowActionsMenu(false);
-          setSelectedMessage(null);
-        }}
-        onReply={handleStartReply}
-        onEdit={handleEditMessage}
-        onDelete={handleDeleteMessage}
-        onReact={handleStartReaction}
-        onPin={handlePinMessage}
-      />
-      {showReactionPicker && (
-        <ReactionPicker
-          visible={showReactionPicker}
+          <MessageInput
+            onSend={handleSendMessage}
+            onSendMedia={handleSendMedia}
+            onTyping={(typing) => sendTyping(conversationId, typing)}
+            replyingTo={replyingTo}
+            onCancelReply={() => setReplyingTo(null)}
+            editingMessage={editingMessage}
+            onCancelEdit={() => setEditingMessage(null)}
+            conversationType={conversation?.type || "direct"}
+            members={conversationMembers}
+          />
+        </KeyboardAvoidingView>
+        <MessageActionsMenu
+          visible={showActionsMenu}
+          message={selectedMessage}
+          isSent={selectedMessage?.sender_id === userId}
+          isPinned={pinnedMessages.some((m) => m.id === selectedMessage?.id)}
           onClose={() => {
-            setShowReactionPicker(false);
-            setReactionPickerMessageId(null);
+            setShowActionsMenu(false);
+            setSelectedMessage(null);
           }}
-          onReactionSelect={handleReactionSelectFromPicker}
+          onReply={handleStartReply}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onReact={handleStartReaction}
+          onPin={handlePinMessage}
         />
-      )}
-      <MessageSearch
-        visible={showSearch}
-        onClose={() => {
-          setShowSearch(false);
-          setSearchQuery('');
-          setSearchResults([]);
-        }}
-        onSearch={handleSearch}
-        resultsCount={searchResults.length}
-        currentIndex={currentSearchIndex}
-        onNext={handleSearchNext}
-        onPrevious={handleSearchPrevious}
-      />
-      <Modal
-        visible={showInfoModal && conversation?.type !== 'group'}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowInfoModal(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <LinearGradient
-              colors={colors.background.gradient.app}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.modalGradient}
-            >
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  Informations de la conversation
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowInfoModal(false);
-                  }}
-                  style={styles.closeButton}
-                  activeOpacity={0.7}
+        {showReactionPicker && (
+          <ReactionPicker
+            visible={showReactionPicker}
+            onClose={() => {
+              setShowReactionPicker(false);
+              setReactionPickerMessageId(null);
+            }}
+            onReactionSelect={handleReactionSelectFromPicker}
+          />
+        )}
+        <MessageSearch
+          visible={showSearch}
+          onClose={() => {
+            setShowSearch(false);
+            setSearchQuery("");
+            setSearchResults([]);
+          }}
+          onSearch={handleSearch}
+          resultsCount={searchResults.length}
+          currentIndex={currentSearchIndex}
+          onNext={handleSearchNext}
+          onPrevious={handleSearchPrevious}
+        />
+        <Modal
+          visible={showInfoModal && conversation?.type !== "group"}
+          transparent
+          animationType="slide"
+          onRequestClose={() => {
+            setShowInfoModal(false);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <LinearGradient
+                colors={colors.background.gradient.app}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.modalGradient}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    Informations de la conversation
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowInfoModal(false);
+                    }}
+                    style={styles.closeButton}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={colors.text.light}
+                    />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView
+                  style={styles.modalBody}
+                  showsVerticalScrollIndicator={false}
                 >
-                  <Ionicons name="close" size={24} color={colors.text.light} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                <View style={styles.infoSectionMain}>
-                  <Avatar
-                    size={80}
-                    uri={conversation?.avatar_url}
-                    name={conversation?.display_name || 'Contact'}
-                    showOnlineBadge={conversation?.type === 'direct'}
-                    isOnline={false}
-                  />
-                  <Text style={styles.infoName}>
-                    {conversation?.display_name || 'Contact'}
-                  </Text>
-                  {conversation?.type === 'direct' && (
-                    <Text style={styles.infoStatus}>
-                      Hors ligne
+                  <View style={styles.infoSectionMain}>
+                    <Avatar
+                      size={80}
+                      uri={conversation?.avatar_url}
+                      name={conversation?.display_name || "Contact"}
+                      showOnlineBadge={conversation?.type === "direct"}
+                      isOnline={false}
+                    />
+                    <Text style={styles.infoName}>
+                      {conversation?.display_name || "Contact"}
                     </Text>
-                  )}
-                </View>
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>
-                    TYPE
-                  </Text>
-                  <Text style={styles.infoValue}>
-                    {conversation?.type === 'group' ? 'Groupe' : 'Conversation directe'}
-                  </Text>
-                </View>
-                <View style={styles.infoSection}>
-                  <Text style={styles.infoLabel}>
-                    MESSAGES
-                  </Text>
-                  <Text style={styles.infoValue}>
-                    {messages.length} message{messages.length > 1 ? 's' : ''}
-                  </Text>
-                </View>
-              </ScrollView>
-            </LinearGradient>
+                    {conversation?.type === "direct" && (
+                      <Text style={styles.infoStatus}>Hors ligne</Text>
+                    )}
+                  </View>
+                  <View style={styles.infoSection}>
+                    <Text style={styles.infoLabel}>TYPE</Text>
+                    <Text style={styles.infoValue}>
+                      {conversation?.type === "group"
+                        ? "Groupe"
+                        : "Conversation directe"}
+                    </Text>
+                  </View>
+                  <View style={styles.infoSection}>
+                    <Text style={styles.infoLabel}>MESSAGES</Text>
+                    <Text style={styles.infoValue}>
+                      {messages.length} message{messages.length > 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                </ScrollView>
+              </LinearGradient>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -998,7 +1160,7 @@ const styles = StyleSheet.create({
   },
   loadingMore: {
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   typingContainer: {
     paddingHorizontal: 16,
@@ -1006,21 +1168,21 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "flex-end",
   },
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '85%',
-    overflow: 'hidden',
+    maxHeight: "85%",
+    overflow: "hidden",
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderTopColor: withOpacity(colors.primary.main, 0.2),
     borderLeftColor: withOpacity(colors.primary.main, 0.1),
     borderRightColor: withOpacity(colors.primary.main, 0.1),
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
@@ -1031,9 +1193,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 20,
@@ -1042,7 +1204,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: -0.5,
     color: colors.text.light,
     flex: 1,
@@ -1058,7 +1220,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   infoSectionMain: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
     paddingBottom: 24,
     borderBottomWidth: 1,
@@ -1066,7 +1228,7 @@ const styles = StyleSheet.create({
   },
   infoName: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text.light,
     marginTop: 16,
     letterSpacing: -0.5,
@@ -1075,7 +1237,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: withOpacity(colors.text.light, 0.6),
     marginTop: 6,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   infoSection: {
     marginBottom: 24,
@@ -1086,14 +1248,14 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 11,
     marginBottom: 10,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 1.2,
     color: withOpacity(colors.text.light, 0.5),
-    fontWeight: '600',
+    fontWeight: "600",
   },
   infoValue: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text.light,
     letterSpacing: 0.2,
   },
