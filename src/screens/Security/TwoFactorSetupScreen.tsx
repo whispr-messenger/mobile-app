@@ -14,6 +14,7 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
+  Clipboard,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -27,10 +28,9 @@ import { Circle, Path } from "react-native-svg";
 import { TwoFactorService } from "../../services/TwoFactorService";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
-const copyToClipboard = async (text: string) => {
+const copyToClipboard = (text: string): boolean => {
   try {
-    const Clipboard = require("expo-clipboard");
-    await Clipboard.setStringAsync(text);
+    Clipboard.setString(text);
     return true;
   } catch {
     return false;
@@ -175,9 +175,9 @@ export const TwoFactorSetupScreen: React.FC = () => {
     [qrShapes],
   );
 
-  const handleCopySecret = async () => {
+  const handleCopySecret = () => {
     triggerHaptic("light");
-    const success = await copyToClipboard(secret);
+    const success = copyToClipboard(secret);
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.secretCopied"), "success");

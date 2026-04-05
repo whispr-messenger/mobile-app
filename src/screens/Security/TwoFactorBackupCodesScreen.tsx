@@ -8,6 +8,7 @@ import {
   Animated,
   Platform,
   Dimensions,
+  Clipboard,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -19,10 +20,9 @@ import * as Haptics from "expo-haptics";
 import Toast from "../../components/Toast/Toast";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
-const copyToClipboard = async (text: string) => {
+const copyToClipboard = (text: string): boolean => {
   try {
-    const Clipboard = require("expo-clipboard");
-    await Clipboard.setStringAsync(text);
+    Clipboard.setString(text);
     return true;
   } catch {
     return false;
@@ -88,18 +88,18 @@ export const TwoFactorBackupCodesScreen: React.FC = () => {
     ]).start();
   }, []);
 
-  const handleCopyCode = async (code: string) => {
+  const handleCopyCode = (code: string) => {
     triggerHaptic("light");
-    const success = await copyToClipboard(code);
+    const success = copyToClipboard(code);
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.codeCopied"), "success");
     }
   };
 
-  const handleCopyAll = async () => {
+  const handleCopyAll = () => {
     triggerHaptic("light");
-    const success = await copyToClipboard(codes.join("\n"));
+    const success = copyToClipboard(codes.join("\n"));
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.allCodesCopied"), "success");
