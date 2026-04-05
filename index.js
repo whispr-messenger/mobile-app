@@ -1,13 +1,4 @@
 import { registerRootComponent } from 'expo';
-import * as ExpoCrypto from 'expo-crypto';
-
-// Polyfill global.crypto.getRandomValues for tweetnacl (not available in Hermes)
-if (!global.crypto) {
-  global.crypto = {};
-}
-if (!global.crypto.getRandomValues) {
-  global.crypto.getRandomValues = ExpoCrypto.getRandomValues;
-}
 
 import App from './App';
 
