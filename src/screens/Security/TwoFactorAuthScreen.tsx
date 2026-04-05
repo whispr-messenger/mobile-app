@@ -3,7 +3,13 @@
  * Two-factor authentication management
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -16,34 +22,35 @@ import {
   Platform,
   Dimensions,
   Switch,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import * as Haptics from 'expo-haptics';
-import Toast from '../../components/Toast/Toast';
-import QRCodeStyled from 'react-native-qrcode-styled';
-import { Circle, Path } from 'react-native-svg';
+  ActivityIndicator,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import * as Haptics from "expo-haptics";
+import Toast from "../../components/Toast/Toast";
+import QRCodeStyled from "react-native-qrcode-styled";
+import { Circle, Path } from "react-native-svg";
+import { TwoFactorService } from "../../services/TwoFactorService";
 
 const copyToClipboard = async (text: string) => {
   try {
-    const Clipboard = require('expo-clipboard');
+    const Clipboard = require("expo-clipboard");
     await Clipboard.setStringAsync(text);
     return true;
   } catch (error) {
-    console.log('📋 Copy to clipboard (fallback):', text);
+    console.log("📋 Copy to clipboard (fallback):", text);
     return false;
   }
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface RecoveryCode {
   id: string;
   code: string;
   used: boolean;
-  createdAt: string;
 }
 
 const buildStarPath = (cx: number, cy: number, r: number) =>
@@ -78,21 +85,37 @@ export const TwoFactorAuthScreen: React.FC = () => {
   const navigation = useNavigation();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
-  const accentColor = '#9692AC';
-  const accentColorDark = '#727596';
-  const qrGradientColors = ['#FFB07B', '#F86F71', '#F04882'];
-  const qrShapes = useMemo(() => ['star', 'spark', 'diamond', 'dot'], []);
+  const accentColor = "#9692AC";
+  const accentColorDark = "#727596";
+  const qrGradientColors = ["#FFB07B", "#F86F71", "#F04882"];
+  const qrShapes = useMemo(() => ["star", "spark", "diamond", "dot"], []);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [setupInProgress, setSetupInProgress] = useState(false);
   const [expandedQR, setExpandedQR] = useState(false);
   const [expandedRecoveryCodes, setExpandedRecoveryCodes] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [qrCodeSecret] = useState('JBSWY3DPEHPK3PXP');
+  const [verificationCode, setVerificationCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [showDisablePrompt, setShowDisablePrompt] = useState(false);
+  const [qrCodeSecret, setQrCodeSecret] = useState("");
+  const [qrCodeUri, setQrCodeUri] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const renderStylizedPiece = useCallback(
-    ({ x, y, pieceSize, bitMatrix }: { x: number; y: number; pieceSize: number; bitMatrix: number[][] }) => {
+    ({
+      x,
+      y,
+      pieceSize,
+      bitMatrix,
+    }: {
+      x: number;
+      y: number;
+      pieceSize: number;
+      bitMatrix: number[][];
+    }) => {
       if (!bitMatrix[y] || bitMatrix[y][x] === 0) {
         return null;
       }
@@ -101,12 +124,12 @@ export const TwoFactorAuthScreen: React.FC = () => {
       const cx = x * pieceSize + pieceSize / 2;
       const cy = y * pieceSize + pieceSize / 2;
       const r = size / 2;
-      const fill = 'url(#gradient)';
+      const fill = "url(#gradient)";
 
       const key = `${x}-${y}`;
 
       switch (shape) {
-        case 'diamond':
+        case "diamond":
           return (
             <Path
               key={key}
@@ -114,36 +137,31 @@ export const TwoFactorAuthScreen: React.FC = () => {
               fill={fill}
             />
           );
-        case 'spark':
+        case "spark":
           return <Path key={key} d={buildSparkPath(cx, cy, r)} fill={fill} />;
-        case 'dot':
+        case "dot":
           return <Circle key={key} cx={cx} cy={cy} r={r} fill={fill} />;
-        case 'star':
+        case "star":
         default:
           return <Path key={key} d={buildStarPath(cx, cy, r)} fill={fill} />;
       }
     },
-    [qrShapes]
+    [qrShapes],
   );
 
   const qrOpacity = useRef(new Animated.Value(0)).current;
   const recoveryCodesOpacity = useRef(new Animated.Value(0)).current;
   const qrChevronRotation = useRef(new Animated.Value(0)).current;
   const recoveryCodesChevronRotation = useRef(new Animated.Value(0)).current;
-  const [recoveryCodes] = useState<RecoveryCode[]>([
-    { id: '1', code: '1234-5678', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '2', code: '2345-6789', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '3', code: '3456-7890', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '4', code: '4567-8901', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '5', code: '5678-9012', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '6', code: '6789-0123', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '7', code: '7890-1234', used: false, createdAt: '2024-01-15T10:30:00Z' },
-    { id: '8', code: '8901-2345', used: false, createdAt: '2024-01-15T10:30:00Z' },
-  ]);
-  const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' | 'info' | 'warning' }>({
+  const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCode[]>([]);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+  }>({
     visible: false,
-    message: '',
-    type: 'info',
+    message: "",
+    type: "info",
   });
 
   useEffect(() => {
@@ -159,6 +177,11 @@ export const TwoFactorAuthScreen: React.FC = () => {
         useNativeDriver: true,
       }),
     ]).start();
+
+    TwoFactorService.getStatus()
+      .then(({ enabled }) => setTwoFactorEnabled(enabled))
+      .catch(() => showToast(getLocalizedText("twoFactor.loadError"), "error"))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -221,87 +244,170 @@ export const TwoFactorAuthScreen: React.FC = () => {
     }
   }, [expandedRecoveryCodes]);
 
-  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'success' = 'light') => {
-    if (Platform.OS === 'ios') {
+  const triggerHaptic = (
+    type: "light" | "medium" | "heavy" | "success" = "light",
+  ) => {
+    if (Platform.OS === "ios") {
       try {
-        if (type === 'success') {
+        if (type === "success") {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
           Haptics.impactAsync(
-            type === 'light' ? Haptics.ImpactFeedbackStyle.Light :
-            type === 'medium' ? Haptics.ImpactFeedbackStyle.Medium :
-            Haptics.ImpactFeedbackStyle.Heavy
+            type === "light"
+              ? Haptics.ImpactFeedbackStyle.Light
+              : type === "medium"
+                ? Haptics.ImpactFeedbackStyle.Medium
+                : Haptics.ImpactFeedbackStyle.Heavy,
           );
         }
       } catch (error) {
-        console.log('⚠️ Haptic feedback error:', error);
+        console.log("⚠️ Haptic feedback error:", error);
       }
     }
   };
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+  const showToast = (
+    message: string,
+    type: "success" | "error" | "info" | "warning" = "info",
+  ) => {
     setToast({ visible: true, message, type });
   };
 
-  const handleToggle2FA = (value: boolean) => {
-    triggerHaptic('light');
+  const handleToggle2FA = async (value: boolean) => {
+    triggerHaptic("light");
     if (value) {
-      setTwoFactorEnabled(true);
-      setExpandedQR(true);
+      setActionLoading(true);
+      try {
+        const setupData = await TwoFactorService.setup();
+        setQrCodeSecret(setupData.secret);
+        setQrCodeUri(setupData.qrCodeUri);
+        setSetupInProgress(true);
+        setExpandedQR(true);
+      } catch {
+        showToast(getLocalizedText("twoFactor.setupError"), "error");
+      } finally {
+        setActionLoading(false);
+      }
     } else {
-      Alert.alert(
-        getLocalizedText('twoFactor.disable'),
-        getLocalizedText('twoFactor.disableConfirm'),
-        [
-          { text: getLocalizedText('common.cancel'), style: 'cancel' },
-          {
-            text: getLocalizedText('twoFactor.disable'),
-            style: 'destructive',
-            onPress: () => {
-              triggerHaptic('medium');
-              setTwoFactorEnabled(false);
-              showToast(getLocalizedText('twoFactor.disabled'), 'success');
-            },
-          },
-        ],
-        { cancelable: true }
-      );
+      setShowDisablePrompt(true);
     }
   };
 
-  const handleVerifyQRCode = () => {
+  const handleVerifyQRCode = async () => {
     if (verificationCode.length < 6) {
-      triggerHaptic('heavy');
-      showToast(getLocalizedText('twoFactor.invalidCode'), 'error');
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
       return;
     }
 
-    triggerHaptic('success');
-    setVerificationCode('');
-    setExpandedQR(false);
-    showToast(getLocalizedText('twoFactor.enabled'), 'success');
+    setActionLoading(true);
+    try {
+      await TwoFactorService.enable(verificationCode);
+      const backupData = await TwoFactorService.getBackupCodes();
+      setRecoveryCodes(
+        backupData.codes.map((code, i) => ({
+          id: String(i),
+          code,
+          used: false,
+        })),
+      );
+      setTwoFactorEnabled(true);
+      setSetupInProgress(false);
+      setVerificationCode("");
+      setExpandedQR(false);
+      triggerHaptic("success");
+      showToast(getLocalizedText("twoFactor.enabled"), "success");
+    } catch {
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisable2FA = async () => {
+    if (disableCode.length < 6) {
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await TwoFactorService.disable(disableCode);
+      setTwoFactorEnabled(false);
+      setSetupInProgress(false);
+      setDisableCode("");
+      setShowDisablePrompt(false);
+      setRecoveryCodes([]);
+      setQrCodeSecret("");
+      setQrCodeUri("");
+      triggerHaptic("medium");
+      showToast(getLocalizedText("twoFactor.disabled"), "success");
+    } catch {
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRegenerateBackupCodes = async () => {
+    setActionLoading(true);
+    try {
+      const backupData = await TwoFactorService.getBackupCodes();
+      setRecoveryCodes(
+        backupData.codes.map((code, i) => ({
+          id: String(i),
+          code,
+          used: false,
+        })),
+      );
+      triggerHaptic("success");
+      showToast(getLocalizedText("twoFactor.codesRegenerated"), "success");
+    } catch {
+      showToast(getLocalizedText("twoFactor.setupError"), "error");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleCopyRecoveryCode = async (code: string) => {
-    triggerHaptic('light');
+    triggerHaptic("light");
     const success = await copyToClipboard(code);
     if (success) {
-      triggerHaptic('success');
-      showToast(getLocalizedText('twoFactor.codeCopied'), 'success');
+      triggerHaptic("success");
+      showToast(getLocalizedText("twoFactor.codeCopied"), "success");
     } else {
-      showToast(`${getLocalizedText('twoFactor.codeCopied')}: ${code}`, 'info');
+      showToast(`${getLocalizedText("twoFactor.codeCopied")}: ${code}`, "info");
     }
   };
 
   const handleScanQRCode = () => {
-    triggerHaptic('light');
+    triggerHaptic("light");
     Alert.alert(
-      '',
-      getLocalizedText('twoFactor.qrScannerComingSoon'),
-      [{ text: getLocalizedText('common.ok') }],
-      { cancelable: true }
+      "",
+      getLocalizedText("twoFactor.qrScannerComingSoon"),
+      [{ text: getLocalizedText("common.ok") }],
+      { cancelable: true },
     );
   };
+
+  if (loading) {
+    return (
+      <LinearGradient
+        colors={themeColors.background.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[
+          styles.container,
+          { alignItems: "center", justifyContent: "center" },
+        ]}
+      >
+        <ActivityIndicator size="large" color={accentColor} />
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -329,24 +435,31 @@ export const TwoFactorAuthScreen: React.FC = () => {
               style={[
                 styles.backButton,
                 {
-                  backgroundColor: themeColors.background.secondary + '80',
+                  backgroundColor: themeColors.background.secondary + "80",
                 },
               ]}
               onPress={() => {
-                triggerHaptic('light');
+                triggerHaptic("light");
                 navigation.goBack();
               }}
               activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={22} color={themeColors.text.primary} />
+              <Ionicons
+                name="arrow-back"
+                size={22}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
             <Text
               style={[
                 styles.title,
-                { color: themeColors.text.primary, fontSize: getFontSize('xxxl') },
+                {
+                  color: themeColors.text.primary,
+                  fontSize: getFontSize("xxxl"),
+                },
               ]}
             >
-              {getLocalizedText('twoFactor.title')}
+              {getLocalizedText("twoFactor.title")}
             </Text>
           </View>
 
@@ -355,14 +468,14 @@ export const TwoFactorAuthScreen: React.FC = () => {
               styles.infoBanner,
               {
                 backgroundColor: themeColors.background.secondary,
-                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderColor: "rgba(255, 255, 255, 0.1)",
               },
             ]}
           >
             <View
               style={[
                 styles.infoIconContainer,
-                { backgroundColor: accentColor + '20' },
+                { backgroundColor: accentColor + "20" },
               ]}
             >
               <Ionicons name="shield-checkmark" size={22} color={accentColor} />
@@ -370,10 +483,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
             <Text
               style={[
                 styles.infoText,
-                { color: themeColors.text.primary, fontSize: getFontSize('sm') },
+                {
+                  color: themeColors.text.primary,
+                  fontSize: getFontSize("sm"),
+                },
               ]}
             >
-              {getLocalizedText('twoFactor.infoMessage')}
+              {getLocalizedText("twoFactor.infoMessage")}
             </Text>
           </View>
 
@@ -382,7 +498,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
               <View
                 style={[
                   styles.sectionIconContainer,
-                  { backgroundColor: accentColor + '20' },
+                  { backgroundColor: accentColor + "20" },
                 ]}
               >
                 <Ionicons name="lock-closed" size={20} color={accentColor} />
@@ -391,18 +507,24 @@ export const TwoFactorAuthScreen: React.FC = () => {
                 <Text
                   style={[
                     styles.sectionTitle,
-                    { color: themeColors.text.primary, fontSize: getFontSize('lg') },
+                    {
+                      color: themeColors.text.primary,
+                      fontSize: getFontSize("lg"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('twoFactor.authentication')}
+                  {getLocalizedText("twoFactor.authentication")}
                 </Text>
                 <Text
                   style={[
                     styles.sectionSubtitle,
-                    { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
                   ]}
                 >
-                  {getLocalizedText('twoFactor.authenticationSubtitle')}
+                  {getLocalizedText("twoFactor.authenticationSubtitle")}
                 </Text>
               </View>
             </View>
@@ -413,7 +535,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
                 {
                   backgroundColor: themeColors.background.secondary,
                   borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+                  borderBottomColor: "rgba(255, 255, 255, 0.1)",
                 },
               ]}
             >
@@ -422,38 +544,47 @@ export const TwoFactorAuthScreen: React.FC = () => {
                   <Text
                     style={[
                       styles.toggleTitle,
-                      { color: themeColors.text.primary, fontSize: getFontSize('base') },
+                      {
+                        color: themeColors.text.primary,
+                        fontSize: getFontSize("base"),
+                      },
                     ]}
                   >
-                    {getLocalizedText('twoFactor.enable2FA')}
+                    {getLocalizedText("twoFactor.enable2FA")}
                   </Text>
                   <Text
                     style={[
                       styles.toggleSubtitle,
-                      { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                      {
+                        color: themeColors.text.secondary,
+                        fontSize: getFontSize("sm"),
+                      },
                     ]}
                   >
-                    {getLocalizedText('twoFactor.enable2FASubtitle')}
+                    {getLocalizedText("twoFactor.enable2FASubtitle")}
                   </Text>
                 </View>
                 <Switch
                   value={twoFactorEnabled}
                   onValueChange={handleToggle2FA}
-                  trackColor={{ false: themeColors.text.tertiary, true: themeColors.primary }}
+                  trackColor={{
+                    false: themeColors.text.tertiary,
+                    true: themeColors.primary,
+                  }}
                   thumbColor="#FFFFFF"
                 />
               </View>
             </View>
           </View>
 
-          {twoFactorEnabled && (
+          {(twoFactorEnabled || setupInProgress) && (
             <>
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <View
                     style={[
                       styles.sectionIconContainer,
-                      { backgroundColor: accentColor + '20' },
+                      { backgroundColor: accentColor + "20" },
                     ]}
                   >
                     <Ionicons name="qr-code" size={20} color={accentColor} />
@@ -462,25 +593,31 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     <Text
                       style={[
                         styles.sectionTitle,
-                        { color: themeColors.text.primary, fontSize: getFontSize('lg') },
+                        {
+                          color: themeColors.text.primary,
+                          fontSize: getFontSize("lg"),
+                        },
                       ]}
                     >
-                      {getLocalizedText('twoFactor.qrCode')}
+                      {getLocalizedText("twoFactor.qrCode")}
                     </Text>
                     <Text
                       style={[
                         styles.sectionSubtitle,
-                        { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                        {
+                          color: themeColors.text.secondary,
+                          fontSize: getFontSize("sm"),
+                        },
                       ]}
                     >
-                      {getLocalizedText('twoFactor.qrCodeSubtitle')}
+                      {getLocalizedText("twoFactor.qrCodeSubtitle")}
                     </Text>
                   </View>
                 </View>
 
                 <TouchableOpacity
                   onPress={() => {
-                    triggerHaptic('light');
+                    triggerHaptic("light");
                     setExpandedQR(!expandedQR);
                     if (expandedRecoveryCodes) setExpandedRecoveryCodes(false);
                   }}
@@ -489,7 +626,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     {
                       backgroundColor: themeColors.background.secondary,
                       borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+                      borderBottomColor: "rgba(255, 255, 255, 0.1)",
                     },
                   ]}
                   activeOpacity={0.8}
@@ -498,40 +635,56 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     <View
                       style={[
                         styles.actionIconContainer,
-                        { backgroundColor: accentColor + '20' },
+                        { backgroundColor: accentColor + "20" },
                       ]}
                     >
-                      <Ionicons name="qr-code-outline" size={24} color={accentColor} />
+                      <Ionicons
+                        name="qr-code-outline"
+                        size={24}
+                        color={accentColor}
+                      />
                     </View>
                     <View style={styles.actionCardInfo}>
                       <Text
                         style={[
                           styles.actionCardTitle,
-                          { color: themeColors.text.primary, fontSize: getFontSize('base') },
+                          {
+                            color: themeColors.text.primary,
+                            fontSize: getFontSize("base"),
+                          },
                         ]}
                       >
-                        {getLocalizedText('twoFactor.viewQRCode')}
+                        {getLocalizedText("twoFactor.viewQRCode")}
                       </Text>
                       <Text
                         style={[
                           styles.actionCardSubtitle,
-                          { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                          {
+                            color: themeColors.text.secondary,
+                            fontSize: getFontSize("sm"),
+                          },
                         ]}
                       >
-                        {getLocalizedText('twoFactor.viewQRCodeSubtitle')}
+                        {getLocalizedText("twoFactor.viewQRCodeSubtitle")}
                       </Text>
                     </View>
                     <Animated.View
                       style={{
-                        transform: [{
-                          rotate: qrChevronRotation.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0deg', '180deg'],
-                          }),
-                        }],
+                        transform: [
+                          {
+                            rotate: qrChevronRotation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ["0deg", "180deg"],
+                            }),
+                          },
+                        ],
                       }}
                     >
-                      <Ionicons name="chevron-down" size={20} color={themeColors.text.tertiary} />
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={themeColors.text.tertiary}
+                      />
                     </Animated.View>
                   </View>
                 </TouchableOpacity>
@@ -545,152 +698,199 @@ export const TwoFactorAuthScreen: React.FC = () => {
                       },
                     ]}
                   >
-                  <View
-                    style={[
-                      styles.expandableInner,
-                      {
-                        backgroundColor: themeColors.background.secondary,
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-                      },
-                    ]}
-                  >
-                    <View style={styles.qrCard}>
-                      <View style={styles.qrOuterFrame}>
-                        <View style={styles.qrInnerFrame}>
-                          <LinearGradient
-                            colors={['#FFF3F0', '#FDDDEA']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.qrCanvas}
-                          >
-                            <QRCodeStyled
-                              data={`otpauth://totp/WHISPR?secret=${qrCodeSecret}&issuer=Whispr`}
-                              padding={10}
-                              size={190}
-                              pieceCornerType="rounded"
-                              pieceBorderRadius={60}
-                              pieceLiquidRadius={50}
-                              pieceScale={1.05}
-                              isPiecesGlued
-                              gradient={{
-                                type: 'linear',
-                                options: {
-                                  colors: qrGradientColors,
-                                  start: [0, 0],
-                                  end: [1, 1],
-                                },
-                              }}
-                              outerEyesOptions={{
-                                topLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
-                                topRight: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
-                                bottomLeft: { borderRadius: 24, stroke: '#1D112F', strokeWidth: 4, color: '#FDF3EA' },
-                              }}
-                              innerEyesOptions={{
-                                topLeft: { borderRadius: 18, color: '#2D1935' },
-                                topRight: { borderRadius: 18, color: '#2D1935' },
-                                bottomLeft: { borderRadius: 18, color: '#2D1935' },
-                              }}
-                              color="#F66E7E"
-                              renderCustomPieceItem={renderStylizedPiece}
-                            />
-                          </LinearGradient>
+                    <View
+                      style={[
+                        styles.expandableInner,
+                        {
+                          backgroundColor: themeColors.background.secondary,
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: "rgba(255, 255, 255, 0.1)",
+                        },
+                      ]}
+                    >
+                      <View style={styles.qrCard}>
+                        <View style={styles.qrOuterFrame}>
+                          <View style={styles.qrInnerFrame}>
+                            <LinearGradient
+                              colors={["#FFF3F0", "#FDDDEA"]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.qrCanvas}
+                            >
+                              <QRCodeStyled
+                                data={
+                                  qrCodeUri ||
+                                  `otpauth://totp/WHISPR?secret=${qrCodeSecret}&issuer=Whispr`
+                                }
+                                padding={10}
+                                size={190}
+                                pieceCornerType="rounded"
+                                pieceBorderRadius={60}
+                                pieceLiquidRadius={50}
+                                pieceScale={1.05}
+                                isPiecesGlued
+                                gradient={{
+                                  type: "linear",
+                                  options: {
+                                    colors: qrGradientColors,
+                                    start: [0, 0],
+                                    end: [1, 1],
+                                  },
+                                }}
+                                outerEyesOptions={{
+                                  topLeft: {
+                                    borderRadius: 24,
+                                    stroke: "#1D112F",
+                                    strokeWidth: 4,
+                                    color: "#FDF3EA",
+                                  },
+                                  topRight: {
+                                    borderRadius: 24,
+                                    stroke: "#1D112F",
+                                    strokeWidth: 4,
+                                    color: "#FDF3EA",
+                                  },
+                                  bottomLeft: {
+                                    borderRadius: 24,
+                                    stroke: "#1D112F",
+                                    strokeWidth: 4,
+                                    color: "#FDF3EA",
+                                  },
+                                }}
+                                innerEyesOptions={{
+                                  topLeft: {
+                                    borderRadius: 18,
+                                    color: "#2D1935",
+                                  },
+                                  topRight: {
+                                    borderRadius: 18,
+                                    color: "#2D1935",
+                                  },
+                                  bottomLeft: {
+                                    borderRadius: 18,
+                                    color: "#2D1935",
+                                  },
+                                }}
+                                color="#F66E7E"
+                                renderCustomPieceItem={renderStylizedPiece}
+                              />
+                            </LinearGradient>
+                          </View>
                         </View>
-                      </View>
-                      <Text
-                        style={[
-                          styles.qrSecretLabel,
-                          { color: themeColors.text.primary, fontSize: getFontSize('sm') },
-                        ]}
-                      >
-                        {qrCodeSecret}
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={handleScanQRCode}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.scanButton,
-                        {
-                          backgroundColor: themeColors.background.primary,
-                          borderColor: accentColor + '40',
-                        },
-                      ]}
-                    >
-                      <Ionicons name="camera" size={20} color={accentColor} />
-                      <Text
-                        style={[
-                          styles.scanButtonText,
-                          { color: accentColor, fontSize: getFontSize('base') },
-                        ]}
-                      >
-                        {getLocalizedText('twoFactor.scanQRCode')}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <Text
-                      style={[
-                        styles.verifyLabel,
-                        { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
-                      ]}
-                    >
-                      {getLocalizedText('twoFactor.enterVerificationCode')}
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.codeInput,
-                        {
-                          backgroundColor: themeColors.background.primary,
-                          color: themeColors.text.primary,
-                          borderColor: accentColor + '40',
-                          fontSize: getFontSize('base'),
-                        },
-                      ]}
-                      value={verificationCode}
-                      onChangeText={setVerificationCode}
-                      placeholder={getLocalizedText('twoFactor.enterCode')}
-                      placeholderTextColor={themeColors.text.tertiary}
-                      maxLength={6}
-                      keyboardType="number-pad"
-                    />
-
-                    <TouchableOpacity
-                      onPress={handleVerifyQRCode}
-                      activeOpacity={0.9}
-                      style={styles.verifyButtonContainer}
-                    >
-                      <LinearGradient
-                        colors={[themeColors.primary, themeColors.primary + 'DD']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={[
-                          styles.verifyButton,
-                          Platform.select({
-                            ios: {
-                              shadowColor: themeColors.primary,
-                              shadowOffset: { width: 0, height: 4 },
-                              shadowOpacity: 0.3,
-                              shadowRadius: 12,
-                            },
-                            android: {
-                              elevation: 6,
-                            },
-                          }),
-                        ]}
-                      >
                         <Text
                           style={[
-                            styles.verifyButtonText,
-                            { color: '#FFFFFF', fontSize: getFontSize('base') },
+                            styles.qrSecretLabel,
+                            {
+                              color: themeColors.text.primary,
+                              fontSize: getFontSize("sm"),
+                            },
                           ]}
                         >
-                          {getLocalizedText('twoFactor.verify')}
+                          {qrCodeSecret}
                         </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                </Animated.View>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={handleScanQRCode}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.scanButton,
+                          {
+                            backgroundColor: themeColors.background.primary,
+                            borderColor: accentColor + "40",
+                          },
+                        ]}
+                      >
+                        <Ionicons name="camera" size={20} color={accentColor} />
+                        <Text
+                          style={[
+                            styles.scanButtonText,
+                            {
+                              color: accentColor,
+                              fontSize: getFontSize("base"),
+                            },
+                          ]}
+                        >
+                          {getLocalizedText("twoFactor.scanQRCode")}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <Text
+                        style={[
+                          styles.verifyLabel,
+                          {
+                            color: themeColors.text.secondary,
+                            fontSize: getFontSize("sm"),
+                          },
+                        ]}
+                      >
+                        {getLocalizedText("twoFactor.enterVerificationCode")}
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.codeInput,
+                          {
+                            backgroundColor: themeColors.background.primary,
+                            color: themeColors.text.primary,
+                            borderColor: accentColor + "40",
+                            fontSize: getFontSize("base"),
+                          },
+                        ]}
+                        value={verificationCode}
+                        onChangeText={setVerificationCode}
+                        placeholder={getLocalizedText("twoFactor.enterCode")}
+                        placeholderTextColor={themeColors.text.tertiary}
+                        maxLength={6}
+                        keyboardType="number-pad"
+                      />
+
+                      <TouchableOpacity
+                        onPress={handleVerifyQRCode}
+                        activeOpacity={0.9}
+                        disabled={actionLoading}
+                        style={styles.verifyButtonContainer}
+                      >
+                        <LinearGradient
+                          colors={[
+                            themeColors.primary,
+                            themeColors.primary + "DD",
+                          ]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={[
+                            styles.verifyButton,
+                            Platform.select({
+                              ios: {
+                                shadowColor: themeColors.primary,
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 12,
+                              },
+                              android: {
+                                elevation: 6,
+                              },
+                            }),
+                          ]}
+                        >
+                          {actionLoading ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.verifyButtonText,
+                                {
+                                  color: "#FFFFFF",
+                                  fontSize: getFontSize("base"),
+                                },
+                              ]}
+                            >
+                              {getLocalizedText("twoFactor.verify")}
+                            </Text>
+                          )}
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  </Animated.View>
                 )}
               </View>
 
@@ -699,7 +899,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
                   <View
                     style={[
                       styles.sectionIconContainer,
-                      { backgroundColor: accentColor + '20' },
+                      { backgroundColor: accentColor + "20" },
                     ]}
                   >
                     <Ionicons name="key" size={20} color={accentColor} />
@@ -708,25 +908,31 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     <Text
                       style={[
                         styles.sectionTitle,
-                        { color: themeColors.text.primary, fontSize: getFontSize('lg') },
+                        {
+                          color: themeColors.text.primary,
+                          fontSize: getFontSize("lg"),
+                        },
                       ]}
                     >
-                      {getLocalizedText('twoFactor.recoveryCodes')}
+                      {getLocalizedText("twoFactor.recoveryCodes")}
                     </Text>
                     <Text
                       style={[
                         styles.sectionSubtitle,
-                        { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                        {
+                          color: themeColors.text.secondary,
+                          fontSize: getFontSize("sm"),
+                        },
                       ]}
                     >
-                      {getLocalizedText('twoFactor.recoveryCodesSubtitle')}
+                      {getLocalizedText("twoFactor.recoveryCodesSubtitle")}
                     </Text>
                   </View>
                 </View>
 
                 <TouchableOpacity
                   onPress={() => {
-                    triggerHaptic('light');
+                    triggerHaptic("light");
                     setExpandedRecoveryCodes(!expandedRecoveryCodes);
                     if (expandedQR) setExpandedQR(false);
                   }}
@@ -735,7 +941,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     {
                       backgroundColor: themeColors.background.secondary,
                       borderBottomWidth: StyleSheet.hairlineWidth,
-                      borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+                      borderBottomColor: "rgba(255, 255, 255, 0.1)",
                     },
                   ]}
                   activeOpacity={0.8}
@@ -744,40 +950,58 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     <View
                       style={[
                         styles.actionIconContainer,
-                        { backgroundColor: accentColor + '20' },
+                        { backgroundColor: accentColor + "20" },
                       ]}
                     >
-                      <Ionicons name="key-outline" size={24} color={accentColor} />
+                      <Ionicons
+                        name="key-outline"
+                        size={24}
+                        color={accentColor}
+                      />
                     </View>
                     <View style={styles.actionCardInfo}>
                       <Text
                         style={[
                           styles.actionCardTitle,
-                          { color: themeColors.text.primary, fontSize: getFontSize('base') },
+                          {
+                            color: themeColors.text.primary,
+                            fontSize: getFontSize("base"),
+                          },
                         ]}
                       >
-                        {getLocalizedText('twoFactor.viewRecoveryCodes')}
+                        {getLocalizedText("twoFactor.viewRecoveryCodes")}
                       </Text>
                       <Text
                         style={[
                           styles.actionCardSubtitle,
-                          { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                          {
+                            color: themeColors.text.secondary,
+                            fontSize: getFontSize("sm"),
+                          },
                         ]}
                       >
-                        {getLocalizedText('twoFactor.viewRecoveryCodesSubtitle')}
+                        {getLocalizedText(
+                          "twoFactor.viewRecoveryCodesSubtitle",
+                        )}
                       </Text>
                     </View>
                     <Animated.View
                       style={{
-                        transform: [{
-                          rotate: recoveryCodesChevronRotation.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0deg', '180deg'],
-                          }),
-                        }],
+                        transform: [
+                          {
+                            rotate: recoveryCodesChevronRotation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ["0deg", "180deg"],
+                            }),
+                          },
+                        ],
                       }}
                     >
-                      <Ionicons name="chevron-down" size={20} color={themeColors.text.tertiary} />
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={themeColors.text.tertiary}
+                      />
                     </Animated.View>
                   </View>
                 </TouchableOpacity>
@@ -791,76 +1015,217 @@ export const TwoFactorAuthScreen: React.FC = () => {
                       },
                     ]}
                   >
-                  <View
-                    style={[
-                      styles.expandableInner,
-                      {
-                        backgroundColor: themeColors.background.secondary,
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-                      },
-                    ]}
-                  >
-                    <Text
+                    <View
                       style={[
-                        styles.recoveryCodesInfo,
-                        { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                        styles.expandableInner,
+                        {
+                          backgroundColor: themeColors.background.secondary,
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: "rgba(255, 255, 255, 0.1)",
+                        },
                       ]}
                     >
-                      {getLocalizedText('twoFactor.recoveryCodesInfo')}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.recoveryCodesInfo,
+                          {
+                            color: themeColors.text.secondary,
+                            fontSize: getFontSize("sm"),
+                          },
+                        ]}
+                      >
+                        {getLocalizedText("twoFactor.recoveryCodesInfo")}
+                      </Text>
 
-                    <View style={styles.recoveryCodesGrid}>
-                      {recoveryCodes.map((recoveryCode, index) => (
-                        <View
-                          key={recoveryCode.id}
-                          style={[
-                            styles.recoveryCodeCard,
-                            {
-                              backgroundColor: themeColors.background.primary,
-                              borderColor: recoveryCode.used 
-                                ? themeColors.text.tertiary + '30' 
-                                : accentColor + '30',
-                            },
-                          ]}
-                        >
-                          <Text
+                      <TouchableOpacity
+                        onPress={handleRegenerateBackupCodes}
+                        disabled={actionLoading}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.scanButton,
+                          {
+                            backgroundColor: themeColors.background.primary,
+                            borderColor: accentColor + "40",
+                            marginBottom: 16,
+                          },
+                        ]}
+                      >
+                        {actionLoading ? (
+                          <ActivityIndicator size="small" color={accentColor} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="refresh"
+                              size={20}
+                              color={accentColor}
+                            />
+                            <Text
+                              style={[
+                                styles.scanButtonText,
+                                {
+                                  color: accentColor,
+                                  fontSize: getFontSize("base"),
+                                },
+                              ]}
+                            >
+                              {getLocalizedText("twoFactor.regenerateCodes")}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      <View style={styles.recoveryCodesGrid}>
+                        {recoveryCodes.map((recoveryCode) => (
+                          <View
+                            key={recoveryCode.id}
                             style={[
-                              styles.recoveryCodeText,
+                              styles.recoveryCodeCard,
                               {
-                                color: recoveryCode.used 
-                                  ? themeColors.text.tertiary 
-                                  : themeColors.text.primary,
-                                fontSize: getFontSize('base'),
-                                textDecorationLine: recoveryCode.used ? 'line-through' : 'none',
+                                backgroundColor: themeColors.background.primary,
+                                borderColor: recoveryCode.used
+                                  ? themeColors.text.tertiary + "30"
+                                  : accentColor + "30",
                               },
                             ]}
                           >
-                            {recoveryCode.code}
-                          </Text>
-                          {!recoveryCode.used && (
-                            <TouchableOpacity
-                              onPress={() => handleCopyRecoveryCode(recoveryCode.code)}
+                            <Text
                               style={[
-                                styles.copyCodeButton,
-                                { backgroundColor: accentColor + '20' },
+                                styles.recoveryCodeText,
+                                {
+                                  color: recoveryCode.used
+                                    ? themeColors.text.tertiary
+                                    : themeColors.text.primary,
+                                  fontSize: getFontSize("base"),
+                                  textDecorationLine: recoveryCode.used
+                                    ? "line-through"
+                                    : "none",
+                                },
                               ]}
-                              activeOpacity={0.7}
                             >
-                              <Ionicons name="copy" size={16} color={accentColor} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
+                              {recoveryCode.code}
+                            </Text>
+                            {!recoveryCode.used && (
+                              <TouchableOpacity
+                                onPress={() =>
+                                  handleCopyRecoveryCode(recoveryCode.code)
+                                }
+                                style={[
+                                  styles.copyCodeButton,
+                                  { backgroundColor: accentColor + "20" },
+                                ]}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name="copy"
+                                  size={16}
+                                  color={accentColor}
+                                />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                </Animated.View>
+                  </Animated.View>
                 )}
               </View>
             </>
           )}
         </ScrollView>
       </Animated.View>
+
+      {showDisablePrompt && (
+        <View style={[styles.disablePromptOverlay]}>
+          <View
+            style={[
+              styles.disablePromptCard,
+              { backgroundColor: themeColors.background.secondary },
+            ]}
+          >
+            <Text
+              style={[
+                styles.disablePromptTitle,
+                {
+                  color: themeColors.text.primary,
+                  fontSize: getFontSize("lg"),
+                },
+              ]}
+            >
+              {getLocalizedText("twoFactor.disable")}
+            </Text>
+            <Text
+              style={[
+                styles.disablePromptSubtitle,
+                {
+                  color: themeColors.text.secondary,
+                  fontSize: getFontSize("sm"),
+                },
+              ]}
+            >
+              {getLocalizedText("twoFactor.disableConfirm")}
+            </Text>
+            <TextInput
+              style={[
+                styles.codeInput,
+                {
+                  backgroundColor: themeColors.background.primary,
+                  color: themeColors.text.primary,
+                  borderColor: accentColor + "40",
+                  fontSize: getFontSize("base"),
+                },
+              ]}
+              value={disableCode}
+              onChangeText={setDisableCode}
+              placeholder={getLocalizedText("twoFactor.enterCode")}
+              placeholderTextColor={themeColors.text.tertiary}
+              maxLength={6}
+              keyboardType="number-pad"
+              autoFocus
+            />
+            <View style={styles.disablePromptActions}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDisablePrompt(false);
+                  setDisableCode("");
+                }}
+                style={[
+                  styles.disablePromptButton,
+                  { backgroundColor: themeColors.background.primary },
+                ]}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={{
+                    color: themeColors.text.primary,
+                    fontSize: getFontSize("base"),
+                  }}
+                >
+                  {getLocalizedText("common.cancel")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDisable2FA}
+                disabled={actionLoading}
+                style={[
+                  styles.disablePromptButton,
+                  { backgroundColor: "#E53E3E" },
+                ]}
+                activeOpacity={0.8}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text
+                    style={{ color: "#FFFFFF", fontSize: getFontSize("base") }}
+                  >
+                    {getLocalizedText("twoFactor.disable")}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
       <Toast
         visible={toast.visible}
@@ -887,8 +1252,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 24,
@@ -897,12 +1262,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -913,24 +1278,24 @@ const styles = StyleSheet.create({
     }),
   },
   title: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     marginHorizontal: 20,
     marginBottom: 32,
     borderRadius: 12,
     borderWidth: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   infoIconContainer: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   infoText: {
@@ -942,23 +1307,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   sectionIconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   sectionTitleContainer: {
     flex: 1,
   },
   sectionTitle: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   sectionSubtitle: {
@@ -968,18 +1333,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   toggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   toggleInfo: {
     flex: 1,
   },
   toggleTitle: {
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 4,
   },
   toggleSubtitle: {
@@ -989,32 +1354,32 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   actionCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   actionIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   actionCardInfo: {
     flex: 1,
   },
   actionCardTitle: {
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 4,
   },
   actionCardSubtitle: {
     lineHeight: 18,
   },
   expandableContent: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   expandableInner: {
     padding: 20,
@@ -1023,36 +1388,36 @@ const styles = StyleSheet.create({
   },
   qrCard: {
     marginBottom: 24,
-    width: '100%',
+    width: "100%",
   },
   qrOuterFrame: {
     borderRadius: 28,
     padding: 4,
-    backgroundColor: '#120B23',
+    backgroundColor: "#120B23",
     borderWidth: 2,
-    borderColor: '#F9B192',
+    borderColor: "#F9B192",
   },
   qrInnerFrame: {
     borderRadius: 24,
     padding: 12,
-    backgroundColor: '#1B1030',
+    backgroundColor: "#1B1030",
   },
   qrCanvas: {
     borderRadius: 20,
     padding: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   qrSecretLabel: {
     marginTop: 16,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     letterSpacing: 2,
   },
   scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1061,50 +1426,50 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   scanButtonText: {
-    fontWeight: '600',
+    fontWeight: "600",
   },
   verifyLabel: {
     marginBottom: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   codeInput: {
     padding: 18,
     borderRadius: 16,
     borderWidth: 2,
     marginBottom: 24,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    textAlign: 'center',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    textAlign: "center",
     letterSpacing: 3,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   verifyButtonContainer: {
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   verifyButton: {
     paddingVertical: 18,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   verifyButtonText: {
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.3,
   },
   recoveryCodesInfo: {
     marginBottom: 20,
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   recoveryCodesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   recoveryCodeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1114,16 +1479,52 @@ const styles = StyleSheet.create({
   },
   recoveryCodeText: {
     flex: 1,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     letterSpacing: 1,
   },
   copyCodeButton: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 12,
+  },
+  disablePromptOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
+  disablePromptCard: {
+    width: SCREEN_WIDTH - 48,
+    borderRadius: 16,
+    padding: 24,
+  },
+  disablePromptTitle: {
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  disablePromptSubtitle: {
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  disablePromptActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  disablePromptButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
