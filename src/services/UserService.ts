@@ -3,7 +3,8 @@
  * Handles all user-related API calls
  */
 
-import { Alert } from 'react-native';
+import { Alert } from "react-native";
+import { USER_API_URL } from "../config/api";
 
 // Types
 export interface UserProfile {
@@ -35,12 +36,12 @@ export interface UpdateProfileResponse {
 }
 
 export interface PrivacySettings {
-  profilePictureVisibility: 'everyone' | 'contacts' | 'nobody';
-  firstNameVisibility: 'everyone' | 'contacts' | 'nobody';
-  lastNameVisibility: 'everyone' | 'contacts' | 'nobody';
-  biographyVisibility: 'everyone' | 'contacts' | 'nobody';
+  profilePictureVisibility: "everyone" | "contacts" | "nobody";
+  firstNameVisibility: "everyone" | "contacts" | "nobody";
+  lastNameVisibility: "everyone" | "contacts" | "nobody";
+  biographyVisibility: "everyone" | "contacts" | "nobody";
   searchVisibility: boolean;
-  phoneNumberSearch: 'everyone' | 'contacts' | 'nobody';
+  phoneNumberSearch: "everyone" | "contacts" | "nobody";
 }
 
 export class UserService {
@@ -48,8 +49,7 @@ export class UserService {
   private baseUrl: string;
 
   private constructor() {
-    // TODO: Get from environment configuration
-    this.baseUrl = 'https://api.whispr.com/api/v1';
+    this.baseUrl = USER_API_URL;
   }
 
   public static getInstance(): UserService {
@@ -62,17 +62,21 @@ export class UserService {
   /**
    * Get current user profile
    */
-  async getProfile(): Promise<{ success: boolean; profile?: UserProfile; message?: string }> {
+  async getProfile(): Promise<{
+    success: boolean;
+    profile?: UserProfile;
+    message?: string;
+  }> {
     try {
       return {
         success: false,
-        message: 'Profil non disponible (API non implémentée)',
+        message: "Profil non disponible (API non implémentée)",
       };
     } catch (error) {
-      console.error('Erreur récupération profil:', error);
+      console.error("Erreur récupération profil:", error);
       return {
         success: false,
-        message: 'Impossible de récupérer le profil',
+        message: "Impossible de récupérer le profil",
       };
     }
   }
@@ -80,10 +84,12 @@ export class UserService {
   /**
    * Update user profile
    */
-  async updateProfile(profileData: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+  async updateProfile(
+    profileData: UpdateProfileRequest,
+  ): Promise<UpdateProfileResponse> {
     try {
-      console.log('📝 Mise à jour du profil:', profileData);
-      
+      console.log("📝 Mise à jour du profil:", profileData);
+
       // Validation
       const validation = this.validateProfileData(profileData);
       if (!validation.isValid) {
@@ -104,17 +110,17 @@ export class UserService {
       // });
 
       // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       return {
         success: true,
-        message: 'Profil mis à jour avec succès',
+        message: "Profil mis à jour avec succès",
       };
     } catch (error) {
-      console.error('Erreur mise à jour profil:', error);
+      console.error("Erreur mise à jour profil:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour le profil',
+        message: "Impossible de mettre à jour le profil",
       };
     }
   }
@@ -124,8 +130,8 @@ export class UserService {
    */
   async updateProfilePicture(imageUri: string): Promise<UpdateProfileResponse> {
     try {
-      console.log('📸 Mise à jour de la photo de profil:', imageUri);
-      
+      console.log("📸 Mise à jour de la photo de profil:", imageUri);
+
       // TODO: Real API call with FormData
       // const formData = new FormData();
       // formData.append('picture', {
@@ -135,17 +141,17 @@ export class UserService {
       // });
 
       // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       return {
         success: true,
-        message: 'Photo de profil mise à jour avec succès',
+        message: "Photo de profil mise à jour avec succès",
       };
     } catch (error) {
-      console.error('Erreur mise à jour photo:', error);
+      console.error("Erreur mise à jour photo:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour la photo de profil',
+        message: "Impossible de mettre à jour la photo de profil",
       };
     }
   }
@@ -155,7 +161,6 @@ export class UserService {
    */
   async updateUsername(username: string): Promise<UpdateProfileResponse> {
     try {
-      
       // Validation username
       const validation = this.validateUsername(username);
       if (!validation.isValid) {
@@ -176,17 +181,17 @@ export class UserService {
       // });
 
       // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       return {
         success: true,
-        message: 'Nom d\'utilisateur mis à jour avec succès',
+        message: "Nom d'utilisateur mis à jour avec succès",
       };
     } catch (error) {
-      console.error('Erreur mise à jour username:', error);
+      console.error("Erreur mise à jour username:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour le nom d\'utilisateur',
+        message: "Impossible de mettre à jour le nom d'utilisateur",
       };
     }
   }
@@ -194,10 +199,15 @@ export class UserService {
   /**
    * Update privacy settings
    */
-  async updatePrivacySettings(settings: PrivacySettings): Promise<UpdateProfileResponse> {
+  async updatePrivacySettings(
+    settings: PrivacySettings,
+  ): Promise<UpdateProfileResponse> {
     try {
-      console.log('🔒 Mise à jour des paramètres de confidentialité:', settings);
-      
+      console.log(
+        "🔒 Mise à jour des paramètres de confidentialité:",
+        settings,
+      );
+
       // TODO: Real API call
       // const response = await fetch(`${this.baseUrl}/users/me/privacy`, {
       //   method: 'PUT',
@@ -209,17 +219,18 @@ export class UserService {
       // });
 
       // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       return {
         success: true,
-        message: 'Paramètres de confidentialité mis à jour avec succès',
+        message: "Paramètres de confidentialité mis à jour avec succès",
       };
     } catch (error) {
-      console.error('Erreur mise à jour confidentialité:', error);
+      console.error("Erreur mise à jour confidentialité:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour les paramètres de confidentialité',
+        message:
+          "Impossible de mettre à jour les paramètres de confidentialité",
       };
     }
   }
@@ -227,9 +238,10 @@ export class UserService {
   /**
    * Change phone number
    */
-  async changePhoneNumber(newPhoneNumber: string): Promise<UpdateProfileResponse> {
+  async changePhoneNumber(
+    newPhoneNumber: string,
+  ): Promise<UpdateProfileResponse> {
     try {
-      
       // Validation phone number
       const validation = this.validatePhoneNumber(newPhoneNumber);
       if (!validation.isValid) {
@@ -250,17 +262,17 @@ export class UserService {
       // });
 
       // Simulation d'un délai réseau
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
       return {
         success: true,
-        message: 'Numéro de téléphone mis à jour avec succès',
+        message: "Numéro de téléphone mis à jour avec succès",
       };
     } catch (error) {
-      console.error('Erreur changement numéro:', error);
+      console.error("Erreur changement numéro:", error);
       return {
         success: false,
-        message: 'Impossible de changer le numéro de téléphone',
+        message: "Impossible de changer le numéro de téléphone",
       };
     }
   }
@@ -268,25 +280,28 @@ export class UserService {
   /**
    * Validate profile data
    */
-  private validateProfileData(data: UpdateProfileRequest): { isValid: boolean; error?: string } {
+  private validateProfileData(data: UpdateProfileRequest): {
+    isValid: boolean;
+    error?: string;
+  } {
     if (data.firstName && data.firstName.trim().length < 2) {
       return {
         isValid: false,
-        error: 'Le prénom doit contenir au moins 2 caractères',
+        error: "Le prénom doit contenir au moins 2 caractères",
       };
     }
 
     if (data.lastName && data.lastName.trim().length < 2) {
       return {
         isValid: false,
-        error: 'Le nom doit contenir au moins 2 caractères',
+        error: "Le nom doit contenir au moins 2 caractères",
       };
     }
 
     if (data.biography && data.biography.length > 500) {
       return {
         isValid: false,
-        error: 'La biographie ne peut pas dépasser 500 caractères',
+        error: "La biographie ne peut pas dépasser 500 caractères",
       };
     }
 
@@ -296,25 +311,29 @@ export class UserService {
   /**
    * Validate username
    */
-  private validateUsername(username: string): { isValid: boolean; error?: string } {
+  private validateUsername(username: string): {
+    isValid: boolean;
+    error?: string;
+  } {
     if (!username || username.trim().length < 3) {
       return {
         isValid: false,
-        error: 'Le nom d\'utilisateur doit contenir au moins 3 caractères',
+        error: "Le nom d'utilisateur doit contenir au moins 3 caractères",
       };
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       return {
         isValid: false,
-        error: 'Le nom d\'utilisateur ne peut contenir que des lettres, chiffres et underscores',
+        error:
+          "Le nom d'utilisateur ne peut contenir que des lettres, chiffres et underscores",
       };
     }
 
     if (username.length > 20) {
       return {
         isValid: false,
-        error: 'Le nom d\'utilisateur ne peut pas dépasser 20 caractères',
+        error: "Le nom d'utilisateur ne peut pas dépasser 20 caractères",
       };
     }
 
@@ -324,29 +343,26 @@ export class UserService {
   /**
    * Validate phone number
    */
-  private validatePhoneNumber(phoneNumber: string): { isValid: boolean; error?: string } {
+  private validatePhoneNumber(phoneNumber: string): {
+    isValid: boolean;
+    error?: string;
+  } {
     if (!phoneNumber || phoneNumber.trim().length < 10) {
       return {
         isValid: false,
-        error: 'Le numéro de téléphone doit contenir au moins 10 chiffres',
+        error: "Le numéro de téléphone doit contenir au moins 10 chiffres",
       };
     }
 
     // Validation basique du format français
-    const cleanNumber = phoneNumber.replace(/\s/g, '');
+    const cleanNumber = phoneNumber.replace(/\s/g, "");
     if (!cleanNumber.match(/^(\+33|0)[1-9]\d{8}$/)) {
       return {
         isValid: false,
-        error: 'Format de numéro de téléphone invalide',
+        error: "Format de numéro de téléphone invalide",
       };
     }
 
     return { isValid: true };
   }
 }
-
-
-
-
-
-

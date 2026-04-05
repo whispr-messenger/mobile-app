@@ -37,8 +37,6 @@
     ],
     "extra": {
       "apiBaseUrl": "https://whispr.epitech.beer",
-      "devAuthApiUrl": "http://10.0.2.2:3001",
-      "devUserApiUrl": "http://10.0.2.2:3002",
       "appVersion": "1.0.0"
     }
   }
