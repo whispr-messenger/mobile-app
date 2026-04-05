@@ -8,10 +8,18 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
 }));
+
+const mockNavigate = jest.fn();
+const mockGoBack = jest.fn();
+
 jest.mock('./src/services/TwoFactorService');
-jest.mock('@react-navigation/native', () => ({
-  useNavigation: () => ({ goBack: jest.fn() }),
-}));
+jest.mock('@react-navigation/native', () => {
+  const { useEffect } = require('react');
+  return {
+    useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
+    useFocusEffect: (cb: () => void) => { useEffect(cb, []); },
+  };
+});
 jest.mock('./src/context/ThemeContext', () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -32,14 +40,7 @@ jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
   NotificationFeedbackType: { Success: 'success' },
 }));
-jest.mock('@expo/vector-icons', () => ({
-  Ionicons: () => null,
-}));
-jest.mock('react-native-qrcode-styled', () => () => null);
-jest.mock('react-native-svg', () => ({
-  Circle: () => null,
-  Path: () => null,
-}));
+jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('./src/components/Toast/Toast', () => () => null);
 
 const mockedTwoFactorService = TwoFactorService as jest.Mocked<typeof TwoFactorService>;
@@ -49,115 +50,96 @@ describe('TwoFactorAuthScreen', () => {
     jest.clearAllMocks();
   });
 
-  it('loads and displays disabled 2FA status from backend', async () => {
+  it('renders switch OFF when getStatus returns enabled: false', async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const { queryByText } = render(<TwoFactorAuthScreen />);
+    const { getByRole } = render(<TwoFactorAuthScreen />);
 
-    await waitFor(() => {
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalledTimes(1);
-    });
-
-    expect(queryByText('twoFactor.qrCode')).toBeNull();
+    await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
+    expect(getByRole('switch').props.value).toBe(false);
   });
 
-  it('loads and displays enabled 2FA status from backend', async () => {
+  it('renders switch ON when getStatus returns enabled: true', async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { findByText } = render(<TwoFactorAuthScreen />);
-
-    await findByText('twoFactor.qrCode');
-    expect(mockedTwoFactorService.getStatus).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls setup and shows QR section when toggling 2FA on', async () => {
-    mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
-    mockedTwoFactorService.setup.mockResolvedValue({
-      secret: 'TESTSECRET',
-      qrCodeUri: 'otpauth://totp/WHISPR?secret=TESTSECRET&issuer=Whispr',
-    });
-
-    const { getByRole, queryByText } = render(<TwoFactorAuthScreen />);
+    const { getByRole } = render(<TwoFactorAuthScreen />);
 
     await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
-
-    expect(queryByText('twoFactor.qrCode')).toBeNull();
-
-    const toggle = getByRole('switch');
-    await act(async () => { fireEvent(toggle, 'valueChange', true); });
-
-    expect(mockedTwoFactorService.setup).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(queryByText('twoFactor.qrCode')).not.toBeNull());
+    expect(getByRole('switch').props.value).toBe(true);
   });
 
-  it('calls enable and fetches backup codes on valid TOTP token', async () => {
+  it('navigates to TwoFactorSetup when toggle is turned ON', async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
-    mockedTwoFactorService.setup.mockResolvedValue({
-      secret: 'TESTSECRET',
-      qrCodeUri: 'otpauth://totp/WHISPR?secret=TESTSECRET',
-    });
-    mockedTwoFactorService.enable.mockResolvedValue(undefined);
-    mockedTwoFactorService.getBackupCodes.mockResolvedValue({
-      codes: ['1111-2222', '3333-4444'],
-    });
 
-    const { getByRole, getByPlaceholderText, getByText } = render(<TwoFactorAuthScreen />);
-
+    const { getByRole } = render(<TwoFactorAuthScreen />);
     await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
 
-    const toggle = getByRole('switch');
-    await act(async () => { fireEvent(toggle, 'valueChange', true); });
+    await act(async () => { fireEvent(getByRole('switch'), 'valueChange', true); });
 
-    await waitFor(() => expect(mockedTwoFactorService.setup).toHaveBeenCalled());
-
-    const input = getByPlaceholderText('twoFactor.enterCode');
-    fireEvent.changeText(input, '123456');
-
-    const verifyButton = getByText('twoFactor.verify');
-    await act(async () => { fireEvent.press(verifyButton); });
-
-    expect(mockedTwoFactorService.enable).toHaveBeenCalledWith('123456');
-    expect(mockedTwoFactorService.getBackupCodes).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith('TwoFactorSetup');
   });
 
-  it('shows disable prompt and calls disable with TOTP token', async () => {
+  it('shows disable card when toggle is turned OFF', async () => {
+    mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
+
+    const { getByRole, getByPlaceholderText } = render(<TwoFactorAuthScreen />);
+    await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
+
+    await act(async () => { fireEvent(getByRole('switch'), 'valueChange', false); });
+
+    expect(getByPlaceholderText('twoFactor.enterCode')).toBeTruthy();
+  });
+
+  it('shows error toast when disable code is too short', async () => {
+    mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
+
+    const { getByRole, getByPlaceholderText, getAllByText } = render(<TwoFactorAuthScreen />);
+    await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
+
+    await act(async () => { fireEvent(getByRole('switch'), 'valueChange', false); });
+    fireEvent.changeText(getByPlaceholderText('twoFactor.enterCode'), '123');
+
+    // last occurrence is the confirm button
+    const disableButtons = getAllByText('twoFactor.disable');
+    await act(async () => { fireEvent.press(disableButtons[disableButtons.length - 1]); });
+
+    expect(mockedTwoFactorService.disable).not.toHaveBeenCalled();
+  });
+
+  it('calls disable and hides card on valid code', async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
     mockedTwoFactorService.disable.mockResolvedValue(undefined);
 
-    const { getByRole, getByPlaceholderText, getAllByText } = render(<TwoFactorAuthScreen />);
-
+    const { getByRole, getByPlaceholderText, getAllByText, queryByPlaceholderText } = render(
+      <TwoFactorAuthScreen />,
+    );
     await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
 
-    const toggle = getByRole('switch');
-    await act(async () => { fireEvent(toggle, 'valueChange', false); });
-
-    const input = getByPlaceholderText('twoFactor.enterCode');
-    fireEvent.changeText(input, '654321');
+    await act(async () => { fireEvent(getByRole('switch'), 'valueChange', false); });
+    fireEvent.changeText(getByPlaceholderText('twoFactor.enterCode'), '654321');
 
     const disableButtons = getAllByText('twoFactor.disable');
-    const confirmButton = disableButtons[disableButtons.length - 1];
-    await act(async () => { fireEvent.press(confirmButton); });
+    await act(async () => { fireEvent.press(disableButtons[disableButtons.length - 1]); });
 
     expect(mockedTwoFactorService.disable).toHaveBeenCalledWith('654321');
+    await waitFor(() => expect(queryByPlaceholderText('twoFactor.enterCode')).toBeNull());
   });
 
-  it('calls getBackupCodes when regenerate button is pressed', async () => {
+  it('calls getBackupCodes and navigates to TwoFactorBackupCodes', async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
     mockedTwoFactorService.getBackupCodes.mockResolvedValue({
-      codes: ['aaaa-bbbb', 'cccc-dddd'],
+      codes: ['aaaa-1111', 'bbbb-2222'],
     });
 
     const { getByText } = render(<TwoFactorAuthScreen />);
-
     await waitFor(() => expect(mockedTwoFactorService.getStatus).toHaveBeenCalled());
 
-    // expand recovery codes section
     const viewCodesButton = getByText('twoFactor.viewRecoveryCodes');
     await act(async () => { fireEvent.press(viewCodesButton); });
 
-    const regenerateButton = getByText('twoFactor.regenerateCodes');
-    await act(async () => { fireEvent.press(regenerateButton); });
-
     expect(mockedTwoFactorService.getBackupCodes).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith('TwoFactorBackupCodes', {
+      codes: ['aaaa-1111', 'bbbb-2222'],
+    });
   });
 });

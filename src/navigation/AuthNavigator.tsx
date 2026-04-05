@@ -1,23 +1,26 @@
-import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { WelcomeScreen } from '../screens/Auth/WelcomeScreen';
-import { PhoneInputScreen } from '../screens/Auth/PhoneInputScreen';
-import { OtpScreen } from '../screens/Auth/OtpScreen';
-import { ProfileSetupScreen } from '../screens/Auth/ProfileSetupScreen';
-import { ProfileScreen } from '../screens/Profile/ProfileScreen';
-import { SettingsScreen } from '../screens/Settings/SettingsScreen';
-import { SecurityKeysScreen } from '../screens/Security/SecurityKeysScreen';
-import { TwoFactorAuthScreen } from '../screens/Security/TwoFactorAuthScreen';
-import { ConversationsListScreen } from '../screens/Chat/ConversationsListScreen';
-import { ChatScreen } from '../screens/Chat/ChatScreen';
-import { ContactsScreen } from '../screens/Contacts/ContactsScreen';
-import { BlockedUsersScreen } from '../screens/Contacts/BlockedUsersScreen';
-import { GroupDetailsScreen } from '../screens/Groups/GroupDetailsScreen';
-import { GroupManagementScreen } from '../screens/Groups/GroupManagementScreen';
-import { useAuth } from '../context/AuthContext';
-import { colors } from '../theme/colors';
-import type { AuthPurpose } from '../types/auth';
+import React from "react";
+import { ActivityIndicator, View } from "react-native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
+import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
+import { OtpScreen } from "../screens/Auth/OtpScreen";
+import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
+import { ProfileScreen } from "../screens/Profile/ProfileScreen";
+import { SettingsScreen } from "../screens/Settings/SettingsScreen";
+import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
+import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
+import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
+import { TwoFactorVerifyScreen } from "../screens/Security/TwoFactorVerifyScreen";
+import { TwoFactorBackupCodesScreen } from "../screens/Security/TwoFactorBackupCodesScreen";
+import { ConversationsListScreen } from "../screens/Chat/ConversationsListScreen";
+import { ChatScreen } from "../screens/Chat/ChatScreen";
+import { ContactsScreen } from "../screens/Contacts/ContactsScreen";
+import { BlockedUsersScreen } from "../screens/Contacts/BlockedUsersScreen";
+import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
+import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
+import { useAuth } from "../context/AuthContext";
+import { colors } from "../theme/colors";
+import type { AuthPurpose } from "../types/auth";
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -42,6 +45,9 @@ export type AuthStackParamList = {
   Settings: undefined;
   SecurityKeys: undefined;
   TwoFactorAuth: undefined;
+  TwoFactorSetup: undefined;
+  TwoFactorVerify: { secret: string; qrCodeUri: string };
+  TwoFactorBackupCodes: { codes: string[] };
   ConversationsList: undefined;
   Chat: { conversationId: string };
   Contacts: undefined;
@@ -57,7 +63,14 @@ export const AuthNavigator: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background.dark }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: colors.background.dark,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.primary.main} />
       </View>
     );
@@ -65,11 +78,11 @@ export const AuthNavigator: React.FC = () => {
 
   return (
     <Stack.Navigator
-      initialRouteName={isAuthenticated ? 'ConversationsList' : 'Welcome'}
+      initialRouteName={isAuthenticated ? "ConversationsList" : "Welcome"}
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
-        gestureDirection: 'horizontal',
+        gestureDirection: "horizontal",
         cardStyleInterpolator: ({ current, layouts }) => ({
           cardStyle: {
             transform: [
@@ -92,7 +105,17 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
-      <Stack.Screen name="ConversationsList" component={ConversationsListScreen} />
+      <Stack.Screen name="TwoFactorSetup" component={TwoFactorSetupScreen} />
+      <Stack.Screen name="TwoFactorVerify" component={TwoFactorVerifyScreen} />
+      <Stack.Screen
+        name="TwoFactorBackupCodes"
+        component={TwoFactorBackupCodesScreen}
+        options={{ gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="ConversationsList"
+        component={ConversationsListScreen}
+      />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Contacts" component={ContactsScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
