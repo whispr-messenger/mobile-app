@@ -52,7 +52,7 @@ export const AuthService = {
     purpose: AuthPurpose,
   ): Promise<VerificationRequestResponse> {
     return apiFetch<VerificationRequestResponse>(
-      `/v1/auth/verify/${purpose}/request`,
+      `/v1/verify/${purpose}/request`,
       {
         method: "POST",
         body: JSON.stringify({ phoneNumber }),
@@ -66,7 +66,7 @@ export const AuthService = {
     purpose: AuthPurpose,
   ): Promise<VerificationConfirmResponse> {
     return apiFetch<VerificationConfirmResponse>(
-      `/v1/auth/verify/${purpose}/confirm`,
+      `/v1/verify/${purpose}/confirm`,
       {
         method: "POST",
         body: JSON.stringify({ verificationId, code }),
@@ -80,7 +80,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>("/v1/auth/register", {
+    const tokens = await apiFetch<TokenPair>("/v1/register", {
       method: "POST",
       body: JSON.stringify({
         verificationId,
@@ -99,7 +99,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>("/v1/auth/login", {
+    const tokens = await apiFetch<TokenPair>("/v1/login", {
       method: "POST",
       body: JSON.stringify({
         verificationId,
@@ -126,7 +126,7 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
-    await apiFetch("/v1/auth/logout", {
+    await apiFetch("/v1/logout", {
       method: "POST",
       token: token ?? undefined,
       body: JSON.stringify({ deviceId, userId }),
@@ -156,21 +156,29 @@ export const AuthService = {
       }
     }
 
-    // Validate with a network call (GET /users/me via user-service)
+    // Validate with a network call (GET /profile/{id} via user-service)
+    const session = AuthService._extractSession(token);
+    if (!session) {
+      await TokenService.clearTokens();
+      return null;
+    }
     try {
-      const response = await fetch(`${USER_API_URL}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        `${USER_API_URL}/profile/${session.userId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (response.status === 401 || response.status === 403) {
         await TokenService.clearTokens();
         return null;
       }
 
-      return AuthService._extractSession(token);
+      return session;
     } catch {
       // Network error — trust the token locally
-      return AuthService._extractSession(token);
+      return session;
     }
   },
 
