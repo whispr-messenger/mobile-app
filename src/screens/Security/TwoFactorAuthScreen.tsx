@@ -274,6 +274,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
   };
 
   const handleToggle2FA = async (value: boolean) => {
+    if (actionLoading || setupInProgress) return;
     triggerHaptic("light");
     if (value) {
       setActionLoading(true);
@@ -565,7 +566,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
                   </Text>
                 </View>
                 <Switch
-                  value={twoFactorEnabled}
+                  value={twoFactorEnabled || setupInProgress}
                   onValueChange={handleToggle2FA}
                   trackColor={{
                     false: themeColors.text.tertiary,
