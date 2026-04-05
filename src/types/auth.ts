@@ -1,4 +1,4 @@
-export type AuthPurpose = 'login' | 'register';
+export type AuthPurpose = "login" | "register";
 
 export interface VerificationRequestResponse {
   verificationId: string;
@@ -16,7 +16,7 @@ export interface TokenPair {
 }
 
 export interface JwtPayload {
-  sub: string;      // userId
+  sub: string; // userId
   deviceId: string;
   scope: string;
   fingerprint: string;
@@ -36,7 +36,7 @@ export interface SignedPreKeyDto {
 }
 
 export interface SignalKeyBundleDto {
-  identityKey: string;        // base64
+  identityKey: string; // base64
   signedPreKey: SignedPreKeyDto;
   preKeys: PreKeyDto[];
 }
@@ -50,4 +50,17 @@ export interface DeviceInfo {
   appVersion: string;
   fcmToken?: string;
   apnsToken?: string;
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+}
+
+export interface TwoFactorSetupResponse {
+  secret: string;
+  qrCodeUri: string;
+}
+
+export interface TwoFactorBackupCodesResponse {
+  codes: string[];
 }
