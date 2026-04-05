@@ -1,18 +1,10 @@
-import { Conversation } from '../../types/messaging';
-import { Platform } from 'react-native';
-
-const API_BASE_URL =
-  Platform.OS === 'web'
-    ? 'http://localhost:4000/api/v1'
-    : 'https://api.whispr.local/api/v1';
-
 export interface GroupMember {
   id: string;
   user_id: string;
   display_name: string;
   username?: string;
   avatar_url?: string;
-  role: 'admin' | 'moderator' | 'member';
+  role: "admin" | "moderator" | "member";
   joined_at: string;
   is_active: boolean;
 }
@@ -27,7 +19,14 @@ export interface GroupStats {
 
 export interface GroupLog {
   id: string;
-  action_type: 'group_created' | 'group_updated' | 'member_added' | 'member_removed' | 'role_changed' | 'settings_updated' | 'admin_transferred';
+  action_type:
+    | "group_created"
+    | "group_updated"
+    | "member_added"
+    | "member_removed"
+    | "role_changed"
+    | "settings_updated"
+    | "admin_transferred";
   actor_id: string;
   actor_name: string;
   timestamp: string;
@@ -35,11 +34,11 @@ export interface GroupLog {
 }
 
 export interface GroupSettings {
-  message_permission: 'all_members' | 'moderators_plus' | 'admins_only';
-  media_permission: 'all_members' | 'moderators_plus' | 'admins_only';
-  mention_permission: 'all_members' | 'moderators_plus' | 'admins_only';
-  add_members_permission: 'all_members' | 'moderators_plus' | 'admins_only';
-  moderation_level: 'light' | 'medium' | 'strict';
+  message_permission: "all_members" | "moderators_plus" | "admins_only";
+  media_permission: "all_members" | "moderators_plus" | "admins_only";
+  mention_permission: "all_members" | "moderators_plus" | "admins_only";
+  add_members_permission: "all_members" | "moderators_plus" | "admins_only";
+  moderation_level: "light" | "medium" | "strict";
   content_filter_enabled: boolean;
   join_approval_required: boolean;
 }
@@ -61,8 +60,11 @@ export const groupsAPI = {
    * GET /api/v1/groups/{groupId}
    * Get group details
    */
-  async getGroupDetails(groupId: string, conversationId?: string): Promise<GroupDetails> {
-    throw new Error('Not implemented');
+  async getGroupDetails(
+    groupId: string,
+    conversationId?: string,
+  ): Promise<GroupDetails> {
+    throw new Error("Not implemented");
   },
 
   /**
@@ -71,7 +73,7 @@ export const groupsAPI = {
    */
   async getGroupMembers(
     groupId: string,
-    params?: { page?: number; limit?: number; role?: string }
+    params?: { page?: number; limit?: number; role?: string },
   ): Promise<{ members: GroupMember[]; total: number }> {
     return {
       members: [],
@@ -84,7 +86,7 @@ export const groupsAPI = {
    * Get group statistics
    */
   async getGroupStats(groupId: string): Promise<GroupStats> {
-    throw new Error('Not implemented');
+    throw new Error("Not implemented");
   },
 
   /**
@@ -93,7 +95,7 @@ export const groupsAPI = {
    */
   async getGroupLogs(
     groupId: string,
-    params?: { page?: number; limit?: number; actionType?: string }
+    params?: { page?: number; limit?: number; actionType?: string },
   ): Promise<{ logs: GroupLog[]; total: number }> {
     return {
       logs: [],
@@ -106,15 +108,24 @@ export const groupsAPI = {
    * Get group settings
    */
   async getGroupSettings(groupId: string): Promise<GroupSettings> {
-    throw new Error('Not implemented');
+    throw new Error("Not implemented");
   },
 
   /**
    * POST /api/v1/groups/{groupId}/members
    * Add members to group
    */
-  async addMembers(groupId: string, userIds: string[], memberInfo?: Array<{ userId: string; displayName: string; username?: string; avatarUrl?: string }>): Promise<GroupMember[]> {
-    throw new Error('Not implemented');
+  async addMembers(
+    groupId: string,
+    userIds: string[],
+    memberInfo?: Array<{
+      userId: string;
+      displayName: string;
+      username?: string;
+      avatarUrl?: string;
+    }>,
+  ): Promise<GroupMember[]> {
+    throw new Error("Not implemented");
   },
 
   /**
@@ -122,7 +133,7 @@ export const groupsAPI = {
    * Remove member from group
    */
   async removeMember(groupId: string, memberId: string): Promise<void> {
-    throw new Error('Not implemented');
+    throw new Error("Not implemented");
   },
 
   /**
@@ -130,7 +141,7 @@ export const groupsAPI = {
    * Transfer admin rights
    */
   async transferAdmin(groupId: string, userId: string): Promise<void> {
-    throw new Error('Not implemented');
+    throw new Error("Not implemented");
   },
 
   /**
@@ -139,17 +150,17 @@ export const groupsAPI = {
    */
   async updateGroup(
     groupId: string,
-    updates: { name?: string; description?: string; picture_url?: string }
+    updates: { name?: string; description?: string; picture_url?: string },
   ): Promise<GroupDetails> {
-    throw new Error('Not implemented');
+    throw new Error("Not implemented");
   },
 
   /**
    * POST /api/v1/groups/{groupId}/leave
    * Leave group
    */
-  async leaveGroup(groupId: string, userId: string = 'user-1'): Promise<void> {
-    throw new Error('Not implemented');
+  async leaveGroup(groupId: string, userId: string = "user-1"): Promise<void> {
+    throw new Error("Not implemented");
   },
 
   /**
@@ -157,6 +168,6 @@ export const groupsAPI = {
    * Delete group
    */
   async deleteGroup(groupId: string): Promise<void> {
-    throw new Error('Not implemented');
+    throw new Error("Not implemented");
   },
 };
