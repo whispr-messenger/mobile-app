@@ -105,8 +105,16 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
-      <Stack.Screen name="TwoFactorSetup" component={TwoFactorSetupScreen} />
-      <Stack.Screen name="TwoFactorVerify" component={TwoFactorVerifyScreen} />
+      <Stack.Screen
+        name="TwoFactorSetup"
+        component={TwoFactorSetupScreen}
+        options={{ gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="TwoFactorVerify"
+        component={TwoFactorVerifyScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen
         name="TwoFactorBackupCodes"
         component={TwoFactorBackupCodesScreen}

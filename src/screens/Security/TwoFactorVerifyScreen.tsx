@@ -132,12 +132,12 @@ export const TwoFactorVerifyScreen: React.FC = () => {
                 ]}
                 onPress={() => {
                   triggerHaptic("light");
-                  navigation.goBack();
+                  navigation.navigate("TwoFactorAuth");
                 }}
                 activeOpacity={0.7}
               >
                 <Ionicons
-                  name="arrow-back"
+                  name="close"
                   size={22}
                   color={themeColors.text.primary}
                 />
