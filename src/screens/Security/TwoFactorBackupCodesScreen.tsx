@@ -116,7 +116,10 @@ export const TwoFactorBackupCodesScreen: React.FC = () => {
 
   const handleComplete = () => {
     triggerHaptic("success");
-    navigation.popToTop();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "TwoFactorAuth" }],
+    });
   };
 
   return (

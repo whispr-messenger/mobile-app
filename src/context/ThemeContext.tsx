@@ -258,6 +258,9 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Veuillez cocher la case de confirmation avant de continuer.",
     "twoFactor.completeSetup": "Terminer la configuration",
     "twoFactor.regenerateCodes": "Régénérer les codes",
+    "twoFactor.regenerateTitle": "Régénérer les codes de secours",
+    "twoFactor.regenerateConfirm":
+      "Cette action va générer de nouveaux codes et invalider les précédents. Vos anciens codes ne fonctionneront plus.",
     "twoFactor.codesRegenerated": "Codes de récupération régénérés",
 
     // Common
@@ -457,6 +460,9 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Please check the confirmation box before continuing.",
     "twoFactor.completeSetup": "Complete Setup",
     "twoFactor.regenerateCodes": "Regenerate Codes",
+    "twoFactor.regenerateTitle": "Regenerate Backup Codes",
+    "twoFactor.regenerateConfirm":
+      "This will generate new codes and invalidate your previous ones. Your old codes will no longer work.",
     "twoFactor.codesRegenerated": "Recovery codes regenerated",
 
     // Common

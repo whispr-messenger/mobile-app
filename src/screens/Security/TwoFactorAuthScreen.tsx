@@ -15,10 +15,10 @@ import {
   Platform,
   Switch,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
@@ -134,16 +134,29 @@ export const TwoFactorAuthScreen: React.FC = () => {
     }
   };
 
-  const handleViewBackupCodes = async () => {
-    setActionLoading(true);
-    try {
-      const { codes } = await TwoFactorService.getBackupCodes();
-      navigation.navigate("TwoFactorBackupCodes", { codes });
-    } catch {
-      showToast(getLocalizedText("twoFactor.setupError"), "error");
-    } finally {
-      setActionLoading(false);
-    }
+  const handleViewBackupCodes = () => {
+    Alert.alert(
+      getLocalizedText("twoFactor.regenerateTitle"),
+      getLocalizedText("twoFactor.regenerateConfirm"),
+      [
+        { text: getLocalizedText("common.cancel"), style: "cancel" },
+        {
+          text: getLocalizedText("twoFactor.regenerateCodes"),
+          style: "destructive",
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              const { codes } = await TwoFactorService.getBackupCodes();
+              navigation.navigate("TwoFactorBackupCodes", { codes });
+            } catch {
+              showToast(getLocalizedText("twoFactor.setupError"), "error");
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
