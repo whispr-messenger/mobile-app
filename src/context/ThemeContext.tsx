@@ -273,6 +273,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.ok": "OK",
     "common.next": "Suivant",
     "common.retry": "Réessayer",
+    "common.copyError": "Impossible de copier dans le presse-papiers.",
   },
   en: {
     // Navigation
@@ -475,6 +476,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.ok": "OK",
     "common.next": "Next",
     "common.retry": "Retry",
+    "common.copyError": "Unable to copy to clipboard.",
   },
 };
 

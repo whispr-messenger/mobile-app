@@ -23,7 +23,8 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
     await Clipboard.setStringAsync(text);
-    return true;
+    const written = await Clipboard.getStringAsync();
+    return written === text;
   } catch {
     // Fallback for non-HTTPS contexts (e.g. Expo web on local IP)
     Clipboard.setString(text);
@@ -96,6 +97,8 @@ export const TwoFactorBackupCodesScreen: React.FC = () => {
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.codeCopied"), "success");
+    } else {
+      showToast(getLocalizedText("common.copyError"), "error");
     }
   };
 
@@ -105,6 +108,8 @@ export const TwoFactorBackupCodesScreen: React.FC = () => {
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.allCodesCopied"), "success");
+    } else {
+      showToast(getLocalizedText("common.copyError"), "error");
     }
   };
 
