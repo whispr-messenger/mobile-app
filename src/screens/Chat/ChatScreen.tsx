@@ -32,6 +32,8 @@ import {
   Message,
   MessageWithStatus,
   MessageWithRelations,
+  MessageAttachment,
+  MessageReaction,
   Conversation,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
@@ -258,7 +260,7 @@ export const ChatScreen: React.FC = () => {
               const status = (msg as any)?.status || ("sent" as const);
 
               // Load reactions for this message
-              let reactions = [];
+              let reactions: MessageReaction[] = [];
               try {
                 const reactionData = (await messagingAPI.getMessageReactions(
                   msg.id,
@@ -269,7 +271,7 @@ export const ChatScreen: React.FC = () => {
               }
 
               // Load attachments for this message
-              let attachments = [];
+              let attachments: MessageAttachment[] = [];
               try {
                 attachments = await messagingAPI.getAttachments(msg.id);
               } catch (error) {

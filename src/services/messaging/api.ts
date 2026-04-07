@@ -1,6 +1,17 @@
-import { Conversation, Message } from "../../types/messaging";
+import {
+  Conversation,
+  Message,
+  MessageAttachment,
+} from "../../types/messaging";
 import { apiFetch } from "../apiClient";
 import { MESSAGING_API_URL } from "../../config/api";
+
+function unwrapData<T>(payload: unknown): T {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as any).data as T;
+  }
+  return payload as T;
+}
 
 export const messagingAPI = {
   async getConversations(params?: {
@@ -26,14 +37,16 @@ export const messagingAPI = {
     const queryString = query.toString();
     const url = `${MESSAGING_API_URL}/conversations${queryString ? `?${queryString}` : ""}`;
 
-    const data = await apiFetch<Conversation[] | unknown>(url);
-    return Array.isArray(data) ? data : [];
+    const payload = await apiFetch<unknown>(url);
+    const data = unwrapData<unknown>(payload);
+    return Array.isArray(data) ? (data as Conversation[]) : [];
   },
 
   async getConversation(id: string): Promise<Conversation> {
-    return apiFetch<Conversation>(
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(id)}`,
     );
+    return unwrapData<Conversation>(payload);
   },
 
   async deleteConversation(id: string): Promise<void> {
@@ -70,8 +83,9 @@ export const messagingAPI = {
       conversationId,
     )}/messages${queryString ? `?${queryString}` : ""}`;
 
-    const data = await apiFetch<Message[] | unknown>(url);
-    return Array.isArray(data) ? data : [];
+    const payload = await apiFetch<unknown>(url);
+    const data = unwrapData<unknown>(payload);
+    return Array.isArray(data) ? (data as Message[]) : [];
   },
 
   async sendMessage(
@@ -84,7 +98,7 @@ export const messagingAPI = {
       reply_to_id?: string;
     },
   ): Promise<Message> {
-    return apiFetch<Message>(
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}/messages`,
       {
         method: "POST",
@@ -97,6 +111,7 @@ export const messagingAPI = {
         }),
       },
     );
+    return unwrapData<Message>(payload);
   },
 
   async editMessage(
@@ -104,7 +119,7 @@ export const messagingAPI = {
     conversationId: string,
     newContent: string,
   ): Promise<Message> {
-    return apiFetch<Message>(
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/messages/${encodeURIComponent(messageId)}`,
       {
         method: "PUT",
@@ -114,6 +129,7 @@ export const messagingAPI = {
         }),
       },
     );
+    return unwrapData<Message>(payload);
   },
 
   async deleteMessage(
@@ -181,17 +197,19 @@ export const messagingAPI = {
   },
 
   async getPinnedMessages(conversationId: string): Promise<Message[]> {
-    const data = await apiFetch<Message[] | unknown>(
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}/pins`,
     );
-    return Array.isArray(data) ? data : [];
+    const data = unwrapData<unknown>(payload);
+    return Array.isArray(data) ? (data as Message[]) : [];
   },
 
-  async getAttachments(messageId: string) {
-    const data = await apiFetch<unknown[] | unknown>(
+  async getAttachments(messageId: string): Promise<MessageAttachment[]> {
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/messages/${encodeURIComponent(messageId)}/attachments`,
     );
-    return Array.isArray(data) ? data : [];
+    const data = unwrapData<unknown>(payload);
+    return Array.isArray(data) ? (data as MessageAttachment[]) : [];
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {
@@ -207,9 +225,10 @@ export const messagingAPI = {
   async getUserInfo(
     userId: string,
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
-    const user = await apiFetch<any>(
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/users/${encodeURIComponent(userId)}`,
     );
+    const user = unwrapData<any>(payload);
 
     if (!user) return null;
 
@@ -224,9 +243,10 @@ export const messagingAPI = {
   async getConversationMembers(
     conversationId: string,
   ): Promise<Array<{ id: string; display_name: string; username?: string }>> {
-    const data = await apiFetch<any[] | unknown>(
+    const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
     );
+    const data = unwrapData<unknown>(payload);
 
     if (!Array.isArray(data)) return [];
 
