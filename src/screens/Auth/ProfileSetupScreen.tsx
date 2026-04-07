@@ -20,6 +20,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { TokenService } from "../../services/TokenService";
 import { USER_API_URL } from "../../config/api";
+import { mediaAPI } from "../../services/media/api";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
@@ -94,7 +95,21 @@ export const ProfileSetupScreen: React.FC = () => {
         username: username.trim(),
       };
 
-      const response = await fetch(`${USER_API_URL}/users/${userId}/profile`, {
+      if (avatarUri) {
+        try {
+          const upload = await mediaAPI.uploadAvatar(userId!, avatarUri);
+          if (upload.url) {
+            body.profilePictureUrl = upload.url;
+          } else if (upload.mediaId) {
+            // Fallback: let backend resolve avatarMediaId
+            (body as any).avatarMediaId = upload.mediaId;
+          }
+        } catch (e: any) {
+          console.warn("[ProfileSetup] Avatar upload failed:", e?.message || e);
+        }
+      }
+
+      const response = await fetch(`${USER_API_URL}/profile/${userId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
