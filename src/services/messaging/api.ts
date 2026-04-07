@@ -277,24 +277,25 @@ export const messagingAPI = {
     description?: string,
     photoUri?: string,
   ): Promise<Conversation> {
-    const groupPayload = await apiFetch<unknown>(
-      `${MESSAGING_API_URL}/groups`,
+    const payload = await apiFetch<unknown>(
+      `${MESSAGING_API_URL}/conversations`,
       {
         method: "POST",
         body: JSON.stringify({
+          type: "group",
           name,
-          description,
-          picture_url: photoUri,
-          member_ids: memberIds,
+          user_ids: memberIds,
+          metadata: {
+            description: description || undefined,
+            picture_url: photoUri || undefined,
+          },
         }),
       },
     );
-    const group = unwrapData<any>(groupPayload);
 
-    const conversationId = group.conversation_id;
-    if (!conversationId) {
-      throw new Error("Group created without conversation_id");
-    }
+    const conversation = unwrapData<any>(payload);
+    const conversationId = conversation?.id;
+    if (!conversationId) throw new Error("Group created without id");
 
     const conversationPayload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}`,
