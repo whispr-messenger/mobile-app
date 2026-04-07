@@ -101,6 +101,7 @@ export const ChatScreen: React.FC = () => {
       avatar_url?: string;
     }>
   >([]);
+  const [senderNames, setSenderNames] = useState<Record<string, string>>({});
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -219,6 +220,35 @@ export const ChatScreen: React.FC = () => {
       logger.error("ChatScreen", "Error loading conversation", error);
     }
   }, [conversationId]);
+
+  useEffect(() => {
+    if (conversation?.type !== "group") return;
+    const ids = new Set(
+      messages
+        .map((m) => m?.sender_id)
+        .filter((id): id is string => !!id && id !== userId),
+    );
+
+    const missing = Array.from(ids).filter(
+      (id) =>
+        !conversationMembers.some((m) => m.id === id) &&
+        senderNames[id] === undefined,
+    );
+    if (missing.length === 0) return;
+
+    missing.forEach((id) => {
+      messagingAPI
+        .getUserInfo(id)
+        .then((info) => {
+          if (!info?.display_name) return;
+          setSenderNames((prev) => {
+            if (prev[id] !== undefined) return prev;
+            return { ...prev, [id]: info.display_name };
+          });
+        })
+        .catch(() => {});
+    });
+  }, [conversation?.type, conversationMembers, messages, senderNames, userId]);
 
   useEffect(() => {
     // Load data
@@ -553,6 +583,10 @@ export const ChatScreen: React.FC = () => {
 
     messages.forEach((message) => {
       const messageDate = new Date(message.sent_at);
+      if (Number.isNaN(messageDate.getTime())) {
+        result.push(message);
+        return;
+      }
       const dateKey = messageDate.toDateString();
 
       // Add date separator if date changed
@@ -933,6 +967,12 @@ export const ChatScreen: React.FC = () => {
         isGroup && !isSent
           ? conversationMembers.find((m) => m.id === message.sender_id)
           : undefined;
+      const senderDisplayName =
+        isGroup && !isSent
+          ? (sender?.display_name ??
+            senderNames[message.sender_id] ??
+            "Utilisateur")
+          : undefined;
 
       return (
         <MessageBubble
@@ -940,11 +980,7 @@ export const ChatScreen: React.FC = () => {
           isSent={isSent}
           currentUserId={userId}
           conversationType={conversation?.type}
-          senderName={
-            isGroup && !isSent
-              ? (sender?.display_name ?? "Utilisateur")
-              : undefined
-          }
+          senderName={senderDisplayName}
           senderAvatarUrl={sender?.avatar_url}
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
@@ -958,6 +994,7 @@ export const ChatScreen: React.FC = () => {
       userId,
       conversation?.type,
       conversationMembers,
+      senderNames,
       handleReactionPress,
       handleReplyPress,
       handleMessageLongPress,

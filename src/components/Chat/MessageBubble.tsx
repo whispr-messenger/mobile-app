@@ -61,6 +61,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const themeColors = getThemeColors();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
+  const timeLabel = (() => {
+    const d = new Date(message.sent_at);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  })();
+
+  const isEdited = (() => {
+    if (!message.edited_at) return false;
+    const sent = new Date(message.sent_at);
+    const edited = new Date(message.edited_at);
+    if (Number.isNaN(sent.getTime()) || Number.isNaN(edited.getTime()))
+      return false;
+    return edited.getTime() - sent.getTime() > 1000;
+  })();
+
   // Safety check
   if (
     !message ||
@@ -179,13 +197,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )
           ) : null}
           <View style={styles.footer}>
-            <Text style={styles.timestamp}>
-              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-            {message.edited_at ? (
+            {timeLabel ? (
+              <Text style={styles.timestamp}>{timeLabel}</Text>
+            ) : null}
+            {isEdited ? (
               <Text
                 style={[
                   styles.editedLabel,
@@ -209,16 +224,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
         ]}
       >
-        {conversationType === "group" && senderName ? (
+        {conversationType === "group" ? (
           <View style={styles.senderHeader}>
+            <Avatar
+              uri={senderAvatarUrl}
+              name={senderName || "Utilisateur"}
+              size={18}
+            />
             <Text
               style={[styles.senderName, { color: themeColors.text.secondary }]}
             >
-              {senderName}
+              {senderName || "Utilisateur"}
             </Text>
-            <View style={styles.senderAvatar}>
-              <Avatar uri={senderAvatarUrl} name={senderName} size={18} />
-            </View>
           </View>
         ) : null}
         {message.reply_to ? (
@@ -272,15 +289,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )
         ) : null}
         <View style={styles.footer}>
-          <Text
-            style={[styles.timestamp, { color: themeColors.text.tertiary }]}
-          >
-            {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
-          {message.edited_at ? (
+          {timeLabel ? (
+            <Text
+              style={[styles.timestamp, { color: themeColors.text.tertiary }]}
+            >
+              {timeLabel}
+            </Text>
+          ) : null}
+          {isEdited ? (
             <Text
               style={[styles.editedLabel, { color: themeColors.text.tertiary }]}
             >
@@ -359,21 +375,18 @@ const styles = StyleSheet.create({
   senderHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
     marginBottom: 6,
   },
   senderName: {
     fontSize: 12,
     fontWeight: "600",
-    marginRight: 8,
-  },
-  senderAvatar: {
-    marginTop: -2,
+    marginLeft: 8,
   },
   footer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
     marginTop: 4,
   },
   timestamp: {
