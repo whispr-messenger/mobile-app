@@ -92,6 +92,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
 
   useFocusEffect(
     useCallback(() => {
+      setActionLoading(false);
       setLoading(true);
       TwoFactorService.getStatus()
         .then(({ enabled }) => setTwoFactorEnabled(enabled))
@@ -106,6 +107,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
     if (actionLoading || loading) return;
     triggerHaptic("light");
     if (value) {
+      setActionLoading(true);
       navigation.navigate("TwoFactorSetup");
     } else {
       setShowDisableCard(true);

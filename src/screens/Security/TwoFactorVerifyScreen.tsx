@@ -132,7 +132,7 @@ export const TwoFactorVerifyScreen: React.FC = () => {
                 ]}
                 onPress={() => {
                   triggerHaptic("light");
-                  navigation.popToTop();
+                  navigation.pop(2);
                 }}
                 activeOpacity={0.7}
               >

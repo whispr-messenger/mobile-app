@@ -215,7 +215,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
               ]}
               onPress={() => {
                 triggerHaptic("light");
-                navigation.popToTop();
+                navigation.goBack();
               }}
               activeOpacity={0.7}
             >
