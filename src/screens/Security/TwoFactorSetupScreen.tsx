@@ -33,7 +33,8 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
     await Clipboard.setStringAsync(text);
     return true;
   } catch {
-    return false;
+    // Fallback for non-HTTPS contexts (e.g. Expo web on local IP)
+    return Clipboard.setString(text);
   }
 };
 
