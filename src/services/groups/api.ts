@@ -1,8 +1,8 @@
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
-const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api/v1`;
+const API_BASE_URL = `${getApiBaseUrl()}/user`;
+const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api`;
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
@@ -77,7 +77,7 @@ export interface GroupDetails {
 
 export const groupsAPI = {
   /**
-   * GET /api/v1/groups/{groupId}
+   * GET /api/groups/{groupId}
    * Get group details
    */
   async getGroupDetails(
@@ -120,7 +120,7 @@ export const groupsAPI = {
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/members
+   * GET /api/groups/{groupId}/members
    * Get group members
    */
   async getGroupMembers(
@@ -181,7 +181,7 @@ export const groupsAPI = {
   },
 
   /**
-   * GET /api/v1/groups/{groupId}/stats
+   * GET /api/groups/{groupId}/stats
    * Get group statistics
    */
   async getGroupStats(groupId: string): Promise<GroupStats> {
@@ -241,7 +241,7 @@ export const groupsAPI = {
   },
 
   /**
-   * POST /api/v1/groups/{groupId}/members
+   * POST /api/groups/{groupId}/members
    * Add members to group
    */
   async addMembers(
@@ -305,7 +305,7 @@ export const groupsAPI = {
   },
 
   /**
-   * DELETE /api/v1/groups/{groupId}/members/{memberId}
+   * DELETE /api/groups/{groupId}/members/{memberId}
    * Remove member from group
    */
   async removeMember(groupId: string, memberId: string): Promise<void> {
@@ -334,7 +334,7 @@ export const groupsAPI = {
   },
 
   /**
-   * PUT /api/v1/groups/{groupId}
+   * PUT /api/groups/{groupId}
    * Update group details
    */
   async updateGroup(
@@ -383,7 +383,7 @@ export const groupsAPI = {
   },
 
   /**
-   * POST /api/v1/groups/{groupId}/leave
+   * POST /api/groups/{groupId}/leave
    * Leave group
    */
   async leaveGroup(groupId: string, userId?: string): Promise<void> {
@@ -404,7 +404,7 @@ export const groupsAPI = {
   },
 
   /**
-   * DELETE /api/v1/groups/{groupId}
+   * DELETE /api/groups/{groupId}
    * Delete group
    */
   async deleteGroup(groupId: string): Promise<void> {

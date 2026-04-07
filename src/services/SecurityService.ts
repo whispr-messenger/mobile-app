@@ -6,7 +6,7 @@ import { getApiBaseUrl } from './apiBase';
 type ApiError = Error & { status?: number; body?: unknown };
 
 function getAuthBaseUrl(): string {
-  return `${getApiBaseUrl()}/auth/v1`;
+  return `${getApiBaseUrl()}/auth`;
 }
 
 async function apiFetch<T>(
@@ -65,7 +65,7 @@ export interface TwoFAStatus {
 
 export const TwoFactorAuthService = {
   /**
-   * POST /auth/v1/2fa/setup
+   * POST /auth/2fa/setup
    * Initialize 2FA — returns TOTP secret + QR code URL.
    */
   async setup(): Promise<TwoFASetupResult> {
@@ -73,7 +73,7 @@ export const TwoFactorAuthService = {
   },
 
   /**
-   * POST /auth/v1/2fa/enable
+   * POST /auth/2fa/enable
    * Confirm and enable 2FA with the first TOTP code.
    */
   async enable(code: string): Promise<void> {
@@ -84,7 +84,7 @@ export const TwoFactorAuthService = {
   },
 
   /**
-   * POST /auth/v1/2fa/verify
+   * POST /auth/2fa/verify
    * Verify a TOTP code (used during login when 2FA is active).
    */
   async verify(code: string): Promise<{ access_token: string; refresh_token: string }> {
@@ -95,7 +95,7 @@ export const TwoFactorAuthService = {
   },
 
   /**
-   * POST /auth/v1/2fa/disable
+   * POST /auth/2fa/disable
    * Disable 2FA (requires current TOTP code or backup code).
    */
   async disable(code: string): Promise<void> {
@@ -106,7 +106,7 @@ export const TwoFactorAuthService = {
   },
 
   /**
-   * POST /auth/v1/2fa/backup-codes
+   * POST /auth/2fa/backup-codes
    * Regenerate backup codes.
    */
   async generateBackupCodes(): Promise<{ backup_codes: string[] }> {
@@ -114,7 +114,7 @@ export const TwoFactorAuthService = {
   },
 
   /**
-   * GET /auth/v1/2fa/status
+   * GET /auth/2fa/status
    * Get 2FA status for the current user.
    */
   async getStatus(): Promise<TwoFAStatus> {
@@ -134,7 +134,7 @@ export interface DeviceInfo {
 
 export const DeviceManagerService = {
   /**
-   * GET /auth/v1/device
+   * GET /auth/device
    * List all registered devices for the current user.
    */
   async listDevices(): Promise<DeviceInfo[]> {
@@ -143,7 +143,7 @@ export const DeviceManagerService = {
   },
 
   /**
-   * DELETE /auth/v1/device/:deviceId
+   * DELETE /auth/device/:deviceId
    * Revoke a device (log it out remotely).
    */
   async revokeDevice(deviceId: string): Promise<void> {
@@ -174,7 +174,7 @@ export interface SignalHealthStatus {
 
 export const SignalKeysService = {
   /**
-   * GET /auth/v1/signal/keys/:userId/devices/:deviceId
+   * GET /auth/signal/keys/:userId/devices/:deviceId
    * Fetch the key bundle for a specific user+device (for E2E session init).
    */
   async getKeyBundle(userId: string, deviceId: string): Promise<SignalKeyBundle> {
@@ -184,7 +184,7 @@ export const SignalKeysService = {
   },
 
   /**
-   * POST /auth/v1/signal/keys/signed-prekey
+   * POST /auth/signal/keys/signed-prekey
    * Upload a new signed prekey (rotation).
    */
   async uploadSignedPrekey(signedPrekey: {
@@ -199,7 +199,7 @@ export const SignalKeysService = {
   },
 
   /**
-   * POST /auth/v1/signal/keys/prekeys
+   * POST /auth/signal/keys/prekeys
    * Upload a batch of one-time prekeys.
    */
   async uploadPrekeys(
@@ -212,7 +212,7 @@ export const SignalKeysService = {
   },
 
   /**
-   * GET /auth/v1/signal/health
+   * GET /auth/signal/health
    * Check key health (how many prekeys remain, rotation needed, etc.).
    */
   async getHealth(): Promise<SignalHealthStatus> {

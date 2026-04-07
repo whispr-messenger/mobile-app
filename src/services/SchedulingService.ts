@@ -100,20 +100,20 @@ export interface QueueStats {
 
 export const SchedulingService = {
   /**
-   * POST /scheduling/api/v1/scheduled-messages
+   * POST /scheduling/api/scheduled-messages
    * Schedule a message for future delivery.
    */
   async createScheduledMessage(
     dto: CreateScheduledMessageDto
   ): Promise<ScheduledMessage> {
-    return apiFetch<ScheduledMessage>('/api/v1/scheduled-messages', {
+    return apiFetch<ScheduledMessage>('/api/scheduled-messages', {
       method: 'POST',
       body: JSON.stringify(dto),
     });
   },
 
   /**
-   * GET /scheduling/api/v1/scheduled-messages
+   * GET /scheduling/api/scheduled-messages
    * List scheduled messages for the current user.
    */
   async getScheduledMessages(params?: {
@@ -129,11 +129,11 @@ export const SchedulingService = {
     if (params?.offset !== undefined) query.append('offset', String(params.offset));
 
     const qs = query.toString();
-    return apiFetch<ScheduledMessage[]>(`/api/v1/scheduled-messages${qs ? `?${qs}` : ''}`);
+    return apiFetch<ScheduledMessage[]>(`/api/scheduled-messages${qs ? `?${qs}` : ''}`);
   },
 
   /**
-   * PATCH /scheduling/api/v1/scheduled-messages/:id
+   * PATCH /scheduling/api/scheduled-messages/:id
    * Update a scheduled message.
    */
   async updateScheduledMessage(
@@ -141,7 +141,7 @@ export const SchedulingService = {
     dto: UpdateScheduledMessageDto
   ): Promise<ScheduledMessage> {
     return apiFetch<ScheduledMessage>(
-      `/api/v1/scheduled-messages/${encodeURIComponent(id)}`,
+      `/api/scheduled-messages/${encodeURIComponent(id)}`,
       {
         method: 'PATCH',
         body: JSON.stringify(dto),
@@ -150,11 +150,11 @@ export const SchedulingService = {
   },
 
   /**
-   * DELETE /scheduling/api/v1/scheduled-messages/:id
+   * DELETE /scheduling/api/scheduled-messages/:id
    * Cancel a scheduled message.
    */
   async cancelScheduledMessage(id: string): Promise<void> {
-    await apiFetch<void>(`/api/v1/scheduled-messages/${encodeURIComponent(id)}`, {
+    await apiFetch<void>(`/api/scheduled-messages/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
@@ -162,24 +162,24 @@ export const SchedulingService = {
   // ─── Monitoring ─────────────────────────────────────────────────────────────
 
   /**
-   * GET /scheduling/api/v1/monitoring/health
+   * GET /scheduling/api/monitoring/health
    */
   async getHealth(): Promise<HealthStatus> {
-    return apiFetch<HealthStatus>('/api/v1/monitoring/health');
+    return apiFetch<HealthStatus>('/api/monitoring/health');
   },
 
   /**
-   * GET /scheduling/api/v1/monitoring/metrics
+   * GET /scheduling/api/monitoring/metrics
    */
   async getMetrics(): Promise<SchedulingMetrics> {
-    return apiFetch<SchedulingMetrics>('/api/v1/monitoring/metrics');
+    return apiFetch<SchedulingMetrics>('/api/monitoring/metrics');
   },
 
   /**
-   * GET /scheduling/api/v1/monitoring/queues
+   * GET /scheduling/api/monitoring/queues
    */
   async getQueueStats(): Promise<QueueStats[]> {
-    const data = await apiFetch<QueueStats | QueueStats[]>('/api/v1/monitoring/queues');
+    const data = await apiFetch<QueueStats | QueueStats[]>('/api/monitoring/queues');
     return Array.isArray(data) ? data : [data];
   },
 };
