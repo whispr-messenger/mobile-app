@@ -254,6 +254,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.copyAll": "Tout copier",
     "twoFactor.allCodesCopied": "Tous les codes copiés",
     "twoFactor.confirmSaved": "J'ai sauvegardé mes codes de secours",
+    "twoFactor.confirmSavedFirst":
+      "Veuillez cocher la case de confirmation avant de continuer.",
     "twoFactor.completeSetup": "Terminer la configuration",
     "twoFactor.regenerateCodes": "Régénérer les codes",
     "twoFactor.codesRegenerated": "Codes de récupération régénérés",
@@ -451,6 +453,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.copyAll": "Copy All",
     "twoFactor.allCodesCopied": "All codes copied",
     "twoFactor.confirmSaved": "I have saved my backup codes",
+    "twoFactor.confirmSavedFirst":
+      "Please check the confirmation box before continuing.",
     "twoFactor.completeSetup": "Complete Setup",
     "twoFactor.regenerateCodes": "Regenerate Codes",
     "twoFactor.codesRegenerated": "Recovery codes regenerated",

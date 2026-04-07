@@ -99,10 +99,11 @@ export const TwoFactorAuthScreen: React.FC = () => {
           showToast(getLocalizedText("twoFactor.loadError"), "error"),
         )
         .finally(() => setLoading(false));
-    }, []),
+    }, [getLocalizedText]),
   );
 
   const handleToggle2FA = (value: boolean) => {
+    if (actionLoading || loading) return;
     triggerHaptic("light");
     if (value) {
       navigation.navigate("TwoFactorSetup");

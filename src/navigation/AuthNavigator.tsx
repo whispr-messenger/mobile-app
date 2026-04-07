@@ -46,7 +46,7 @@ export type AuthStackParamList = {
   SecurityKeys: undefined;
   TwoFactorAuth: undefined;
   TwoFactorSetup: undefined;
-  TwoFactorVerify: { secret: string; qrCodeUri: string };
+  TwoFactorVerify: { secret: string };
   TwoFactorBackupCodes: { codes: string[] };
   ConversationsList: undefined;
   Chat: { conversationId: string };

@@ -186,7 +186,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
 
   const handleNext = () => {
     triggerHaptic("light");
-    navigation.navigate("TwoFactorVerify", { secret, qrCodeUri });
+    navigation.navigate("TwoFactorVerify", { secret });
   };
 
   return (
@@ -215,7 +215,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
               ]}
               onPress={() => {
                 triggerHaptic("light");
-                navigation.navigate("TwoFactorAuth");
+                navigation.popToTop();
               }}
               activeOpacity={0.7}
             >

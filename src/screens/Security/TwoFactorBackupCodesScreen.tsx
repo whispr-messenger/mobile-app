@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,11 @@ import {
 } from "react-native";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { RouteProp } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -106,9 +110,24 @@ export const TwoFactorBackupCodesScreen: React.FC = () => {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const onBeforeRemove = (e: { preventDefault: () => void }) => {
+        if (confirmed) return;
+        e.preventDefault();
+        showToast(getLocalizedText("twoFactor.confirmSavedFirst"), "warning");
+      };
+      const unsubscribe = navigation.addListener(
+        "beforeRemove" as Parameters<typeof navigation.addListener>[0],
+        onBeforeRemove as Parameters<typeof navigation.addListener>[1],
+      );
+      return unsubscribe;
+    }, [confirmed, navigation, getLocalizedText]),
+  );
+
   const handleComplete = () => {
     triggerHaptic("success");
-    navigation.navigate("TwoFactorAuth");
+    navigation.popToTop();
   };
 
   return (
