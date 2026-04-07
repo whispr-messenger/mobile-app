@@ -59,11 +59,11 @@ async function enrichWithDisplayNames(
 }
 
 export type ConversationsStatus =
-  | 'loading'
-  | 'grace_period'
-  | 'empty'
-  | 'loaded'
-  | 'error';
+  | "loading"
+  | "grace_period"
+  | "empty"
+  | "loaded"
+  | "error";
 
 interface ConversationsState {
   conversations: Conversation[];
@@ -88,12 +88,17 @@ interface ConversationsActions {
   loadManuallyUnreadIds: () => Promise<void>;
   _startGracePeriod: () => void;
   _cancelGracePeriod: () => void;
-  _setConversations: (conversations: Conversation[], fromRefresh?: boolean) => void;
+  _setConversations: (
+    conversations: Conversation[],
+    fromRefresh?: boolean,
+  ) => void;
 }
 
-export const useConversationsStore = create<ConversationsState & ConversationsActions>((set, get) => ({
+export const useConversationsStore = create<
+  ConversationsState & ConversationsActions
+>((set, get) => ({
   conversations: [],
-  status: 'loading',
+  status: "loading",
   error: null,
   manuallyUnreadIds: new Set<string>(),
   _gracePeriodTimer: null,
@@ -116,9 +121,9 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     const { _gracePeriodTimer } = get();
     if (_gracePeriodTimer) return;
     const timer = setTimeout(() => {
-      set({ status: 'empty', _gracePeriodTimer: null });
+      set({ status: "empty", _gracePeriodTimer: null });
     }, EMPTY_STATE_GRACE_PERIOD_MS);
-    set({ status: 'grace_period', _gracePeriodTimer: timer });
+    set({ status: "grace_period", _gracePeriodTimer: timer });
   },
 
   _cancelGracePeriod: () => {
@@ -133,10 +138,10 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     const { _cancelGracePeriod, _startGracePeriod } = get();
     if (conversations.length > 0) {
       _cancelGracePeriod();
-      set({ conversations, status: 'loaded', error: null });
+      set({ conversations, status: "loaded", error: null });
     } else if (fromRefresh) {
       _cancelGracePeriod();
-      set({ conversations: [], status: 'empty', error: null });
+      set({ conversations: [], status: "empty", error: null });
     } else {
       set({ conversations: [] });
       _startGracePeriod();
@@ -145,13 +150,13 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
 
   fetchConversations: async () => {
     const { _setConversations, _startGracePeriod } = get();
-    set({ status: 'loading', error: null });
+    set({ status: "loading", error: null });
 
     try {
       // Show cached data immediately while fetching
       const cached = await cacheService.getConversations();
       if (cached && cached.length > 0) {
-        set({ conversations: cached, status: 'loaded' });
+        set({ conversations: cached, status: "loaded" });
       }
 
       const data = await messagingAPI.getConversations();
@@ -160,14 +165,19 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
       await cacheService.saveConversations(enriched);
       _setConversations(enriched);
     } catch (err) {
-      console.error('[conversationsStore] fetchConversations error:', err);
+      const apiError = err as { status?: number };
+      if (apiError?.status === 401) {
+        set({ conversations: [], status: "empty", error: null });
+        return;
+      }
+      console.error("[conversationsStore] fetchConversations error:", err);
       // If we already have cached data shown, stay on it but start grace period
       // so skeletons don't flash forever if cache was empty
       const { conversations } = get();
       if (conversations.length === 0) {
         _startGracePeriod();
       }
-      set({ error: 'Failed to load conversations' });
+      set({ error: "Failed to load conversations" });
     }
   },
 
@@ -180,14 +190,19 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
       await cacheService.saveConversations(enriched);
       _setConversations(enriched, true);
     } catch (err) {
-      console.error('[conversationsStore] refreshConversations error:', err);
-      set({ error: 'Failed to refresh conversations' });
+      const apiError = err as { status?: number };
+      if (apiError?.status === 401) {
+        set({ conversations: [], status: "empty", error: null });
+        return;
+      }
+      console.error("[conversationsStore] refreshConversations error:", err);
+      set({ error: "Failed to refresh conversations" });
     }
   },
 
   applyConversationUpdate: (conversation) => {
     const { conversations, _cancelGracePeriod } = get();
-    const index = conversations.findIndex(c => c.id === conversation.id);
+    const index = conversations.findIndex((c) => c.id === conversation.id);
     let next: Conversation[];
     if (index === -1) {
       next = [conversation, ...conversations];
@@ -197,7 +212,7 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     }
     if (next.length > 0) {
       _cancelGracePeriod();
-      set({ conversations: next, status: 'loaded' });
+      set({ conversations: next, status: "loaded" });
     }
   },
 
@@ -239,13 +254,16 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
   deleteConversation: async (id) => {
     const { conversations } = get();
     // Optimistic update
-    const next = conversations.filter(c => c.id !== id);
-    set({ conversations: next, status: next.length === 0 ? 'empty' : 'loaded' });
+    const next = conversations.filter((c) => c.id !== id);
+    set({
+      conversations: next,
+      status: next.length === 0 ? "empty" : "loaded",
+    });
     try {
       await messagingAPI.deleteConversation(id);
     } catch (err) {
       // Rollback on failure
-      set({ conversations, status: 'loaded' });
+      set({ conversations, status: "loaded" });
       throw err;
     }
   },
@@ -253,8 +271,8 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
   archiveConversation: (id) => {
     const { conversations } = get();
     set({
-      conversations: conversations.map(c =>
-        c.id === id ? { ...c, is_archived: !c.is_archived } : c
+      conversations: conversations.map((c) =>
+        c.id === id ? { ...c, is_archived: !c.is_archived } : c,
       ),
     });
   },
@@ -266,8 +284,14 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
 
     // Optimistic update
     set({
-      conversations: conversations.map(c =>
-        c.id === id ? { ...c, is_muted: !c.is_muted, updated_at: new Date().toISOString() } : c
+      conversations: conversations.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              is_muted: !c.is_muted,
+              updated_at: new Date().toISOString(),
+            }
+          : c,
       ),
     });
 
@@ -287,8 +311,8 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
   pinConversation: (id) => {
     const { conversations } = get();
     set({
-      conversations: conversations.map(c =>
-        c.id === id ? { ...c, is_pinned: !c.is_pinned } : c
+      conversations: conversations.map((c) =>
+        c.id === id ? { ...c, is_pinned: !c.is_pinned } : c,
       ),
     });
   },
