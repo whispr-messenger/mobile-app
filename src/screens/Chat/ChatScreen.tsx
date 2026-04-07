@@ -940,7 +940,11 @@ export const ChatScreen: React.FC = () => {
           isSent={isSent}
           currentUserId={userId}
           conversationType={conversation?.type}
-          senderName={sender?.display_name}
+          senderName={
+            isGroup && !isSent
+              ? (sender?.display_name ?? "Utilisateur")
+              : undefined
+          }
           senderAvatarUrl={sender?.avatar_url}
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
