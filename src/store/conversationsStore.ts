@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { Conversation, Message } from "../types/messaging";
 import { messagingAPI } from "../services/messaging/api";
 import { cacheService } from "../services/messaging/cache";
+import { contactsAPI } from "../services/contacts/api";
+import { TokenService } from "../services/TokenService";
 
 const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
 
@@ -87,8 +89,9 @@ export const useConversationsStore = create<
       }
 
       const data = await messagingAPI.getConversations();
-      await cacheService.saveConversations(data);
-      _setConversations(data);
+      const enriched = await enrichConversations(data);
+      await cacheService.saveConversations(enriched);
+      _setConversations(enriched);
     } catch (err) {
       const apiError = err as { status?: number };
       if (apiError?.status === 401) {
@@ -110,8 +113,9 @@ export const useConversationsStore = create<
     const { _setConversations } = get();
     try {
       const data = await messagingAPI.getConversations();
-      await cacheService.saveConversations(data);
-      _setConversations(data, true);
+      const enriched = await enrichConversations(data);
+      await cacheService.saveConversations(enriched);
+      _setConversations(enriched, true);
     } catch (err) {
       const apiError = err as { status?: number };
       if (apiError?.status === 401) {
@@ -203,3 +207,49 @@ export const useConversationsStore = create<
     });
   },
 }));
+
+async function enrichConversations(
+  conversations: Conversation[],
+): Promise<Conversation[]> {
+  const token = await TokenService.getAccessToken();
+  const currentUserId = token
+    ? TokenService.decodeAccessToken(token)?.sub
+    : undefined;
+
+  let contactsByUserId = new Map<string, any>();
+  try {
+    const contacts = await contactsAPI.getContacts();
+    contactsByUserId = new Map(contacts.contacts.map((c) => [c.contact_id, c]));
+  } catch {
+    contactsByUserId = new Map();
+  }
+
+  return Promise.all(
+    conversations.map(async (conv) => {
+      if (conv.type !== "direct") return conv;
+      if (conv.display_name && conv.avatar_url) return conv;
+
+      try {
+        const members = await messagingAPI.getConversationMembers(conv.id);
+        const other = members.find((m) => m.id && m.id !== currentUserId);
+        const otherUserId = other?.id;
+        if (!otherUserId) return conv;
+
+        const contact = contactsByUserId.get(otherUserId);
+        const display_name =
+          conv.display_name ??
+          contact?.nickname ??
+          contact?.contact_user?.username ??
+          contact?.contact_user?.first_name ??
+          contact?.contact_user?.phone_number ??
+          other.display_name;
+
+        const avatar_url = conv.avatar_url ?? contact?.contact_user?.avatar_url;
+
+        return { ...conv, display_name, avatar_url };
+      } catch {
+        return conv;
+      }
+    }),
+  );
+}

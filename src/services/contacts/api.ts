@@ -55,15 +55,66 @@ export const contactsAPI = {
       queryString ? `?${queryString}` : ""
     }`;
 
+    const normalizeContact = (raw: any): Contact | null => {
+      if (!raw || typeof raw !== "object") return null;
+      const ownerId = raw.ownerId ?? raw.owner_id ?? raw.user_id ?? raw.userId;
+      const contactId = raw.contactId ?? raw.contact_id ?? raw.contact_id;
+      const createdAt = raw.createdAt ?? raw.created_at ?? raw.added_at;
+      const updatedAt = raw.updatedAt ?? raw.updated_at;
+
+      const contactUserRaw = raw.contact_user ?? raw.contactUser ?? raw.contact;
+      const contact_user =
+        contactUserRaw && typeof contactUserRaw === "object"
+          ? {
+              id: contactUserRaw.id,
+              username: contactUserRaw.username,
+              phone_number:
+                contactUserRaw.phoneNumber ?? contactUserRaw.phone_number,
+              first_name: contactUserRaw.firstName ?? contactUserRaw.first_name,
+              last_name: contactUserRaw.lastName ?? contactUserRaw.last_name,
+              avatar_url:
+                contactUserRaw.profilePictureUrl ??
+                contactUserRaw.profile_picture_url ??
+                contactUserRaw.avatar_url ??
+                contactUserRaw.profile_picture,
+              last_seen: contactUserRaw.lastSeen ?? contactUserRaw.last_seen,
+              is_active:
+                typeof contactUserRaw.isActive === "boolean"
+                  ? contactUserRaw.isActive
+                  : typeof contactUserRaw.is_active === "boolean"
+                    ? contactUserRaw.is_active
+                    : true,
+            }
+          : undefined;
+
+      if (!raw.id || !ownerId || !contactId) return null;
+
+      return {
+        id: raw.id,
+        user_id: ownerId,
+        contact_id: contactId,
+        nickname: raw.nickname ?? undefined,
+        is_favorite: raw.isFavorite ?? raw.is_favorite ?? false,
+        added_at: createdAt ?? new Date().toISOString(),
+        updated_at: updatedAt ?? createdAt ?? new Date().toISOString(),
+        contact_user,
+      };
+    };
+
     try {
       const data = await apiFetch<unknown>(urlV2);
       if (Array.isArray(data)) {
-        return { contacts: data as Contact[], total: data.length };
+        const contacts = (data as any[])
+          .map(normalizeContact)
+          .filter((c): c is Contact => c !== null);
+        return { contacts, total: contacts.length };
       }
       if (data && typeof data === "object") {
         const obj = data as any;
         const contacts = Array.isArray(obj.contacts)
-          ? (obj.contacts as Contact[])
+          ? (obj.contacts as any[])
+              .map(normalizeContact)
+              .filter((c): c is Contact => c !== null)
           : [];
         const total =
           typeof obj.total === "number"
@@ -144,75 +195,69 @@ export const contactsAPI = {
   },
 
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
-    const query = new URLSearchParams();
-
-    if (params.username) {
-      query.append("username", params.username);
-    }
-    if (params.phoneHash) {
-      query.append("phoneHash", params.phoneHash);
-    }
-
-    const queryString = query.toString();
-    const url = `${CONTACTS_API_URL}/users/search${queryString ? `?${queryString}` : ""}`;
-
-    const data = await apiFetch<any>(url);
-
-    const normalizeArray = (items: any[]): UserSearchResult[] => {
-      return items
-        .map((item) => {
-          if (!item) return null;
-
-          if (item.user && item.user.id) {
-            return {
-              user: item.user,
-              is_contact: !!item.is_contact,
-              is_blocked: !!item.is_blocked,
-            };
-          }
-
-          if (item.id && item.username) {
-            return {
-              user: {
-                id: item.id,
-                username: item.username,
-                phone_number: item.phone_number,
-                first_name: item.first_name,
-                last_name: item.last_name,
-                avatar_url: item.avatar_url || item.profile_picture,
-                last_seen: item.last_seen,
-                is_active: item.is_active ?? true,
-              },
-              is_contact: !!item.is_contact,
-              is_blocked: !!item.is_blocked,
-            };
-          }
-
-          return null;
-        })
-        .filter((item): item is UserSearchResult => item !== null);
+    const mapUser = (raw: any) => {
+      if (!raw || typeof raw !== "object") return null;
+      if (!raw.id) return null;
+      return {
+        id: raw.id,
+        username: raw.username,
+        phone_number: raw.phoneNumber ?? raw.phone_number,
+        first_name: raw.firstName ?? raw.first_name,
+        last_name: raw.lastName ?? raw.last_name,
+        avatar_url:
+          raw.profilePictureUrl ??
+          raw.profile_picture_url ??
+          raw.avatar_url ??
+          raw.profile_picture,
+        last_seen: raw.lastSeen ?? raw.last_seen,
+        is_active:
+          typeof raw.isActive === "boolean"
+            ? raw.isActive
+            : typeof raw.is_active === "boolean"
+              ? raw.is_active
+              : true,
+      };
     };
 
-    if (Array.isArray(data)) {
-      return normalizeArray(data);
-    }
+    const getProfile = async (userId: string) => {
+      const data = await apiFetch<any>(
+        `${CONTACTS_API_URL}/profile/${encodeURIComponent(userId)}`,
+      );
+      return mapUser(data);
+    };
 
-    if (data && typeof data === "object") {
-      if (Array.isArray((data as any).matches)) {
-        return normalizeArray((data as any).matches);
+    const query = params.username?.trim();
+    if (query) {
+      try {
+        const user = await apiFetch<any>(
+          `${CONTACTS_API_URL}/search/username?username=${encodeURIComponent(query)}`,
+        );
+        const mapped = mapUser(user);
+        if (mapped) {
+          return [{ user: mapped, is_contact: false, is_blocked: false }];
+        }
+      } catch (err: any) {
+        const status = (err?.status as number) ?? 0;
+        if (status !== 404) {
+          throw err;
+        }
       }
 
-      if (Array.isArray((data as any).results)) {
-        return normalizeArray((data as any).results);
-      }
-
-      if (Array.isArray((data as any).users)) {
-        return normalizeArray((data as any).users);
-      }
-
-      const single = normalizeArray([data]);
-      if (single.length > 0) {
-        return single;
+      try {
+        const matches = await apiFetch<any[]>(
+          `${CONTACTS_API_URL}/search/name?query=${encodeURIComponent(query)}&limit=20`,
+        );
+        const ids = Array.isArray(matches)
+          ? matches.map((m: any) => m.userId).filter(Boolean)
+          : [];
+        const profiles = await Promise.all(ids.map(getProfile));
+        return profiles
+          .filter((u): u is NonNullable<ReturnType<typeof mapUser>> => !!u)
+          .map((u) => ({ user: u, is_contact: false, is_blocked: false }));
+      } catch (err: any) {
+        const status = (err?.status as number) ?? 0;
+        if (status === 404) return [];
+        throw err;
       }
     }
 
