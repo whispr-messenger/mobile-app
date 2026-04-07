@@ -31,12 +31,15 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
     await Clipboard.setStringAsync(text);
-    const written = await Clipboard.getStringAsync();
-    return written === text;
-  } catch {
-    // Fallback for non-HTTPS contexts (e.g. Expo web on local IP)
-    Clipboard.setString(text);
     return true;
+  } catch {
+    try {
+      // Fallback for non-HTTPS contexts (e.g. Expo web on local IP)
+      Clipboard.setString(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 };
 
