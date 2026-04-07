@@ -86,16 +86,11 @@ export const ContactsScreen: React.FC = () => {
       setLoadingRequests(true);
       const requests = await contactsAPI.getContactRequests();
       setContactRequests(requests);
-    } catch (error: any) {
-      const status = (error?.status as number) ?? 0;
-      if (status === 401 || status === 404) {
-        setContactRequests([]);
-      } else {
-        console.error(
-          "[ContactsScreen] Error loading contact requests:",
-          error,
-        );
-      }
+    } catch (error) {
+      console.error(
+        "[ContactsScreen] Error loading contact requests:",
+        error,
+      );
     } finally {
       setLoadingRequests(false);
     }
