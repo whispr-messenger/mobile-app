@@ -54,7 +54,7 @@ export const AuthService = {
     purpose: AuthPurpose,
   ): Promise<VerificationRequestResponse> {
     return apiFetch<VerificationRequestResponse>(
-      `/v1/verify/${purpose}/request`,
+      `/verify/${purpose}/request`,
       {
         method: "POST",
         body: JSON.stringify({ phoneNumber }),
@@ -68,7 +68,7 @@ export const AuthService = {
     purpose: AuthPurpose,
   ): Promise<VerificationConfirmResponse> {
     return apiFetch<VerificationConfirmResponse>(
-      `/v1/verify/${purpose}/confirm`,
+      `/verify/${purpose}/confirm`,
       {
         method: "POST",
         body: JSON.stringify({ verificationId, code }),
@@ -82,7 +82,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>("/v1/register", {
+    const tokens = await apiFetch<TokenPair>("/register", {
       method: "POST",
       body: JSON.stringify({
         verificationId,
@@ -101,7 +101,7 @@ export const AuthService = {
       SignalKeyService.generateKeyBundle(),
     ]);
 
-    const tokens = await apiFetch<TokenPair>("/v1/login", {
+    const tokens = await apiFetch<TokenPair>("/login", {
       method: "POST",
       body: JSON.stringify({
         verificationId,
@@ -122,7 +122,7 @@ export const AuthService = {
         const refreshToken = await TokenService.getRefreshToken();
         if (!refreshToken) throw new Error("No refresh token");
 
-        const tokens = await apiFetch<TokenPair>("/v1/tokens/refresh", {
+        const tokens = await apiFetch<TokenPair>("/tokens/refresh", {
           method: "POST",
           body: JSON.stringify({ refreshToken }),
         });
@@ -138,7 +138,7 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
-    await apiFetch("/v1/logout", {
+    await apiFetch("/logout", {
       method: "POST",
       token: token ?? undefined,
       body: JSON.stringify({ deviceId, userId }),
@@ -168,9 +168,9 @@ export const AuthService = {
       }
     }
 
-    // Validate with a network call (GET /auth/v1/device)
+    // Validate with a network call (GET /auth/device)
     try {
-      const response = await fetch(`${getApiBaseUrl()}/auth/v1/device`, {
+      const response = await fetch(`${getApiBaseUrl()}/auth/device`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

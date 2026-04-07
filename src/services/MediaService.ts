@@ -5,7 +5,7 @@ import { getApiBaseUrl } from './apiBase';
 type ApiError = Error & { status?: number; body?: unknown };
 
 function getMediaBaseUrl(): string {
-  return `${getApiBaseUrl()}/media/v1`;
+  return `${getApiBaseUrl()}/media`;
 }
 
 async function apiFetch<T>(
@@ -73,7 +73,7 @@ export interface UploadMediaResult {
 
 export const MediaService = {
   /**
-   * POST /media/v1/upload
+   * POST /media/upload
    * Upload a file (image, video, audio, document).
    */
   async uploadMedia(
@@ -127,7 +127,7 @@ export const MediaService = {
   },
 
   /**
-   * GET /media/v1/:id
+   * GET /media/:id
    * Get metadata for a media file.
    */
   async getMediaMetadata(id: string): Promise<MediaMetadata> {
@@ -135,7 +135,7 @@ export const MediaService = {
   },
 
   /**
-   * GET /media/v1/:id/blob
+   * GET /media/:id/blob
    * Download the raw file. Returns a blob URL usable in <Image> or file save.
    */
   async downloadMedia(id: string): Promise<{ url: string; blob?: Blob }> {
@@ -161,7 +161,7 @@ export const MediaService = {
   },
 
   /**
-   * GET /media/v1/:id/thumbnail
+   * GET /media/:id/thumbnail
    * Download the thumbnail image.
    */
   async downloadThumbnail(id: string): Promise<string> {
@@ -182,7 +182,7 @@ export const MediaService = {
   },
 
   /**
-   * DELETE /media/v1/:id
+   * DELETE /media/:id
    * Delete a media file.
    */
   async deleteMedia(id: string): Promise<void> {

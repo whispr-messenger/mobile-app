@@ -3,7 +3,7 @@ import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
+const API_BASE_URL = `${getApiBaseUrl()}/messaging/api`;
 
 // Backend wraps responses in { data: ... } — unwrap if present
 const unwrap = async (response: Response) => {
@@ -340,7 +340,7 @@ export const messagingAPI = {
     userId: string,
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
     const response = await authenticatedFetch(
-      `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
+      `${getApiBaseUrl()}/user/profile/${encodeURIComponent(userId)}`,
     );
 
     if (!response.ok) {
@@ -479,7 +479,7 @@ export const messagingAPI = {
 
   /**
    * Search messages globally across all conversations.
-   * Calls GET /messaging/api/v1/messages/search?query=...
+   * Calls GET /messaging/api/messages/search?query=...
    * Returns null if the endpoint is not available so callers can fall back.
    */
   async searchMessagesGlobal(

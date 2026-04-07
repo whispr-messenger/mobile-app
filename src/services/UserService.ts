@@ -49,7 +49,7 @@ export class UserService {
   private baseUrl: string;
 
   private constructor() {
-    this.baseUrl = `${getApiBaseUrl()}/user/v1`;
+    this.baseUrl = `${getApiBaseUrl()}/user`;
   }
 
   public static getInstance(): UserService {
