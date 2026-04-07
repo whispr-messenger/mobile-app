@@ -76,7 +76,11 @@ export const contactsAPI = {
       return { contacts: [], total: 0 };
     } catch (err: unknown) {
       const apiError = err as { status?: number };
-      if (apiError?.status !== 404) throw err;
+      if (apiError?.status === 401 || apiError?.status === 404) {
+        // Try legacy endpoint, otherwise return empty
+      } else {
+        throw err;
+      }
 
       const urlV1 = `${CONTACTS_API_URL}/contacts${queryString ? `?${queryString}` : ""}`;
       try {
@@ -91,7 +95,7 @@ export const contactsAPI = {
         return { contacts, total };
       } catch (legacyErr: unknown) {
         const legacyApiError = legacyErr as { status?: number };
-        if (legacyApiError?.status === 404) {
+        if (legacyApiError?.status === 401 || legacyApiError?.status === 404) {
           return { contacts: [], total: 0 };
         }
         throw legacyErr;
