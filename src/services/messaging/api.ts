@@ -31,6 +31,13 @@ function normalizeConversation(raw: any): Conversation {
     metadata.picture_url = raw.picture_url;
   }
 
+  const display_name =
+    raw?.display_name ??
+    raw?.displayName ??
+    metadata.name ??
+    raw?.name ??
+    (raw?.type === "group" ? "Groupe" : "Contact");
+
   const avatar_url =
     raw?.avatar_url ??
     raw?.avatarUrl ??
@@ -41,6 +48,7 @@ function normalizeConversation(raw: any): Conversation {
   return {
     ...(raw as Conversation),
     metadata,
+    display_name,
     avatar_url,
   };
 }
@@ -338,8 +346,13 @@ export const messagingAPI = {
       try {
         const upload = await mediaAPI.uploadGroupIcon(creatorId, photoUri);
         if (upload.url) pictureUrl = upload.url;
-      } catch {
-        pictureUrl = undefined;
+      } catch (e: any) {
+        const message = e?.message ? String(e.message) : "";
+        throw new Error(
+          message
+            ? `Impossible d'uploader la photo du groupe: ${message}`
+            : "Impossible d'uploader la photo du groupe",
+        );
       }
     } else if (photoUri && !photoUri.startsWith("file:")) {
       pictureUrl = photoUri;
