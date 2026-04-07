@@ -79,15 +79,23 @@ export const contactsAPI = {
       if (apiError?.status !== 404) throw err;
 
       const urlV1 = `${CONTACTS_API_URL}/contacts${queryString ? `?${queryString}` : ""}`;
-      const data = await apiFetch<any>(urlV1);
-      const contacts = Array.isArray(data.contacts) ? data.contacts : [];
-      const total =
-        typeof data.total === "number"
-          ? data.total
-          : Array.isArray(data.contacts)
-            ? data.contacts.length
-            : 0;
-      return { contacts, total };
+      try {
+        const data = await apiFetch<any>(urlV1);
+        const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+        const total =
+          typeof data.total === "number"
+            ? data.total
+            : Array.isArray(data.contacts)
+              ? data.contacts.length
+              : 0;
+        return { contacts, total };
+      } catch (legacyErr: unknown) {
+        const legacyApiError = legacyErr as { status?: number };
+        if (legacyApiError?.status === 404) {
+          return { contacts: [], total: 0 };
+        }
+        throw legacyErr;
+      }
     }
   },
 
