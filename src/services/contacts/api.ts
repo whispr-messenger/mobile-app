@@ -161,13 +161,17 @@ export const contactsAPI = {
   },
 
   async addContact(data: AddContactDto): Promise<Contact> {
-    return apiFetch<Contact>(`${CONTACTS_API_URL}/contacts`, {
-      method: "POST",
-      body: JSON.stringify({
-        contact_id: data.contactId,
-        nickname: data.nickname,
-      }),
-    });
+    const ownerId = await getCurrentUserId();
+    return apiFetch<Contact>(
+      `${CONTACTS_API_URL}/contacts/${encodeURIComponent(ownerId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          contactId: data.contactId,
+          nickname: data.nickname,
+        }),
+      },
+    );
   },
 
   async updateContact(

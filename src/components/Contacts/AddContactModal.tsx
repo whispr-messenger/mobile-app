@@ -3,7 +3,7 @@
  * Supports search by username or phone number
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,16 +14,16 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import { Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { UserSearchResult } from '../../types/contact';
-import { contactsAPI } from '../../services/contacts/api';
-import { Avatar } from '../Chat/Avatar';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+} from "react-native";
+import { Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { UserSearchResult } from "../../types/contact";
+import { contactsAPI } from "../../services/contacts/api";
+import { Avatar } from "../Chat/Avatar";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
 
 interface AddContactModalProps {
   visible: boolean;
@@ -36,7 +36,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   onClose,
   onContactAdded,
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingContactId, setAddingContactId] = useState<string | null>(null);
@@ -58,56 +58,65 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       });
       setSearchResults(results);
     } catch (error) {
-      console.error('[AddContactModal] Error searching users:', error);
+      console.error("[AddContactModal] Error searching users:", error);
       setSearchResults([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const handleAddContact = useCallback(async (user: UserSearchResult) => {
-    if (user.is_blocked) {
-      Alert.alert(
-        'Contact bloqué',
-        'Cet utilisateur est bloqué. Vous ne pouvez pas l\'ajouter comme contact.',
-      );
-      return;
-    }
-
-    try {
-      setAddingContactId(user.user.id);
-      await contactsAPI.sendContactRequest(user.user.id);
-
-      console.log('[AddContactModal] Contact request sent successfully:', user.user.id);
-
-      if (Platform.OS === 'web') {
-        onContactAdded();
-        handleClose();
-        Alert.alert('Succès', 'Demande de contact envoyée');
-      } else {
-        Alert.alert('Succès', 'Demande de contact envoyée', [
-          {
-            text: 'OK',
-            onPress: () => {
-              onContactAdded();
-              handleClose();
-            },
-          },
-        ]);
+  const handleAddContact = useCallback(
+    async (user: UserSearchResult) => {
+      if (user.is_blocked) {
+        Alert.alert(
+          "Contact bloqué",
+          "Cet utilisateur est bloqué. Vous ne pouvez pas l'ajouter comme contact.",
+        );
+        return;
       }
-    } catch (error: any) {
-      console.error('[AddContactModal] Error adding contact:', error);
-      Alert.alert(
-        'Erreur',
-        error.message || 'Impossible d\'ajouter ce contact',
-      );
-    } finally {
-      setAddingContactId(null);
-    }
-  }, [onContactAdded]);
+
+      try {
+        setAddingContactId(user.user.id);
+        await contactsAPI.addContact({
+          contactId: user.user.id,
+          nickname: user.user.username ?? undefined,
+        });
+
+        console.log(
+          "[AddContactModal] Contact added successfully:",
+          user.user.id,
+        );
+
+        if (Platform.OS === "web") {
+          onContactAdded();
+          handleClose();
+          Alert.alert("Succès", "Contact ajouté");
+        } else {
+          Alert.alert("Succès", "Contact ajouté", [
+            {
+              text: "OK",
+              onPress: () => {
+                onContactAdded();
+                handleClose();
+              },
+            },
+          ]);
+        }
+      } catch (error: any) {
+        console.error("[AddContactModal] Error adding contact:", error);
+        Alert.alert(
+          "Erreur",
+          error.message || "Impossible d'ajouter ce contact",
+        );
+      } finally {
+        setAddingContactId(null);
+      }
+    },
+    [onContactAdded],
+  );
 
   const handleClose = useCallback(() => {
-    setSearchQuery('');
+    setSearchQuery("");
     setSearchResults([]);
     onClose();
   }, [onClose]);
@@ -115,7 +124,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const renderSearchResult = useCallback(
     ({ item }: { item: UserSearchResult }) => {
       const { user, is_blocked } = item;
-      const displayName = user.first_name || user.username || 'Utilisateur';
+      const displayName = user.first_name || user.username || "Utilisateur";
       const isAdding = addingContactId === user.id;
 
       return (
@@ -129,11 +138,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           disabled={is_blocked || isAdding}
           activeOpacity={0.7}
         >
-          <Avatar
-            uri={user.avatar_url}
-            name={displayName}
-            size={48}
-          />
+          <Avatar uri={user.avatar_url} name={displayName} size={48} />
           <View style={styles.resultInfo}>
             <Text
               style={[styles.resultName, { color: themeColors.text.primary }]}
@@ -142,26 +147,21 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               {displayName}
             </Text>
             <Text
-              style={[styles.resultUsername, { color: themeColors.text.secondary }]}
+              style={[
+                styles.resultUsername,
+                { color: themeColors.text.secondary },
+              ]}
               numberOfLines={1}
             >
               @{user.username}
             </Text>
           </View>
           {is_blocked ? (
-            <Ionicons
-              name="ban"
-              size={20}
-              color={colors.ui.error}
-            />
+            <Ionicons name="ban" size={20} color={colors.ui.error} />
           ) : isAdding ? (
             <ActivityIndicator size="small" color={colors.primary.main} />
           ) : (
-            <Ionicons
-              name="add-circle"
-              size={24}
-              color={colors.primary.main}
-            />
+            <Ionicons name="add-circle" size={24} color={colors.primary.main} />
           )}
         </TouchableOpacity>
       );
@@ -182,9 +182,9 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
       >
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
           {/* Header */}
-          <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+          <View style={[styles.header, { backgroundColor: "transparent" }]}>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons
                 name="close"
@@ -192,7 +192,9 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 color={themeColors.text.primary}
               />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Ajouter un contact
             </Text>
             <View style={styles.placeholder} />
@@ -200,7 +202,12 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
           {/* Search Bar */}
           <View style={styles.searchContainer}>
-            <View style={[styles.searchBar, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
+            <View
+              style={[
+                styles.searchBar,
+                { backgroundColor: "rgba(255, 255, 255, 0.15)" },
+              ]}
+            >
               <Ionicons
                 name="search-outline"
                 size={20}
@@ -219,7 +226,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity
-                  onPress={() => handleSearch('')}
+                  onPress={() => handleSearch("")}
                   style={styles.clearButton}
                 >
                   <Ionicons
@@ -236,7 +243,12 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary.main} />
-              <Text style={[styles.loadingText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.loadingText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Recherche en cours...
               </Text>
             </View>
@@ -247,10 +259,20 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 size={64}
                 color={themeColors.text.tertiary}
               />
-              <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Aucun utilisateur trouvé
               </Text>
-              <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
+              <Text
+                style={[
+                  styles.emptySubtext,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
                 Essayez avec un autre nom d'utilisateur
               </Text>
             </View>
@@ -261,10 +283,20 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                 size={64}
                 color={themeColors.text.tertiary}
               />
-              <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Rechercher un utilisateur
               </Text>
-              <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
+              <Text
+                style={[
+                  styles.emptySubtext,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
                 Entrez un nom d'utilisateur pour commencer
               </Text>
             </View>
@@ -290,12 +322,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   closeButton: {
     padding: 4,
@@ -303,8 +335,8 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   placeholder: {
     width: 32,
@@ -315,8 +347,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -333,8 +365,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   loadingText: {
@@ -343,20 +375,20 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   resultsList: {
     paddingHorizontal: 16,
@@ -364,8 +396,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   resultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -380,7 +412,7 @@ const styles = StyleSheet.create({
   },
   resultName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   resultUsername: {
     fontSize: 14,

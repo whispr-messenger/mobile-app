@@ -30,5 +30,11 @@ export async function apiFetch<T>(
 
   if (response.status === 204) return undefined as unknown as T;
 
-  return response.json() as Promise<T>;
+  const contentType = response.headers.get("content-type") ?? "";
+  const text = await response.text();
+  if (!text) return undefined as unknown as T;
+  if (!contentType.includes("application/json")) {
+    return text as unknown as T;
+  }
+  return JSON.parse(text) as T;
 }
