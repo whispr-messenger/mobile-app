@@ -9,7 +9,7 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
-import Clipboard from "@react-native-clipboard/clipboard";
+import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -20,9 +20,9 @@ import * as Haptics from "expo-haptics";
 import Toast from "../../components/Toast/Toast";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
-const copyToClipboard = (text: string): boolean => {
+const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
-    Clipboard.setString(text);
+    await Clipboard.setStringAsync(text);
     return true;
   } catch {
     return false;
@@ -88,18 +88,18 @@ export const TwoFactorBackupCodesScreen: React.FC = () => {
     ]).start();
   }, []);
 
-  const handleCopyCode = (code: string) => {
+  const handleCopyCode = async (code: string) => {
     triggerHaptic("light");
-    const success = copyToClipboard(code);
+    const success = await copyToClipboard(code);
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.codeCopied"), "success");
     }
   };
 
-  const handleCopyAll = () => {
+  const handleCopyAll = async () => {
     triggerHaptic("light");
-    const success = copyToClipboard(codes.join("\n"));
+    const success = await copyToClipboard(codes.join("\n"));
     if (success) {
       triggerHaptic("success");
       showToast(getLocalizedText("twoFactor.allCodesCopied"), "success");
