@@ -94,7 +94,12 @@ export const ChatScreen: React.FC = () => {
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
-    Array<{ id: string; display_name: string; username?: string }>
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+    }>
   >([]);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
@@ -923,11 +928,20 @@ export const ChatScreen: React.FC = () => {
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
 
+      const isGroup = conversation?.type === "group";
+      const sender =
+        isGroup && !isSent
+          ? conversationMembers.find((m) => m.id === message.sender_id)
+          : undefined;
+
       return (
         <MessageBubble
           message={message}
           isSent={isSent}
           currentUserId={userId}
+          conversationType={conversation?.type}
+          senderName={sender?.display_name}
+          senderAvatarUrl={sender?.avatar_url}
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
@@ -938,6 +952,8 @@ export const ChatScreen: React.FC = () => {
     },
     [
       userId,
+      conversation?.type,
+      conversationMembers,
       handleReactionPress,
       handleReplyPress,
       handleMessageLongPress,

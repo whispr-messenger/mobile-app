@@ -28,11 +28,15 @@ import { ReplyPreview } from "./ReplyPreview";
 import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
 import { FormattedText } from "../../utils/textFormatter";
+import { Avatar } from "./Avatar";
 
 interface MessageBubbleProps {
   message: MessageWithRelations;
   isSent: boolean;
   currentUserId: string;
+  conversationType?: "direct" | "group";
+  senderName?: string;
+  senderAvatarUrl?: string;
   onReactionPress?: (messageId: string, emoji: string) => void;
   onReplyPress?: (messageId: string) => void;
   onLongPress?: () => void;
@@ -44,6 +48,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isSent,
   currentUserId,
+  conversationType,
+  senderName,
+  senderAvatarUrl,
   onReactionPress,
   onReplyPress,
   onLongPress,
@@ -202,6 +209,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
         ]}
       >
+        {conversationType === "group" && senderName ? (
+          <View style={styles.senderHeader}>
+            <Text
+              style={[styles.senderName, { color: themeColors.text.secondary }]}
+            >
+              {senderName}
+            </Text>
+            <View style={styles.senderAvatar}>
+              <Avatar uri={senderAvatarUrl} name={senderName} size={18} />
+            </View>
+          </View>
+        ) : null}
         {message.reply_to ? (
           <ReplyPreview
             replyTo={message.reply_to}
@@ -336,6 +355,20 @@ const styles = StyleSheet.create({
   receivedText: {
     fontSize: 15,
     marginBottom: 4,
+  },
+  senderHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    marginBottom: 6,
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  senderAvatar: {
+    marginTop: -2,
   },
   footer: {
     flexDirection: "row",

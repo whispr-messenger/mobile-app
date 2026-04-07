@@ -8,6 +8,10 @@ import {
   SocketConnection,
 } from "../services/messaging/websocket";
 import { Conversation, Message } from "../types/messaging";
+import {
+  normalizeConversation,
+  normalizeMessage,
+} from "../services/messaging/api";
 
 interface UseWebSocketOptions {
   userId: string;
@@ -35,7 +39,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.join().then(() => {
       // Listen for new_message events
       userChannel.on("new_message", (data: { message: Message }) => {
-        options.onNewMessage?.(data.message);
+        options.onNewMessage?.(normalizeMessage(data.message as any));
       });
 
       // Listen for delivery_status events
@@ -49,7 +53,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       userChannel.on(
         "conversation_updated",
         (data: { conversation: Conversation }) => {
-          options.onConversationUpdate?.(data.conversation);
+          options.onConversationUpdate?.(
+            normalizeConversation(data.conversation as any),
+          );
         },
       );
 
@@ -82,7 +88,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
         // Listen for new messages in conversation
         channel.on("new_message", (data: { message: Message }) => {
-          options.onNewMessage?.(data.message);
+          options.onNewMessage?.(normalizeMessage(data.message as any));
         });
       });
 
@@ -147,7 +153,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannelRef.current = userChannel;
     userChannel.join().then(() => {
       userChannel.on("new_message", (data: { message: Message }) => {
-        options.onNewMessage?.(data.message);
+        options.onNewMessage?.(normalizeMessage(data.message as any));
       });
       userChannel.on(
         "delivery_status",
@@ -159,7 +165,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       userChannel.on(
         "conversation_updated",
         (data: { conversation: Conversation }) => {
-          options.onConversationUpdate?.(data.conversation);
+          options.onConversationUpdate?.(
+            normalizeConversation(data.conversation as any),
+          );
         },
       );
 

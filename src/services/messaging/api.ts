@@ -15,7 +15,7 @@ function unwrapData<T>(payload: unknown): T {
   return payload as T;
 }
 
-function normalizeConversation(raw: any): Conversation {
+export function normalizeConversation(raw: any): Conversation {
   const metadata: Record<string, any> =
     raw &&
     typeof raw === "object" &&
@@ -50,6 +50,60 @@ function normalizeConversation(raw: any): Conversation {
     metadata,
     display_name,
     avatar_url,
+  };
+}
+
+export function normalizeMessage(raw: any): Message {
+  const sentAt =
+    raw?.sent_at ??
+    raw?.sentAt ??
+    raw?.inserted_at ??
+    raw?.insertedAt ??
+    raw?.created_at ??
+    raw?.createdAt ??
+    raw?.timestamp;
+
+  const sent_at =
+    typeof sentAt === "string"
+      ? sentAt
+      : sentAt
+        ? new Date(sentAt).toISOString()
+        : new Date().toISOString();
+
+  const editedAt =
+    raw?.edited_at ??
+    raw?.editedAt ??
+    raw?.updated_at ??
+    raw?.updatedAt ??
+    undefined;
+
+  const sender_id =
+    raw?.sender_id ??
+    raw?.senderId ??
+    raw?.user_id ??
+    raw?.userId ??
+    raw?.from_user_id ??
+    raw?.fromUserId;
+
+  const conversation_id = raw?.conversation_id ?? raw?.conversationId;
+
+  return {
+    ...(raw as Message),
+    id: String(raw?.id),
+    conversation_id: String(conversation_id ?? ""),
+    sender_id: String(sender_id ?? ""),
+    content: typeof raw?.content === "string" ? raw.content : "",
+    message_type: (raw?.message_type ?? raw?.messageType ?? "text") as any,
+    metadata:
+      raw?.metadata && typeof raw.metadata === "object" ? raw.metadata : {},
+    client_random: Number(raw?.client_random ?? raw?.clientRandom ?? 0),
+    sent_at,
+    edited_at: editedAt ? String(editedAt) : undefined,
+    is_deleted: Boolean(raw?.is_deleted ?? raw?.isDeleted ?? false),
+    delete_for_everyone: Boolean(
+      raw?.delete_for_everyone ?? raw?.deleteForEveryone ?? false,
+    ),
+    reply_to_id: raw?.reply_to_id ?? raw?.replyToId ?? undefined,
   };
 }
 
@@ -127,7 +181,7 @@ export const messagingAPI = {
 
     const payload = await apiFetch<unknown>(url);
     const data = unwrapData<unknown>(payload);
-    return Array.isArray(data) ? (data as Message[]) : [];
+    return Array.isArray(data) ? (data as any[]).map(normalizeMessage) : [];
   },
 
   async sendMessage(
@@ -153,7 +207,7 @@ export const messagingAPI = {
         }),
       },
     );
-    return unwrapData<Message>(payload);
+    return normalizeMessage(unwrapData<any>(payload));
   },
 
   async editMessage(
@@ -171,7 +225,7 @@ export const messagingAPI = {
         }),
       },
     );
-    return unwrapData<Message>(payload);
+    return normalizeMessage(unwrapData<any>(payload));
   },
 
   async deleteMessage(
@@ -280,7 +334,14 @@ export const messagingAPI = {
 
   async getConversationMembers(
     conversationId: string,
-  ): Promise<Array<{ id: string; display_name: string; username?: string }>> {
+  ): Promise<
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+    }>
+  > {
     const payload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}`,
     );
@@ -301,12 +362,23 @@ export const messagingAPI = {
           m?.user?.firstName ??
           username ??
           "Utilisateur";
-        return { id, display_name, username };
+        const avatar_url =
+          m?.avatar_url ??
+          m?.avatarUrl ??
+          m?.user?.avatar_url ??
+          m?.user?.avatarUrl ??
+          m?.user?.profilePictureUrl ??
+          m?.user?.profile_picture_url ??
+          m?.user?.profilePictureURL ??
+          m?.user?.profilePicture ??
+          undefined;
+        return { id, display_name, username, avatar_url };
       })
       .filter(Boolean) as Array<{
       id: string;
       display_name: string;
       username?: string;
+      avatar_url?: string;
     }>;
   },
 
