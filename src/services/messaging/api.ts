@@ -258,13 +258,17 @@ export const messagingAPI = {
   },
 
   async createDirectConversation(otherUserId: string): Promise<Conversation> {
-    return apiFetch<Conversation>(`${MESSAGING_API_URL}/conversations`, {
-      method: "POST",
-      body: JSON.stringify({
-        type: "direct",
-        other_user_id: otherUserId,
-      }),
-    });
+    const payload = await apiFetch<unknown>(
+      `${MESSAGING_API_URL}/conversations`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          type: "direct",
+          other_user_id: otherUserId,
+        }),
+      },
+    );
+    return unwrapData<Conversation>(payload);
   },
 
   async createGroupConversation(
@@ -273,23 +277,28 @@ export const messagingAPI = {
     description?: string,
     photoUri?: string,
   ): Promise<Conversation> {
-    const group = await apiFetch<any>(`${MESSAGING_API_URL}/groups`, {
-      method: "POST",
-      body: JSON.stringify({
-        name,
-        description,
-        picture_url: photoUri,
-        member_ids: memberIds,
-      }),
-    });
+    const groupPayload = await apiFetch<unknown>(
+      `${MESSAGING_API_URL}/groups`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          description,
+          picture_url: photoUri,
+          member_ids: memberIds,
+        }),
+      },
+    );
+    const group = unwrapData<any>(groupPayload);
 
     const conversationId = group.conversation_id;
     if (!conversationId) {
       throw new Error("Group created without conversation_id");
     }
 
-    return apiFetch<Conversation>(
+    const conversationPayload = await apiFetch<unknown>(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}`,
     );
+    return unwrapData<Conversation>(conversationPayload);
   },
 };
