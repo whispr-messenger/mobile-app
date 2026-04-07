@@ -36,26 +36,18 @@ export const Avatar: React.FC<AvatarProps> = ({
       .toUpperCase()
       .slice(0, 2) || "?";
 
-  const computedUri =
-    uri ||
-    (__DEV__ && name
-      ? `https://api.dicebear.com/9.x/initials/png?seed=${encodeURIComponent(
-          name,
-        )}&backgroundType=gradientLinear&radius=50`
-      : undefined);
-
   // Reset error state when URI changes
   React.useEffect(() => {
     setImageError(false);
-  }, [computedUri]);
+  }, [uri]);
 
-  const shouldShowImage = computedUri && !imageError;
+  const shouldShowImage = uri && !imageError;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       {shouldShowImage ? (
         <Image
-          source={{ uri: computedUri }}
+          source={{ uri }}
           style={[
             styles.image,
             { width: size, height: size, borderRadius: size / 2 },
@@ -64,7 +56,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           onError={(error) => {
             console.log(
               "[Avatar] Image load error:",
-              computedUri,
+              uri,
               error.nativeEvent?.error,
             );
             setImageError(true);
