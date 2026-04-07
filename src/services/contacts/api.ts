@@ -16,6 +16,15 @@ export type { Contact };
 
 import { apiFetch } from "../apiClient";
 import { CONTACTS_API_URL } from "../../config/api";
+import { TokenService } from "../TokenService";
+
+async function getCurrentUserId(): Promise<string> {
+  const token = await TokenService.getAccessToken();
+  if (!token) throw new Error("Missing access token");
+  const payload = TokenService.decodeAccessToken(token);
+  if (!payload?.sub) throw new Error("Missing user id");
+  return payload.sub;
+}
 
 export const contactsAPI = {
   async getContacts(
@@ -40,18 +49,46 @@ export const contactsAPI = {
     }
 
     const queryString = query.toString();
-    const url = `${CONTACTS_API_URL}/contacts${queryString ? `?${queryString}` : ""}`;
+    const userId = await getCurrentUserId();
 
-    const data = await apiFetch<any>(url);
-    const contacts = Array.isArray(data.contacts) ? data.contacts : [];
-    const total =
-      typeof data.total === "number"
-        ? data.total
-        : Array.isArray(data.contacts)
-          ? data.contacts.length
-          : 0;
+    const urlV2 = `${CONTACTS_API_URL}/contacts/${encodeURIComponent(userId)}${
+      queryString ? `?${queryString}` : ""
+    }`;
 
-    return { contacts, total };
+    try {
+      const data = await apiFetch<unknown>(urlV2);
+      if (Array.isArray(data)) {
+        return { contacts: data as Contact[], total: data.length };
+      }
+      if (data && typeof data === "object") {
+        const obj = data as any;
+        const contacts = Array.isArray(obj.contacts)
+          ? (obj.contacts as Contact[])
+          : [];
+        const total =
+          typeof obj.total === "number"
+            ? obj.total
+            : Array.isArray(obj.contacts)
+              ? obj.contacts.length
+              : 0;
+        return { contacts, total };
+      }
+      return { contacts: [], total: 0 };
+    } catch (err: unknown) {
+      const apiError = err as { status?: number };
+      if (apiError?.status !== 404) throw err;
+
+      const urlV1 = `${CONTACTS_API_URL}/contacts${queryString ? `?${queryString}` : ""}`;
+      const data = await apiFetch<any>(urlV1);
+      const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+      const total =
+        typeof data.total === "number"
+          ? data.total
+          : Array.isArray(data.contacts)
+            ? data.contacts.length
+            : 0;
+      return { contacts, total };
+    }
   },
 
   async getContact(contactId: string): Promise<Contact> {
