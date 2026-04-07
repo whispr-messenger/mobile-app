@@ -4,7 +4,7 @@ import {
   MessageAttachment,
 } from "../../types/messaging";
 import { apiFetch } from "../apiClient";
-import { MESSAGING_API_URL } from "../../config/api";
+import { MESSAGING_API_URL, USER_API_URL } from "../../config/api";
 import { TokenService } from "../TokenService";
 import { mediaAPI } from "../media/api";
 
@@ -314,27 +314,47 @@ export const messagingAPI = {
     );
   },
 
-  async getUserInfo(
-    userId: string,
-  ): Promise<{ id: string; display_name: string; username?: string } | null> {
+  async getUserInfo(userId: string): Promise<{
+    id: string;
+    display_name: string;
+    username?: string;
+    avatar_url?: string;
+  } | null> {
     const payload = await apiFetch<unknown>(
-      `${MESSAGING_API_URL}/users/${encodeURIComponent(userId)}`,
+      `${USER_API_URL}/profile/${encodeURIComponent(userId)}`,
     );
     const user = unwrapData<any>(payload);
+    if (!user?.id) return null;
 
-    if (!user) return null;
+    const username =
+      typeof user.username === "string" && user.username.trim()
+        ? user.username.trim()
+        : undefined;
+    const firstName =
+      typeof user.firstName === "string" && user.firstName.trim()
+        ? user.firstName.trim()
+        : undefined;
+    const phoneNumber =
+      typeof user.phoneNumber === "string" && user.phoneNumber.trim()
+        ? user.phoneNumber.trim()
+        : undefined;
 
-    const displayName = user.first_name || user.username || "Utilisateur";
+    const displayName = username ?? firstName ?? phoneNumber ?? "Utilisateur";
+    const avatar_url =
+      typeof user.profilePictureUrl === "string" &&
+      user.profilePictureUrl.trim()
+        ? user.profilePictureUrl.trim()
+        : undefined;
+
     return {
       id: user.id,
       display_name: displayName,
-      username: user.username,
+      username,
+      avatar_url,
     };
   },
 
-  async getConversationMembers(
-    conversationId: string,
-  ): Promise<
+  async getConversationMembers(conversationId: string): Promise<
     Array<{
       id: string;
       display_name: string;

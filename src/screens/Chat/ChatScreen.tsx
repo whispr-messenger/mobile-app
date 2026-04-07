@@ -102,6 +102,12 @@ export const ChatScreen: React.FC = () => {
     }>
   >([]);
   const [senderNames, setSenderNames] = useState<Record<string, string>>({});
+  const [senderAvatars, setSenderAvatars] = useState<Record<string, string>>(
+    {},
+  );
+  const [senderInfoFetched, setSenderInfoFetched] = useState<
+    Record<string, true>
+  >({});
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const { getThemeColors } = useTheme();
@@ -229,26 +235,47 @@ export const ChatScreen: React.FC = () => {
         .filter((id): id is string => !!id && id !== userId),
     );
 
-    const missing = Array.from(ids).filter(
-      (id) =>
-        !conversationMembers.some((m) => m.id === id) &&
-        senderNames[id] === undefined,
-    );
+    const missing = Array.from(ids).filter((id) => {
+      if (conversationMembers.some((m) => m.id === id)) return false;
+      return senderInfoFetched[id] === undefined;
+    });
     if (missing.length === 0) return;
 
     missing.forEach((id) => {
       messagingAPI
         .getUserInfo(id)
         .then((info) => {
-          if (!info?.display_name) return;
-          setSenderNames((prev) => {
-            if (prev[id] !== undefined) return prev;
-            return { ...prev, [id]: info.display_name };
+          if (info?.display_name) {
+            setSenderNames((prev) => {
+              if (prev[id] !== undefined) return prev;
+              return { ...prev, [id]: info.display_name };
+            });
+          }
+          if (info?.avatar_url) {
+            setSenderAvatars((prev) => {
+              if (prev[id] !== undefined) return prev;
+              return { ...prev, [id]: info.avatar_url as string };
+            });
+          }
+          setSenderInfoFetched((prev) => {
+            if (prev[id]) return prev;
+            return { ...prev, [id]: true };
           });
         })
-        .catch(() => {});
+        .catch(() => {
+          setSenderInfoFetched((prev) => {
+            if (prev[id]) return prev;
+            return { ...prev, [id]: true };
+          });
+        });
     });
-  }, [conversation?.type, conversationMembers, messages, senderNames, userId]);
+  }, [
+    conversation?.type,
+    conversationMembers,
+    messages,
+    senderInfoFetched,
+    userId,
+  ]);
 
   useEffect(() => {
     // Load data
@@ -973,6 +1000,10 @@ export const ChatScreen: React.FC = () => {
             senderNames[message.sender_id] ??
             "Utilisateur")
           : undefined;
+      const senderAvatarUrl =
+        isGroup && !isSent
+          ? (sender?.avatar_url ?? senderAvatars[message.sender_id])
+          : undefined;
 
       return (
         <MessageBubble
@@ -981,7 +1012,7 @@ export const ChatScreen: React.FC = () => {
           currentUserId={userId}
           conversationType={conversation?.type}
           senderName={senderDisplayName}
-          senderAvatarUrl={sender?.avatar_url}
+          senderAvatarUrl={senderAvatarUrl}
           onReactionPress={handleReactionPress}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
@@ -995,6 +1026,7 @@ export const ChatScreen: React.FC = () => {
       conversation?.type,
       conversationMembers,
       senderNames,
+      senderAvatars,
       handleReactionPress,
       handleReplyPress,
       handleMessageLongPress,
