@@ -233,11 +233,19 @@ export const contactsAPI = {
   },
 
   async getContactRequests(): Promise<ContactRequest[]> {
-    const data = await apiFetch<any>(`${CONTACTS_API_URL}/contact_requests`);
-    const requests = Array.isArray((data as any).requests)
-      ? (data as any).requests
-      : [];
-    return requests;
+    try {
+      const data = await apiFetch<any>(`${CONTACTS_API_URL}/contact_requests`);
+      const requests = Array.isArray((data as any).requests)
+        ? (data as any).requests
+        : [];
+      return requests;
+    } catch (err: any) {
+      const status = (err?.status as number) ?? 0;
+      if (status === 401 || status === 404) {
+        return [];
+      }
+      throw err;
+    }
   },
 
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
