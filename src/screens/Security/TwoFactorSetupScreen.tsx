@@ -14,8 +14,8 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
-  Clipboard,
 } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";

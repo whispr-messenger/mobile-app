@@ -8,8 +8,8 @@ import {
   Animated,
   Platform,
   Dimensions,
-  Clipboard,
 } from "react-native";
+import Clipboard from "@react-native-clipboard/clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
