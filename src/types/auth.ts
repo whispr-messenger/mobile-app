@@ -58,7 +58,9 @@ export interface TwoFactorStatusResponse {
 
 export interface TwoFactorSetupResponse {
   secret: string;
-  qrCodeUri: string;
+  otpauthUri: string;
+  /** @deprecated Use otpauthUri for client-side QR generation */
+  qrCodeUrl: string;
 }
 
 export interface TwoFactorBackupCodesResponse {

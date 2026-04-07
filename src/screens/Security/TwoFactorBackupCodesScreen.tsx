@@ -9,7 +9,6 @@ import {
   Platform,
   Dimensions,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -18,22 +17,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import * as Haptics from "expo-haptics";
 import Toast from "../../components/Toast/Toast";
+import { copyToClipboard } from "../../utils/clipboard";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
-
-const copyToClipboard = async (text: string): Promise<boolean> => {
-  try {
-    await Clipboard.setStringAsync(text);
-    return true;
-  } catch {
-    try {
-      // Fallback for non-HTTPS contexts (e.g. Expo web on local IP)
-      Clipboard.setString(text);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-};
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 

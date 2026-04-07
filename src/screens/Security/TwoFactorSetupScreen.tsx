@@ -15,7 +15,6 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -26,22 +25,8 @@ import Toast from "../../components/Toast/Toast";
 import QRCodeStyled from "react-native-qrcode-styled";
 import { Circle, Path } from "react-native-svg";
 import { TwoFactorService } from "../../services/TwoFactorService";
+import { copyToClipboard } from "../../utils/clipboard";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
-
-const copyToClipboard = async (text: string): Promise<boolean> => {
-  try {
-    await Clipboard.setStringAsync(text);
-    return true;
-  } catch {
-    try {
-      // Fallback for non-HTTPS contexts (e.g. Expo web on local IP)
-      Clipboard.setString(text);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-};
 
 const buildStarPath = (cx: number, cy: number, r: number) =>
   `
@@ -116,7 +101,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
     setLoading(true);
     setError(null);
     TwoFactorService.setup()
-      .then(({ secret: s, qrCodeUri: uri }) => {
+      .then(({ secret: s, otpauthUri: uri }) => {
         setSecret(s);
         setQrCodeUri(uri);
       })

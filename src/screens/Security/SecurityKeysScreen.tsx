@@ -24,16 +24,7 @@ import { useTheme } from "../../context/ThemeContext";
 import * as Haptics from "expo-haptics";
 import Toast from "../../components/Toast/Toast";
 
-const copyToClipboard = async (text: string) => {
-  try {
-    const Clipboard = require("expo-clipboard");
-    await Clipboard.setStringAsync(text);
-    return true;
-  } catch (error) {
-    console.log("📋 Copy to clipboard (fallback):", text);
-    return false;
-  }
-};
+import { copyToClipboard } from "../../utils/clipboard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
