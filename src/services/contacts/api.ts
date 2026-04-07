@@ -17,6 +17,7 @@ export type { Contact };
 import { apiFetch } from "../apiClient";
 import { CONTACTS_API_URL } from "../../config/api";
 import { TokenService } from "../TokenService";
+import { normalizePhoneToE164 } from "../../utils/phoneUtils";
 
 async function getCurrentUserId(): Promise<string> {
   const token = await TokenService.getAccessToken();
@@ -232,6 +233,28 @@ export const contactsAPI = {
 
     const query = params.username?.trim();
     if (query) {
+      const digitCount = query.replace(/\D/g, "").length;
+      const looksLikePhone = digitCount >= 7 && /^[\d+\s().-]+$/.test(query);
+      if (looksLikePhone) {
+        const phoneNumber = normalizePhoneToE164(query, "+33");
+        try {
+          const user = await apiFetch<any>(
+            `${CONTACTS_API_URL}/search/phone?phoneNumber=${encodeURIComponent(
+              phoneNumber,
+            )}`,
+          );
+          const mapped = mapUser(user);
+          if (mapped) {
+            return [{ user: mapped, is_contact: false, is_blocked: false }];
+          }
+          return [];
+        } catch (err: any) {
+          const status = (err?.status as number) ?? 0;
+          if (status === 404) return [];
+          throw err;
+        }
+      }
+
       try {
         const user = await apiFetch<any>(
           `${CONTACTS_API_URL}/search/username?username=${encodeURIComponent(query)}`,
