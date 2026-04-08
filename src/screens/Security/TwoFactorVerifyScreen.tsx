@@ -92,9 +92,14 @@ export const TwoFactorVerifyScreen: React.FC = () => {
       const { backupCodes } = await TwoFactorService.enable(code);
       triggerHaptic("success");
       navigation.navigate("TwoFactorBackupCodes", { codes: backupCodes });
-    } catch {
+    } catch (err) {
       triggerHaptic("heavy");
-      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
+      const status = (err as { status?: number })?.status;
+      const key =
+        status === 400 || status === 401
+          ? "twoFactor.invalidCode"
+          : "twoFactor.setupError";
+      showToast(getLocalizedText(key), "error");
     } finally {
       setLoading(false);
     }

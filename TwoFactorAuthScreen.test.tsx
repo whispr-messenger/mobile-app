@@ -177,7 +177,7 @@ describe("TwoFactorAuthScreen", () => {
       expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
     );
 
-    const viewCodesButton = getByText("twoFactor.viewRecoveryCodes");
+    const viewCodesButton = getByText("twoFactor.regenerateCodes");
     await act(async () => {
       fireEvent.press(viewCodesButton);
     });
@@ -199,5 +199,7 @@ describe("TwoFactorAuthScreen", () => {
     expect(mockNavigate).toHaveBeenCalledWith("TwoFactorBackupCodes", {
       codes: ["aaaa-1111", "bbbb-2222"],
     });
+
+    alertSpy.mockRestore();
   });
 });

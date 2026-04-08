@@ -515,7 +515,7 @@ export const TwoFactorAuthScreen: React.FC = () => {
                         },
                       ]}
                     >
-                      {getLocalizedText("twoFactor.viewRecoveryCodes")}
+                      {getLocalizedText("twoFactor.regenerateCodes")}
                     </Text>
                     <Text
                       style={[
