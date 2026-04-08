@@ -121,7 +121,7 @@ jobs:
 
       - name: Validate deployment manifest path
         run: |
-          MANIFEST_PATH="infrastructure/k8s/whispr/citadel/mobile-web/deployment.yaml"
+          MANIFEST_PATH="infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml"
           if [ ! -f "$MANIFEST_PATH" ]; then
             echo "❌ Error: Deployment manifest not found at $MANIFEST_PATH"
             exit 1
@@ -138,12 +138,12 @@ jobs:
           FULL_IMAGE=$(echo "${FULL_IMAGE}" | tr '[:upper:]' '[:lower:]')
 
           echo "Updating deployment image to: ${FULL_IMAGE}"
-          yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/citadel/mobile-web/deployment.yaml
+          yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml
 
       - name: Verify update
         run: |
           echo "Updated deployment manifest:"
-          yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/citadel/mobile-web/deployment.yaml
+          yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml
 
       - name: Commit and push changes
         working-directory: infrastructure
@@ -155,7 +155,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          if git diff --quiet k8s/whispr/citadel/mobile-web/deployment.yaml; then
+          if git diff --quiet k8s/whispr/prod/mobile-web/deployment.yaml; then
             echo "No changes to commit"
             exit 0
           fi
@@ -168,7 +168,7 @@ jobs:
             COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA}"
           fi
 
-          git add k8s/whispr/citadel/mobile-web/deployment.yaml
+          git add k8s/whispr/prod/mobile-web/deployment.yaml
           git commit -m "${COMMIT_MSG}"
 
           MAX_RETRIES=3
