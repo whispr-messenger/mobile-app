@@ -97,7 +97,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
     }
   };
 
-  const loadSetup = () => {
+  const loadSetup = useCallback(() => {
     setLoading(true);
     setError(null);
     TwoFactorService.setup()
@@ -107,7 +107,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
       })
       .catch(() => setError(getLocalizedText("twoFactor.setupError")))
       .finally(() => setLoading(false));
-  };
+  }, [getLocalizedText]);
 
   useEffect(() => {
     Animated.parallel([
@@ -123,7 +123,7 @@ export const TwoFactorSetupScreen: React.FC = () => {
       }),
     ]).start();
     loadSetup();
-  }, []);
+  }, [loadSetup]);
 
   const renderStylizedPiece = useCallback(
     ({
