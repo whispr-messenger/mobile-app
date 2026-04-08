@@ -50,8 +50,8 @@ export const TwoFactorService = {
     });
   },
 
-  async enable(token: string): Promise<void> {
-    return apiFetch<void>("/v1/2fa/enable", {
+  async enable(token: string): Promise<TwoFactorBackupCodesResponse> {
+    return apiFetch<TwoFactorBackupCodesResponse>("/v1/2fa/enable", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
@@ -64,9 +64,10 @@ export const TwoFactorService = {
     });
   },
 
-  async getBackupCodes(): Promise<TwoFactorBackupCodesResponse> {
+  async getBackupCodes(token: string): Promise<TwoFactorBackupCodesResponse> {
     return apiFetch<TwoFactorBackupCodesResponse>("/v1/2fa/backup-codes", {
       method: "POST",
+      body: JSON.stringify({ token }),
     });
   },
 };
