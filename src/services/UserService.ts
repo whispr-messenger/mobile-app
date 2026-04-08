@@ -3,8 +3,10 @@
  * Handles all user-related API calls
  */
 
-import { Alert } from "react-native";
 import { USER_API_URL } from "../config/api";
+import { apiFetch } from "./apiClient";
+import { TokenService } from "./TokenService";
+import { mediaAPI } from "./media/api";
 
 // Types
 export interface UserProfile {
@@ -59,6 +61,46 @@ export class UserService {
     return UserService.instance;
   }
 
+  private async resolveCurrentUserId(userId?: string): Promise<string> {
+    if (userId) return userId;
+    const token = await TokenService.getAccessToken();
+    const payload = token ? TokenService.decodeAccessToken(token) : null;
+    if (!payload?.sub) throw new Error("Missing user id");
+    return payload.sub;
+  }
+
+  private toUserProfile(raw: any): UserProfile {
+    return {
+      id: String(raw?.id ?? ""),
+      firstName: String(raw?.firstName ?? raw?.first_name ?? ""),
+      lastName: String(raw?.lastName ?? raw?.last_name ?? ""),
+      username: String(raw?.username ?? ""),
+      phoneNumber: String(raw?.phoneNumber ?? raw?.phone_number ?? ""),
+      biography: String(raw?.biography ?? ""),
+      profilePicture:
+        typeof raw?.profilePictureUrl === "string"
+          ? raw.profilePictureUrl
+          : typeof raw?.profile_picture_url === "string"
+            ? raw.profile_picture_url
+            : undefined,
+      isOnline: Boolean(raw?.isOnline ?? false),
+      lastSeen:
+        typeof raw?.lastSeen === "string"
+          ? raw.lastSeen
+          : raw?.lastSeen
+            ? new Date(raw.lastSeen).toISOString()
+            : typeof raw?.last_seen === "string"
+              ? raw.last_seen
+              : undefined,
+      createdAt: String(
+        raw?.createdAt ?? raw?.created_at ?? new Date().toISOString(),
+      ),
+      updatedAt: String(
+        raw?.updatedAt ?? raw?.updated_at ?? new Date().toISOString(),
+      ),
+    };
+  }
+
   /**
    * Get current user profile
    */
@@ -68,10 +110,11 @@ export class UserService {
     message?: string;
   }> {
     try {
-      return {
-        success: false,
-        message: "Profil non disponible (API non implémentée)",
-      };
+      const userId = await this.resolveCurrentUserId();
+      const raw = await apiFetch<any>(
+        `${this.baseUrl}/profile/${encodeURIComponent(userId)}`,
+      );
+      return { success: true, profile: this.toUserProfile(raw) };
     } catch (error) {
       console.error("Erreur récupération profil:", error);
       return {
@@ -88,8 +131,6 @@ export class UserService {
     profileData: UpdateProfileRequest,
   ): Promise<UpdateProfileResponse> {
     try {
-      console.log("📝 Mise à jour du profil:", profileData);
-
       // Validation
       const validation = this.validateProfileData(profileData);
       if (!validation.isValid) {
@@ -99,23 +140,47 @@ export class UserService {
         };
       }
 
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/users/me`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(profileData),
-      // });
+      const userId = await this.resolveCurrentUserId();
 
-      // Simulation d'un délai réseau
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      let avatarMediaId: string | undefined;
+      let profilePictureUrl: string | undefined;
+      if (profileData.profilePicture) {
+        const uri = profileData.profilePicture;
+        const isLocalUri =
+          uri.startsWith("file:") ||
+          uri.startsWith("content:") ||
+          uri.startsWith("ph:");
 
-      return {
-        success: true,
-        message: "Profil mis à jour avec succès",
-      };
+        if (isLocalUri) {
+          const upload = await mediaAPI.uploadAvatar(userId, uri);
+          if (upload.url) profilePictureUrl = upload.url;
+          else if (upload.mediaId) avatarMediaId = upload.mediaId;
+        } else {
+          profilePictureUrl = uri;
+        }
+      }
+
+      const payload: Record<string, unknown> = {};
+      if (profileData.firstName !== undefined)
+        payload.firstName = profileData.firstName;
+      if (profileData.lastName !== undefined)
+        payload.lastName = profileData.lastName;
+      if (profileData.username !== undefined)
+        payload.username = profileData.username;
+      if (profileData.biography !== undefined)
+        payload.biography = profileData.biography;
+      if (profilePictureUrl) payload.profilePictureUrl = profilePictureUrl;
+      if (avatarMediaId) payload.avatarMediaId = avatarMediaId;
+
+      const updated = await apiFetch<any>(
+        `${this.baseUrl}/profile/${encodeURIComponent(userId)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        },
+      );
+
+      return { success: true, profile: this.toUserProfile(updated) };
     } catch (error) {
       console.error("Erreur mise à jour profil:", error);
       return {
@@ -130,23 +195,7 @@ export class UserService {
    */
   async updateProfilePicture(imageUri: string): Promise<UpdateProfileResponse> {
     try {
-      console.log("📸 Mise à jour de la photo de profil:", imageUri);
-
-      // TODO: Real API call with FormData
-      // const formData = new FormData();
-      // formData.append('picture', {
-      //   uri: imageUri,
-      //   type: 'image/jpeg',
-      //   name: 'profile-picture.jpg',
-      // });
-
-      // Simulation d'un délai réseau
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      return {
-        success: true,
-        message: "Photo de profil mise à jour avec succès",
-      };
+      return this.updateProfile({ profilePicture: imageUri });
     } catch (error) {
       console.error("Erreur mise à jour photo:", error);
       return {
@@ -170,23 +219,7 @@ export class UserService {
         };
       }
 
-      // TODO: Real API call
-      // const response = await fetch(`${this.baseUrl}/users/me/username`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Authorization': `Bearer ${token}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({ username }),
-      // });
-
-      // Simulation d'un délai réseau
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      return {
-        success: true,
-        message: "Nom d'utilisateur mis à jour avec succès",
-      };
+      return this.updateProfile({ username });
     } catch (error) {
       console.error("Erreur mise à jour username:", error);
       return {

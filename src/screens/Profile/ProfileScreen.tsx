@@ -125,7 +125,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         if (stored) {
           const parsed = JSON.parse(stored);
           setProfile((prev) => ({ ...prev, ...parsed }));
-          return;
         }
       } catch (e) {}
 
@@ -179,7 +178,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           profilePicture: result.assets[0].uri,
         }));
         setShowImagePicker(false);
-        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
       console.error("Erreur sélection image:", error);
@@ -212,7 +210,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           profilePicture: result.assets[0].uri,
         }));
         setShowImagePicker(false);
-        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
       console.error("Erreur capture caméra:", error);
@@ -264,9 +261,43 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     ]).start();
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const service = UserService.getInstance();
+      const updated = await service.updateProfile({
+        firstName: profile.firstName.trim(),
+        lastName: profile.lastName.trim(),
+        username: profile.username.trim(),
+        biography: profile.biography,
+        profilePicture: profile.profilePicture,
+      });
+
+      if (!updated.success || !updated.profile) {
+        throw new Error(updated.message || "Update failed");
+      }
+
+      setProfile((prev) => ({
+        ...prev,
+        firstName: updated.profile!.firstName,
+        lastName: updated.profile!.lastName,
+        username: updated.profile!.username,
+        phoneNumber: updated.profile!.phoneNumber,
+        biography: updated.profile!.biography,
+        profilePicture: updated.profile!.profilePicture,
+        createdAt: updated.profile!.createdAt || prev.createdAt,
+      }));
       try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+        await AsyncStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            ...profile,
+            firstName: updated.profile!.firstName,
+            lastName: updated.profile!.lastName,
+            username: updated.profile!.username,
+            phoneNumber: updated.profile!.phoneNumber,
+            biography: updated.profile!.biography,
+            profilePicture: updated.profile!.profilePicture,
+            createdAt: updated.profile!.createdAt || profile.createdAt,
+          }),
+        );
       } catch (e) {}
 
       setIsEditing(false);

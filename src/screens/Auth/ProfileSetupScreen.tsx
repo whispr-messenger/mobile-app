@@ -18,9 +18,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import { Button, Input } from "../../components";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
-import { TokenService } from "../../services/TokenService";
-import { USER_API_URL } from "../../config/api";
-import { mediaAPI } from "../../services/media/api";
+import { UserService } from "../../services";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
@@ -88,38 +86,16 @@ export const ProfileSetupScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      const token = await TokenService.getAccessToken();
-      const body: Record<string, string> = {
+      if (!userId) throw new Error("Missing user id");
+      const service = UserService.getInstance();
+      const res = await service.updateProfile({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         username: username.trim(),
-      };
-
-      if (avatarUri) {
-        try {
-          const upload = await mediaAPI.uploadAvatar(userId!, avatarUri);
-          if (upload.url) {
-            body.profilePictureUrl = upload.url;
-          } else if (upload.mediaId) {
-            // Fallback: let backend resolve avatarMediaId
-            (body as any).avatarMediaId = upload.mediaId;
-          }
-        } catch (e: any) {
-          console.warn("[ProfileSetup] Avatar upload failed:", e?.message || e);
-        }
-      }
-
-      const response = await fetch(`${USER_API_URL}/profile/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
+        profilePicture: avatarUri || undefined,
       });
-
-      if (!response.ok && response.status !== 404) {
-        throw new Error(`HTTP ${response.status}`);
+      if (!res.success) {
+        throw new Error(res.message || "Update failed");
       }
 
       navigation.reset({ index: 0, routes: [{ name: "ConversationsList" }] });
