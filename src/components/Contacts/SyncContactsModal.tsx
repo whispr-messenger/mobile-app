@@ -25,7 +25,7 @@ import { contactsAPI } from "../../services/contacts/api";
 import { Avatar } from "../Chat/Avatar";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
-import { normalizePhoneToE164, hashPhoneNumber } from "../../utils/phoneUtils";
+import { normalizePhoneToE164 } from "../../utils/phoneUtils";
 
 interface SyncContactsModalProps {
   visible: boolean;
@@ -151,19 +151,12 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
       // Limit to 1000 as per specifications
       const limitedContacts = phoneContactsWithNumbers.slice(0, 1000);
 
-      // Hash phone numbers according to specifications
-      const phoneHashes = await Promise.all(
-        limitedContacts.map((contact) => hashPhoneNumber(contact.normalized)),
-      );
-
-      // Create PhoneContact objects with name, hash, and phone number
-      const phoneContacts: PhoneContact[] = limitedContacts.map(
-        (contact, index) => ({
-          name: contact.name,
-          phoneHash: phoneHashes[index],
-          phoneNumber: contact.phoneNumber,
-        }),
-      );
+      // Create PhoneContact objects with name and phone number
+      const phoneContacts: PhoneContact[] = limitedContacts.map((contact) => ({
+        name: contact.name,
+        phoneHash: "",
+        phoneNumber: contact.phoneNumber,
+      }));
 
       // Match with users via API
       const matched = await contactsAPI.importPhoneContacts(phoneContacts);
@@ -262,7 +255,8 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
   const renderMatch = ({ item }: { item: UserSearchResult }) => {
     const { user, is_blocked } = item;
     const isSelected = selectedContacts.has(user.id);
-    const displayName = user.firstName || user.first_name || user.username || "Utilisateur";
+    const displayName =
+      user.firstName || user.first_name || user.username || "Utilisateur";
 
     if (is_blocked) return null;
 
@@ -276,7 +270,11 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         onPress={() => toggleSelection(user.id)}
         activeOpacity={0.7}
       >
-        <Avatar uri={user.profilePictureUrl || user.avatar_url} name={displayName} size={48} />
+        <Avatar
+          uri={user.profilePictureUrl || user.avatar_url}
+          name={displayName}
+          size={48}
+        />
         <View style={styles.matchInfo}>
           <Text
             style={[styles.matchName, { color: themeColors.text.primary }]}
