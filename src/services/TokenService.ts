@@ -1,20 +1,20 @@
-import * as SecureStore from 'expo-secure-store';
-import type { JwtPayload, TokenPair } from '../types/auth';
+import * as SecureStore from "expo-secure-store";
+import type { JwtPayload, TokenPair } from "../types/auth";
 
 const KEYS = {
-  ACCESS_TOKEN: 'whispr.auth.accessToken',
-  REFRESH_TOKEN: 'whispr.auth.refreshToken',
-  IDENTITY_KEY: 'whispr.signal.identityKeyPrivate',
+  ACCESS_TOKEN: "whispr.auth.accessToken",
+  REFRESH_TOKEN: "whispr.auth.refreshToken",
+  IDENTITY_KEY: "whispr.signal.identityKeyPrivate",
 } as const;
 
 function decodeJwtPayload(token: string): JwtPayload | null {
   try {
-    const parts = token.split('.');
+    const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = parts[1];
     // Base64url → base64
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '=='.slice(0, (4 - (base64.length % 4)) % 4);
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
     const decoded = atob(padded);
     return JSON.parse(decoded) as JwtPayload;
   } catch {
@@ -47,6 +47,14 @@ export const TokenService = {
 
   async getIdentityPrivateKey(): Promise<string | null> {
     return SecureStore.getItemAsync(KEYS.IDENTITY_KEY);
+  },
+
+  async clearIdentityPrivateKey(): Promise<void> {
+    await SecureStore.deleteItemAsync(KEYS.IDENTITY_KEY);
+  },
+
+  async clearAll(): Promise<void> {
+    await Promise.all([this.clearTokens(), this.clearIdentityPrivateKey()]);
   },
 
   decodeAccessToken(token: string): JwtPayload | null {

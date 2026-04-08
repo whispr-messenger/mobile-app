@@ -1,11 +1,11 @@
-import * as Device from 'expo-device';
-import * as SecureStore from 'expo-secure-store';
-import { randomUUID } from 'expo-crypto';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import type { DeviceInfo } from '../types/auth';
+import * as Device from "expo-device";
+import * as SecureStore from "expo-secure-store";
+import { randomUUID } from "expo-crypto";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
+import type { DeviceInfo } from "../types/auth";
 
-const DEVICE_ID_KEY = 'whispr.device.id';
+const DEVICE_ID_KEY = "whispr.device.id";
 
 export const DeviceService = {
   async getOrCreateDeviceId(): Promise<string> {
@@ -17,18 +17,23 @@ export const DeviceService = {
     return id;
   },
 
+  async clearDeviceId(): Promise<void> {
+    await SecureStore.deleteItemAsync(DEVICE_ID_KEY);
+  },
+
   async getDeviceInfo(): Promise<DeviceInfo> {
     const appVersion =
-      (Constants.expoConfig?.extra?.appVersion as string | undefined) ?? '1.0.0';
+      (Constants.expoConfig?.extra?.appVersion as string | undefined) ??
+      "1.0.0";
 
     const deviceId = await this.getOrCreateDeviceId();
 
     return {
       deviceId,
-      deviceName: Device.deviceName ?? 'Unknown Device',
+      deviceName: Device.deviceName ?? "Unknown Device",
       deviceType: Platform.OS,
-      model: Device.modelName ?? 'Unknown Model',
-      osVersion: Device.osVersion ?? 'Unknown OS',
+      model: Device.modelName ?? "Unknown Model",
+      osVersion: Device.osVersion ?? "Unknown OS",
       appVersion,
     };
   },
