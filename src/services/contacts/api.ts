@@ -11,7 +11,7 @@ import {
   BlockedUser,
   PhoneContact,
   ContactRequest,
-} from '../../types/contact';
+} from "../../types/contact";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
@@ -84,7 +84,10 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
   }
 };
 
-const buildSearchResult = (u: any, contactIds?: Set<string>): UserSearchResult => {
+const buildSearchResult = (
+  u: any,
+  contactIds?: Set<string>,
+): UserSearchResult => {
   const userId = u.id ?? u.userId;
   return {
     user: {
@@ -248,47 +251,68 @@ export const contactsAPI = {
 
     // 1. Search by username (exact match from API)
     searches.push(
-      fetch(`${API_BASE_URL}/search/username?username=${encodeURIComponent(query)}`, {
-        headers: { ...(await getAuthHeaders()) },
-      })
+      fetch(
+        `${API_BASE_URL}/search/username?username=${encodeURIComponent(query)}`,
+        {
+          headers: { ...(await getAuthHeaders()) },
+        },
+      )
         .then(async (r) => {
           if (!r.ok) return [];
           const user = await r.json().catch(() => null);
           if (!user?.id && !user?.userId) return [];
           return [buildSearchResult(user, contactIds)];
         })
-        .catch(() => [])
+        .catch(() => []),
     );
 
     // 2. Search by name (fuzzy — backend supports partial match)
     searches.push(
-      fetch(`${API_BASE_URL}/search/name?query=${encodeURIComponent(query)}&limit=20`, {
-        headers: { ...(await getAuthHeaders()) },
-      })
+      fetch(
+        `${API_BASE_URL}/search/name?query=${encodeURIComponent(query)}&limit=20`,
+        {
+          headers: { ...(await getAuthHeaders()) },
+        },
+      )
         .then(async (r) => {
           if (!r.ok) return [];
           const data = await r.json().catch(() => []);
-          const items = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
-          return items.filter((u: any) => u?.id || u?.userId).map((u: any) => buildSearchResult(u, contactIds));
+          const items = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.results)
+              ? data.results
+              : [];
+          return items
+            .filter((u: any) => u?.id || u?.userId)
+            .map((u: any) => buildSearchResult(u, contactIds));
         })
-        .catch(() => [])
+        .catch(() => []),
     );
 
     // 3. Search by phone number (if input looks like a phone number)
     const looksLikePhone = /^[+\d\s()-]{3,}$/.test(query);
     if (looksLikePhone) {
       searches.push(
-        fetch(`${API_BASE_URL}/search/phone?phoneNumber=${encodeURIComponent(query)}`, {
-          headers: { ...(await getAuthHeaders()) },
-        })
+        fetch(
+          `${API_BASE_URL}/search/phone?phoneNumber=${encodeURIComponent(query)}`,
+          {
+            headers: { ...(await getAuthHeaders()) },
+          },
+        )
           .then(async (r) => {
             if (!r.ok) return [];
             const data = await r.json().catch(() => null);
             if (!data) return [];
-            const items = Array.isArray(data) ? data : (data?.id || data?.userId) ? [data] : [];
-            return items.filter((u: any) => u?.id || u?.userId).map((u: any) => buildSearchResult(u, contactIds));
+            const items = Array.isArray(data)
+              ? data
+              : data?.id || data?.userId
+                ? [data]
+                : [];
+            return items
+              .filter((u: any) => u?.id || u?.userId)
+              .map((u: any) => buildSearchResult(u, contactIds));
           })
-          .catch(() => [])
+          .catch(() => []),
       );
     }
 
@@ -315,13 +339,50 @@ export const contactsAPI = {
     if (!phoneContacts.length) return [];
 
     const headers = await getAuthHeaders();
+    const phoneNumbers = phoneContacts
+      .map((c) => c.phoneNumber?.trim())
+      .filter((p): p is string => !!p);
+
+    if (!phoneNumbers.length) return [];
+
+    // Try batch endpoint first
+    try {
+      const batchResponse = await fetch(`${API_BASE_URL}/search/phone/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ phoneNumbers }),
+      });
+
+      if (batchResponse.ok) {
+        const data = await batchResponse.json();
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.results)
+            ? data.results
+            : [];
+
+        const seen = new Set<string>();
+        const results: UserSearchResult[] = [];
+        for (const u of items) {
+          const id = u?.id ?? u?.userId;
+          if (id && !seen.has(id)) {
+            seen.add(id);
+            results.push(buildSearchResult(u));
+          }
+        }
+        return results;
+      }
+
+      // Non-OK response (e.g. 404) — fall through to sequential fallback
+    } catch {
+      // Batch endpoint unavailable — fall through to sequential fallback
+    }
+
+    // Fallback: sequential requests (one per phone number)
     const results: UserSearchResult[] = [];
     const seen = new Set<string>();
 
-    for (const contact of phoneContacts) {
-      const phone = contact.phoneNumber?.trim();
-      if (!phone) continue;
-
+    for (const phone of phoneNumbers) {
       try {
         const response = await fetch(
           `${API_BASE_URL}/search/phone?phoneNumber=${encodeURIComponent(phone)}`,
