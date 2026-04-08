@@ -64,5 +64,5 @@ export interface TwoFactorSetupResponse {
 }
 
 export interface TwoFactorBackupCodesResponse {
-  codes: string[];
+  backupCodes: string[];
 }

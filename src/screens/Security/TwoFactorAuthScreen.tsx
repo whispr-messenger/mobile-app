@@ -148,8 +148,10 @@ export const TwoFactorAuthScreen: React.FC = () => {
           onPress: async () => {
             setActionLoading(true);
             try {
-              const { codes } = await TwoFactorService.getBackupCodes();
-              navigation.navigate("TwoFactorBackupCodes", { codes });
+              const { backupCodes } = await TwoFactorService.getBackupCodes("");
+              navigation.navigate("TwoFactorBackupCodes", {
+                codes: backupCodes,
+              });
             } catch {
               showToast(getLocalizedText("twoFactor.setupError"), "error");
             } finally {

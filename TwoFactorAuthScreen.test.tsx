@@ -167,7 +167,7 @@ describe("TwoFactorAuthScreen", () => {
   it("shows confirmation alert before regenerating backup codes", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
     mockedTwoFactorService.getBackupCodes.mockResolvedValue({
-      codes: ["aaaa-1111", "bbbb-2222"],
+      backupCodes: ["aaaa-1111", "bbbb-2222"],
     });
 
     const alertSpy = jest.spyOn(require("react-native").Alert, "alert");

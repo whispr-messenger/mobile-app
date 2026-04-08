@@ -89,10 +89,9 @@ export const TwoFactorVerifyScreen: React.FC = () => {
     }
     setLoading(true);
     try {
-      await TwoFactorService.enable(code);
-      const { codes } = await TwoFactorService.getBackupCodes();
+      const { backupCodes } = await TwoFactorService.enable(code);
       triggerHaptic("success");
-      navigation.navigate("TwoFactorBackupCodes", { codes });
+      navigation.navigate("TwoFactorBackupCodes", { codes: backupCodes });
     } catch {
       triggerHaptic("heavy");
       showToast(getLocalizedText("twoFactor.invalidCode"), "error");
