@@ -2,7 +2,7 @@
  * Toast Component - Notifications with icons
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,13 @@ import {
   Animated,
   Dimensions,
   Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning';
+export type ToastType = "success" | "error" | "info" | "warning";
 
 interface ToastProps {
   visible: boolean;
@@ -29,7 +29,7 @@ interface ToastProps {
 const Toast: React.FC<ToastProps> = ({
   visible,
   message,
-  type = 'info',
+  type = "info",
   duration = 3000,
   onHide,
 }) => {
@@ -38,8 +38,17 @@ const Toast: React.FC<ToastProps> = ({
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (visible) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+
+      slideAnim.setValue(-100);
+      opacityAnim.setValue(0);
+
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -53,15 +62,19 @@ const Toast: React.FC<ToastProps> = ({
         }),
       ]).start();
 
-      const timer = setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         hideToast();
       }, duration);
 
-      return () => clearTimeout(timer);
+      return () => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+        }
+      };
     } else {
       hideToast();
     }
-  }, [visible]);
+  }, [visible, message]);
 
   const hideToast = () => {
     Animated.parallel([
@@ -84,30 +97,34 @@ const Toast: React.FC<ToastProps> = ({
 
   const getIconAndColor = () => {
     switch (type) {
-      case 'success':
+      case "success":
         return {
-          icon: 'checkmark-circle',
-          color: themeColors.success || '#21C004',
-          backgroundColor: themeColors.success + '15' || 'rgba(33, 192, 4, 0.15)',
+          icon: "checkmark-circle",
+          color: themeColors.success || "#21C004",
+          backgroundColor:
+            themeColors.success + "15" || "rgba(33, 192, 4, 0.15)",
         };
-      case 'error':
+      case "error":
         return {
-          icon: 'close-circle',
-          color: themeColors.error || '#FF3B30',
-          backgroundColor: themeColors.error + '15' || 'rgba(255, 59, 48, 0.15)',
+          icon: "close-circle",
+          color: themeColors.error || "#FF3B30",
+          backgroundColor:
+            themeColors.error + "15" || "rgba(255, 59, 48, 0.15)",
         };
-      case 'warning':
+      case "warning":
         return {
-          icon: 'warning',
-          color: themeColors.warning || '#FF9500',
-          backgroundColor: themeColors.warning + '15' || 'rgba(255, 149, 0, 0.15)',
+          icon: "warning",
+          color: themeColors.warning || "#FF9500",
+          backgroundColor:
+            themeColors.warning + "15" || "rgba(255, 149, 0, 0.15)",
         };
-      case 'info':
+      case "info":
       default:
         return {
-          icon: 'information-circle',
-          color: themeColors.secondary || '#9692AC',
-          backgroundColor: themeColors.secondary + '15' || 'rgba(150, 146, 172, 0.15)',
+          icon: "information-circle",
+          color: themeColors.secondary || "#9692AC",
+          backgroundColor:
+            themeColors.secondary + "15" || "rgba(150, 146, 172, 0.15)",
         };
     }
   };
@@ -133,7 +150,7 @@ const Toast: React.FC<ToastProps> = ({
             borderLeftColor: color,
             ...Platform.select({
               ios: {
-                shadowColor: '#000',
+                shadowColor: "#000",
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.3,
                 shadowRadius: 12,
@@ -145,12 +162,7 @@ const Toast: React.FC<ToastProps> = ({
           },
         ]}
       >
-        <View
-          style={[
-            styles.iconContainer,
-            { backgroundColor },
-          ]}
-        >
+        <View style={[styles.iconContainer, { backgroundColor }]}>
           <Ionicons name={icon as any} size={24} color={color} />
         </View>
         <Text
@@ -158,7 +170,7 @@ const Toast: React.FC<ToastProps> = ({
             styles.message,
             {
               color: themeColors.text.primary,
-              fontSize: getFontSize('base'),
+              fontSize: getFontSize("base"),
             },
           ]}
         >
@@ -171,16 +183,16 @@ const Toast: React.FC<ToastProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 40,
     left: 20,
     right: 20,
     zIndex: 9999,
-    alignItems: 'center',
+    alignItems: "center",
   },
   toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -193,16 +205,15 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   message: {
     flex: 1,
-    fontWeight: '500',
+    fontWeight: "500",
     lineHeight: 20,
   },
 });
 
 export default Toast;
-

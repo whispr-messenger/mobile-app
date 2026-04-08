@@ -234,6 +234,36 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.recoveryCodesInfo":
       "Enregistrez ces codes dans un endroit sûr. Vous pouvez les utiliser pour accéder à votre compte si vous perdez votre appareil.",
     "twoFactor.codeCopied": "Code copié dans le presse-papiers",
+    "twoFactor.setupError":
+      "Impossible de démarrer la configuration. Réessayez.",
+    "twoFactor.loadError": "Impossible de charger le statut 2FA.",
+    "twoFactor.setupTitle": "Configurer l'authentificateur",
+    "twoFactor.step1of3": "Étape 1 sur 3",
+    "twoFactor.step2of3": "Étape 2 sur 3",
+    "twoFactor.step3of3": "Étape 3 sur 3",
+    "twoFactor.setupInfoMessage":
+      "Ouvrez votre application d'authentification et scannez le code QR ci-dessous.",
+    "twoFactor.manualEntryLabel": "Ou saisissez ce code manuellement",
+    "twoFactor.copySecret": "Copier le secret",
+    "twoFactor.secretCopied": "Secret copié dans le presse-papiers",
+    "twoFactor.secretReminder": "Secret de l'étape précédente",
+    "twoFactor.verifyTitle": "Vérifier le code",
+    "twoFactor.verifyInfoMessage":
+      "Entrez le code à 6 chiffres affiché dans votre application d'authentification.",
+    "twoFactor.backupCodesTitle": "Sauvegarder vos codes",
+    "twoFactor.backupCodesWarning":
+      "Ces codes ne seront plus affichés. Conservez-les dans un endroit sûr.",
+    "twoFactor.copyAll": "Tout copier",
+    "twoFactor.allCodesCopied": "Tous les codes copiés",
+    "twoFactor.confirmSaved": "J'ai sauvegardé mes codes de secours",
+    "twoFactor.confirmSavedFirst":
+      "Veuillez cocher la case de confirmation avant de continuer.",
+    "twoFactor.completeSetup": "Terminer la configuration",
+    "twoFactor.regenerateCodes": "Régénérer les codes",
+    "twoFactor.regenerateTitle": "Régénérer les codes de secours",
+    "twoFactor.regenerateConfirm":
+      "Cette action va générer de nouveaux codes et invalider les précédents. Vos anciens codes ne fonctionneront plus.",
+    "twoFactor.codesRegenerated": "Codes de récupération régénérés",
 
     // Common
     "common.confirm": "Confirmer",
@@ -243,6 +273,9 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.yes": "Oui",
     "common.no": "Non",
     "common.ok": "OK",
+    "common.next": "Suivant",
+    "common.retry": "Réessayer",
+    "common.copyError": "Impossible de copier dans le presse-papiers.",
   },
   en: {
     // Navigation
@@ -407,6 +440,35 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.recoveryCodesInfo":
       "Save these codes in a safe place. You can use them to access your account if you lose your device.",
     "twoFactor.codeCopied": "Code copied to clipboard",
+    "twoFactor.setupError": "Unable to start setup. Please try again.",
+    "twoFactor.loadError": "Unable to load 2FA status.",
+    "twoFactor.setupTitle": "Set Up Authenticator",
+    "twoFactor.step1of3": "Step 1 of 3",
+    "twoFactor.step2of3": "Step 2 of 3",
+    "twoFactor.step3of3": "Step 3 of 3",
+    "twoFactor.setupInfoMessage":
+      "Open your authenticator app and scan the QR code below.",
+    "twoFactor.manualEntryLabel": "Or enter this code manually",
+    "twoFactor.copySecret": "Copy Secret",
+    "twoFactor.secretCopied": "Secret copied to clipboard",
+    "twoFactor.secretReminder": "Secret from the previous step",
+    "twoFactor.verifyTitle": "Verify Code",
+    "twoFactor.verifyInfoMessage":
+      "Enter the 6-digit code shown in your authenticator app.",
+    "twoFactor.backupCodesTitle": "Save Your Codes",
+    "twoFactor.backupCodesWarning":
+      "These codes will not be shown again. Store them somewhere safe.",
+    "twoFactor.copyAll": "Copy All",
+    "twoFactor.allCodesCopied": "All codes copied",
+    "twoFactor.confirmSaved": "I have saved my backup codes",
+    "twoFactor.confirmSavedFirst":
+      "Please check the confirmation box before continuing.",
+    "twoFactor.completeSetup": "Complete Setup",
+    "twoFactor.regenerateCodes": "Regenerate Codes",
+    "twoFactor.regenerateTitle": "Regenerate Backup Codes",
+    "twoFactor.regenerateConfirm":
+      "This will generate new codes and invalidate your previous ones. Your old codes will no longer work.",
+    "twoFactor.codesRegenerated": "Recovery codes regenerated",
 
     // Common
     "common.confirm": "Confirm",
@@ -416,6 +478,9 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.yes": "Yes",
     "common.no": "No",
     "common.ok": "OK",
+    "common.next": "Next",
+    "common.retry": "Retry",
+    "common.copyError": "Unable to copy to clipboard.",
   },
 };
 

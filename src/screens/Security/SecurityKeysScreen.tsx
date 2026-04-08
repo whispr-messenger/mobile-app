@@ -3,7 +3,7 @@
  * Security keys and connected devices management
  */
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import {
   Animated,
   Platform,
   Dimensions,
-  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -24,20 +23,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import * as Haptics from "expo-haptics";
 import Toast from "../../components/Toast/Toast";
-import {
-  DeviceManagerService,
-  DeviceInfo,
-} from "../../services/SecurityService";
 
-const copyToClipboard = async (text: string) => {
-  try {
-    const Clipboard = require("expo-clipboard");
-    await Clipboard.setStringAsync(text);
-    return true;
-  } catch (error) {
-    return false;
-  }
-};
+import { copyToClipboard } from "../../utils/clipboard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -72,8 +59,34 @@ export const SecurityKeysScreen: React.FC = () => {
   const modalScale = useRef(new Animated.Value(0.9)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
 
-  const [devices, setDevices] = useState<ConnectedDevice[]>([]);
-  const [devicesLoading, setDevicesLoading] = useState(true);
+  const [devices, setDevices] = useState<ConnectedDevice[]>([
+    {
+      id: "1",
+      name: "iPhone 15 Pro",
+      type: "mobile",
+      lastActive: "Maintenant",
+      location: "Paris, France",
+      isCurrent: true,
+    },
+    {
+      id: "2",
+      name: "MacBook Pro",
+      type: "desktop",
+      lastActive: "Il y a 2 heures",
+      location: "Paris, France",
+      isCurrent: false,
+      securityCode: "ABC123-DEF456-GHI789",
+    },
+    {
+      id: "3",
+      name: "iPad Air",
+      type: "tablet",
+      lastActive: "Il y a 3 jours",
+      location: "Lyon, France",
+      isCurrent: false,
+      securityCode: "XYZ789-UVW456-RST123",
+    },
+  ]);
 
   const [securityKeys, setSecurityKeys] = useState<SecurityKey[]>([
     {
@@ -109,51 +122,6 @@ export const SecurityKeysScreen: React.FC = () => {
     message: "",
     type: "info",
   });
-
-  const mapPlatformToType = (platform: string): ConnectedDevice["type"] => {
-    const p = platform.toLowerCase();
-    if (p === "ios" || p === "android") return "mobile";
-    if (p.includes("tablet") || p.includes("ipad")) return "tablet";
-    if (p === "web") return "web";
-    return "desktop";
-  };
-
-  const formatLastActive = (isoDate: string): string => {
-    const date = new Date(isoDate);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return "Maintenant";
-    if (diffMin < 60) return `Il y a ${diffMin} min`;
-    const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `Il y a ${diffH} heure${diffH > 1 ? "s" : ""}`;
-    const diffD = Math.floor(diffH / 24);
-    return `Il y a ${diffD} jour${diffD > 1 ? "s" : ""}`;
-  };
-
-  const fetchDevices = useCallback(async () => {
-    setDevicesLoading(true);
-    try {
-      const apiDevices = await DeviceManagerService.listDevices();
-      const mapped: ConnectedDevice[] = apiDevices.map((d: DeviceInfo) => ({
-        id: d.id,
-        name: d.name,
-        type: mapPlatformToType(d.platform),
-        lastActive: formatLastActive(d.last_active),
-        isCurrent: d.is_current,
-      }));
-      setDevices(mapped);
-    } catch (error) {
-      console.error("Failed to fetch devices:", error);
-      setToast({ visible: true, message: "Failed to load devices", type: "error" });
-    } finally {
-      setDevicesLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDevices();
-  }, [fetchDevices]);
 
   useEffect(() => {
     Animated.parallel([
@@ -212,6 +180,7 @@ export const SecurityKeysScreen: React.FC = () => {
               : Haptics.ImpactFeedbackStyle.Heavy,
         );
       } catch (error) {
+        console.log("⚠️ Haptic feedback error:", error);
       }
     }
   };
@@ -242,19 +211,13 @@ export const SecurityKeysScreen: React.FC = () => {
         {
           text: getLocalizedText("security.disconnect"),
           style: "destructive",
-          onPress: async () => {
+          onPress: () => {
             triggerHaptic("medium");
-            try {
-              await DeviceManagerService.revokeDevice(device.id);
-              setDevices((prev) => prev.filter((d) => d.id !== device.id));
-              showToast(
-                getLocalizedText("security.deviceDisconnected"),
-                "success",
-              );
-            } catch (error) {
-              console.error("Failed to revoke device:", error);
-              showToast("Failed to disconnect device", "error");
-            }
+            setDevices((prev) => prev.filter((d) => d.id !== device.id));
+            showToast(
+              getLocalizedText("security.deviceDisconnected"),
+              "success",
+            );
           },
         },
       ],
@@ -844,28 +807,9 @@ export const SecurityKeysScreen: React.FC = () => {
                 </Text>
               </View>
             </View>
-            {devicesLoading ? (
-              <ActivityIndicator
-                size="large"
-                color={accentColor}
-                style={{ marginVertical: 24 }}
-              />
-            ) : devices.length === 0 ? (
-              <Text
-                style={{
-                  color: themeColors.text.secondary,
-                  textAlign: "center",
-                  marginVertical: 24,
-                  fontSize: getFontSize("base"),
-                }}
-              >
-                {getLocalizedText("security.noDevices") || "No devices found"}
-              </Text>
-            ) : (
-              devices.map((device, index) => (
-                <DeviceCard key={device.id} device={device} index={index} />
-              ))
-            )}
+            {devices.map((device, index) => (
+              <DeviceCard key={device.id} device={device} index={index} />
+            ))}
           </View>
 
           <View style={styles.section}>

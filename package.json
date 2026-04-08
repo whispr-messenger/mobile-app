@@ -21,6 +21,7 @@
     "@types/jpeg-js": "^0.3.0",
     "expo": "~54.0.0",
     "expo-av": "~16.0.8",
+    "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-contacts": "~15.0.11",
     "expo-crypto": "^15.0.8",
