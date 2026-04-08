@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
       android: { elevation: 2 },
     }),
   },
-  title: { fontWeight: "bold" },
+  title: { fontWeight: "bold", flex: 1 },
   infoBanner: {
     flexDirection: "row",
     alignItems: "center",
