@@ -28,7 +28,6 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import { StackScreenProps, StackNavigationProp } from "@react-navigation/stack";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "../../context/ThemeContext";
-import { gateChatImageBeforeSend } from "../../services/moderation";
 import { useAuth } from "../../context/AuthContext";
 import {
   Message,
@@ -580,15 +579,6 @@ export const ChatScreen: React.FC = () => {
             : type === "audio"
               ? "audio/mp4"
               : "application/octet-stream");
-
-      // Only gate images, not videos/audio/files
-      if (type === 'image') {
-        const gateResult = await gateChatImageBeforeSend(uri);
-        if (!gateResult.ok && gateResult.reason === 'blocked') {
-          Alert.alert('Image bloquee', 'Cette image ne peut pas etre envoyee car elle enfreint les regles de moderation.');
-          return;
-        }
-      }
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
