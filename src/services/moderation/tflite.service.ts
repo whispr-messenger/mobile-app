@@ -1,5 +1,12 @@
-import { loadTensorflowModel } from "react-native-fast-tflite";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LoadTensorflowModelFn = (model: any) => Promise<any>;
+// Dynamic require so the web bundle doesn't fail when the native module is absent
+
+const loadTensorflowModel: LoadTensorflowModelFn =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require("react-native-fast-tflite").loadTensorflowModel;
 
 type TFLiteModel = any;
 
