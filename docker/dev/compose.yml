@@ -1,0 +1,25 @@
+name: whispr-dev-mobile-app
+
+services:
+  expo:
+    container_name: expo
+    build:
+      context: ../..
+      dockerfile: ./docker/dev/Dockerfile
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+      - "8081:8081"
+    volumes:
+      - ../..:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
+      - EXPO_TUNNEL_SUBDOMAIN=${EXPO_TUNNEL_SUBDOMAIN:-}
+    command: npx expo start --tunnel
+    stdin_open: true
+    tty: true
