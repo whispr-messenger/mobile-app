@@ -131,7 +131,7 @@ export const contactsAPI = {
 
     // Enrich contacts with user data in parallel
     const enriched = await Promise.all(
-      contacts.map(async (contact) => {
+      contacts.map(async (contact: Contact) => {
         if (contact.contact_id) {
           const user = await fetchUserById(contact.contact_id);
           if (user) {
