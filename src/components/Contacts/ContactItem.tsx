@@ -14,12 +14,14 @@ interface ContactItemProps {
   contact: Contact;
   onPress?: (contact: Contact) => void;
   onLongPress?: (contact: Contact) => void;
+  onDelete?: (contact: Contact) => void;
 }
 
 export const ContactItem: React.FC<ContactItemProps> = ({
   contact,
   onPress,
   onLongPress,
+  onDelete,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -80,11 +82,21 @@ export const ContactItem: React.FC<ContactItemProps> = ({
           </Text>
         )}
       </View>
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={themeColors.text.tertiary}
-      />
+      {onDelete ? (
+        <TouchableOpacity
+          onPress={() => onDelete(contact)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.deleteIcon}
+        >
+          <Ionicons name="trash-outline" size={20} color={colors.ui.error} />
+        </TouchableOpacity>
+      ) : (
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={themeColors.text.tertiary}
+        />
+      )}
     </TouchableOpacity>
   );
 };
@@ -117,5 +129,8 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     marginTop: 2,
+  },
+  deleteIcon: {
+    padding: 4,
   },
 });
