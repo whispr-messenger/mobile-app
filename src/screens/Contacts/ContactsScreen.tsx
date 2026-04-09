@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   StyleSheet,
@@ -175,10 +181,7 @@ export const ContactsScreen: React.FC = () => {
         // @ts-ignore - navigation type will be fixed later
         navigation.navigate("Chat", { conversationId: conversation.id });
       } catch (error: any) {
-        console.error(
-          "[ContactsScreen] Error creating conversation:",
-          error,
-        );
+        console.error("[ContactsScreen] Error creating conversation:", error);
         Alert.alert(
           "Erreur",
           error.message || "Impossible de créer la conversation",
@@ -200,12 +203,7 @@ export const ContactsScreen: React.FC = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter((c) => {
         const user = c.contact_user;
-        const name =
-          c.nickname ||
-          user?.firstName ||
-          user?.first_name ||
-          user?.username ||
-          "";
+        const name = c.nickname || user?.first_name || user?.username || "";
         return name.toLowerCase().includes(q);
       });
     }
@@ -411,7 +409,7 @@ export const ContactsScreen: React.FC = () => {
                 ? request.requester_user
                 : request.recipient_user;
               const displayName =
-                user?.firstName || user?.first_name || user?.username || "Utilisateur";
+                user?.first_name || user?.username || "Utilisateur";
 
               return (
                 <View
