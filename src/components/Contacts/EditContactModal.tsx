@@ -3,7 +3,7 @@
  * Allows editing nickname and favorite status
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,16 +14,16 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { Contact } from '../../types/contact';
-import { contactsAPI } from '../../services/contacts/api';
-import { Avatar } from '../Chat/Avatar';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { useNavigation } from '@react-navigation/native';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { Contact } from "../../types/contact";
+import { contactsAPI } from "../../services/contacts/api";
+import { Avatar } from "../Chat/Avatar";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { useNavigation } from "@react-navigation/native";
 
 interface EditContactModalProps {
   visible: boolean;
@@ -38,7 +38,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
   onClose,
   onContactUpdated,
 }) => {
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState("");
   const [isFavorite, setIsFavorite] = useState(false);
   const [saving, setSaving] = useState(false);
   const { getThemeColors } = useTheme();
@@ -47,7 +47,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
 
   useEffect(() => {
     if (contact) {
-      setNickname(contact.nickname || '');
+      setNickname(contact.nickname || "");
       setIsFavorite(contact.is_favorite);
     }
   }, [contact]);
@@ -61,9 +61,9 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
         nickname: nickname.trim() || undefined,
         isFavorite,
       });
-      Alert.alert('Succès', 'Contact mis à jour avec succès', [
+      Alert.alert("Succès", "Contact mis à jour avec succès", [
         {
-          text: 'OK',
+          text: "OK",
           onPress: () => {
             onContactUpdated();
             handleClose();
@@ -71,8 +71,11 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
         },
       ]);
     } catch (error: any) {
-      console.error('[EditContactModal] Error updating contact:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de mettre à jour le contact');
+      console.error("[EditContactModal] Error updating contact:", error);
+      Alert.alert(
+        "Erreur",
+        error.message || "Impossible de mettre à jour le contact",
+      );
     } finally {
       setSaving(false);
     }
@@ -82,19 +85,19 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
     if (!contact) return;
 
     Alert.alert(
-      'Supprimer le contact',
-      'Êtes-vous sûr de vouloir supprimer ce contact ?',
+      "Supprimer le contact",
+      "Êtes-vous sûr de vouloir supprimer ce contact ?",
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: "Annuler", style: "cancel" },
         {
-          text: 'Supprimer',
-          style: 'destructive',
+          text: "Supprimer",
+          style: "destructive",
           onPress: async () => {
             try {
               await contactsAPI.deleteContact(contact.id);
-              Alert.alert('Succès', 'Contact supprimé', [
+              Alert.alert("Succès", "Contact supprimé", [
                 {
-                  text: 'OK',
+                  text: "OK",
                   onPress: () => {
                     onContactUpdated();
                     handleClose();
@@ -102,8 +105,14 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                 },
               ]);
             } catch (error: any) {
-              console.error('[EditContactModal] Error deleting contact:', error);
-              Alert.alert('Erreur', error.message || 'Impossible de supprimer le contact');
+              console.error(
+                "[EditContactModal] Error deleting contact:",
+                error,
+              );
+              Alert.alert(
+                "Erreur",
+                error.message || "Impossible de supprimer le contact",
+              );
             }
           },
         },
@@ -113,7 +122,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
 
   const handleClose = () => {
     if (contact) {
-      setNickname(contact.nickname || '');
+      setNickname(contact.nickname || "");
       setIsFavorite(contact.is_favorite);
     }
     onClose();
@@ -122,7 +131,12 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
   if (!contact) return null;
 
   const user = contact.contact_user;
-  const displayName = contact.nickname || user?.firstName || user?.first_name || user?.username || 'Contact';
+  const displayName =
+    contact.nickname ||
+    user?.first_name ||
+    user?.first_name ||
+    user?.username ||
+    "Contact";
 
   return (
     <Modal
@@ -137,9 +151,9 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
       >
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={styles.container} edges={["top"]}>
           {/* Header */}
-          <View style={[styles.header, { backgroundColor: 'transparent' }]}>
+          <View style={[styles.header, { backgroundColor: "transparent" }]}>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Ionicons
                 name="close"
@@ -147,7 +161,9 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                 color={themeColors.text.primary}
               />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Modifier le contact
             </Text>
             <TouchableOpacity
@@ -158,7 +174,12 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
               {saving ? (
                 <ActivityIndicator size="small" color={colors.primary.main} />
               ) : (
-                <Text style={[styles.saveButtonText, { color: colors.primary.main }]}>
+                <Text
+                  style={[
+                    styles.saveButtonText,
+                    { color: colors.primary.main },
+                  ]}
+                >
                   Enregistrer
                 </Text>
               )}
@@ -168,14 +189,24 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
           {/* Contact Info */}
           <View style={styles.contactInfo}>
             <Avatar
-              uri={user?.profilePictureUrl || user?.avatar_url}
+              uri={user?.avatar_url || user?.avatar_url}
               name={displayName}
               size={80}
             />
-            <Text style={[styles.contactName, { color: themeColors.text.primary }]}>
-              {user?.firstName || user?.first_name || user?.username || 'Contact'}
+            <Text
+              style={[styles.contactName, { color: themeColors.text.primary }]}
+            >
+              {user?.first_name ||
+                user?.first_name ||
+                user?.username ||
+                "Contact"}
             </Text>
-            <Text style={[styles.contactUsername, { color: themeColors.text.secondary }]}>
+            <Text
+              style={[
+                styles.contactUsername,
+                { color: themeColors.text.secondary },
+              ]}
+            >
               @{user?.username}
             </Text>
           </View>
@@ -184,14 +215,16 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
           <View style={styles.form}>
             {/* Nickname */}
             <View style={styles.field}>
-              <Text style={[styles.label, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[styles.label, { color: themeColors.text.secondary }]}
+              >
                 Surnom
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
                     color: themeColors.text.primary,
                   },
                 ]}
@@ -213,9 +246,18 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                   <Ionicons
                     name="star"
                     size={20}
-                    color={isFavorite ? colors.primary.main : themeColors.text.secondary}
+                    color={
+                      isFavorite
+                        ? colors.primary.main
+                        : themeColors.text.secondary
+                    }
                   />
-                  <Text style={[styles.switchLabel, { color: themeColors.text.primary }]}>
+                  <Text
+                    style={[
+                      styles.switchLabel,
+                      { color: themeColors.text.primary },
+                    ]}
+                  >
                     Favori
                   </Text>
                 </View>
@@ -223,7 +265,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                   value={isFavorite}
                   onValueChange={setIsFavorite}
                   trackColor={{
-                    false: 'rgba(255, 255, 255, 0.2)',
+                    false: "rgba(255, 255, 255, 0.2)",
                     true: colors.primary.main,
                   }}
                   thumbColor={colors.text.light}
@@ -242,19 +284,19 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
               onPress={async () => {
                 if (!contact?.contact_user) return;
                 Alert.alert(
-                  'Bloquer l\'utilisateur',
-                  'Êtes-vous sûr de vouloir bloquer cet utilisateur ?',
+                  "Bloquer l'utilisateur",
+                  "Êtes-vous sûr de vouloir bloquer cet utilisateur ?",
                   [
-                    { text: 'Annuler', style: 'cancel' },
+                    { text: "Annuler", style: "cancel" },
                     {
-                      text: 'Bloquer',
-                      style: 'destructive',
+                      text: "Bloquer",
+                      style: "destructive",
                       onPress: async () => {
                         try {
                           await contactsAPI.blockUser(contact.contact_user!.id);
-                          Alert.alert('Succès', 'Utilisateur bloqué', [
+                          Alert.alert("Succès", "Utilisateur bloqué", [
                             {
-                              text: 'OK',
+                              text: "OK",
                               onPress: () => {
                                 onContactUpdated();
                                 handleClose();
@@ -262,8 +304,15 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                             },
                           ]);
                         } catch (error: any) {
-                          console.error('[EditContactModal] Error blocking user:', error);
-                          Alert.alert('Erreur', error.message || 'Impossible de bloquer l\'utilisateur');
+                          console.error(
+                            "[EditContactModal] Error blocking user:",
+                            error,
+                          );
+                          Alert.alert(
+                            "Erreur",
+                            error.message ||
+                              "Impossible de bloquer l'utilisateur",
+                          );
                         }
                       },
                     },
@@ -276,7 +325,12 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                 size={20}
                 color={colors.primary.main}
               />
-              <Text style={[styles.actionButtonText, { color: colors.primary.main }]}>
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  { color: colors.primary.main },
+                ]}
+              >
                 Bloquer l'utilisateur
               </Text>
             </TouchableOpacity>
@@ -289,7 +343,12 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                 size={20}
                 color={colors.primary.dark}
               />
-              <Text style={[styles.actionButtonText, { color: colors.primary.dark }]}>
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  { color: colors.primary.dark },
+                ]}
+              >
                 Supprimer le contact
               </Text>
             </TouchableOpacity>
@@ -308,12 +367,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   closeButton: {
     padding: 4,
@@ -321,25 +380,25 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   saveButton: {
     padding: 4,
     minWidth: 80,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   contactInfo: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 24,
   },
   contactName: {
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 12,
   },
   contactUsername: {
@@ -355,7 +414,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 8,
   },
   input: {
@@ -369,42 +428,41 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   switchInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   switchLabel: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   actionsSection: {
-    marginTop: 'auto',
+    marginTop: "auto",
     paddingHorizontal: 16,
     paddingBottom: 32,
     gap: 12,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
   },
   blockButton: {
-    backgroundColor: 'rgba(254, 122, 92, 0.15)',
+    backgroundColor: "rgba(254, 122, 92, 0.15)",
   },
   deleteButton: {
-    backgroundColor: 'rgba(249, 102, 69, 0.15)',
+    backgroundColor: "rgba(249, 102, 69, 0.15)",
   },
   actionButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
-

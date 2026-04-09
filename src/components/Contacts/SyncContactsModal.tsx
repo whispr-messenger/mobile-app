@@ -256,7 +256,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
     const { user, is_blocked } = item;
     const isSelected = selectedContacts.has(user.id);
     const displayName =
-      user.firstName || user.first_name || user.username || "Utilisateur";
+      user.first_name || user.first_name || user.username || "Utilisateur";
 
     if (is_blocked) return null;
 
@@ -271,7 +271,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
         activeOpacity={0.7}
       >
         <Avatar
-          uri={user.profilePictureUrl || user.avatar_url}
+          uri={user.avatar_url || user.avatar_url}
           name={displayName}
           size={48}
         />

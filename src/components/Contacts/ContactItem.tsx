@@ -2,13 +2,13 @@
  * ContactItem - Contact list item component
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Contact } from '../../types/contact';
-import { Avatar } from '../Chat/Avatar';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Contact } from "../../types/contact";
+import { Avatar } from "../Chat/Avatar";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
 
 interface ContactItemProps {
   contact: Contact;
@@ -25,8 +25,14 @@ export const ContactItem: React.FC<ContactItemProps> = ({
   const themeColors = getThemeColors();
 
   const user = contact.contact_user;
-  const displayName = contact.nickname || user?.firstName || user?.first_name || user?.username || 'Contact';
-  const subtitle = user?.username || user?.phoneNumber || user?.phone_number || '';
+  const displayName =
+    contact.nickname ||
+    user?.first_name ||
+    user?.first_name ||
+    user?.username ||
+    "Contact";
+  const subtitle =
+    user?.username || user?.phone_number || user?.phone_number || "";
 
   const handlePress = () => {
     onPress?.(contact);
@@ -38,13 +44,16 @@ export const ContactItem: React.FC<ContactItemProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.container, { backgroundColor: themeColors.background.secondary }]}
+      style={[
+        styles.container,
+        { backgroundColor: themeColors.background.secondary },
+      ]}
       onPress={handlePress}
       onLongPress={handleLongPress}
       activeOpacity={0.7}
     >
       <Avatar
-        uri={user?.profilePictureUrl || user?.avatar_url}
+        uri={user?.avatar_url || user?.avatar_url}
         name={displayName}
         size={48}
         showOnlineBadge={false}
@@ -87,24 +96,24 @@ export const ContactItem: React.FC<ContactItemProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
   },
   info: {
     flex: 1,
     marginLeft: 12,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   name: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginRight: 6,
   },
   favoriteIcon: {
@@ -115,4 +124,3 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
-

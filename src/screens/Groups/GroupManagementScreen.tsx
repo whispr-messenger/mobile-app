@@ -473,11 +473,13 @@ export const GroupManagementScreen: React.FC = () => {
           userId,
           displayName:
             contact?.nickname ||
-            contact?.contact_user?.firstName ||
+            contact?.contact_user?.first_name ||
             contact?.contact_user?.first_name ||
             `User ${userId}`,
           username: contact?.contact_user?.username,
-          avatarUrl: contact?.contact_user?.profilePictureUrl || contact?.contact_user?.avatar_url,
+          avatarUrl:
+            contact?.contact_user?.avatar_url ||
+            contact?.contact_user?.avatar_url,
         };
       });
 
@@ -504,8 +506,9 @@ export const GroupManagementScreen: React.FC = () => {
       if (!user) return false;
 
       const nickname = contact.nickname?.toLowerCase() || "";
-      const firstName = (user.firstName || user.first_name)?.toLowerCase() || "";
-      const lastName = (user.lastName || user.last_name)?.toLowerCase() || "";
+      const firstName =
+        (user.first_name || user.first_name)?.toLowerCase() || "";
+      const lastName = (user.last_name || user.last_name)?.toLowerCase() || "";
       const username = user.username?.toLowerCase() || "";
 
       return (
@@ -946,7 +949,10 @@ export const GroupManagementScreen: React.FC = () => {
               const isSelected = selectedContacts.has(item.id);
               const user = item.contact_user;
               const displayName =
-                item.nickname || user?.firstName || user?.first_name || "Contact";
+                item.nickname ||
+                user?.first_name ||
+                user?.first_name ||
+                "Contact";
 
               return (
                 <TouchableOpacity
@@ -954,7 +960,11 @@ export const GroupManagementScreen: React.FC = () => {
                   onPress={() => toggleContactSelection(item.id)}
                   activeOpacity={0.7}
                 >
-                  <Avatar name={displayName} uri={user?.profilePictureUrl || user?.avatar_url} size={50} />
+                  <Avatar
+                    name={displayName}
+                    uri={user?.avatar_url || user?.avatar_url}
+                    size={50}
+                  />
                   <View style={styles.contactInfo}>
                     <Text style={styles.contactName}>{displayName}</Text>
                     {user?.username && (

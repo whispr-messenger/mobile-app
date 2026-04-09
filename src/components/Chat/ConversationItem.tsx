@@ -2,18 +2,23 @@
  * ConversationItem - Individual conversation list item
  */
 
-import React, { memo, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
-import Animated from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Conversation } from '../../types/messaging';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { Avatar } from './Avatar';
-import { Ionicons } from '@expo/vector-icons';
-import { usePresenceStore } from '../../store/presenceStore';
-import { useAuth } from '../../context/AuthContext';
+import React, { memo, useMemo } from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import Animated from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import { Conversation } from "../../types/messaging";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { Avatar } from "./Avatar";
+import { Ionicons } from "@expo/vector-icons";
+import { usePresenceStore } from "../../store/presenceStore";
+import { useAuth } from "../../context/AuthContext";
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -36,9 +41,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
 
   // For direct conversations, check if the other user is online
-  const otherUserId = conversation.type === 'direct'
-    ? conversation.member_user_ids?.find((id: string) => id !== currentUserId)
-    : undefined;
+  const otherUserId =
+    conversation.type === "direct"
+      ? conversation.member_user_ids?.find((id: string) => id !== currentUserId)
+      : undefined;
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
 
   const translateX = useSharedValue(50);
@@ -70,7 +76,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     } else if (conversation.created_at) {
       date = new Date(conversation.created_at);
     } else {
-      return 'Maintenant';
+      return "Maintenant";
     }
 
     const now = new Date();
@@ -79,7 +85,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     const diffMinutes = Math.floor(diffTime / (1000 * 60));
 
     if (diffMinutes < 1) {
-      return 'Maintenant';
+      return "Maintenant";
     }
 
     if (diffMinutes < 60) {
@@ -87,22 +93,26 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     }
 
     if (diffDays === 0) {
-      return date.toLocaleTimeString('fr-FR', {
-        hour: '2-digit',
-        minute: '2-digit',
+      return date.toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
     }
 
     if (diffDays < 7) {
-      const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' });
-      return dayName || '';
+      const dayName = date.toLocaleDateString("fr-FR", { weekday: "short" });
+      return dayName || "";
     }
 
-    return date.toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
+    return date.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
     });
-  }, [conversation.last_message?.sent_at, conversation.updated_at, conversation.created_at]);
+  }, [
+    conversation.last_message?.sent_at,
+    conversation.updated_at,
+    conversation.created_at,
+  ]);
 
   const getBadgeColor = useMemo(() => {
     const count = conversation.unread_count || 0;
@@ -115,12 +125,12 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   // Media-aware last message preview
   const getLastMessagePreview = () => {
     const msg = conversation.last_message;
-    if (!msg) return '';
-    if (msg.message_type === 'image' || msg.content === 'Photo') return 'Photo';
-    if (msg.message_type === 'video' || msg.content === 'Vidéo') return 'Vidéo';
-    if (msg.message_type === 'audio' || msg.content === 'Message vocal') return 'Message vocal';
-    if (msg.message_type === 'file' || msg.content === 'Fichier') return 'Fichier';
-    return msg.content || '';
+    if (!msg) return "";
+    if (msg.message_type === "media" || msg.content === "Photo") return "Photo";
+    if (msg.content === "Vidéo") return "Vidéo";
+    if (msg.content === "Message vocal") return "Message vocal";
+    if (msg.content === "Fichier") return "Fichier";
+    return msg.content || "";
   };
 
   const lastMessageContent = getLastMessagePreview();
@@ -134,9 +144,11 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         style={[
           styles.container,
           {
-            backgroundColor: isItemSelected ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-            overflow: 'hidden',
+            backgroundColor: isItemSelected
+              ? "rgba(255, 255, 255, 0.1)"
+              : "transparent",
+            borderBottomColor: "rgba(255, 255, 255, 0.1)",
+            overflow: "hidden",
           },
         ]}
         onPress={() => {
@@ -145,106 +157,134 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
         }}
         activeOpacity={0.7}
       >
-      <View style={styles.content}>
-        {isEditMode && (
-          <View style={styles.checkboxContainer}>
-            <View
-              style={[
-                styles.checkbox,
-                isItemSelected && styles.checkboxSelected,
-                {
-                  borderColor: isItemSelected
-                    ? colors.primary.main
-                    : 'rgba(255, 255, 255, 0.5)',
-                },
-              ]}
-            >
-              {isItemSelected && (
-                <Ionicons name="checkmark" size={16} color={colors.text.light} />
+        <View style={styles.content}>
+          {isEditMode && (
+            <View style={styles.checkboxContainer}>
+              <View
+                style={[
+                  styles.checkbox,
+                  isItemSelected && styles.checkboxSelected,
+                  {
+                    borderColor: isItemSelected
+                      ? colors.primary.main
+                      : "rgba(255, 255, 255, 0.5)",
+                  },
+                ]}
+              >
+                {isItemSelected && (
+                  <Ionicons
+                    name="checkmark"
+                    size={16}
+                    color={colors.text.light}
+                  />
+                )}
+              </View>
+            </View>
+          )}
+          <View style={styles.avatarContainer}>
+            <Avatar
+              size={48}
+              uri={conversation.avatar_url}
+              name={
+                conversation.display_name ||
+                (conversation.type === "direct"
+                  ? "Contact"
+                  : conversation.metadata?.name || "Group")
+              }
+              showOnlineBadge={conversation.type === "direct"}
+              isOnline={isOtherOnline}
+            />
+          </View>
+          <View style={styles.textContainer}>
+            <View style={styles.nameRow}>
+              {conversation.type === "group" && (
+                <Ionicons
+                  name="people"
+                  size={16}
+                  color="rgba(255, 255, 255, 0.7)"
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              <Text
+                style={[styles.name, { color: "#FFFFFF" }]}
+                numberOfLines={1}
+              >
+                {conversation.display_name ||
+                  (conversation.type === "direct"
+                    ? "Contact"
+                    : conversation.metadata?.name || "Group")}
+              </Text>
+              {conversation.is_muted && (
+                <Ionicons
+                  name="notifications-off"
+                  size={14}
+                  color="rgba(255, 255, 255, 0.6)"
+                  style={styles.mutedIcon}
+                />
               )}
             </View>
-          </View>
-        )}
-        <View style={styles.avatarContainer}>
-          <Avatar
-            size={48}
-            uri={conversation.avatar_url}
-            name={
-              conversation.display_name ||
-              (conversation.type === 'direct'
-                ? 'Contact'
-                : conversation.metadata?.name || 'Group')
-            }
-            showOnlineBadge={conversation.type === 'direct'}
-            isOnline={isOtherOnline}
-          />
-        </View>
-        <View style={styles.textContainer}>
-          <View style={styles.nameRow}>
-            {conversation.type === 'group' && (
-              <Ionicons name="people" size={16} color="rgba(255, 255, 255, 0.7)" style={{ marginRight: 4 }} />
-            )}
-            <Text
-              style={[styles.name, { color: '#FFFFFF' }]}
-              numberOfLines={1}
-            >
-              {conversation.display_name || (conversation.type === 'direct'
-                ? 'Contact'
-                : conversation.metadata?.name || 'Group')}
-            </Text>
-            {conversation.is_muted && (
-              <Ionicons name="notifications-off" size={14} color="rgba(255, 255, 255, 0.6)" style={styles.mutedIcon} />
-            )}
-          </View>
-          {lastMessageContent ? (
-            <Text
-              style={[styles.lastMessage, { color: 'rgba(255, 255, 255, 0.7)' }]}
-              numberOfLines={1}
-            >
-              {lastMessageContent}
-            </Text>
-          ) : (
-            <Text
-              style={[styles.lastMessage, { color: 'rgba(255, 255, 255, 0.4)', fontStyle: 'italic' }]}
-              numberOfLines={1}
-            >
-              Pas encore de messages
-            </Text>
-          )}
-        </View>
-        <View style={styles.metaContainer}>
-          <View style={styles.metaRow}>
-            {formattedTime ? (
+            {lastMessageContent ? (
               <Text
-                style={[styles.timestamp, { color: 'rgba(255, 255, 255, 0.6)' }]}
+                style={[
+                  styles.lastMessage,
+                  { color: "rgba(255, 255, 255, 0.7)" },
+                ]}
+                numberOfLines={1}
               >
-                {formattedTime}
+                {lastMessageContent}
               </Text>
-            ) : null}
-            {conversation.is_pinned && (
-              <Ionicons
-                name="pin"
-                size={14}
-                color="rgba(255, 255, 255, 0.6)"
-                style={styles.pinIcon}
-              />
+            ) : (
+              <Text
+                style={[
+                  styles.lastMessage,
+                  { color: "rgba(255, 255, 255, 0.4)", fontStyle: "italic" },
+                ]}
+                numberOfLines={1}
+              >
+                Pas encore de messages
+              </Text>
             )}
           </View>
-          {conversation.unread_count ? (conversation.unread_count > 0 && getBadgeColor ? (
-            <View
-              style={[
-                styles.unreadBadge,
-                { backgroundColor: getBadgeColor },
-              ]}
-            >
-              <Text style={styles.unreadText}>
-                {conversation.unread_count > 99 ? '99+' : String(conversation.unread_count)}
-              </Text>
+          <View style={styles.metaContainer}>
+            <View style={styles.metaRow}>
+              {formattedTime ? (
+                <Text
+                  style={[
+                    styles.timestamp,
+                    { color: "rgba(255, 255, 255, 0.6)" },
+                  ]}
+                >
+                  {formattedTime}
+                </Text>
+              ) : null}
+              {conversation.is_pinned && (
+                <Ionicons
+                  name="pin"
+                  size={14}
+                  color="rgba(255, 255, 255, 0.6)"
+                  style={styles.pinIcon}
+                />
+              )}
             </View>
-          ) : null) : null}
+            {conversation.unread_count ? (
+              conversation.unread_count > 0 && getBadgeColor ? (
+                <View
+                  style={[
+                    styles.unreadBadge,
+                    { backgroundColor: getBadgeColor },
+                  ]}
+                >
+                  <Text style={styles.unreadText}>
+                    {conversation.unread_count > 99
+                      ? "99+"
+                      : String(conversation.unread_count)}
+                  </Text>
+                </View>
+              ) : null
+            ) : null}
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -256,8 +296,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   content: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   checkboxContainer: {
@@ -268,8 +308,8 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkboxSelected: {
     backgroundColor: colors.primary.main,
@@ -282,13 +322,13 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
   name: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     flex: 1,
   },
   mutedIcon: {
@@ -298,11 +338,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   metaContainer: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 4,
   },
   timestamp: {
@@ -316,27 +356,30 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     paddingHorizontal: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   unreadText: {
     color: colors.text.light,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 
 // Memoize with custom comparator
 export default memo(ConversationItem, (prevProps, nextProps) => {
-  const prevEditMode = 'editMode' in prevProps ? prevProps.editMode : false;
-  const nextEditMode = 'editMode' in nextProps ? nextProps.editMode : false;
-  const prevIsSelected = 'isSelected' in prevProps ? prevProps.isSelected : false;
-  const nextIsSelected = 'isSelected' in nextProps ? nextProps.isSelected : false;
+  const prevEditMode = "editMode" in prevProps ? prevProps.editMode : false;
+  const nextEditMode = "editMode" in nextProps ? nextProps.editMode : false;
+  const prevIsSelected =
+    "isSelected" in prevProps ? prevProps.isSelected : false;
+  const nextIsSelected =
+    "isSelected" in nextProps ? nextProps.isSelected : false;
 
   return (
     prevProps.conversation.id === nextProps.conversation.id &&
     prevProps.conversation.updated_at === nextProps.conversation.updated_at &&
-    prevProps.conversation.unread_count === nextProps.conversation.unread_count &&
+    prevProps.conversation.unread_count ===
+      nextProps.conversation.unread_count &&
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
     prevProps.conversation.is_muted === nextProps.conversation.is_muted &&
     prevEditMode === nextEditMode &&
