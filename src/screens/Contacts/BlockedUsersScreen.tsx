@@ -87,8 +87,7 @@ export const BlockedUsersScreen: React.FC = () => {
       const user = item.blocked_user;
       if (!user) return null;
 
-      const displayName =
-        user.first_name || user.first_name || user.username || "Utilisateur";
+      const displayName = user.first_name || user.username || "Utilisateur";
       const isUnblocking = unblockingId === item.blocked_user_id;
 
       return (
@@ -98,11 +97,7 @@ export const BlockedUsersScreen: React.FC = () => {
             { backgroundColor: themeColors.background.secondary },
           ]}
         >
-          <Avatar
-            uri={user.avatar_url || user.avatar_url}
-            name={displayName}
-            size={48}
-          />
+          <Avatar uri={user.avatar_url} name={displayName} size={48} />
           <View style={styles.userInfo}>
             <Text
               style={[styles.userName, { color: themeColors.text.primary }]}

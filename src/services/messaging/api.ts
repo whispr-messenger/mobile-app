@@ -50,13 +50,6 @@ const authenticatedFetch = async (
   return response;
 };
 
-function unwrapData<T>(payload: unknown): T {
-  if (payload && typeof payload === "object" && "data" in payload) {
-    return (payload as any).data as T;
-  }
-  return payload as T;
-}
-
 export const messagingAPI = {
   async getConversations(params?: {
     include_archived?: boolean;
@@ -359,7 +352,8 @@ export const messagingAPI = {
       return null;
     }
 
-    const displayName = user.firstName || user.first_name || user.username || "Utilisateur";
+    const displayName =
+      user.firstName || user.first_name || user.username || "Utilisateur";
 
     return {
       id: user.id,

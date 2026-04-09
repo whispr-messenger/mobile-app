@@ -203,12 +203,7 @@ export const ContactsScreen: React.FC = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter((c) => {
         const user = c.contact_user;
-        const name =
-          c.nickname ||
-          user?.first_name ||
-          user?.first_name ||
-          user?.username ||
-          "";
+        const name = c.nickname || user?.first_name || user?.username || "";
         return name.toLowerCase().includes(q);
       });
     }
@@ -414,10 +409,7 @@ export const ContactsScreen: React.FC = () => {
                 ? request.requester_user
                 : request.recipient_user;
               const displayName =
-                user?.first_name ||
-                user?.first_name ||
-                user?.username ||
-                "Utilisateur";
+                user?.first_name || user?.username || "Utilisateur";
 
               return (
                 <View

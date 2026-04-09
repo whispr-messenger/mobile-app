@@ -1,13 +1,13 @@
-import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Conversation, Message } from '../types/messaging';
-import { messagingAPI } from '../services/messaging/api';
-import { cacheService } from '../services/messaging/cache';
-import { TokenService } from '../services/TokenService';
-import { NotificationService } from '../services/NotificationService';
+import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Conversation, Message } from "../types/messaging";
+import { messagingAPI } from "../services/messaging/api";
+import { cacheService } from "../services/messaging/cache";
+import { TokenService } from "../services/TokenService";
+import { NotificationService } from "../services/NotificationService";
 
 const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
-const MANUALLY_UNREAD_KEY = '@whispr/manually_unread_ids';
+const MANUALLY_UNREAD_KEY = "@whispr/manually_unread_ids";
 
 async function getCurrentUserId(): Promise<string | null> {
   const token = await TokenService.getAccessToken();
@@ -22,14 +22,16 @@ async function enrichWithDisplayNames(
 ): Promise<Conversation[]> {
   const enriched = await Promise.all(
     conversations.map(async (conv) => {
-      if (conv.type === 'direct' && !conv.display_name) {
+      if (conv.type === "direct" && !conv.display_name) {
         try {
           // The list endpoint doesn't return members, so fetch conversation detail
           let memberIds = conv.member_user_ids;
           if (!memberIds || memberIds.length === 0) {
             const detail = await messagingAPI.getConversation(conv.id);
             if (detail?.members) {
-              memberIds = detail.members.map((m: { user_id: string }) => m.user_id);
+              memberIds = detail.members.map(
+                (m: { user_id: string }) => m.user_id,
+              );
             } else if (detail?.member_user_ids) {
               memberIds = detail.member_user_ids;
             }
@@ -110,7 +112,7 @@ export const useConversationsStore = create<
     }
     set({
       conversations: [],
-      status: 'loading',
+      status: "loading",
       error: null,
       manuallyUnreadIds: new Set<string>(),
       _gracePeriodTimer: null,
@@ -161,15 +163,12 @@ export const useConversationsStore = create<
 
       const data = await messagingAPI.getConversations();
       const userId = await getCurrentUserId();
-      const enriched = userId ? await enrichWithDisplayNames(data, userId) : data;
+      const enriched = userId
+        ? await enrichWithDisplayNames(data, userId)
+        : data;
       await cacheService.saveConversations(enriched);
       _setConversations(enriched);
     } catch (err) {
-      const apiError = err as { status?: number };
-      if (apiError?.status === 401) {
-        set({ conversations: [], status: "empty", error: null });
-        return;
-      }
       console.error("[conversationsStore] fetchConversations error:", err);
       // If we already have cached data shown, stay on it but start grace period
       // so skeletons don't flash forever if cache was empty
@@ -186,15 +185,12 @@ export const useConversationsStore = create<
     try {
       const data = await messagingAPI.getConversations();
       const userId = await getCurrentUserId();
-      const enriched = userId ? await enrichWithDisplayNames(data, userId) : data;
+      const enriched = userId
+        ? await enrichWithDisplayNames(data, userId)
+        : data;
       await cacheService.saveConversations(enriched);
       _setConversations(enriched, true);
     } catch (err) {
-      const apiError = err as { status?: number };
-      if (apiError?.status === 401) {
-        set({ conversations: [], status: "empty", error: null });
-        return;
-      }
       console.error("[conversationsStore] refreshConversations error:", err);
       set({ error: "Failed to refresh conversations" });
     }
@@ -218,12 +214,16 @@ export const useConversationsStore = create<
 
   applyNewMessage: async (message) => {
     const { conversations, _cancelGracePeriod } = get();
-    const index = conversations.findIndex(conv => conv.id === message.conversation_id);
+    const index = conversations.findIndex(
+      (conv) => conv.id === message.conversation_id,
+    );
 
     if (index === -1) {
       // Bug C fix: conversation not in the list — fetch it from the API and prepend
       try {
-        const fetched = await messagingAPI.getConversation(message.conversation_id);
+        const fetched = await messagingAPI.getConversation(
+          message.conversation_id,
+        );
         if (fetched) {
           const newConv: Conversation = {
             ...fetched,
@@ -232,10 +232,16 @@ export const useConversationsStore = create<
             unread_count: 1,
           };
           _cancelGracePeriod();
-          set({ conversations: [newConv, ...get().conversations], status: 'loaded' });
+          set({
+            conversations: [newConv, ...get().conversations],
+            status: "loaded",
+          });
         }
       } catch (err) {
-        console.error('[conversationsStore] applyNewMessage: failed to fetch unknown conversation', err);
+        console.error(
+          "[conversationsStore] applyNewMessage: failed to fetch unknown conversation",
+          err,
+        );
       }
       return;
     }
@@ -279,7 +285,7 @@ export const useConversationsStore = create<
 
   muteConversation: async (id) => {
     const { conversations } = get();
-    const conversation = conversations.find(c => c.id === id);
+    const conversation = conversations.find((c) => c.id === id);
     const wasMuted = conversation?.is_muted ?? false;
 
     // Optimistic update
@@ -302,7 +308,7 @@ export const useConversationsStore = create<
         await NotificationService.muteConversation(id);
       }
     } catch (err) {
-      console.error('[conversationsStore] muteConversation error:', err);
+      console.error("[conversationsStore] muteConversation error:", err);
       // Rollback on failure
       set({ conversations });
     }
@@ -323,12 +329,17 @@ export const useConversationsStore = create<
     nextIds.add(id);
     set({
       manuallyUnreadIds: nextIds,
-      conversations: conversations.map(c =>
-        c.id === id ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) } : c
+      conversations: conversations.map((c) =>
+        c.id === id
+          ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) }
+          : c,
       ),
     });
     try {
-      await AsyncStorage.setItem(MANUALLY_UNREAD_KEY, JSON.stringify([...nextIds]));
+      await AsyncStorage.setItem(
+        MANUALLY_UNREAD_KEY,
+        JSON.stringify([...nextIds]),
+      );
     } catch {
       // Storage write failed — local state is still correct for this session
     }
@@ -341,7 +352,10 @@ export const useConversationsStore = create<
     nextIds.delete(id);
     set({ manuallyUnreadIds: nextIds });
     try {
-      await AsyncStorage.setItem(MANUALLY_UNREAD_KEY, JSON.stringify([...nextIds]));
+      await AsyncStorage.setItem(
+        MANUALLY_UNREAD_KEY,
+        JSON.stringify([...nextIds]),
+      );
     } catch {
       // Storage write failed — local state is still correct for this session
     }
@@ -356,8 +370,10 @@ export const useConversationsStore = create<
         const { conversations } = get();
         set({
           manuallyUnreadIds: idSet,
-          conversations: conversations.map(c =>
-            idSet.has(c.id) ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) } : c
+          conversations: conversations.map((c) =>
+            idSet.has(c.id)
+              ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) }
+              : c,
           ),
         });
       }

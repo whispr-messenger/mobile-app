@@ -26,13 +26,8 @@ export const ContactItem: React.FC<ContactItemProps> = ({
 
   const user = contact.contact_user;
   const displayName =
-    contact.nickname ||
-    user?.first_name ||
-    user?.first_name ||
-    user?.username ||
-    "Contact";
-  const subtitle =
-    user?.username || user?.phone_number || user?.phone_number || "";
+    contact.nickname || user?.first_name || user?.username || "Contact";
+  const subtitle = user?.username || user?.phone_number || "";
 
   const handlePress = () => {
     onPress?.(contact);
@@ -53,7 +48,7 @@ export const ContactItem: React.FC<ContactItemProps> = ({
       activeOpacity={0.7}
     >
       <Avatar
-        uri={user?.avatar_url || user?.avatar_url}
+        uri={user?.avatar_url}
         name={displayName}
         size={48}
         showOnlineBadge={false}

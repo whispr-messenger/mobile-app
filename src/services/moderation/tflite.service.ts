@@ -1,12 +1,20 @@
+import { Platform } from "react-native";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LoadTensorflowModelFn = (model: any) => Promise<any>;
-// Dynamic require so the web bundle doesn't fail when the native module is absent
 
-const loadTensorflowModel: LoadTensorflowModelFn =
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require("react-native-fast-tflite").loadTensorflowModel;
+// Dynamic require so the web bundle doesn't fail when the native module is absent
+let loadTensorflowModel: LoadTensorflowModelFn | null = null;
+try {
+  if (Platform.OS !== "web") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    loadTensorflowModel =
+      require("react-native-fast-tflite").loadTensorflowModel;
+  }
+} catch {
+  // Module not available (web build or not installed)
+}
 
 type TFLiteModel = any;
 
@@ -44,6 +52,8 @@ class TfliteModerationService {
     if (this.loading) return this.loading;
 
     this.loading = (async () => {
+      if (!loadTensorflowModel)
+        throw new Error("TFLite not available on this platform");
       const m = await loadTensorflowModel(this.MODEL);
       this.model = m;
       return m;

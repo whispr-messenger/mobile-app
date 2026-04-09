@@ -132,11 +132,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
 
   const user = contact.contact_user;
   const displayName =
-    contact.nickname ||
-    user?.first_name ||
-    user?.first_name ||
-    user?.username ||
-    "Contact";
+    contact.nickname || user?.first_name || user?.username || "Contact";
 
   return (
     <Modal
@@ -188,18 +184,11 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
 
           {/* Contact Info */}
           <View style={styles.contactInfo}>
-            <Avatar
-              uri={user?.avatar_url || user?.avatar_url}
-              name={displayName}
-              size={80}
-            />
+            <Avatar uri={user?.avatar_url} name={displayName} size={80} />
             <Text
               style={[styles.contactName, { color: themeColors.text.primary }]}
             >
-              {user?.first_name ||
-                user?.first_name ||
-                user?.username ||
-                "Contact"}
+              {user?.first_name || user?.username || "Contact"}
             </Text>
             <Text
               style={[

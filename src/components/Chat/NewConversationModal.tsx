@@ -149,10 +149,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const user = contact.contact_user;
       const nickname = contact.nickname?.toLowerCase() || "";
       const username = user?.username?.toLowerCase() || "";
-      const firstName =
-        (user?.first_name || user?.first_name)?.toLowerCase() || "";
-      const lastName =
-        (user?.last_name || user?.last_name)?.toLowerCase() || "";
+      const firstName = user?.first_name?.toLowerCase() || "";
+      const lastName = user?.last_name?.toLowerCase() || "";
       return (
         nickname.includes(query) ||
         username.includes(query) ||
@@ -169,10 +167,8 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const user = contact.contact_user;
       const nickname = contact.nickname?.toLowerCase() || "";
       const username = user?.username?.toLowerCase() || "";
-      const firstName =
-        (user?.first_name || user?.first_name)?.toLowerCase() || "";
-      const lastName =
-        (user?.last_name || user?.last_name)?.toLowerCase() || "";
+      const firstName = user?.first_name?.toLowerCase() || "";
+      const lastName = user?.last_name?.toLowerCase() || "";
       return (
         nickname.includes(query) ||
         username.includes(query) ||
@@ -713,7 +709,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   entering={FadeIn.duration(200)}
                 >
                   <Avatar
-                    uri={user?.avatar_url || user?.avatar_url}
+                    uri={user?.avatar_url}
                     name={displayName}
                     size={48}
                     showOnlineBadge={false}
@@ -788,7 +784,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 entering={FadeIn.duration(200)}
               >
                 <Avatar
-                  uri={user.avatar_url || user.avatar_url}
+                  uri={user.avatar_url}
                   name={displayName}
                   size={48}
                   showOnlineBadge={false}
@@ -1170,7 +1166,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         entering={FadeIn.delay(index * 50).springify()}
                       >
                         <Avatar
-                          uri={user?.avatar_url || user?.avatar_url}
+                          uri={user?.avatar_url}
                           name={displayName}
                           size={32}
                           showOnlineBadge={false}
@@ -1236,7 +1232,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                       entering={FadeIn.duration(200)}
                     >
                       <Avatar
-                        uri={user?.avatar_url || user?.avatar_url}
+                        uri={user?.avatar_url}
                         name={displayName}
                         size={48}
                         showOnlineBadge={false}
