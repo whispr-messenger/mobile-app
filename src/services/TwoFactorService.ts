@@ -1,14 +1,18 @@
 import { TokenService } from "./TokenService";
-import { AUTH_API_URL } from "../config/api";
+import { AuthService } from "./AuthService";
+import { getApiBaseUrl } from "./apiBase";
 import type {
   TwoFactorStatusResponse,
   TwoFactorSetupResponse,
   TwoFactorBackupCodesResponse,
 } from "../types/auth";
 
+const AUTH_API_URL = `${getApiBaseUrl()}/auth`;
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
+  retry = true,
 ): Promise<T> {
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
@@ -23,6 +27,15 @@ async function apiFetch<T>(
     ...options,
     headers,
   });
+
+  if (response.status === 401 && retry) {
+    try {
+      await AuthService.refreshTokens();
+      return apiFetch<T>(path, options, false);
+    } catch {
+      throw new Error("Session expired");
+    }
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -41,31 +54,31 @@ async function apiFetch<T>(
 
 export const TwoFactorService = {
   async getStatus(): Promise<TwoFactorStatusResponse> {
-    return apiFetch<TwoFactorStatusResponse>("/v1/2fa/status");
+    return apiFetch<TwoFactorStatusResponse>("/2fa/status");
   },
 
   async setup(): Promise<TwoFactorSetupResponse> {
-    return apiFetch<TwoFactorSetupResponse>("/v1/2fa/setup", {
+    return apiFetch<TwoFactorSetupResponse>("/2fa/setup", {
       method: "POST",
     });
   },
 
   async enable(token: string): Promise<TwoFactorBackupCodesResponse> {
-    return apiFetch<TwoFactorBackupCodesResponse>("/v1/2fa/enable", {
+    return apiFetch<TwoFactorBackupCodesResponse>("/2fa/enable", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
   },
 
   async disable(token: string): Promise<void> {
-    return apiFetch<void>("/v1/2fa/disable", {
+    return apiFetch<void>("/2fa/disable", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
   },
 
   async getBackupCodes(token: string): Promise<TwoFactorBackupCodesResponse> {
-    return apiFetch<TwoFactorBackupCodesResponse>("/v1/2fa/backup-codes", {
+    return apiFetch<TwoFactorBackupCodesResponse>("/2fa/backup-codes", {
       method: "POST",
       body: JSON.stringify({ token }),
     });

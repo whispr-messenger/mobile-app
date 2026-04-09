@@ -35,6 +35,7 @@ import { colors } from "../../theme/colors";
 import Toast from "../../components/Toast/Toast";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { messagingAPI } from "../../services/messaging/api";
+import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
@@ -135,7 +136,7 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  useWebSocket({
+  const { connectionState } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -382,6 +383,7 @@ export const ConversationsListScreen: React.FC = () => {
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineBanner connectionState={connectionState} />
         {/* Header */}
         <View
           style={[
