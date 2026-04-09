@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DeviceService } from "./DeviceService";
 import { TokenService } from "./TokenService";
 
 const ASYNC_STORAGE_KEYS = [
@@ -11,8 +10,8 @@ const ASYNC_STORAGE_KEYS = [
 export const AppResetService = {
   async resetAppData(): Promise<void> {
     await Promise.all([
-      TokenService.clearAll(),
-      DeviceService.clearDeviceId(),
+      TokenService.clearTokens(),
+      AsyncStorage.removeItem("whispr.device.id"),
       ...ASYNC_STORAGE_KEYS.map((k) => AsyncStorage.removeItem(k)),
     ]);
   },
