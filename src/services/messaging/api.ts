@@ -147,7 +147,7 @@ export const messagingAPI = {
     message: {
       content: string;
       message_type: "text" | "media" | "system";
-      client_random: number;
+      client_random: number | string;
       metadata?: Record<string, any>;
       reply_to_id?: string;
     },
@@ -352,7 +352,8 @@ export const messagingAPI = {
       return null;
     }
 
-    const displayName = user.firstName || user.first_name || user.username || "Utilisateur";
+    const displayName =
+      user.firstName || user.first_name || user.username || "Utilisateur";
 
     return {
       id: user.id,
