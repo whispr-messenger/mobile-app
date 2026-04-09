@@ -73,7 +73,7 @@ jobs:
         run: |
           REF="${INPUT_REF:-$GITHUB_REF}"
           if [[ "$REF" == *"deploy/preprod"* ]]; then
-            echo "url=https://whispr-preprod.roadmvn.com" >> $GITHUB_OUTPUT
+            echo "url=https://preprod-whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
           else
             echo "url=https://whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
           fi
