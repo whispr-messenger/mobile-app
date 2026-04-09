@@ -1,5 +1,7 @@
 import { MEDIA_API_URL } from "../../config/api";
+import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
+import { emitSessionExpired } from "../sessionEvents";
 
 export interface UploadMediaResponse {
   mediaId: string;
@@ -29,9 +31,6 @@ export const mediaAPI = {
     fileUri: string,
     context: UploadMediaResponse["context"],
   ): Promise<UploadMediaResponse> {
-    const token = await TokenService.getAccessToken();
-    if (!token) throw new Error("Missing access token");
-
     const { type, name } = guessImageMimeType(fileUri);
 
     const form = new FormData();
@@ -44,13 +43,33 @@ export const mediaAPI = {
     form.append("context", context);
     form.append("ownerId", ownerId);
 
-    const res = await fetch(`${MEDIA_API_URL}/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: form,
-    });
+    const doUpload = async () => {
+      const token = await TokenService.getAccessToken();
+      if (!token) throw new Error("Missing access token");
+      return fetch(`${MEDIA_API_URL}/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: form,
+      });
+    };
+
+    let res = await doUpload();
+    if (res.status === 401) {
+      try {
+        await AuthService.refreshTokens();
+        res = await doUpload();
+      } catch (e: any) {
+        if (e?.message === "SESSION_EXPIRED") {
+          emitSessionExpired("refresh_failed");
+          const err = new Error("SESSION_EXPIRED");
+          (err as any).status = res.status;
+          throw err;
+        }
+        throw e;
+      }
+    }
     if (!res.ok) {
       const body = await res.text();
       const err = new Error(`Upload failed: HTTP ${res.status} ${body}`);
