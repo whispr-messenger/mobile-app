@@ -6,7 +6,9 @@ import React from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
-import { MEDIA_API_URL } from "../../config/api";
+import { getApiBaseUrl } from "../../services/apiBase";
+
+const MEDIA_API_URL = `${getApiBaseUrl()}/media`;
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;

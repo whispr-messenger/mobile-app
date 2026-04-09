@@ -1,5 +1,7 @@
 import { TokenService } from "./TokenService";
-import { AUTH_API_URL } from "../config/api";
+import { getApiBaseUrl } from "./apiBase";
+
+const AUTH_API_URL = `${getApiBaseUrl()}/auth`;
 import type {
   TwoFactorStatusResponse,
   TwoFactorSetupResponse,

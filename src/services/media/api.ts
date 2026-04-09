@@ -1,4 +1,6 @@
-import { MEDIA_API_URL } from "../../config/api";
+import { getApiBaseUrl } from "../apiBase";
+
+const MEDIA_API_URL = `${getApiBaseUrl()}/media`;
 import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { emitSessionExpired } from "../sessionEvents";
