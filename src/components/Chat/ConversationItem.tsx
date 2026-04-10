@@ -399,6 +399,7 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
       nextProps.conversation.unread_count &&
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
     prevProps.conversation.is_muted === nextProps.conversation.is_muted &&
+    prevProps.conversation.display_name === nextProps.conversation.display_name &&
     prevEditMode === nextEditMode &&
     prevIsSelected === nextIsSelected
   );

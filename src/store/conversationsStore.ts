@@ -48,8 +48,8 @@ async function enrichWithDisplayNames(
               };
             }
           }
-        } catch {
-          // Silently fail - will show "Contact" as fallback
+        } catch (err) {
+          console.warn('[enrichWithDisplayNames] Failed to resolve name for conversation', conv.id, err);
         }
       }
       return conv;
@@ -192,8 +192,15 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     if (index === -1) {
       next = [conversation, ...conversations];
     } else {
+      // Preserve display_name from existing conversation if the update doesn't include one
+      const existing = conversations[index];
+      const merged = {
+        ...conversation,
+        display_name: conversation.display_name || existing.display_name,
+        member_user_ids: conversation.member_user_ids || existing.member_user_ids,
+      };
       next = [...conversations];
-      next[index] = conversation;
+      next[index] = merged;
     }
     if (next.length > 0) {
       _cancelGracePeriod();
@@ -216,8 +223,16 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
             updated_at: message.sent_at,
             unread_count: 1,
           };
-          _cancelGracePeriod();
-          set({ conversations: [newConv, ...get().conversations], status: 'loaded' });
+          // Enrich display name for new direct conversations
+          const userId = await getCurrentUserId();
+          if (userId) {
+            const enriched = await enrichWithDisplayNames([newConv], userId);
+            _cancelGracePeriod();
+            set({ conversations: [enriched[0], ...get().conversations], status: 'loaded' });
+          } else {
+            _cancelGracePeriod();
+            set({ conversations: [newConv, ...get().conversations], status: 'loaded' });
+          }
         }
       } catch (err) {
         console.error('[conversationsStore] applyNewMessage: failed to fetch unknown conversation', err);
