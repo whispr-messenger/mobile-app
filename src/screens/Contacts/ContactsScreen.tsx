@@ -37,6 +37,10 @@ import { colors } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
+import {
+  getFavoriteIds,
+  toggleFavorite,
+} from "../../services/contacts/favorites";
 
 declare module "@expo/vector-icons";
 
@@ -54,6 +58,7 @@ export const ContactsScreen: React.FC = () => {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const { getThemeColors } = useTheme();
@@ -105,8 +110,17 @@ export const ContactsScreen: React.FC = () => {
         sort: sortBy,
         favorites: showFavoritesOnly || undefined,
       };
-      const result = await contactsAPI.getContacts(params, userId);
-      setContacts(result.contacts);
+      const [result, favIds] = await Promise.all([
+        contactsAPI.getContacts(params, userId),
+        getFavoriteIds(),
+      ]);
+      setFavoriteIds(favIds);
+      // Merge local favorite state into contacts
+      const enriched = result.contacts.map((c) => ({
+        ...c,
+        is_favorite: favIds.has(c.id),
+      }));
+      setContacts(enriched);
     } catch (error) {
       console.error("[ContactsScreen] Error loading contacts:", error);
     } finally {
@@ -204,6 +218,29 @@ export const ContactsScreen: React.FC = () => {
     setDeletingContact(contact);
   }, []);
 
+  // Handle favorite toggle (client-side via AsyncStorage)
+  const handleToggleFavorite = useCallback(
+    async (contact: Contact) => {
+      const newFavorite = await toggleFavorite(contact.id);
+      // Update local state immediately for responsiveness
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (newFavorite) {
+          next.add(contact.id);
+        } else {
+          next.delete(contact.id);
+        }
+        return next;
+      });
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === contact.id ? { ...c, is_favorite: newFavorite } : c,
+        ),
+      );
+    },
+    [],
+  );
+
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
     let result = contacts;
@@ -273,9 +310,10 @@ export const ContactsScreen: React.FC = () => {
         onPress={handleContactPress}
         onLongPress={handleContactLongPress}
         onDelete={handleContactDelete}
+        onToggleFavorite={handleToggleFavorite}
       />
     ),
-    [handleContactPress, handleContactLongPress, handleContactDelete],
+    [handleContactPress, handleContactLongPress, handleContactDelete, handleToggleFavorite],
   );
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
