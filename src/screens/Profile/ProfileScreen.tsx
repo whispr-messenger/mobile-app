@@ -119,11 +119,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         if (res.success && res.profile) {
           setProfile((prev) => ({
             ...prev,
-            firstName: res.profile!.firstName,
-            lastName: res.profile!.lastName,
-            username: res.profile!.username,
-            phoneNumber: res.profile!.phoneNumber,
-            biography: res.profile!.biography,
+            firstName: res.profile!.firstName || prev.firstName || "",
+            lastName: res.profile!.lastName || prev.lastName || "",
+            username: res.profile!.username || prev.username || "",
+            phoneNumber: res.profile!.phoneNumber || prev.phoneNumber || "",
+            biography: res.profile!.biography || prev.biography || "",
             profilePicture: res.profile!.profilePicture,
             createdAt: res.profile!.createdAt || prev.createdAt,
           }));
@@ -291,7 +291,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       });
 
       if (!res.success) {
-        Alert.alert("Erreur", res.message || "Impossible de mettre à jour le profil");
+        Alert.alert(
+          "Erreur",
+          res.message || "Impossible de mettre à jour le profil",
+        );
         return;
       }
 
@@ -311,27 +314,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // Validation functions
   const validateField = (
     field: keyof UserProfile,
-    value: string,
+    value: string | null | undefined,
   ): string | null => {
+    const v = value || "";
     switch (field) {
       case "firstName":
       case "lastName":
-        if (!value.trim()) return "Ce champ est obligatoire";
-        if (value.trim().length < 2) return "Minimum 2 caractères";
-        if (value.trim().length > 50) return "Maximum 50 caractères";
+        if (!v.trim()) return "Ce champ est obligatoire";
+        if (v.trim().length < 2) return "Minimum 2 caractères";
+        if (v.trim().length > 50) return "Maximum 50 caractères";
         return null;
 
       case "username":
-        if (!value.trim()) return "Le nom d'utilisateur est obligatoire";
-        if (value.trim().length < 3) return "Minimum 3 caractères";
-        if (value.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-zA-Z0-9_]+$/.test(value.trim()))
+        if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
+        if (v.trim().length < 3) return "Minimum 3 caractères";
+        if (v.trim().length > 20) return "Maximum 20 caractères";
+        if (!/^[a-zA-Z0-9_]+$/.test(v.trim()))
           return "Seuls lettres, chiffres et _ autorisés";
         return null;
 
       case "phoneNumber":
-        if (!value.trim()) return "Le numéro de téléphone est obligatoire";
-        const cleanNumber = value.replace(/\s/g, "");
+        if (!v.trim()) return "Le numéro de téléphone est obligatoire";
+        const cleanNumber = v.replace(/\s/g, "");
         // Validation format international E.164: +[code pays][numéro]
         // Exemples: +33123456789, +1234567890, +86123456789
         if (!/^\+[1-9]\d{1,14}$/.test(cleanNumber))
@@ -341,7 +345,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         return null;
 
       case "biography":
-        if (value.length > 500) return "Maximum 500 caractères";
+        if (v.length > 500) return "Maximum 500 caractères";
         return null;
 
       default:
@@ -475,8 +479,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 ) : (
                   <View style={styles.profilePicturePlaceholder}>
                     <Text style={styles.profilePicturePlaceholderText}>
-                      {profile.firstName.charAt(0)}
-                      {profile.lastName.charAt(0)}
+                      {(profile.firstName || "").charAt(0)}
+                      {(profile.lastName || "").charAt(0)}
                     </Text>
                   </View>
                 )}
@@ -581,7 +585,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       maxLength={500}
                     />
                     <Text style={styles.characterCount}>
-                      {profile.biography.length}/500 caractères
+                      {(profile.biography || "").length}/500 caractères
                     </Text>
                   </>
                 ) : (

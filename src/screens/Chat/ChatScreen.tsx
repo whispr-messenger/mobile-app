@@ -59,9 +59,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
+import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { offlineQueue, QueuedMessage } from "../../services/offlineQueue";
+
+/** Cross-platform alert: falls back to window.alert on web where RN Alert is a no-op */
+function showAlert(title: string, message: string): void {
+  if (Platform.OS === "web") {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
@@ -709,6 +719,27 @@ export const ChatScreen: React.FC = () => {
       setReplyingTo(null);
 
       try {
+        // Gate check: block inappropriate images before upload
+        if (type === "image") {
+          const gateResult = await gateChatImageBeforeSend(uri);
+          if (!gateResult.ok) {
+            // Keep message in chat but mark as blocked
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempMessageId
+                  ? {
+                      ...m,
+                      status: "failed" as const,
+                      content:
+                        gateResult.reason || "Contenu bloqué par la modération",
+                    }
+                  : m,
+              ),
+            );
+            return;
+          }
+        }
+
         // 1. Upload file to media-service
         console.log("[ChatScreen] Uploading media to media-service:", filename);
         const uploadResult = await MediaService.uploadMedia(
@@ -766,18 +797,25 @@ export const ChatScreen: React.FC = () => {
           reply_to_id: replyToId,
         });
 
-        // 3. Attach media record to the message
-        await messagingAPI.addAttachment(sentMessage.id, {
-          media_id: uploadResult.id,
-          media_type: type,
-          metadata: {
-            filename: uploadResult.filename || filename,
-            size: uploadResult.size,
-            mime_type: uploadResult.mime_type || mimeType,
-            media_url: uploadResult.url,
-            thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
-          },
-        });
+        // 3. Attach media record to the message (non-blocking — message already has metadata)
+        messagingAPI
+          .addAttachment(sentMessage.id, {
+            media_id: uploadResult.id,
+            media_type: type,
+            metadata: {
+              filename: uploadResult.filename || filename,
+              size: uploadResult.size,
+              mime_type: uploadResult.mime_type || mimeType,
+              media_url: uploadResult.url,
+              thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
+            },
+          })
+          .catch((err) =>
+            console.warn(
+              "[ChatScreen] addAttachment failed (non-blocking):",
+              err,
+            ),
+          );
 
         // 4. Update optimistic message with the real server ID
         setMessages((prev) =>
@@ -793,11 +831,15 @@ export const ChatScreen: React.FC = () => {
         );
       } catch (error) {
         console.error("[ChatScreen] Error sending media:", error);
-        // Update message status to failed
+        // Keep message in chat with failed status and error indication
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempMessageId
-              ? { ...msg, status: "failed" as const }
+              ? {
+                  ...msg,
+                  status: "failed" as const,
+                  content: "Échec de l'envoi — appuyez pour réessayer",
+                }
               : msg,
           ),
         );

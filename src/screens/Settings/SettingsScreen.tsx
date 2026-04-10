@@ -135,7 +135,8 @@ export const SettingsScreen: React.FC = () => {
    * Map API privacy format back to local format
    */
   const apiToPrivacy = useCallback((api: PrivacySettings) => {
-    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    const capitalize = (s: string) =>
+      s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
     return {
       profilePhoto: capitalize(api.profilePictureVisibility),
       firstName: capitalize(api.firstNameVisibility),

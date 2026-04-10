@@ -352,8 +352,10 @@ export const messagingAPI = {
       return null;
     }
 
-    const displayName =
-      user.firstName || user.first_name || user.username || "Utilisateur";
+    const firstName = user.firstName || user.first_name || "";
+    const lastName = user.lastName || user.last_name || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    const displayName = fullName || user.username || "Utilisateur";
 
     return {
       id: user.id,
