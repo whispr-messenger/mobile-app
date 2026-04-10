@@ -6,7 +6,7 @@ import { getApiBaseUrl } from './apiBase';
 type ApiError = Error & { status?: number; body?: unknown };
 
 function getAuthBaseUrl(): string {
-  return `${getApiBaseUrl()}/auth`;
+  return `${getApiBaseUrl()}/auth/v1`;
 }
 
 async function apiFetch<T>(

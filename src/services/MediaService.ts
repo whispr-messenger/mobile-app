@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 type ApiError = Error & { status?: number; body?: unknown };
 
 function getMediaBaseUrl(): string {
-  return `${getApiBaseUrl()}/media`;
+  return `${getApiBaseUrl()}/media/v1`;
 }
 
 async function apiFetch<T>(

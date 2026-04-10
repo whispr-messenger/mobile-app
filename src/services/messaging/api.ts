@@ -340,7 +340,7 @@ export const messagingAPI = {
     userId: string,
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
     const response = await authenticatedFetch(
-      `${getApiBaseUrl()}/user/profile/${encodeURIComponent(userId)}`,
+      `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
     );
 
     if (!response.ok) {

@@ -30,3 +30,5 @@ Thumbs.db
 # Build
 build/
 CLAUDE.local.md
+.gitnexus
+.gstack/
