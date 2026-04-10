@@ -474,6 +474,7 @@ export const GroupManagementScreen: React.FC = () => {
           displayName:
             contact?.nickname ||
             contact?.contact_user?.first_name ||
+            contact?.contact_user?.username ||
             `User ${userId}`,
           username: contact?.contact_user?.username,
           avatarUrl: contact?.contact_user?.avatar_url,

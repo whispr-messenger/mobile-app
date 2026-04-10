@@ -60,6 +60,8 @@ import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
+import { OfflineBanner } from "../../components/Chat/OfflineBanner";
+import { offlineQueue, QueuedMessage } from "../../services/offlineQueue";
 
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
@@ -132,6 +134,7 @@ export const ChatScreen: React.FC = () => {
 
   // WebSocket connection
   const {
+    connectionState,
     joinConversationChannel,
     sendMessage: wsSendMessage,
     markAsRead,
@@ -269,6 +272,44 @@ export const ChatScreen: React.FC = () => {
       }
     },
   });
+
+  // Drain offline queue when connection is restored
+  const prevConnectionStateRef = useRef<string>("disconnected");
+  useEffect(() => {
+    const wasOffline =
+      prevConnectionStateRef.current === "disconnected" ||
+      prevConnectionStateRef.current === "reconnecting";
+    const isNowConnected = connectionState === "connected";
+
+    if (wasOffline && isNowConnected) {
+      offlineQueue.getForConversation(conversationId).then(async (pending) => {
+        for (const queued of pending) {
+          try {
+            const sent = await messagingAPI.sendMessage(conversationId, {
+              content: queued.content,
+              message_type: queued.message_type,
+              client_random: queued.client_random,
+              metadata: {},
+              reply_to_id: queued.reply_to_id,
+            });
+            // Replace queued message with sent one
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.client_random === queued.client_random
+                  ? { ...(sent as any), status: "sent" }
+                  : m,
+              ),
+            );
+            await offlineQueue.remove(queued.client_random);
+          } catch (err) {
+            logger.error("ChatScreen", "Failed to drain queued message", err);
+          }
+        }
+      });
+    }
+
+    prevConnectionStateRef.current = connectionState;
+  }, [connectionState, conversationId]);
 
   const loadPinnedMessages = useCallback(async () => {
     try {
@@ -505,11 +546,32 @@ export const ChatScreen: React.FC = () => {
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
+      // If offline, queue the message for later delivery
+      if (connectionState !== "connected") {
+        const queued: QueuedMessage = {
+          id: tempMessage.id,
+          conversation_id: conversationId,
+          content,
+          message_type: "text",
+          client_random: tempMessage.client_random as number,
+          reply_to_id: replyToId,
+          queued_at: new Date().toISOString(),
+        };
+        await offlineQueue.enqueue(queued);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempMessage.id ? { ...m, status: "queued" as any } : m,
+          ),
+        );
+        return;
+      }
+
       try {
         const sent = await messagingAPI.sendMessage(conversationId, {
           content,
           message_type: "text",
-          client_random: Number(tempMessage.client_random),
+          client_random: tempMessage.client_random as number,
+
           metadata: {},
           reply_to_id: replyToId,
         });
@@ -543,7 +605,14 @@ export const ChatScreen: React.FC = () => {
         });
       }
     },
-    [conversationId, userId, sendTyping, editingMessage, replyingTo],
+    [
+      conversationId,
+      userId,
+      sendTyping,
+      editingMessage,
+      replyingTo,
+      connectionState,
+    ],
   );
 
   const handleSendMedia = useCallback(
@@ -691,7 +760,8 @@ export const ChatScreen: React.FC = () => {
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: messageContent,
           message_type: "media",
-          client_random: Number(tempMessage.client_random),
+          client_random: tempMessage.client_random as number,
+
           metadata: mediaMetadata,
           reply_to_id: replyToId,
         });
@@ -1296,6 +1366,7 @@ export const ChatScreen: React.FC = () => {
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineBanner connectionState={connectionState} />
         <ChatHeader
           conversationName={conversation?.display_name || "Contact"}
           avatarUrl={conversation?.avatar_url}
