@@ -5,11 +5,35 @@ import { getApiBaseUrl } from "../apiBase";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
+/**
+ * Convert a camelCase string to snake_case.
+ */
+const toSnakeCase = (str: string): string =>
+  str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+/**
+ * Recursively convert all keys in an object/array from camelCase to snake_case.
+ * The backend returns camelCase keys but our types use snake_case.
+ */
+const snakecaseKeys = (obj: any): any => {
+  if (Array.isArray(obj)) return obj.map(snakecaseKeys);
+  if (obj !== null && typeof obj === "object" && !(obj instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        toSnakeCase(key),
+        snakecaseKeys(value),
+      ]),
+    );
+  }
+  return obj;
+};
+
 // Backend wraps responses in { data: ... } — unwrap if present
 const unwrap = async (response: Response) => {
   try {
     const json = await response.json();
-    return json?.data !== undefined ? json.data : json;
+    const data = json?.data !== undefined ? json.data : json;
+    return snakecaseKeys(data);
   } catch {
     return null;
   }
@@ -260,6 +284,10 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
+      // Endpoint may not exist yet (404) — return empty result gracefully
+      if (response.status === 404) {
+        return { reactions: [] };
+      }
       throw new Error("Failed to fetch message reactions");
     }
 
@@ -301,6 +329,10 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
+      // Endpoint may not exist yet (404) — return empty array gracefully
+      if (response.status === 404) {
+        return [];
+      }
       throw new Error("Failed to fetch pinned messages");
     }
 
@@ -314,6 +346,10 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
+      // Endpoint may not exist yet (404) — return empty array gracefully
+      if (response.status === 404) {
+        return [];
+      }
       throw new Error("Failed to fetch attachments");
     }
 
