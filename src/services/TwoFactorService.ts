@@ -1,5 +1,5 @@
 import { TokenService } from "./TokenService";
-import { AUTH_API_URL } from "../config/api";
+import { getApiBaseUrl } from "./apiBase";
 import type {
   TwoFactorStatusResponse,
   TwoFactorSetupResponse,
@@ -19,7 +19,7 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${AUTH_API_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/v1${path}`, {
     ...options,
     headers,
   });
