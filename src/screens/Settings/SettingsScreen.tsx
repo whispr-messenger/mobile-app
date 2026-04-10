@@ -20,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
+
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -31,6 +32,7 @@ import {
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
+
   const {
     settings,
     updateSettings,
@@ -1089,6 +1091,25 @@ export const SettingsScreen: React.FC = () => {
             }
           />
         </SettingSection>
+
+        {/* Developer / Debug — stripped from production bundles */}
+        {__DEV__ && (
+          <SettingSection title="Debug" icon="bug-outline">
+            <SettingItem
+              label="Moderation Test"
+              subtitle="Run the on-device TFJS image gate"
+              onPress={() => navigation.navigate("ModerationTest" as never)}
+              icon="image-outline"
+              rightComponent={
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={themeColors.text.tertiary}
+                />
+              }
+            />
+          </SettingSection>
+        )}
       </ScrollView>
 
       {/* Modals */}
