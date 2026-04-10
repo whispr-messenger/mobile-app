@@ -31,6 +31,7 @@ import { ContactItem } from "../../components/Contacts/ContactItem";
 import { AddContactModal } from "../../components/Contacts/AddContactModal";
 import { EditContactModal } from "../../components/Contacts/EditContactModal";
 import { SyncContactsModal } from "../../components/Contacts/SyncContactsModal";
+import { DeleteContactModal } from "../../components/Contacts/DeleteContactModal";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
@@ -52,6 +53,7 @@ export const ContactsScreen: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const { getThemeColors } = useTheme();
@@ -197,6 +199,11 @@ export const ContactsScreen: React.FC = () => {
     setEditingContact(contact);
   }, []);
 
+  // Handle contact delete request
+  const handleContactDelete = useCallback((contact: Contact) => {
+    setDeletingContact(contact);
+  }, []);
+
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
     let result = contacts;
@@ -265,9 +272,10 @@ export const ContactsScreen: React.FC = () => {
         contact={item}
         onPress={handleContactPress}
         onLongPress={handleContactLongPress}
+        onDelete={handleContactDelete}
       />
     ),
-    [handleContactPress, handleContactLongPress],
+    [handleContactPress, handleContactLongPress, handleContactDelete],
   );
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
@@ -656,6 +664,14 @@ export const ContactsScreen: React.FC = () => {
           contact={editingContact}
           onClose={() => setEditingContact(null)}
           onContactUpdated={loadContacts}
+        />
+
+        {/* Delete Contact Modal */}
+        <DeleteContactModal
+          visible={!!deletingContact}
+          contact={deletingContact}
+          onClose={() => setDeletingContact(null)}
+          onContactDeleted={loadContacts}
         />
 
         {/* Sync Contacts Modal */}

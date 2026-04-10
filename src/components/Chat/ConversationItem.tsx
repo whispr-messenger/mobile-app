@@ -137,6 +137,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       return "Message vocal";
     if ((msg.message_type as string) === "file" || msg.content === "Fichier")
       return "Fichier";
+
     return msg.content || "";
   };
 
