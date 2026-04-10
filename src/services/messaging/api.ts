@@ -3,7 +3,7 @@ import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const API_BASE_URL = `${getApiBaseUrl()}/messaging/api`;
+const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 // Backend wraps responses in { data: ... } — unwrap if present
 const unwrap = async (response: Response) => {

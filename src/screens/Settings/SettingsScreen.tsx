@@ -1089,6 +1089,25 @@ export const SettingsScreen: React.FC = () => {
             }
           />
         </SettingSection>
+
+        {/* Developer / Debug — stripped from production bundles */}
+        {__DEV__ && (
+          <SettingSection title="Debug" icon="bug-outline">
+            <SettingItem
+              label="Moderation Test"
+              subtitle="Run the on-device TFJS image gate"
+              onPress={() => navigation.navigate("ModerationTest" as never)}
+              icon="image-outline"
+              rightComponent={
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={themeColors.text.tertiary}
+                />
+              }
+            />
+          </SettingSection>
+        )}
       </ScrollView>
 
       {/* Modals */}

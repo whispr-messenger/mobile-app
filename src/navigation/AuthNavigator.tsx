@@ -19,6 +19,7 @@ import { BlockedUsersScreen } from "../screens/Contacts/BlockedUsersScreen";
 import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
 import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
+import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme/colors";
 import type { AuthPurpose } from "../types/auth";
@@ -56,6 +57,7 @@ export type AuthStackParamList = {
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
+  ModerationTest: undefined;
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -135,6 +137,9 @@ export const AuthNavigator: React.FC = () => {
         name="ScheduledMessages"
         component={ScheduledMessagesScreen}
       />
+      {__DEV__ && (
+        <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
+      )}
     </Stack.Navigator>
   );
 };
