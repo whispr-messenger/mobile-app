@@ -146,6 +146,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       (msg.message_type === "media" && msg.content?.startsWith("Fichier"))
     )
       return "Fichier";
+
     return msg.content || "";
   };
 
