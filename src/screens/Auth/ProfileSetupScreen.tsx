@@ -27,7 +27,7 @@ import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'ProfileSetup'>;
 
 function getUserApiBase(): string {
-  return `${getApiBaseUrl()}/user`;
+  return `${getApiBaseUrl()}/user/v1`;
 }
 
 export const ProfileSetupScreen: React.FC = () => {
