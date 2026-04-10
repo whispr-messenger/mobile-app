@@ -1,0 +1,37 @@
+{
+  "model_type": "efficientnet-b0",
+  "task": "image-classification",
+  "framework": "tensorflow",
+  "input_size": 224,
+  "input_shape": [
+    1,
+    224,
+    224,
+    3
+  ],
+  "num_classes": 8,
+  "class_names": [
+    "Baked Potato",
+    "Burger",
+    "Crispy Chicken",
+    "Donut",
+    "Fries",
+    "Hot Dog",
+    "Pizza",
+    "Sandwich"
+  ],
+  "preprocessing": {
+    "resize": [
+      224,
+      224
+    ],
+    "normalization": "efficientnet",
+    "note": "Use tf.keras.applications.efficientnet.preprocess_input()"
+  },
+  "source_model": "BestModelEfficientNetLite.keras",
+  "formats_available": [
+    "keras",
+    "tflite",
+    "tfjs"
+  ]
+}
