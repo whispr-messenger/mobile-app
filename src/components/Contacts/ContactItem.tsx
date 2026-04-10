@@ -15,6 +15,7 @@ interface ContactItemProps {
   onPress?: (contact: Contact) => void;
   onLongPress?: (contact: Contact) => void;
   onDelete?: (contact: Contact) => void;
+  onToggleFavorite?: (contact: Contact) => void;
 }
 
 export const ContactItem: React.FC<ContactItemProps> = ({
@@ -22,6 +23,7 @@ export const ContactItem: React.FC<ContactItemProps> = ({
   onPress,
   onLongPress,
   onDelete,
+  onToggleFavorite,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -82,21 +84,40 @@ export const ContactItem: React.FC<ContactItemProps> = ({
           </Text>
         )}
       </View>
-      {onDelete ? (
-        <TouchableOpacity
-          onPress={() => onDelete(contact)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.deleteIcon}
-        >
-          <Ionicons name="trash-outline" size={20} color={colors.ui.error} />
-        </TouchableOpacity>
-      ) : (
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={themeColors.text.tertiary}
-        />
-      )}
+      <View style={styles.actions}>
+        {onToggleFavorite && (
+          <TouchableOpacity
+            onPress={() => onToggleFavorite(contact)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.actionIcon}
+          >
+            <Ionicons
+              name={contact.is_favorite ? "star" : "star-outline"}
+              size={20}
+              color={
+                contact.is_favorite
+                  ? colors.primary.main
+                  : themeColors.text.tertiary
+              }
+            />
+          </TouchableOpacity>
+        )}
+        {onDelete ? (
+          <TouchableOpacity
+            onPress={() => onDelete(contact)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.actionIcon}
+          >
+            <Ionicons name="trash-outline" size={20} color={colors.ui.error} />
+          </TouchableOpacity>
+        ) : (
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={themeColors.text.tertiary}
+          />
+        )}
+      </View>
     </TouchableOpacity>
   );
 };
@@ -130,7 +151,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 2,
   },
-  deleteIcon: {
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionIcon: {
     padding: 4,
   },
 });
