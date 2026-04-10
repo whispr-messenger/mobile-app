@@ -73,6 +73,8 @@ jobs:
                 exit 1
               fi
 
+              git fetch --all --quiet
+
               if ! git rev-parse --verify "${COMMIT_SHA}^{commit}" >/dev/null 2>&1; then
                 echo "❌ Error: Commit SHA '${COMMIT_SHA}' does not exist."
                 exit 1
