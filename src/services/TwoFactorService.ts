@@ -1,6 +1,5 @@
 import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
-
 import { getApiBaseUrl } from "./apiBase";
 import type {
   TwoFactorStatusResponse,
