@@ -17,7 +17,7 @@ import { getApiBaseUrl } from "../apiBase";
 
 export type { Contact };
 
-const API_BASE_URL = `${getApiBaseUrl()}/user`;
+const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();

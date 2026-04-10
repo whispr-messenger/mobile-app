@@ -571,6 +571,7 @@ export const ChatScreen: React.FC = () => {
           content,
           message_type: "text",
           client_random: tempMessage.client_random as number,
+
           metadata: {},
           reply_to_id: replyToId,
         });
@@ -760,6 +761,7 @@ export const ChatScreen: React.FC = () => {
           content: messageContent,
           message_type: "media",
           client_random: tempMessage.client_random as number,
+
           metadata: mediaMetadata,
           reply_to_id: replyToId,
         });
