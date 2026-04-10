@@ -24,8 +24,9 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
     hasBeenConnected.current = true;
   }
 
+  const isReconnecting = connectionState === "reconnecting";
   const isOffline =
-    connectionState === "reconnecting" ||
+    isReconnecting ||
     (connectionState === "disconnected" && hasBeenConnected.current);
 
   useEffect(() => {
@@ -36,7 +37,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
     }).start();
   }, [isOffline, opacity]);
 
-  const isReconnecting = connectionState === "reconnecting";
+  if (!isOffline) return null;
 
   return (
     <Animated.View
