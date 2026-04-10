@@ -375,29 +375,37 @@ export const messagingAPI = {
   async getUserInfo(
     userId: string,
   ): Promise<{ id: string; display_name: string; username?: string } | null> {
-    const response = await authenticatedFetch(
-      `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
-    );
+    try {
+      const response = await authenticatedFetch(
+        `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
+      );
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch user info");
-    }
+      if (!response.ok) {
+        console.warn('[getUserInfo] HTTP', response.status, 'for user', userId);
+        return null;
+      }
 
-    const user = await response.json().catch(() => null);
-    if (!user) {
+      const user = await response.json().catch(() => null);
+      if (!user) {
+        console.warn('[getUserInfo] Empty body for user', userId);
+        return null;
+      }
+
+      // Handle both camelCase (from user-service) and snake_case formats
+      const firstName = user.firstName || user.first_name || "";
+      const lastName = user.lastName || user.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+      const displayName = fullName || user.username || "Utilisateur";
+
+      return {
+        id: user.id,
+        display_name: displayName,
+        username: user.username,
+      };
+    } catch (err) {
+      console.warn('[getUserInfo] Failed for user', userId, err);
       return null;
     }
-
-    const firstName = user.firstName || user.first_name || "";
-    const lastName = user.lastName || user.last_name || "";
-    const fullName = `${firstName} ${lastName}`.trim();
-    const displayName = fullName || user.username || "Utilisateur";
-
-    return {
-      id: user.id,
-      display_name: displayName,
-      username: user.username,
-    };
   },
 
   async getConversationMembers(

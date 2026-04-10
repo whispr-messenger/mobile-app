@@ -18,6 +18,7 @@ interface UseWebSocketOptions {
   onMessageUpdated?: (message: Message) => void;
   onMessageDeleted?: (messageId: string, deleteForEveryone: boolean) => void;
   onConversationUpdate?: (conversation: Conversation) => void;
+  onConversationSummaries?: (conversations: Conversation[]) => void;
   onTyping?: (userId: string, typing: boolean) => void;
   onDeliveryStatus?: (messageId: string, status: string) => void;
   onContactRequest?: (request: any) => void;
@@ -25,7 +26,14 @@ interface UseWebSocketOptions {
 }
 
 export const useWebSocket = (options: UseWebSocketOptions) => {
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [connectionState, setConnectionState] = useState<ConnectionState>(() => {
+    // Initialize with the current shared socket state to avoid a brief flash of 'disconnected'
+    try {
+      return getSharedSocket().connectionState;
+    } catch {
+      return 'connecting';
+    }
+  });
 
   // Keep callbacks in a ref so channel listeners always call the latest version
   const callbacksRef = useRef(options);
@@ -66,6 +74,13 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     onConvUpdate: (data: { conversation: Conversation }) => {
       callbacksRef.current.onConversationUpdate?.(data.conversation);
     },
+    onConvSummaries: (data: { conversations: Conversation[] } | Conversation[]) => {
+      // Handle both { conversations: [...] } and bare array formats
+      const conversations = Array.isArray(data) ? data : data?.conversations;
+      if (conversations && Array.isArray(conversations)) {
+        callbacksRef.current.onConversationSummaries?.(conversations);
+      }
+    },
     onContactReq: (data: { request: any }) => {
       callbacksRef.current.onContactRequest?.(data.request);
     },
@@ -84,12 +99,14 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.off("new_message", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_updated", userHandlers.onConvUpdate);
+    userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.off("contact_request_created", userHandlers.onContactReq);
     userChannel.off("contact_request_updated", userHandlers.onContactReq);
 
     userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_updated", userHandlers.onConvUpdate);
+    userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.on("contact_request_created", userHandlers.onContactReq);
     userChannel.on("contact_request_updated", userHandlers.onContactReq);
 
@@ -97,6 +114,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       userChannel.off("new_message", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_updated", userHandlers.onConvUpdate);
+      userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
       userChannel.off("contact_request_created", userHandlers.onContactReq);
       userChannel.off("contact_request_updated", userHandlers.onContactReq);
     };

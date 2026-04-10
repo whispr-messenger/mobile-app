@@ -52,6 +52,9 @@ export const ConversationsListScreen: React.FC = () => {
   const applyConversationUpdate = useConversationsStore(
     (s) => s.applyConversationUpdate,
   );
+  const applyConversationSummaries = useConversationsStore(
+    (s) => s.applyConversationSummaries,
+  );
   const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
   const storeDeleteConversation = useConversationsStore(
     (s) => s.deleteConversation,
@@ -145,6 +148,9 @@ export const ConversationsListScreen: React.FC = () => {
     },
     onConversationUpdate: (conversation: Conversation) => {
       applyConversationUpdate(conversation);
+    },
+    onConversationSummaries: (conversations: Conversation[]) => {
+      applyConversationSummaries(conversations);
     },
   });
 
