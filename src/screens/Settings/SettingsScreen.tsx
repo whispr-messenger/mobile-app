@@ -1052,7 +1052,7 @@ export const SettingsScreen: React.FC = () => {
           <SettingItem
             label={getLocalizedText("settings.myProfile")}
             subtitle={getLocalizedText("settings.myProfileSubtitle")}
-            onPress={() => navigation.navigate("Profile", {})}
+            onPress={() => navigation.navigate("Profile" as never)}
             icon="person-circle-outline"
             rightComponent={
               <Ionicons

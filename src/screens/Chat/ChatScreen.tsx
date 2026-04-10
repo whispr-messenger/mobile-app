@@ -140,7 +140,7 @@ export const ChatScreen: React.FC = () => {
     userId,
     token,
     onPresenceUpdate: (presenceUserId: string, isOnline: boolean) => {
-      setOnlineUsers(prev => {
+      setOnlineUsers((prev) => {
         const next = new Set(prev);
         if (isOnline) {
           next.add(presenceUserId);
@@ -191,36 +191,44 @@ export const ChatScreen: React.FC = () => {
       }
     },
     onDeliveryStatus: (messageId: string, status: string) => {
-      setMessages(prev =>
-        prev.map(msg =>
+      setMessages((prev) =>
+        prev.map((msg) =>
           msg.id === messageId
-            ? { ...msg, status: status as 'sent' | 'delivered' | 'read' }
-            : msg
-        )
+            ? { ...msg, status: status as "sent" | "delivered" | "read" }
+            : msg,
+        ),
       );
     },
     onMessageUpdated: (message: Message) => {
       if (message.conversation_id === conversationId) {
-        setMessages(prev =>
-          prev.map(msg =>
+        setMessages((prev) =>
+          prev.map((msg) =>
             msg.id === message.id
               ? { ...msg, ...message, edited_at: message.edited_at }
-              : msg
-          )
+              : msg,
+          ),
         );
       }
     },
-    onMessageDeleted: (messageId: string, deleteForEveryone: boolean | string) => {
-      if (deleteForEveryone === true || deleteForEveryone === 'true') {
-        setMessages(prev =>
-          prev.map(msg =>
+    onMessageDeleted: (
+      messageId: string,
+      deleteForEveryone: boolean | string,
+    ) => {
+      if (deleteForEveryone === true || deleteForEveryone === "true") {
+        setMessages((prev) =>
+          prev.map((msg) =>
             msg.id === messageId
-              ? { ...msg, is_deleted: true, delete_for_everyone: true, content: '[Message supprimé]' }
-              : msg
-          )
+              ? {
+                  ...msg,
+                  is_deleted: true,
+                  delete_for_everyone: true,
+                  content: "[Message supprimé]",
+                }
+              : msg,
+          ),
         );
       } else {
-        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       }
     },
     onTyping: (typingUserId: string, typing: boolean) => {
@@ -246,7 +254,7 @@ export const ChatScreen: React.FC = () => {
         // Auto-clear typing after 5s if no follow-up event
         if (typing) {
           typingTimeoutsRef.current[typingUserId] = setTimeout(() => {
-            setTypingUsers(prev => prev.filter(id => id !== typingUserId));
+            setTypingUsers((prev) => prev.filter((id) => id !== typingUserId));
             delete typingTimeoutsRef.current[typingUserId];
           }, 5000);
         }
@@ -278,8 +286,9 @@ export const ChatScreen: React.FC = () => {
 
       // Resolve display name for direct conversations
       // The detail endpoint returns members array, not member_user_ids
-      const memberIds = conv.member_user_ids
-        || conv.members?.map((m: { user_id: string }) => m.user_id);
+      const memberIds =
+        conv.member_user_ids ||
+        conv.members?.map((m: { user_id: string }) => m.user_id);
       if (conv.type === "direct" && !conv.display_name && memberIds) {
         conv.member_user_ids = memberIds;
         const otherUserId = memberIds.find((id: string) => id !== userId);
@@ -398,22 +407,27 @@ export const ChatScreen: React.FC = () => {
         if (before) {
           // Loading older messages - append to end (oldest last for inverted FlatList)
           setMessages((prev) => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const deduped = messagesWithRelations.filter(m => !existingIds.has(m.id));
+            const existingIds = new Set(prev.map((m) => m.id));
+            const deduped = messagesWithRelations.filter(
+              (m) => !existingIds.has(m.id),
+            );
             return [...prev, ...deduped];
           });
           setHasMore(messagesWithRelations.length === 50);
         } else {
           // Initial load — merge with any messages already received via WS
           setMessages((prev) => {
-            const existingIds = new Set(prev.map(m => m.id));
+            const existingIds = new Set(prev.map((m) => m.id));
             const merged = [...prev];
             for (const msg of messagesWithRelations) {
               if (!existingIds.has(msg.id)) {
                 merged.push(msg);
               }
             }
-            return merged.sort((a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime());
+            return merged.sort(
+              (a, b) =>
+                new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+            );
           });
           setHasMore(messagesWithRelations.length === 50);
           // Mark the newest message as read so the sender gets a read receipt
@@ -495,7 +509,7 @@ export const ChatScreen: React.FC = () => {
         const sent = await messagingAPI.sendMessage(conversationId, {
           content,
           message_type: "text",
-          client_random: tempMessage.client_random,
+          client_random: Number(tempMessage.client_random),
           metadata: {},
           reply_to_id: replyToId,
         });
@@ -545,7 +559,13 @@ export const ChatScreen: React.FC = () => {
       // Use caption if provided, otherwise use default text
       const messageContent =
         caption?.trim() ||
-        (type === "image" ? "Photo" : type === "video" ? "Vidéo" : type === "audio" ? "Message vocal" : "Fichier");
+        (type === "image"
+          ? "Photo"
+          : type === "video"
+            ? "Vidéo"
+            : type === "audio"
+              ? "Message vocal"
+              : "Fichier");
 
       // Derive filename and MIME type from the local URI
       const filename = uri.split("/").pop() || "media";
@@ -628,7 +648,11 @@ export const ChatScreen: React.FC = () => {
             console.log(`[ChatScreen] Upload progress: ${percent}%`);
           },
         );
-        console.log("[ChatScreen] Media uploaded:", uploadResult.id, uploadResult.url);
+        console.log(
+          "[ChatScreen] Media uploaded:",
+          uploadResult.id,
+          uploadResult.url,
+        );
 
         // Build metadata with the remote URLs from the upload result
         const mediaMetadata = {
@@ -667,7 +691,7 @@ export const ChatScreen: React.FC = () => {
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: messageContent,
           message_type: "media",
-          client_random: tempMessage.client_random,
+          client_random: Number(tempMessage.client_random),
           metadata: mediaMetadata,
           reply_to_id: replyToId,
         });
@@ -712,13 +736,10 @@ export const ChatScreen: React.FC = () => {
     [conversationId, userId, sendTyping, replyingTo],
   );
 
-  const handleScheduleSend = useCallback(
-    (messageText: string) => {
-      setScheduleMessageText(messageText);
-      setShowSchedulePicker(true);
-    },
-    [],
-  );
+  const handleScheduleSend = useCallback((messageText: string) => {
+    setScheduleMessageText(messageText);
+    setShowSchedulePicker(true);
+  }, []);
 
   const handleScheduleConfirm = useCallback(
     async (date: Date) => {
@@ -729,11 +750,17 @@ export const ChatScreen: React.FC = () => {
         await SchedulingService.createScheduledMessage({
           conversation_id: conversationId,
           content: scheduleMessageText.trim(),
-          message_type: 'text',
+          message_type: "text",
           scheduled_at: date.toISOString(),
         });
-        logger.info("ChatScreen", `Message scheduled for ${date.toISOString()}`);
-        Alert.alert("Message programmé", "Votre message sera envoyé à l'heure prévue.");
+        logger.info(
+          "ChatScreen",
+          `Message scheduled for ${date.toISOString()}`,
+        );
+        Alert.alert(
+          "Message programmé",
+          "Votre message sera envoyé à l'heure prévue.",
+        );
       } catch (error) {
         logger.error("ChatScreen", "Error scheduling message", error);
         Alert.alert("Erreur", "Impossible de programmer le message.");
@@ -1023,9 +1050,7 @@ export const ChatScreen: React.FC = () => {
         if (apiResults !== null) {
           // Server returned results — map them to MessageWithRelations
           results = apiResults
-            .filter(
-              (msg) => msg.message_type !== "system" && !msg.is_deleted,
-            )
+            .filter((msg) => msg.message_type !== "system" && !msg.is_deleted)
             .map((msg) => ({
               ...msg,
               status: (msg as any).status || ("sent" as const),
@@ -1170,7 +1195,7 @@ export const ChatScreen: React.FC = () => {
 
   // Derive the other user's presence for direct conversations
   const otherUserId = useMemo(() => {
-    if (conversation?.type !== 'direct') return undefined;
+    if (conversation?.type !== "direct") return undefined;
     return conversation.member_user_ids?.find((id: string) => id !== userId);
   }, [conversation, userId]);
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
