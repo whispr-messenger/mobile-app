@@ -1,6 +1,5 @@
 import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
-
 import { getApiBaseUrl } from "./apiBase";
 import type {
   TwoFactorStatusResponse,
@@ -8,10 +7,14 @@ import type {
   TwoFactorBackupCodesResponse,
 } from "../types/auth";
 
+function getAuthBaseUrl(): string {
+  return `${getApiBaseUrl()}/auth/v1`;
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  retry = true,
+  isRetry = false,
 ): Promise<T> {
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
@@ -22,17 +25,17 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/auth/v1${path}`, {
+  const response = await fetch(`${getAuthBaseUrl()}${path}`, {
     ...options,
     headers,
   });
 
-  if (response.status === 401 && retry) {
+  if (response.status === 401 && !isRetry) {
     try {
       await AuthService.refreshTokens();
-      return apiFetch<T>(path, options, false);
+      return apiFetch<T>(path, options, true);
     } catch {
-      throw new Error("Session expired");
+      // fall through
     }
   }
 

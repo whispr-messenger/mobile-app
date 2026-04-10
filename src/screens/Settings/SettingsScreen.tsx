@@ -18,6 +18,8 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -28,7 +30,7 @@ import {
 } from "../../services/NotificationService";
 
 export const SettingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
   const {
     settings,
     updateSettings,
@@ -1052,7 +1054,7 @@ export const SettingsScreen: React.FC = () => {
           <SettingItem
             label={getLocalizedText("settings.myProfile")}
             subtitle={getLocalizedText("settings.myProfileSubtitle")}
-            onPress={() => (navigation as any).navigate("Profile", {})}
+            onPress={() => navigation.navigate("Profile", {})}
             icon="person-circle-outline"
             rightComponent={
               <Ionicons
