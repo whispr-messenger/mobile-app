@@ -16,8 +16,17 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
   connectionState,
 }) => {
   const opacity = useRef(new Animated.Value(0)).current;
+  // Only show offline banner for reconnecting state or after we were previously
+  // connected and then disconnected. Don't show during initial connection setup.
+  const hasBeenConnected = useRef(false);
+
+  if (connectionState === "connected") {
+    hasBeenConnected.current = true;
+  }
+
   const isOffline =
-    connectionState === "disconnected" || connectionState === "reconnecting";
+    connectionState === "reconnecting" ||
+    (connectionState === "disconnected" && hasBeenConnected.current);
 
   useEffect(() => {
     Animated.timing(opacity, {
