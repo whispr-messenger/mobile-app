@@ -126,11 +126,18 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getLastMessagePreview = () => {
     const msg = conversation.last_message;
     if (!msg) return "";
-    if (msg.content === "Photo") return "Photo";
-    if (msg.content === "Vidéo") return "Vidéo";
-    if (msg.content === "Message vocal") return "Message vocal";
-    if (msg.content === "Fichier") return "Fichier";
-    if (msg.message_type === "media") return "Media";
+    if ((msg.message_type as string) === "image" || msg.content === "Photo")
+      return "Photo";
+    if ((msg.message_type as string) === "video" || msg.content === "Vidéo")
+      return "Vidéo";
+    if (
+      (msg.message_type as string) === "audio" ||
+      msg.content === "Message vocal"
+    )
+      return "Message vocal";
+    if ((msg.message_type as string) === "file" || msg.content === "Fichier")
+      return "Fichier";
+
     return msg.content || "";
   };
 
