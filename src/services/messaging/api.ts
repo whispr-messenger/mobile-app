@@ -147,7 +147,7 @@ export const messagingAPI = {
     message: {
       content: string;
       message_type: "text" | "media" | "system";
-      client_random: number;
+      client_random: number | string;
       metadata?: Record<string, any>;
       reply_to_id?: string;
     },
