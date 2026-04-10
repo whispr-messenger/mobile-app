@@ -158,8 +158,10 @@ export const groupsAPI = {
             ? await profileResponse.json().catch(() => null)
             : null;
 
-        const displayName =
-          profile?.firstName || profile?.username || "Utilisateur";
+        const firstName = profile?.firstName || profile?.first_name || "";
+        const lastName = profile?.lastName || profile?.last_name || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        const displayName = fullName || profile?.username || "Utilisateur";
 
         return {
           id: userId,
@@ -287,8 +289,10 @@ export const groupsAPI = {
           ? await profileResponse.json().catch(() => null)
           : null;
 
-      const displayName =
-        profile?.firstName || profile?.username || "Utilisateur";
+      const firstName = profile?.firstName || profile?.first_name || "";
+      const lastName = profile?.lastName || profile?.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+      const displayName = fullName || profile?.username || "Utilisateur";
 
       results.push({
         id: userId,

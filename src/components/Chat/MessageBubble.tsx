@@ -87,7 +87,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         : message.content || "";
 
   const handleLongPress = () => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     if (onLongPress) {
@@ -97,12 +97,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
-  const handleContextMenu = useCallback((e: any) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault();
-      handleLongPress();
-    }
-  }, [onLongPress]);
+  const handleContextMenu = useCallback(
+    (e: any) => {
+      if (Platform.OS === "web") {
+        e.preventDefault();
+        handleLongPress();
+      }
+    },
+    [onLongPress],
+  );
 
   const handleReactionSelect = (emoji: string) => {
     if (onReactionPress) {
@@ -133,8 +136,61 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }));
 
   const isForwarded = message.metadata?.forwarded === true;
+  const isFailed = message.status === "failed";
 
   const renderBubbleContent = () => {
+    // Failed message: show error overlay with reason
+    if (isFailed && isSent) {
+      return (
+        <View
+          style={[
+            styles.sentBubble,
+            {
+              backgroundColor: "rgba(240, 72, 72, 0.15)",
+              borderWidth: 1,
+              borderColor: "rgba(240, 72, 72, 0.4)",
+            },
+          ]}
+        >
+          {hasMedia && firstAttachment && firstAttachment.metadata ? (
+            <MediaMessage
+              uri={
+                firstAttachment.metadata.media_url ||
+                firstAttachment.metadata.thumbnail_url ||
+                ""
+              }
+              type={firstAttachment.media_type as any}
+              filename={firstAttachment.metadata.filename}
+              size={firstAttachment.metadata.size}
+              thumbnailUri={firstAttachment.metadata.thumbnail_url}
+            />
+          ) : null}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 4,
+              paddingTop: hasMedia ? 6 : 0,
+            }}
+          >
+            <Text style={{ fontSize: 14, marginRight: 6 }}>⚠️</Text>
+            <Text style={{ color: "#F04848", fontSize: 13, flex: 1 }}>
+              {message.content || "Échec de l'envoi"}
+            </Text>
+          </View>
+          <View style={styles.footer}>
+            <Text style={styles.timestamp}>
+              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+            <DeliveryStatus status="failed" />
+          </View>
+        </View>
+      );
+    }
+
     if (isSent) {
       return (
         <LinearGradient
@@ -229,7 +285,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <Text style={styles.senderNameLabel}>{senderName}</Text>
         ) : null}
         {isForwarded ? (
-          <Text style={[styles.forwardedLabel, { color: themeColors.text.tertiary }]}>
+          <Text
+            style={[
+              styles.forwardedLabel,
+              { color: themeColors.text.tertiary },
+            ]}
+          >
             Transféré
           </Text>
         ) : null}
@@ -319,7 +380,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <Pressable
         onLongPress={handleLongPress}
         delayLongPress={300}
-        {...(Platform.OS === 'web' ? { onContextMenu: handleContextMenu } as any : {})}
+        {...(Platform.OS === "web"
+          ? ({ onContextMenu: handleContextMenu } as any)
+          : {})}
       >
         <Animated.View
           style={[

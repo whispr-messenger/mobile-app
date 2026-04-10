@@ -2,28 +2,38 @@
  * MediaMessage - Display media content (images, videos, files)
  */
 
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Image, TouchableOpacity, StyleSheet, Text, Modal, ActivityIndicator, Linking, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import { useTheme } from '../../context/ThemeContext';
-import { colors, withOpacity } from '../../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  View,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
+  Modal,
+  ActivityIndicator,
+  Linking,
+  Alert,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { useTheme } from "../../context/ThemeContext";
+import { colors, withOpacity } from "../../theme/colors";
+import { Ionicons } from "@expo/vector-icons";
 
 // Import expo-av avec gestion d'erreur
 let Video: any = null;
 let ResizeMode: any = null;
 try {
-  const expoAv = require('expo-av');
+  const expoAv = require("expo-av");
   Video = expoAv.Video;
   ResizeMode = expoAv.ResizeMode;
 } catch (error) {
-  console.warn('[MediaMessage] expo-av not available, using fallback:', error);
+  console.warn("[MediaMessage] expo-av not available, using fallback:", error);
 }
 
 interface MediaMessageProps {
   uri: string;
-  type: 'image' | 'video' | 'file';
+  type: "image" | "video" | "file";
   filename?: string;
   size?: number;
   thumbnailUri?: string;
@@ -55,33 +65,50 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Preload and auto-play video when modal opens
   useEffect(() => {
-    if (showVideoPlayer && Video && playerVideoRef.current && type === 'video') {
+    if (
+      showVideoPlayer &&
+      Video &&
+      playerVideoRef.current &&
+      type === "video"
+    ) {
       const playVideo = async () => {
         try {
           // Load video first
           try {
             const loadResult = await playerVideoRef.current.loadAsync({ uri });
-            console.log('[MediaMessage] Video preloaded', loadResult ? 'with status' : 'no status');
-            
+            console.log(
+              "[MediaMessage] Video preloaded",
+              loadResult ? "with status" : "no status",
+            );
+
             // Play immediately after load
             const playResult = await playerVideoRef.current.playAsync();
-            console.log('[MediaMessage] Video playing', playResult ? 'with status' : 'no status');
+            console.log(
+              "[MediaMessage] Video playing",
+              playResult ? "with status" : "no status",
+            );
           } catch (loadError: any) {
-            console.error('[MediaMessage] Error in loadAsync/playAsync:', loadError?.message || loadError);
+            console.error(
+              "[MediaMessage] Error in loadAsync/playAsync:",
+              loadError?.message || loadError,
+            );
             // Don't rethrow, let the component handle it
           }
         } catch (error: any) {
-          console.error('[MediaMessage] Error loading/playing video:', error?.message || error);
+          console.error(
+            "[MediaMessage] Error loading/playing video:",
+            error?.message || error,
+          );
           // Don't show alert here, let onError handle it
         }
       };
-      
+
       // Start loading immediately
       playVideo();
     }
   }, [showVideoPlayer, uri, type]);
 
-  if (type === 'image') {
+  if (type === "image") {
     return (
       <>
         <TouchableOpacity
@@ -126,7 +153,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     );
   }
 
-  if (type === 'file') {
+  if (type === "file") {
     return (
       <View
         style={[
@@ -145,10 +172,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             style={[styles.fileName, { color: themeColors.text.primary }]}
             numberOfLines={1}
           >
-            {filename || 'Fichier'}
+            {filename || "Fichier"}
           </Text>
           {size && (
-            <Text style={[styles.fileSize, { color: themeColors.text.secondary }]}>
+            <Text
+              style={[styles.fileSize, { color: themeColors.text.secondary }]}
+            >
               {(size / 1024).toFixed(1)} KB
             </Text>
           )}
@@ -159,40 +188,41 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Video with thumbnail and player
   const handleVideoPress = async () => {
-    console.log('[MediaMessage] Video pressed, opening player');
+    console.log("[MediaMessage] Video pressed, opening player");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     if (!Video) {
       // Fallback: ouvrir dans le lecteur natif
-      console.log('[MediaMessage] expo-av not available, opening with Linking');
+      console.log("[MediaMessage] expo-av not available, opening with Linking");
       try {
         const supported = await Linking.canOpenURL(uri);
         if (supported) {
           await Linking.openURL(uri);
         } else {
-          Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+          Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
         }
       } catch (error) {
-        console.error('[MediaMessage] Error opening video:', error);
-        Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+        console.error("[MediaMessage] Error opening video:", error);
+        Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
       }
       return;
     }
-    
+
     setShowVideoPlayer(true);
   };
 
   const handleCloseVideo = () => {
-    console.log('[MediaMessage] Closing video player');
+    console.log("[MediaMessage] Closing video player");
     if (playerVideoRef.current && Video) {
       try {
-        playerVideoRef.current.pauseAsync()
+        playerVideoRef.current
+          .pauseAsync()
           .then(() => playerVideoRef.current?.unloadAsync?.())
           .catch((error: any) => {
-            console.error('[MediaMessage] Error stopping video:', error);
+            console.error("[MediaMessage] Error stopping video:", error);
           });
       } catch (error) {
-        console.error('[MediaMessage] Error pausing video:', error);
+        console.error("[MediaMessage] Error pausing video:", error);
       }
     }
     setShowVideoPlayer(false);
@@ -211,31 +241,40 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             ref={thumbnailVideoRef}
             source={{ uri }}
             style={styles.videoThumbnail}
-            resizeMode={ResizeMode?.COVER || 'cover'}
+            resizeMode={ResizeMode?.COVER || "cover"}
             shouldPlay={false}
             isMuted={true}
             useNativeControls={false}
             onLoad={(status: any) => {
               // Silently ignore null or invalid status to prevent crashes
-              if (!status || typeof status !== 'object' || status === null) {
-                console.log('[MediaMessage] Video thumbnail loaded (null status, ignoring)');
+              if (!status || typeof status !== "object" || status === null) {
+                console.log(
+                  "[MediaMessage] Video thumbnail loaded (null status, ignoring)",
+                );
                 return;
               }
               try {
-                console.log('[MediaMessage] Video thumbnail loaded successfully');
+                console.log(
+                  "[MediaMessage] Video thumbnail loaded successfully",
+                );
                 setThumbnailError(false);
               } catch (error: any) {
                 // Silently ignore errors
-                console.log('[MediaMessage] Thumbnail load completed (status may be null, ignoring)');
+                console.log(
+                  "[MediaMessage] Thumbnail load completed (status may be null, ignoring)",
+                );
               }
             }}
             onError={(error: any) => {
-              console.error('[MediaMessage] Video thumbnail error, using placeholder:', error?.message || error);
+              console.error(
+                "[MediaMessage] Video thumbnail error, using placeholder:",
+                error?.message || error,
+              );
               setThumbnailError(true);
             }}
             onPlaybackStatusUpdate={(status: any) => {
               // Silently ignore null status updates to prevent crashes
-              if (!status || typeof status !== 'object' || status === null) {
+              if (!status || typeof status !== "object" || status === null) {
                 return;
               }
               // Do nothing, just prevent errors
@@ -243,14 +282,23 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           />
         ) : (
           // Fallback placeholder if Video component not available or error
-          <View style={[styles.videoThumbnail, { backgroundColor: colors.palette.darkViolet, justifyContent: 'center', alignItems: 'center' }]}>
+          <View
+            style={[
+              styles.videoThumbnail,
+              {
+                backgroundColor: colors.palette.darkViolet,
+                justifyContent: "center",
+                alignItems: "center",
+              },
+            ]}
+          >
             <Ionicons name="videocam" size={48} color={colors.text.light} />
           </View>
         )}
-        
+
         {/* Subtle dark overlay for better contrast */}
         <View style={styles.videoOverlay} />
-        
+
         {/* Play button only */}
         <View style={styles.videoIconWrapper}>
           <LinearGradient
@@ -277,31 +325,38 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={[withOpacity(colors.ui.error, 0.8), withOpacity(colors.ui.error, 0.6)]}
+              colors={[
+                withOpacity(colors.ui.error, 0.8),
+                withOpacity(colors.ui.error, 0.6),
+              ]}
               style={styles.videoCloseButtonGradient}
             >
               <Ionicons name="close" size={24} color={colors.text.light} />
             </LinearGradient>
           </TouchableOpacity>
-          
+
           <View style={styles.videoPlayerContainer}>
             {Video ? (
               <>
                 {videoStatus && videoStatus.isLoaded ? null : (
-                  <ActivityIndicator size="large" color={colors.primary.main} style={styles.videoLoading} />
+                  <ActivityIndicator
+                    size="large"
+                    color={colors.primary.main}
+                    style={styles.videoLoading}
+                  />
                 )}
                 <Video
                   ref={playerVideoRef}
                   source={{ uri }}
                   style={styles.videoPlayer}
                   useNativeControls={true}
-                  resizeMode={ResizeMode?.CONTAIN || 'contain'}
+                  resizeMode={ResizeMode?.CONTAIN || "contain"}
                   isLooping={false}
                   shouldPlay={true}
                   isMuted={false}
                   onPlaybackStatusUpdate={(status: any) => {
                     // Completely ignore null/undefined status to prevent crashes
-                    if (status == null || typeof status !== 'object') {
+                    if (status == null || typeof status !== "object") {
                       return;
                     }
                     try {
@@ -314,50 +369,74 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       if (isLoaded && !isPlaying && playerVideoRef.current) {
                         // Auto-play if loaded but not playing
                         playerVideoRef.current.playAsync().catch((err: any) => {
-                          console.error('[MediaMessage] Error auto-playing:', err?.message || err);
+                          console.error(
+                            "[MediaMessage] Error auto-playing:",
+                            err?.message || err,
+                          );
                         });
                       }
                     } catch (error: any) {
                       // Silently catch all errors to prevent crashes
-                      console.error('[MediaMessage] Error in onPlaybackStatusUpdate:', error?.message || error);
+                      console.error(
+                        "[MediaMessage] Error in onPlaybackStatusUpdate:",
+                        error?.message || error,
+                      );
                     }
                   }}
                   onLoadStart={() => {
-                    console.log('[MediaMessage] Video load started');
+                    console.log("[MediaMessage] Video load started");
                   }}
                   onLoad={(status: any) => {
                     // Completely ignore null/undefined status to prevent crashes
-                    if (status == null || typeof status !== 'object') {
-                      console.log('[MediaMessage] Video loaded (null/undefined status, ignoring)');
+                    if (status == null || typeof status !== "object") {
+                      console.log(
+                        "[MediaMessage] Video loaded (null/undefined status, ignoring)",
+                      );
                       return;
                     }
                     try {
                       // Safely access properties with optional chaining
                       const isLoaded = status?.isLoaded === true;
-                      console.log('[MediaMessage] Video loaded, auto-playing', isLoaded);
+                      console.log(
+                        "[MediaMessage] Video loaded, auto-playing",
+                        isLoaded,
+                      );
                       if (status) {
                         setVideoStatus(status);
                       }
                       // Auto-play immediately when loaded
                       if (playerVideoRef.current && isLoaded) {
                         playerVideoRef.current.playAsync().catch((err: any) => {
-                          console.error('[MediaMessage] Error playing after load:', err?.message || err);
+                          console.error(
+                            "[MediaMessage] Error playing after load:",
+                            err?.message || err,
+                          );
                         });
                       }
                     } catch (error: any) {
                       // Silently catch all errors to prevent crashes
-                      console.error('[MediaMessage] Error in onLoad:', error?.message || error);
+                      console.error(
+                        "[MediaMessage] Error in onLoad:",
+                        error?.message || error,
+                      );
                     }
                   }}
                   onError={(error: any) => {
                     // Catch error but don't show alert to avoid interrupting user
-                    console.error('[MediaMessage] Video error:', error?.message || error);
+                    console.error(
+                      "[MediaMessage] Video error:",
+                      error?.message || error,
+                    );
                   }}
                 />
               </>
             ) : (
               <View style={styles.videoFallback}>
-                <Ionicons name="videocam" size={64} color={colors.primary.main} />
+                <Ionicons
+                  name="videocam"
+                  size={64}
+                  color={colors.primary.main}
+                />
                 <Text style={styles.videoFallbackText}>
                   Lecteur vidéo non disponible
                 </Text>
@@ -370,11 +449,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                         await Linking.openURL(uri);
                         setShowVideoPlayer(false);
                       } else {
-                        Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+                        Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
                       }
                     } catch (error) {
-                      console.error('[MediaMessage] Error:', error);
-                      Alert.alert('Erreur', 'Impossible d\'ouvrir la vidéo.');
+                      console.error("[MediaMessage] Error:", error);
+                      Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
                     }
                   }}
                 >
@@ -394,43 +473,44 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 const styles = StyleSheet.create({
   imageContainer: {
     borderRadius: 12,
-    overflow: 'hidden',
-    maxWidth: 250,
-    maxHeight: 300,
+    overflow: "hidden",
+    maxWidth: 300,
+    maxHeight: 400,
   },
   image: {
-    width: '100%',
-    height: 200,
+    width: "100%",
+    minHeight: 150,
+    aspectRatio: 4 / 3,
     borderRadius: 12,
   },
   fullImageOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fullImageContainer: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fullImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
     zIndex: 1,
     padding: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderRadius: 20,
   },
   fileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
     borderRadius: 12,
     maxWidth: 250,
@@ -443,7 +523,7 @@ const styles = StyleSheet.create({
   },
   fileName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   fileSize: {
@@ -453,79 +533,79 @@ const styles = StyleSheet.create({
     width: 250,
     height: 200,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    position: 'relative',
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    position: "relative",
   },
   videoThumbnail: {
     ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     zIndex: 0,
   },
   videoOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
     zIndex: 1,
   },
   videoIconWrapper: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 2,
   },
   videoPlayButton: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 3,
     borderColor: withOpacity(colors.text.light, 0.3),
   },
   videoPlayerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   videoCloseButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
     zIndex: 10,
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   videoCloseButtonGradient: {
     padding: 10,
     borderRadius: 20,
   },
   videoPlayerContainer: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
   videoPlayer: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   videoLoading: {
-    position: 'absolute',
+    position: "absolute",
     zIndex: 5,
   },
   videoFallback: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   videoFallbackText: {
     marginTop: 16,
     color: colors.text.light,
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   videoFallbackButton: {
     marginTop: 24,
@@ -537,7 +617,6 @@ const styles = StyleSheet.create({
   videoFallbackButtonText: {
     color: colors.text.light,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
-
