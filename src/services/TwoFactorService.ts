@@ -8,7 +8,7 @@ import type {
 } from "../types/auth";
 
 function getAuthBaseUrl(): string {
-  return `${getApiBaseUrl()}/auth`;
+  return `${getApiBaseUrl()}/auth/v1`;
 }
 
 async function apiFetch<T>(

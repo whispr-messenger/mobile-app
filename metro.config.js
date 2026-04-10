@@ -19,6 +19,11 @@ if (!config.resolver.assetExts.includes('tflite')) {
   config.resolver.assetExts.push('tflite');
 }
 
+// Bundle .bin files as static assets (for TFJS model weight shards)
+if (!config.resolver.assetExts.includes('bin')) {
+  config.resolver.assetExts.push('bin');
+}
+
 // Fix for react-native-reanimated web imports
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'web.ts', 'web.tsx'];
 

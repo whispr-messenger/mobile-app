@@ -1,8 +1,8 @@
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const API_BASE_URL = `${getApiBaseUrl()}/user`;
-const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api`;
+const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
+const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
@@ -206,7 +206,8 @@ export const groupsAPI = {
       adminCount: 1, // Only the creator is admin; no dedicated endpoint to resolve this
       messageCount: conv?.message_count ?? 0,
       createdAt: conv?.created_at ?? new Date().toISOString(),
-      lastActivity: conv?.updated_at ?? conv?.created_at ?? new Date().toISOString(),
+      lastActivity:
+        conv?.updated_at ?? conv?.created_at ?? new Date().toISOString(),
     };
   },
 
