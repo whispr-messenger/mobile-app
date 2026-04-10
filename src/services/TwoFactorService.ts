@@ -1,13 +1,12 @@
 import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
+
 import { getApiBaseUrl } from "./apiBase";
 import type {
   TwoFactorStatusResponse,
   TwoFactorSetupResponse,
   TwoFactorBackupCodesResponse,
 } from "../types/auth";
-
-const AUTH_API_URL = `${getApiBaseUrl()}/auth`;
 
 async function apiFetch<T>(
   path: string,
@@ -23,7 +22,7 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${AUTH_API_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/v1${path}`, {
     ...options,
     headers,
   });

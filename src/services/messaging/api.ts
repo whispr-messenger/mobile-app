@@ -3,7 +3,7 @@ import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const API_BASE_URL = `${getApiBaseUrl()}/messaging/api`;
+const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 // Backend wraps responses in { data: ... } — unwrap if present
 const unwrap = async (response: Response) => {
@@ -352,7 +352,8 @@ export const messagingAPI = {
       return null;
     }
 
-    const displayName = user.firstName || user.first_name || user.username || "Utilisateur";
+    const displayName =
+      user.firstName || user.first_name || user.username || "Utilisateur";
 
     return {
       id: user.id,

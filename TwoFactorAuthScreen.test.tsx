@@ -9,6 +9,11 @@ jest.mock("expo-secure-store", () => ({
   deleteItemAsync: jest.fn(),
 }));
 
+jest.mock("./src/services/apiBase", () => ({
+  getApiBaseUrl: () => "https://preprod-whispr-api.roadmvn.com",
+  getWsBaseUrl: () => "wss://preprod-whispr-api.roadmvn.com",
+}));
+
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 
