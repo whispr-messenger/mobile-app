@@ -149,8 +149,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const user = contact.contact_user;
       const nickname = contact.nickname?.toLowerCase() || "";
       const username = user?.username?.toLowerCase() || "";
-      const firstName =
-        (user?.firstName || user?.first_name)?.toLowerCase() || "";
+      const firstName = user?.first_name?.toLowerCase() || "";
       const lastName = user?.last_name?.toLowerCase() || "";
       return (
         nickname.includes(query) ||
@@ -168,8 +167,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       const user = contact.contact_user;
       const nickname = contact.nickname?.toLowerCase() || "";
       const username = user?.username?.toLowerCase() || "";
-      const firstName =
-        (user?.firstName || user?.first_name)?.toLowerCase() || "";
+      const firstName = user?.first_name?.toLowerCase() || "";
       const lastName = user?.last_name?.toLowerCase() || "";
       return (
         nickname.includes(query) ||
@@ -782,7 +780,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                 entering={FadeIn.duration(200)}
               >
                 <Avatar
-                  uri={user.profilePictureUrl || user.avatar_url}
+                  uri={user.avatar_url}
                   name={displayName}
                   size={48}
                   showOnlineBadge={false}
