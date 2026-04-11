@@ -423,6 +423,21 @@ export const ChatScreen: React.FC = () => {
     }
   }, [conversationId, userId]);
 
+  // Mark messages as read when opening conversation and when new messages arrive
+  useEffect(() => {
+    if (!conversationId || !messages.length) return;
+    const lastMsg = messages[0]; // messages are sorted newest first
+    if (lastMsg?.id && lastMsg?.sender_id !== userId) {
+      markAsRead(conversationId, lastMsg.id);
+      // Reset unread count in store
+      const store = useConversationsStore.getState();
+      const updated = store.conversations.map((c: any) =>
+        c.id === conversationId ? { ...c, unread_count: 0 } : c
+      );
+      store.setConversations(updated);
+    }
+  }, [conversationId, messages.length, userId, markAsRead]);
+
   useEffect(() => {
     // Load data
     loadConversation();
