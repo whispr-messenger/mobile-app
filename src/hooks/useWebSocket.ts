@@ -163,7 +163,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
       channel.on("new_message", onMsg);
       channel.on("user_typing", onTyping);
-      channel.on("message_updated", onMsgUpdated);
+      channel.on("message_edited", onMsgUpdated);
       channel.on("message_deleted", onMsgDeleted);
       channel.on("delivery_status", onDelivery);
       channel.on("presence_diff", onPresenceDiff);
@@ -172,7 +172,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       const cleanup = () => {
         channel.off("new_message", onMsg);
         channel.off("user_typing", onTyping);
-        channel.off("message_updated", onMsgUpdated);
+        channel.off("message_edited", onMsgUpdated);
         channel.off("message_deleted", onMsgDeleted);
         channel.off("delivery_status", onDelivery);
         channel.off("presence_diff", onPresenceDiff);
