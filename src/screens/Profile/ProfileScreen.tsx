@@ -220,8 +220,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const usernameError = validateField("username", profile.username);
     if (usernameError) errors.push(`Nom d'utilisateur: ${usernameError}`);
 
-    const phoneError = validateField("phoneNumber", profile.phoneNumber);
-    if (phoneError) errors.push(`Téléphone: ${phoneError}`);
+    // phoneNumber is read-only from registration — skip validation on save
 
     const bioError = validateField("biography", profile.biography);
     if (bioError) errors.push(`Biographie: ${bioError}`);
