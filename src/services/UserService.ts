@@ -269,19 +269,19 @@ export class UserService {
       const raw = await response.json().catch(() => null);
       const data: PrivacySettings = {
         profilePictureVisibility:
+          raw?.profilePicturePrivacy ??
           raw?.profilePictureVisibility ??
-          raw?.profile_picture_visibility ??
           "everyone",
         firstNameVisibility:
-          raw?.firstNameVisibility ?? raw?.first_name_visibility ?? "everyone",
+          raw?.firstNamePrivacy ?? raw?.firstNameVisibility ?? "everyone",
         lastNameVisibility:
-          raw?.lastNameVisibility ?? raw?.last_name_visibility ?? "everyone",
+          raw?.lastNamePrivacy ?? raw?.lastNameVisibility ?? "everyone",
         biographyVisibility:
-          raw?.biographyVisibility ?? raw?.biography_visibility ?? "everyone",
+          raw?.biographyPrivacy ?? raw?.biographyVisibility ?? "everyone",
         searchVisibility:
-          raw?.searchVisibility ?? raw?.search_visibility ?? true,
+          raw?.searchByUsername ?? raw?.searchVisibility ?? true,
         phoneNumberSearch:
-          raw?.phoneNumberSearch ?? raw?.phone_number_search ?? "everyone",
+          raw?.searchByPhone ?? raw?.phoneNumberSearch ?? "everyone",
       };
       return { success: true, settings: data };
     } catch (error) {
@@ -313,12 +313,12 @@ export class UserService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          profile_picture_visibility: settings.profilePictureVisibility,
-          first_name_visibility: settings.firstNameVisibility,
-          last_name_visibility: settings.lastNameVisibility,
-          biography_visibility: settings.biographyVisibility,
-          search_visibility: settings.searchVisibility,
-          phone_number_search: settings.phoneNumberSearch,
+          profilePicturePrivacy: settings.profilePictureVisibility,
+          firstNamePrivacy: settings.firstNameVisibility,
+          lastNamePrivacy: settings.lastNameVisibility,
+          biographyPrivacy: settings.biographyVisibility,
+          searchByPhone: settings.phoneNumberSearch,
+          searchByUsername: settings.searchVisibility === "everyone",
         }),
       });
 

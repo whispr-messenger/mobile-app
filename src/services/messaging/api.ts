@@ -370,7 +370,37 @@ export const messagingAPI = {
     }
 
     const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    const raw = Array.isArray(data) ? data : [];
+
+    // The backend returns { file_url, file_name, file_size, mime_type, ... }
+    // but the app expects MessageAttachment shape with media_type + metadata.
+    return raw.map((att: any) => {
+      // If the attachment already has the expected shape, return as-is
+      if (att.metadata && att.media_type) return att;
+
+      // Derive media_type from mime_type
+      const mime = att.mime_type || "";
+      let media_type: string = "file";
+      if (mime.startsWith("image/")) media_type = "image";
+      else if (mime.startsWith("video/")) media_type = "video";
+      else if (mime.startsWith("audio/")) media_type = "audio";
+
+      return {
+        id: att.id,
+        message_id: att.message_id || messageId,
+        media_id: att.media_id || att.id,
+        media_type,
+        metadata: {
+          filename: att.file_name || att.filename,
+          size: att.file_size || att.size,
+          mime_type: att.mime_type,
+          media_url: att.file_url || att.storage_url || att.media_url,
+          thumbnail_url:
+            att.thumbnail_url || att.file_url || att.storage_url || att.media_url,
+        },
+        created_at: att.uploaded_at || att.created_at || new Date().toISOString(),
+      };
+    });
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {

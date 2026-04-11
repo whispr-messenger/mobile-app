@@ -1189,13 +1189,20 @@ export const ChatScreen: React.FC = () => {
         });
         setShowForwardModal(false);
         setForwardingMessage(null);
+        setForwardSending(false);
+
+        // Navigate to the target conversation so the user sees the forwarded
+        // message immediately. Using `push` creates a new stack entry so the
+        // back button returns to the original conversation.
+        navigation.push("Chat", {
+          conversationId: targetConversationId,
+        });
       } catch (error) {
         logger.error("ChatScreen", "Error forwarding message", error);
-      } finally {
         setForwardSending(false);
       }
     },
-    [forwardingMessage],
+    [forwardingMessage, navigation],
   );
 
   const handleEditMessage = useCallback(() => {

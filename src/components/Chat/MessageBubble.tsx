@@ -87,10 +87,42 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return null;
   }
 
-  // Check if message has media attachments
-  const hasMedia = message.attachments && message.attachments.length > 0;
-  const firstAttachment =
-    hasMedia && message.attachments ? message.attachments[0] : null;
+  // Check if message has media attachments.
+  // When a message arrives via WebSocket it may only carry metadata (no attachments array),
+  // so we synthesize a virtual attachment from message.metadata to display the preview.
+  const hasExplicitAttachments =
+    message.attachments && message.attachments.length > 0;
+
+  const metadataAttachment =
+    !hasExplicitAttachments &&
+    message.message_type === "media" &&
+    message.metadata &&
+    (message.metadata as any).media_url
+      ? {
+          id: `synth-${message.id}`,
+          message_id: message.id,
+          media_id: (message.metadata as any).media_id || message.id,
+          media_type:
+            (message.metadata as any).media_type ||
+            ("image" as "image" | "video" | "file" | "audio"),
+          metadata: {
+            filename: (message.metadata as any).filename,
+            size: (message.metadata as any).size,
+            mime_type: (message.metadata as any).mime_type,
+            media_url: (message.metadata as any).media_url,
+            thumbnail_url:
+              (message.metadata as any).thumbnail_url ||
+              (message.metadata as any).media_url,
+            duration: (message.metadata as any).duration,
+          },
+          created_at: message.sent_at,
+        }
+      : null;
+
+  const hasMedia = hasExplicitAttachments || metadataAttachment !== null;
+  const firstAttachment = hasExplicitAttachments
+    ? message.attachments![0]
+    : metadataAttachment;
 
   // For media messages, only show content if it's not the default placeholder text
   const isDefaultMediaText =
