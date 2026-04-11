@@ -18,6 +18,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Contact,
@@ -45,7 +47,8 @@ import {
 declare module "@expo/vector-icons";
 
 export const ContactsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -219,27 +222,24 @@ export const ContactsScreen: React.FC = () => {
   }, []);
 
   // Handle favorite toggle (client-side via AsyncStorage)
-  const handleToggleFavorite = useCallback(
-    async (contact: Contact) => {
-      const newFavorite = await toggleFavorite(contact.id);
-      // Update local state immediately for responsiveness
-      setFavoriteIds((prev) => {
-        const next = new Set(prev);
-        if (newFavorite) {
-          next.add(contact.id);
-        } else {
-          next.delete(contact.id);
-        }
-        return next;
-      });
-      setContacts((prev) =>
-        prev.map((c) =>
-          c.id === contact.id ? { ...c, is_favorite: newFavorite } : c,
-        ),
-      );
-    },
-    [],
-  );
+  const handleToggleFavorite = useCallback(async (contact: Contact) => {
+    const newFavorite = await toggleFavorite(contact.id);
+    // Update local state immediately for responsiveness
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (newFavorite) {
+        next.add(contact.id);
+      } else {
+        next.delete(contact.id);
+      }
+      return next;
+    });
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === contact.id ? { ...c, is_favorite: newFavorite } : c,
+      ),
+    );
+  }, []);
 
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
@@ -313,7 +313,12 @@ export const ContactsScreen: React.FC = () => {
         onToggleFavorite={handleToggleFavorite}
       />
     ),
-    [handleContactPress, handleContactLongPress, handleContactDelete, handleToggleFavorite],
+    [
+      handleContactPress,
+      handleContactLongPress,
+      handleContactDelete,
+      handleToggleFavorite,
+    ],
   );
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
@@ -333,12 +338,26 @@ export const ContactsScreen: React.FC = () => {
           >
             Contacts
           </Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons name="add" size={24} color={themeColors.text.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => navigation.navigate("MyQRCode")}
+              accessibilityLabel="Mon QR code"
+            >
+              <Ionicons
+                name="qr-code-outline"
+                size={24}
+                color={themeColors.text.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setShowAddModal(true)}
+              accessibilityLabel="Ajouter un contact"
+            >
+              <Ionicons name="add" size={24} color={themeColors.text.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -752,7 +771,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
   },
-  addButton: {
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerIconButton: {
     padding: 4,
   },
   searchContainer: {

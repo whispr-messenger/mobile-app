@@ -284,8 +284,8 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      // Endpoint may not exist yet (404) — return empty result gracefully
-      if (response.status === 404) {
+      // Back ou routes pas encore alignés — pas de réactions affichées
+      if (response.status === 404 || response.status === 400) {
         return { reactions: [] };
       }
       throw new Error("Failed to fetch message reactions");
@@ -374,20 +374,25 @@ export const messagingAPI = {
 
   async getUserInfo(
     userId: string,
-  ): Promise<{ id: string; display_name: string; username?: string; avatar_url?: string } | null> {
+  ): Promise<{
+    id: string;
+    display_name: string;
+    username?: string;
+    avatar_url?: string;
+  } | null> {
     try {
       const response = await authenticatedFetch(
         `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
       );
 
       if (!response.ok) {
-        console.warn('[getUserInfo] HTTP', response.status, 'for user', userId);
+        console.warn("[getUserInfo] HTTP", response.status, "for user", userId);
         return null;
       }
 
       const user = await response.json().catch(() => null);
       if (!user) {
-        console.warn('[getUserInfo] Empty body for user', userId);
+        console.warn("[getUserInfo] Empty body for user", userId);
         return null;
       }
 
@@ -396,9 +401,14 @@ export const messagingAPI = {
       const lastName = user.lastName || user.last_name || "";
       const phoneNumber = user.phoneNumber || user.phone_number || "";
       const fullName = `${firstName} ${lastName}`.trim();
-      const displayName = fullName || user.username || phoneNumber || "Utilisateur";
+      const displayName =
+        fullName || user.username || phoneNumber || "Utilisateur";
 
-      const avatarUrl = user.profilePictureUrl || user.profile_picture_url || user.avatar_url || undefined;
+      const avatarUrl =
+        user.profilePictureUrl ||
+        user.profile_picture_url ||
+        user.avatar_url ||
+        undefined;
 
       return {
         id: user.id,
@@ -407,7 +417,7 @@ export const messagingAPI = {
         avatar_url: avatarUrl,
       };
     } catch (err) {
-      console.warn('[getUserInfo] Failed for user', userId, err);
+      console.warn("[getUserInfo] Failed for user", userId, err);
       return null;
     }
   },

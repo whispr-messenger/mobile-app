@@ -231,6 +231,22 @@ export const contactsAPI = {
     };
   },
 
+  /**
+   * Profil utilisateur par ID (scan QR, liens profonds).
+   */
+  async getUserPreviewById(userId: string): Promise<UserSearchResult | null> {
+    const user = await fetchUserById(userId);
+    if (!user) return null;
+    let contactIds: Set<string>;
+    try {
+      const { contacts } = await this.getContacts();
+      contactIds = new Set(contacts.map((c) => c.contact_id));
+    } catch {
+      contactIds = new Set();
+    }
+    return buildSearchResult(user, contactIds);
+  },
+
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
     const query = params.username?.trim() || params.phoneHash?.trim();
     if (!query) {
@@ -443,8 +459,7 @@ export const contactsAPI = {
             phone_number: r.requester.phoneNumber ?? r.requester.phone_number,
             first_name: r.requester.firstName ?? r.requester.first_name,
             last_name: r.requester.lastName ?? r.requester.last_name,
-            avatar_url:
-              r.requester.profilePictureUrl ?? r.requester.avatar_url,
+            avatar_url: r.requester.profilePictureUrl ?? r.requester.avatar_url,
             last_seen: r.requester.lastSeen ?? r.requester.last_seen,
             is_active: r.requester.isActive ?? r.requester.is_active ?? true,
           }
@@ -456,8 +471,7 @@ export const contactsAPI = {
             phone_number: r.recipient.phoneNumber ?? r.recipient.phone_number,
             first_name: r.recipient.firstName ?? r.recipient.first_name,
             last_name: r.recipient.lastName ?? r.recipient.last_name,
-            avatar_url:
-              r.recipient.profilePictureUrl ?? r.recipient.avatar_url,
+            avatar_url: r.recipient.profilePictureUrl ?? r.recipient.avatar_url,
             last_seen: r.recipient.lastSeen ?? r.recipient.last_seen,
             is_active: r.recipient.isActive ?? r.recipient.is_active ?? true,
           }
