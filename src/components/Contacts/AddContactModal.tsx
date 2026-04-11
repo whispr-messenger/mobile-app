@@ -44,6 +44,10 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [addingContactId, setAddingContactId] = useState<string | null>(null);
   const [messagingUserId, setMessagingUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(
+    null,
+  );
+  const [doingBoth, setDoingBoth] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -155,9 +159,45 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     [onMessageUser],
   );
 
+  const handleAddAndMessage = useCallback(
+    async (user: UserSearchResult) => {
+      if (!onMessageUser || user.is_blocked) return;
+      try {
+        setDoingBoth(true);
+        // Send contact request first (fire and forget errors)
+        try {
+          await contactsAPI.sendContactRequest(user.user.id);
+        } catch {
+          // Ignore — may already be pending or contacts
+        }
+        onContactAdded();
+        // Then create conversation
+        const conversation = await messagingAPI.createDirectConversation(
+          user.user.id,
+        );
+        handleClose();
+        onMessageUser(conversation.id);
+      } catch (error: any) {
+        console.error(
+          "[AddContactModal] Error adding contact and messaging:",
+          error,
+        );
+        Alert.alert(
+          "Erreur",
+          error.message || "Impossible de créer la conversation",
+        );
+      } finally {
+        setDoingBoth(false);
+        setSelectedUser(null);
+      }
+    },
+    [onMessageUser, onContactAdded],
+  );
+
   const handleClose = useCallback(() => {
     setSearchQuery("");
     setSearchResults([]);
+    setSelectedUser(null);
     onClose();
   }, [onClose]);
 
@@ -165,16 +205,18 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     ({ item }: { item: UserSearchResult }) => {
       const { user, is_blocked } = item;
       const displayName = user.first_name || user.username || "Utilisateur";
-      const isAdding = addingContactId === user.id;
-      const isMessaging = messagingUserId === user.id;
 
       return (
-        <View
+        <TouchableOpacity
           style={[
             styles.resultItem,
             { backgroundColor: themeColors.background.secondary },
             is_blocked && styles.resultItemBlocked,
           ]}
+          activeOpacity={0.7}
+          onPress={() => {
+            if (!is_blocked) setSelectedUser(item);
+          }}
         >
           <Avatar uri={user.avatar_url} name={displayName} size={48} />
           <View style={styles.resultInfo}>
@@ -197,72 +239,24 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           <View style={styles.resultActions}>
             {is_blocked ? (
               <Ionicons name="ban" size={20} color={colors.ui.error} />
+            ) : item.is_contact ? (
+              <Ionicons
+                name="checkmark-circle"
+                size={24}
+                color={colors.status.online}
+              />
             ) : (
-              <>
-                {onMessageUser && (
-                  <TouchableOpacity
-                    onPress={() => handleMessageUser(item)}
-                    disabled={is_blocked || isMessaging}
-                    style={styles.actionButton}
-                    activeOpacity={0.7}
-                  >
-                    {isMessaging ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.secondary.main}
-                      />
-                    ) : (
-                      <Ionicons
-                        name="chatbubble-ellipses"
-                        size={22}
-                        color={colors.secondary.main}
-                      />
-                    )}
-                  </TouchableOpacity>
-                )}
-                {item.is_contact ? (
-                  <View style={styles.actionButton}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={24}
-                      color={colors.status.online}
-                    />
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => handleAddContact(item)}
-                    disabled={is_blocked || isAdding}
-                    style={styles.actionButton}
-                    activeOpacity={0.7}
-                  >
-                    {isAdding ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.primary.main}
-                      />
-                    ) : (
-                      <Ionicons
-                        name="add-circle"
-                        size={24}
-                        color={colors.primary.main}
-                      />
-                    )}
-                  </TouchableOpacity>
-                )}
-              </>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
             )}
           </View>
-        </View>
+        </TouchableOpacity>
       );
     },
-    [
-      addingContactId,
-      messagingUserId,
-      handleAddContact,
-      handleMessageUser,
-      onMessageUser,
-      themeColors,
-    ],
+    [themeColors],
   );
 
   return (
@@ -405,6 +399,187 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             />
           )}
         </SafeAreaView>
+
+        {/* User action card */}
+        {selectedUser && (
+          <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSelectedUser(null)}
+          >
+            <TouchableOpacity
+              style={styles.overlay}
+              activeOpacity={1}
+              onPress={() => setSelectedUser(null)}
+            >
+              <View
+                style={[
+                  styles.actionCard,
+                  { backgroundColor: themeColors.background.secondary },
+                ]}
+              >
+                <View style={styles.actionCardHeader}>
+                  <Avatar
+                    uri={selectedUser.user.avatar_url}
+                    name={
+                      selectedUser.user.first_name ||
+                      selectedUser.user.username ||
+                      "Utilisateur"
+                    }
+                    size={56}
+                  />
+                  <View style={styles.actionCardInfo}>
+                    <Text
+                      style={[
+                        styles.actionCardName,
+                        { color: themeColors.text.primary },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {selectedUser.user.first_name ||
+                        selectedUser.user.username ||
+                        "Utilisateur"}
+                    </Text>
+                    {selectedUser.user.username && (
+                      <Text
+                        style={[
+                          styles.actionCardUsername,
+                          { color: themeColors.text.secondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        @{selectedUser.user.username}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {!selectedUser.is_contact && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionCardButton,
+                      { backgroundColor: colors.primary.main },
+                    ]}
+                    onPress={() => {
+                      const user = selectedUser;
+                      setSelectedUser(null);
+                      handleAddContact(user);
+                    }}
+                    disabled={
+                      addingContactId === selectedUser.user.id || doingBoth
+                    }
+                  >
+                    {addingContactId === selectedUser.user.id ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.text.light}
+                      />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="person-add"
+                          size={18}
+                          color={colors.text.light}
+                        />
+                        <Text style={styles.actionCardButtonText}>
+                          Ajouter en ami
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {onMessageUser && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionCardButton,
+                      { backgroundColor: colors.secondary.main },
+                    ]}
+                    onPress={() => {
+                      const user = selectedUser;
+                      setSelectedUser(null);
+                      handleMessageUser(user);
+                    }}
+                    disabled={
+                      messagingUserId === selectedUser.user.id || doingBoth
+                    }
+                  >
+                    {messagingUserId === selectedUser.user.id ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.text.light}
+                      />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="chatbubble-ellipses"
+                          size={18}
+                          color={colors.text.light}
+                        />
+                        <Text style={styles.actionCardButtonText}>
+                          Envoyer un message
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {!selectedUser.is_contact && onMessageUser && (
+                  <TouchableOpacity
+                    style={[
+                      styles.actionCardButton,
+                      {
+                        backgroundColor: "transparent",
+                        borderWidth: 1,
+                        borderColor: colors.primary.main,
+                      },
+                    ]}
+                    onPress={() => handleAddAndMessage(selectedUser)}
+                    disabled={doingBoth}
+                  >
+                    {doingBoth ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.primary.main}
+                      />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="people"
+                          size={18}
+                          color={colors.primary.main}
+                        />
+                        <Text
+                          style={[
+                            styles.actionCardButtonText,
+                            { color: colors.primary.main },
+                          ]}
+                        >
+                          Ajouter et envoyer un message
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  style={styles.actionCardCancel}
+                  onPress={() => setSelectedUser(null)}
+                >
+                  <Text
+                    style={[
+                      styles.actionCardCancelText,
+                      { color: themeColors.text.secondary },
+                    ]}
+                  >
+                    Annuler
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
       </LinearGradient>
     </Modal>
   );
@@ -521,5 +696,55 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 4,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  actionCard: {
+    width: "100%",
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+  },
+  actionCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  actionCardInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  actionCardName: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  actionCardUsername: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  actionCardButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  actionCardButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  actionCardCancel: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  actionCardCancelText: {
+    fontSize: 15,
   },
 });
