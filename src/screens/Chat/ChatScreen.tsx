@@ -355,15 +355,14 @@ export const ChatScreen: React.FC = () => {
 
       setConversation(conv);
 
-      // Load members if it's a group
-      if (conv.type === "group") {
-        try {
-          const members =
-            await messagingAPI.getConversationMembers(conversationId);
-          setConversationMembers(members);
-        } catch (error) {
-          logger.error("ChatScreen", "Error loading members", error);
-        }
+      // Load members from the conversation response (no dedicated GET /members route)
+      if (conv.type === "group" && conv.members) {
+        const members = conv.members.map((m: any) => ({
+          id: m.user_id || m.id,
+          display_name: m.display_name || m.username || "Utilisateur",
+          username: m.username,
+        }));
+        setConversationMembers(members);
       }
     } catch (error) {
       logger.error("ChatScreen", "Error loading conversation", error);
@@ -419,16 +418,10 @@ export const ChatScreen: React.FC = () => {
             .map(async (msg) => {
               const status = (msg as any)?.status || ("sent" as const);
 
-              // Load reactions for this message
-              let reactions = [];
-              try {
-                const reactionData = await messagingAPI.getMessageReactions(
-                  msg.id,
-                );
-                reactions = reactionData.reactions || [];
-              } catch (error) {
-                // Ignore errors for reactions
-              }
+              // Reactions are included in the message payload from the backend
+              // and updated in real-time via WS "reaction_added"/"reaction_removed".
+              // No separate REST call needed (the REST endpoint doesn't exist).
+              const reactions = (msg as any).reactions || [];
 
               // Load attachments for this message
               let attachments = [];
@@ -889,22 +882,22 @@ export const ChatScreen: React.FC = () => {
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
       try {
-        await messagingAPI.addReaction(messageId, userId, emoji);
-
-        // Reload reactions and update local state
-        const reactionData = await messagingAPI.getMessageReactions(messageId);
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId
-              ? { ...msg, reactions: reactionData.reactions || [] }
-              : msg,
-          ),
-        );
+        // Use WebSocket push instead of REST — the backend only exposes
+        // reactions via the conversation channel, not via REST endpoints.
+        const channel = conversationChannelRef.current;
+        if (channel) {
+          channel.push("add_reaction", {
+            message_id: messageId,
+            reaction: emoji,
+          });
+        } else {
+          logger.warn("ChatScreen", "No WS channel available for reaction");
+        }
       } catch (error) {
         logger.error("ChatScreen", "Error adding reaction", error);
       }
     },
-    [userId],
+    [],
   );
 
   // Group messages by date and add date separators
