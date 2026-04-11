@@ -661,7 +661,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               fontWeight: typography.fontWeight.regular,
             },
           ]}
-          placeholder="Rechercher un contact"
+          placeholder="Rechercher un utilisateur"
           placeholderTextColor={colors.text.tertiary}
           value={searchQuery}
           onChangeText={handleSearchChange}

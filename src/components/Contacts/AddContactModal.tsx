@@ -21,6 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { UserSearchResult } from "../../types/contact";
 import { contactsAPI } from "../../services/contacts/api";
+import { messagingAPI } from "../../services/messaging/api";
 import { Avatar } from "../Chat/Avatar";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
@@ -29,17 +30,20 @@ interface AddContactModalProps {
   visible: boolean;
   onClose: () => void;
   onContactAdded: () => void;
+  onMessageUser?: (conversationId: string) => void;
 }
 
 export const AddContactModal: React.FC<AddContactModalProps> = ({
   visible,
   onClose,
   onContactAdded,
+  onMessageUser,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingContactId, setAddingContactId] = useState<string | null>(null);
+  const [messagingUserId, setMessagingUserId] = useState<string | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -120,6 +124,37 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     [onContactAdded],
   );
 
+  const handleMessageUser = useCallback(
+    async (user: UserSearchResult) => {
+      if (!onMessageUser) return;
+      if (user.is_blocked) {
+        Alert.alert(
+          "Contact bloqué",
+          "Cet utilisateur est bloqué. Vous ne pouvez pas lui envoyer de message.",
+        );
+        return;
+      }
+
+      try {
+        setMessagingUserId(user.user.id);
+        const conversation = await messagingAPI.createDirectConversation(
+          user.user.id,
+        );
+        handleClose();
+        onMessageUser(conversation.id);
+      } catch (error: any) {
+        console.error("[AddContactModal] Error creating conversation:", error);
+        Alert.alert(
+          "Erreur",
+          error.message || "Impossible de créer la conversation",
+        );
+      } finally {
+        setMessagingUserId(null);
+      }
+    },
+    [onMessageUser],
+  );
+
   const handleClose = useCallback(() => {
     setSearchQuery("");
     setSearchResults([]);
@@ -131,19 +166,15 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       const { user, is_blocked } = item;
       const displayName = user.first_name || user.username || "Utilisateur";
       const isAdding = addingContactId === user.id;
+      const isMessaging = messagingUserId === user.id;
 
       return (
-        <TouchableOpacity
+        <View
           style={[
             styles.resultItem,
             { backgroundColor: themeColors.background.secondary },
             is_blocked && styles.resultItemBlocked,
           ]}
-          onPress={() =>
-            !is_blocked && !item.is_contact && handleAddContact(item)
-          }
-          disabled={is_blocked || isAdding || item.is_contact}
-          activeOpacity={0.7}
         >
           <Avatar uri={user.avatar_url} name={displayName} size={48} />
           <View style={styles.resultInfo}>
@@ -163,23 +194,75 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               @{user.username}
             </Text>
           </View>
-          {is_blocked ? (
-            <Ionicons name="ban" size={20} color={colors.ui.error} />
-          ) : item.is_contact ? (
-            <Ionicons
-              name="checkmark-circle"
-              size={24}
-              color={colors.status.online}
-            />
-          ) : isAdding ? (
-            <ActivityIndicator size="small" color={colors.primary.main} />
-          ) : (
-            <Ionicons name="add-circle" size={24} color={colors.primary.main} />
-          )}
-        </TouchableOpacity>
+          <View style={styles.resultActions}>
+            {is_blocked ? (
+              <Ionicons name="ban" size={20} color={colors.ui.error} />
+            ) : (
+              <>
+                {onMessageUser && (
+                  <TouchableOpacity
+                    onPress={() => handleMessageUser(item)}
+                    disabled={is_blocked || isMessaging}
+                    style={styles.actionButton}
+                    activeOpacity={0.7}
+                  >
+                    {isMessaging ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.secondary.main}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="chatbubble-ellipses"
+                        size={22}
+                        color={colors.secondary.main}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                {item.is_contact ? (
+                  <View style={styles.actionButton}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color={colors.status.online}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => handleAddContact(item)}
+                    disabled={is_blocked || isAdding}
+                    style={styles.actionButton}
+                    activeOpacity={0.7}
+                  >
+                    {isAdding ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={colors.primary.main}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="add-circle"
+                        size={24}
+                        color={colors.primary.main}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
+        </View>
       );
     },
-    [addingContactId, handleAddContact, themeColors],
+    [
+      addingContactId,
+      messagingUserId,
+      handleAddContact,
+      handleMessageUser,
+      onMessageUser,
+      themeColors,
+    ],
   );
 
   return (
@@ -430,5 +513,13 @@ const styles = StyleSheet.create({
   resultUsername: {
     fontSize: 14,
     marginTop: 2,
+  },
+  resultActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
   },
 });
