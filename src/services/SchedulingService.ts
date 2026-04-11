@@ -70,10 +70,6 @@ export interface CreateScheduledMessageDto {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * @deprecated The backend does not expose PATCH for scheduled messages.
- * This type is kept for reference only — do not use.
- */
 export interface UpdateScheduledMessageDto {
   content?: string;
   scheduled_at?: string;
@@ -136,8 +132,22 @@ export const SchedulingService = {
     return apiFetch<ScheduledMessage[]>(`/api/v1/scheduled-messages${qs ? `?${qs}` : ''}`);
   },
 
-  // NOTE: updateScheduledMessage (PATCH) has been removed — the backend
-  // does not expose a PATCH endpoint for scheduled messages.
+  /**
+   * PATCH /scheduling/api/scheduled-messages/:id
+   * Update a scheduled message.
+   */
+  async updateScheduledMessage(
+    id: string,
+    dto: UpdateScheduledMessageDto
+  ): Promise<ScheduledMessage> {
+    return apiFetch<ScheduledMessage>(
+      `/api/v1/scheduled-messages/${encodeURIComponent(id)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(dto),
+      }
+    );
+  },
 
   /**
    * DELETE /scheduling/api/scheduled-messages/:id

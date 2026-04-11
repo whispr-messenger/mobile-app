@@ -393,15 +393,41 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleDeleteAccount = () => {
-    const comingSoonMsg = "This feature is coming soon. Account deletion is not yet available.";
     if (Platform.OS === "web") {
-      window.alert(comingSoonMsg);
+      const confirmed = window.confirm(
+        "This action is irreversible. All your data, messages, and contacts will be permanently deleted. Are you sure you want to delete your account?",
+      );
+      if (confirmed) {
+        // TODO: Replace signOut() with a real DELETE /user/account endpoint
+        // that permanently removes the user's data from the backend
+        signOut().then(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Welcome" as never }],
+          });
+        });
+      }
       return;
     }
     Alert.alert(
       getLocalizedText("settings.deleteAccount"),
-      comingSoonMsg,
-      [{ text: "OK" }],
+      "This action is irreversible. All your data, messages, and contacts will be permanently deleted. Are you sure you want to delete your account?",
+      [
+        { text: getLocalizedText("common.cancel"), style: "cancel" },
+        {
+          text: getLocalizedText("common.delete"),
+          style: "destructive",
+          onPress: async () => {
+            // TODO: Replace signOut() with a real DELETE /user/account endpoint
+            // that permanently removes the user's data from the backend
+            await signOut();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Welcome" as never }],
+            });
+          },
+        },
+      ],
     );
   };
 
@@ -926,7 +952,7 @@ export const SettingsScreen: React.FC = () => {
           />
           <SettingItem
             label={getLocalizedText("settings.deleteAccount")}
-            subtitle="Coming soon"
+            subtitle="Permanently delete your account"
             onPress={handleDeleteAccount}
             rightComponent={
               <Ionicons

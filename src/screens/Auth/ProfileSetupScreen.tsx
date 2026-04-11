@@ -94,7 +94,7 @@ export const ProfileSetupScreen: React.FC = () => {
             name: fileName,
             type: fileType,
           });
-          body.profilePicture = uploadResult.url;
+          body.profilePictureUrl = uploadResult.url;
         } catch (uploadError) {
           console.warn('[ProfileSetup] Avatar upload failed:', uploadError);
           // Continue without avatar rather than blocking profile creation
