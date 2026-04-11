@@ -269,6 +269,7 @@ export const ChatScreen: React.FC = () => {
       } else {
         setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       }
+      loadPinnedMessages();
     },
     onTyping: (typingUserId: string, typing: boolean) => {
       if (typingUserId !== userId) {
@@ -1267,12 +1268,13 @@ export const ChatScreen: React.FC = () => {
             prev.filter((msg) => msg.id !== selectedMessage.id),
           );
         }
+        await loadPinnedMessages();
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
         Alert.alert("Erreur", "Impossible de supprimer le message");
       }
     },
-    [selectedMessage, conversationId],
+    [selectedMessage, conversationId, loadPinnedMessages],
   );
 
   const handleStartReply = useCallback(() => {
