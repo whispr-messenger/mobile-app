@@ -20,7 +20,7 @@ async function enrichSingleConversation(
   conv: Conversation,
   currentUserId: string,
 ): Promise<Conversation> {
-  if (conv.type !== 'direct' || conv.display_name) {
+  if (conv.type !== 'direct' || (conv.display_name && conv.avatar_url)) {
     return conv;
   }
 
@@ -54,10 +54,11 @@ async function enrichSingleConversation(
 
     const userInfo = await messagingAPI.getUserInfo(otherUserId);
     if (userInfo?.display_name) {
-      console.log('[enrich] Resolved', conv.id, '->', userInfo.display_name);
+      console.log('[enrich] Resolved', conv.id, '->', userInfo.display_name, 'avatar:', userInfo.avatar_url ? 'yes' : 'no');
       return {
         ...conv,
         display_name: userInfo.display_name,
+        avatar_url: userInfo.avatar_url || conv.avatar_url,
         member_user_ids: memberIds,
       };
     }
@@ -215,13 +216,14 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     let needsEnrichment = false;
     if (index === -1) {
       next = [conversation, ...conversations];
-      needsEnrichment = conversation.type === 'direct' && !conversation.display_name;
+      needsEnrichment = conversation.type === 'direct' && (!conversation.display_name || !conversation.avatar_url);
     } else {
       // Preserve display_name from existing conversation if the update doesn't include one
       const existing = conversations[index];
       const merged = {
         ...conversation,
         display_name: conversation.display_name || existing.display_name,
+        avatar_url: conversation.avatar_url || existing.avatar_url,
         member_user_ids: conversation.member_user_ids || existing.member_user_ids,
       };
       next = [...conversations];
@@ -242,7 +244,7 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
             const idx = current.findIndex(c => c.id === enriched.id);
             if (idx !== -1) {
               const updated = [...current];
-              updated[idx] = { ...current[idx], display_name: enriched.display_name, member_user_ids: enriched.member_user_ids };
+              updated[idx] = { ...current[idx], display_name: enriched.display_name, avatar_url: enriched.avatar_url || current[idx].avatar_url, member_user_ids: enriched.member_user_ids };
               set({ conversations: updated });
             }
           }
@@ -291,7 +293,7 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
     }
 
     // Async enrichment for any conversations without display_name
-    const needEnrichment = merged.filter((c: Conversation) => c.type === 'direct' && !c.display_name);
+    const needEnrichment = merged.filter((c: Conversation) => c.type === 'direct' && (!c.display_name || !c.avatar_url));
     if (needEnrichment.length > 0) {
       getCurrentUserId().then((userId) => {
         if (!userId) return;
@@ -301,7 +303,7 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
           if (enrichedMap.size === 0) return;
           const updated = current.map(c => {
             const e = enrichedMap.get(c.id);
-            return e ? { ...c, display_name: e.display_name, member_user_ids: e.member_user_ids } : c;
+            return e ? { ...c, display_name: e.display_name, avatar_url: e.avatar_url || c.avatar_url, member_user_ids: e.member_user_ids } : c;
           });
           set({ conversations: updated });
           cacheService.saveConversations(updated);

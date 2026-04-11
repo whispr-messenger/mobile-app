@@ -374,7 +374,7 @@ export const messagingAPI = {
 
   async getUserInfo(
     userId: string,
-  ): Promise<{ id: string; display_name: string; username?: string } | null> {
+  ): Promise<{ id: string; display_name: string; username?: string; avatar_url?: string } | null> {
     try {
       const response = await authenticatedFetch(
         `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
@@ -398,10 +398,13 @@ export const messagingAPI = {
       const fullName = `${firstName} ${lastName}`.trim();
       const displayName = fullName || user.username || phoneNumber || "Utilisateur";
 
+      const avatarUrl = user.profilePictureUrl || user.profile_picture_url || user.avatar_url || undefined;
+
       return {
         id: user.id,
         display_name: displayName,
         username: user.username,
+        avatar_url: avatarUrl,
       };
     } catch (err) {
       console.warn('[getUserInfo] Failed for user', userId, err);

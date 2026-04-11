@@ -400,6 +400,7 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
     prevProps.conversation.is_muted === nextProps.conversation.is_muted &&
     prevProps.conversation.display_name === nextProps.conversation.display_name &&
+    prevProps.conversation.avatar_url === nextProps.conversation.avatar_url &&
     prevEditMode === nextEditMode &&
     prevIsSelected === nextIsSelected
   );
