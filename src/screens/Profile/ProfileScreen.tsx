@@ -92,6 +92,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const saveAbortRef = useRef<AbortController | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -111,6 +112,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Cleanup: cancel any pending save on unmount
+    return () => {
+      if (saveAbortRef.current) {
+        saveAbortRef.current.abort();
+        saveAbortRef.current = null;
+      }
+    };
   }, []);
 
   // Re-fetch profile from API every time the screen gains focus
@@ -207,6 +216,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
+  // Cancel any pending save operation
+  const cancelSave = useCallback(() => {
+    if (saveAbortRef.current) {
+      saveAbortRef.current.abort();
+      saveAbortRef.current = null;
+    }
+    setLoading(false);
+  }, []);
+
   // Handle profile update
   const handleSaveProfile = async () => {
     // Validation globale avant sauvegarde
@@ -230,6 +248,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       Alert.alert("Erreurs de validation", errors.join("\n\n"));
       return;
     }
+
+    // Abort any previous pending save
+    cancelSave();
+
+    const abortController = new AbortController();
+    saveAbortRef.current = abortController;
 
     setLoading(true);
 
@@ -262,28 +286,55 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           const fileType = fileName.endsWith(".png")
             ? "image/png"
             : "image/jpeg";
-          const uploadResult = await MediaService.uploadMedia({
+
+          // Race the upload against a 15-second timeout
+          const uploadPromise = MediaService.uploadMedia({
             uri: profilePictureUrl,
             name: fileName,
             type: fileType,
           });
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Upload timeout")),
+              15000,
+            ),
+          );
+          const uploadResult = await Promise.race([
+            uploadPromise,
+            timeoutPromise,
+          ]);
+
+          // Check if save was cancelled while uploading
+          if (abortController.signal.aborted) return;
+
           profilePictureUrl = uploadResult.url;
           setProfile((prev) => ({
             ...prev,
             profilePicture: uploadResult.url,
           }));
         } catch (uploadError) {
+          // If save was cancelled, exit silently
+          if (abortController.signal.aborted) return;
+
           console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
           // Revert to previous profile picture to avoid broken state
           setProfile((prev) => ({
             ...prev,
             profilePicture: previousProfilePicture,
           }));
-          Alert.alert("Erreur", "Impossible de télécharger la photo de profil");
+          const errorMsg =
+            uploadError instanceof Error &&
+            uploadError.message === "Upload timeout"
+              ? "Le téléchargement de la photo a expiré. Vérifiez votre connexion et réessayez."
+              : "Impossible de télécharger la photo de profil. Vérifiez votre connexion et réessayez.";
+          Alert.alert("Erreur", errorMsg);
           setLoading(false);
           return;
         }
       }
+
+      // Check if save was cancelled
+      if (abortController.signal.aborted) return;
 
       const service = UserService.getInstance();
       const res = await service.updateProfile({
@@ -293,6 +344,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         biography: profile.biography,
         profilePicture: profilePictureUrl,
       });
+
+      // Check if save was cancelled while updating profile
+      if (abortController.signal.aborted) return;
 
       if (!res.success) {
         Alert.alert(
@@ -311,9 +365,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de mettre à jour le profil");
+      // If save was cancelled, exit silently
+      if (abortController.signal.aborted) return;
+      Alert.alert("Erreur", "Impossible de mettre à jour le profil. Vérifiez votre connexion et réessayez.");
     } finally {
       setLoading(false);
+      if (saveAbortRef.current === abortController) {
+        saveAbortRef.current = null;
+      }
     }
   };
 
@@ -379,7 +438,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Handle back navigation
   const handleBackPress = () => {
-    if (isEditing) {
+    if (loading) {
+      // Cancel any in-progress save and allow navigation
+      Alert.alert(
+        "Sauvegarde en cours",
+        "Voulez-vous annuler la sauvegarde et quitter ?",
+        [
+          { text: "Attendre", style: "cancel" },
+          {
+            text: "Quitter",
+            style: "destructive",
+            onPress: () => {
+              cancelSave();
+              setIsEditing(false);
+              navigation.goBack();
+            },
+          },
+        ],
+      );
+    } else if (isEditing) {
       Alert.alert(
         "Modifications non sauvegardées",
         "Voulez-vous vraiment quitter sans sauvegarder ?",
@@ -451,7 +528,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
             ) : (
               <TouchableOpacity
-                onPress={() => setIsEditing(false)}
+                onPress={() => {
+                  cancelSave();
+                  setIsEditing(false);
+                }}
                 style={styles.cancelButton}
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
