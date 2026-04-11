@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -284,7 +285,7 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
             ]}
             numberOfLines={1}
           >
-            @{user.username}
+            {formatUsername(user.username)}
           </Text>
         </View>
         <View style={styles.matchActions}>

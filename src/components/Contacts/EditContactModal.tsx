@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -196,7 +197,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                 { color: themeColors.text.secondary },
               ]}
             >
-              @{user?.username}
+              {formatUsername(user?.username)}
             </Text>
           </View>
 
