@@ -14,6 +14,7 @@ import {
   Alert,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -47,6 +48,7 @@ export const SettingsScreen: React.FC = () => {
   } = useTheme();
   const themeColors = getThemeColors();
   const { signOut, userId } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -267,8 +269,9 @@ export const SettingsScreen: React.FC = () => {
               JSON.stringify(localNotif),
             );
           } catch (notifError) {
-            console.error(
-              "Error fetching notification settings from backend:",
+            // warn : échec réseau / API non alignée — évite l’overlay rouge LogBox en dev
+            console.warn(
+              "Notification settings: backend unavailable or rejected request",
               notifError,
             );
           }
@@ -532,8 +535,11 @@ export const SettingsScreen: React.FC = () => {
     >
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 40 + insets.bottom },
+        ]}
+        showsVerticalScrollIndicator={__DEV__}
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews={false}
       >
@@ -1018,7 +1024,9 @@ export const SettingsScreen: React.FC = () => {
             setShowPrivacyModal(false);
             setSelectedPrivacyItem(null);
           }}
-          title={PRIVACY_ALERT_TITLE[selectedPrivacyItem] ?? selectedPrivacyItem}
+          title={
+            PRIVACY_ALERT_TITLE[selectedPrivacyItem] ?? selectedPrivacyItem
+          }
           options={[
             { label: "Everyone", value: "Everyone" },
             { label: "Contacts", value: "Contacts" },

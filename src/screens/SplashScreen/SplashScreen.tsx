@@ -3,36 +3,26 @@
  * First screen displayed when app launches
  */
 
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Logo } from '../../components/Logo';
-import { colors } from '../../theme';
+import React, { useEffect, useRef } from "react";
+import { StyleSheet, Animated } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Logo } from "../../components/Logo";
+import { colors } from "../../theme";
 
-interface SplashScreenProps {
-  onFinish?: () => void;
-}
-
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const fadeAnim = new Animated.Value(0);
+/**
+ * Écran de marque affiché au cold start. La durée d’affichage est contrôlée
+ * par le parent (ex. AuthNavigator) pour attendre la session + un minimum UX.
+ */
+export const SplashScreen: React.FC = () => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 1000,
       useNativeDriver: true,
     }).start();
-
-    // Auto navigate after 3 seconds
-    const timer = setTimeout(() => {
-      if (onFinish) {
-        onFinish();
-      }
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, []);
+  }, [fadeAnim]);
 
   return (
     <LinearGradient
@@ -51,24 +41,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
 export default SplashScreen;
-
-
-
-
-
-
-
-
-
-
-

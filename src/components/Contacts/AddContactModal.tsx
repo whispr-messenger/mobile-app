@@ -22,6 +22,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { UserSearchResult } from "../../types/contact";
 import { contactsAPI } from "../../services/contacts/api";
 import { messagingAPI } from "../../services/messaging/api";
+import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Avatar } from "../Chat/Avatar";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
@@ -49,8 +52,15 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   );
   const [doingBoth, setDoingBoth] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigation =
+    useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  const openQrScanner = useCallback(() => {
+    onClose();
+    setTimeout(() => navigation.navigate("QRCodeScanner"), 300);
+  }, [navigation, onClose]);
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -290,42 +300,58 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             <View style={styles.placeholder} />
           </View>
 
-          {/* Search Bar */}
+          {/* Search Bar + scan QR */}
           <View style={styles.searchContainer}>
-            <View
-              style={[
-                styles.searchBar,
-                { backgroundColor: "rgba(255, 255, 255, 0.15)" },
-              ]}
-            >
-              <Ionicons
-                name="search-outline"
-                size={20}
-                color="rgba(255, 255, 255, 0.7)"
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={[styles.searchInput, { color: colors.text.light }]}
-                placeholder="Rechercher par nom, username ou téléphone..."
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                value={searchQuery}
-                onChangeText={handleSearch}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => handleSearch("")}
-                  style={styles.clearButton}
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color="rgba(255, 255, 255, 0.7)"
-                  />
-                </TouchableOpacity>
-              )}
+            <View style={styles.searchRow}>
+              <View
+                style={[
+                  styles.searchBar,
+                  { backgroundColor: "rgba(255, 255, 255, 0.15)" },
+                ]}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color="rgba(255, 255, 255, 0.7)"
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={[styles.searchInput, { color: colors.text.light }]}
+                  placeholder="Rechercher par nom d'utilisateur..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={searchQuery}
+                  onChangeText={handleSearch}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => handleSearch("")}
+                    style={styles.clearButton}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color="rgba(255, 255, 255, 0.7)"
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.qrScanButton,
+                  { backgroundColor: "rgba(255, 255, 255, 0.2)" },
+                ]}
+                onPress={openQrScanner}
+                accessibilityLabel="Scanner un QR code"
+              >
+                <Ionicons
+                  name="qr-code-outline"
+                  size={26}
+                  color={colors.text.light}
+                />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -617,12 +643,25 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   searchBar: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  qrScanButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchIcon: {
     marginRight: 8,
