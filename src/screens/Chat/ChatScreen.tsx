@@ -36,6 +36,7 @@ import {
   Conversation,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
+import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageBubble } from "../../components/Chat/MessageBubble";
@@ -121,6 +122,10 @@ export const ChatScreen: React.FC = () => {
   const [forwardSending, setForwardSending] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleMessageText, setScheduleMessageText] = useState("");
+  const [isOtherUserContact, setIsOtherUserContact] = useState<boolean | null>(
+    null,
+  );
+  const [addingContact, setAddingContact] = useState(false);
   const allConversations = useConversationsStore((s) => s.conversations);
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
   const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
@@ -393,6 +398,53 @@ export const ChatScreen: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
+
+  // Check if the other user in a direct conversation is in our contacts
+  useEffect(() => {
+    if (!conversation || conversation.type !== "direct" || !userId) {
+      setIsOtherUserContact(null);
+      return;
+    }
+    const memberIds =
+      conversation.member_user_ids ||
+      conversation.members?.map((m: { user_id: string }) => m.user_id);
+    const otherUserId = memberIds?.find((id: string) => id !== userId);
+    if (!otherUserId) {
+      setIsOtherUserContact(null);
+      return;
+    }
+    contactsAPI
+      .getContacts(undefined, userId)
+      .then(({ contacts }) => {
+        const isContact = contacts.some((c) => c.contact_id === otherUserId);
+        setIsOtherUserContact(isContact);
+      })
+      .catch(() => {
+        setIsOtherUserContact(null);
+      });
+  }, [conversation, userId]);
+
+  const handleAddContactFromChat = useCallback(async () => {
+    if (!conversation || conversation.type !== "direct" || !userId) return;
+    const memberIds =
+      conversation.member_user_ids ||
+      conversation.members?.map((m: { user_id: string }) => m.user_id);
+    const otherUserId = memberIds?.find((id: string) => id !== userId);
+    if (!otherUserId) return;
+    try {
+      setAddingContact(true);
+      await contactsAPI.sendContactRequest(otherUserId);
+      showAlert("Demande envoyée", "Votre demande de contact a été envoyée.");
+      setIsOtherUserContact(null); // Hide banner after sending
+    } catch (error: any) {
+      showAlert(
+        "Erreur",
+        error.message || "Impossible d'envoyer la demande de contact",
+      );
+    } finally {
+      setAddingContact(false);
+    }
+  }, [conversation, userId]);
 
   const loadMessages = useCallback(
     async (before?: string) => {
@@ -1432,6 +1484,30 @@ export const ChatScreen: React.FC = () => {
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}
         />
+        {isOtherUserContact === false && (
+          <View style={styles.notContactBanner}>
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color={colors.text.light}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.notContactBannerText} numberOfLines={1}>
+              Cette personne n'est pas dans vos contacts
+            </Text>
+            <TouchableOpacity
+              onPress={handleAddContactFromChat}
+              disabled={addingContact}
+              style={styles.notContactBannerButton}
+            >
+              {addingContact ? (
+                <ActivityIndicator size="small" color={colors.text.light} />
+              ) : (
+                <Text style={styles.notContactBannerButtonText}>Ajouter</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar
             pinnedMessages={pinnedMessages}
@@ -1644,6 +1720,33 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  notContactBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginTop: 4,
+    borderRadius: 8,
+  },
+  notContactBannerText: {
+    flex: 1,
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 13,
+  },
+  notContactBannerButton: {
+    backgroundColor: colors.primary.main,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  notContactBannerButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
   },
   listContent: {
     paddingVertical: 16,
