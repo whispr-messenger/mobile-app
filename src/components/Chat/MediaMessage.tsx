@@ -19,6 +19,82 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
+import { TokenService } from "../../services/TokenService";
+
+/**
+ * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
+ * The blob/thumbnail endpoints return a 302 redirect; we follow it manually
+ * so we get a presigned URL that <Image> can use without auth headers.
+ */
+function useResolvedMediaUrl(uri: string | undefined): {
+  resolvedUri: string;
+  loading: boolean;
+  error: boolean;
+} {
+  const [resolvedUri, setResolvedUri] = useState(uri || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!uri) {
+      setResolvedUri("");
+      return;
+    }
+
+    // Only resolve blob/thumbnail endpoints that need auth
+    const needsAuth =
+      uri.includes("/media/v1/") &&
+      (uri.includes("/blob") || uri.includes("/thumbnail"));
+
+    if (!needsAuth) {
+      setResolvedUri(uri);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+
+    (async () => {
+      try {
+        const token = await TokenService.getAccessToken();
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const response = await fetch(uri, {
+          headers,
+          redirect: "follow",
+        });
+
+        if (cancelled) return;
+
+        if (response.ok || response.url !== uri) {
+          // fetch followed the 302 redirect — response.url is the presigned URL
+          setResolvedUri(response.url);
+        } else {
+          console.warn(
+            `[MediaMessage] Failed to resolve media URL: HTTP ${response.status}`,
+          );
+          setError(true);
+          setResolvedUri(uri);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn("[MediaMessage] Error resolving media URL:", err);
+        setError(true);
+        setResolvedUri(uri);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [uri]);
+
+  return { resolvedUri, loading, error };
+}
 
 // Import expo-av avec gestion d'erreur
 let Video: any = null;
@@ -55,6 +131,13 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [videoStatus, setVideoStatus] = useState<any>({});
   const [thumbnailError, setThumbnailError] = useState(false);
 
+  // Resolve blob/thumbnail URLs to fresh presigned URLs
+  const { resolvedUri: resolvedMainUri, loading: mainLoading } =
+    useResolvedMediaUrl(uri);
+  const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
+    thumbnailUri || uri,
+  );
+
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
@@ -75,7 +158,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         try {
           // Load video first
           try {
-            const loadResult = await playerVideoRef.current.loadAsync({ uri });
+            const loadResult = await playerVideoRef.current.loadAsync({ uri: resolvedMainUri });
             console.log(
               "[MediaMessage] Video preloaded",
               loadResult ? "with status" : "no status",
@@ -116,11 +199,17 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           activeOpacity={0.9}
           style={styles.imageContainer}
         >
-          <Image
-            source={{ uri: thumbnailUri || uri }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+          {mainLoading ? (
+            <View style={[styles.image, { justifyContent: "center", alignItems: "center", backgroundColor: "rgba(26, 31, 58, 0.4)" }]}>
+              <ActivityIndicator size="small" color={colors.primary.main} />
+            </View>
+          ) : (
+            <Image
+              source={{ uri: resolvedThumbUri || resolvedMainUri }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          )}
         </TouchableOpacity>
 
         <Modal
@@ -142,7 +231,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                 <Ionicons name="close" size={28} color={colors.text.light} />
               </TouchableOpacity>
               <Image
-                source={{ uri }}
+                source={{ uri: resolvedMainUri }}
                 style={styles.fullImage}
                 resizeMode="contain"
               />
@@ -236,10 +325,10 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         style={styles.videoContainer}
       >
         {/* Video preview - use Video component for thumbnail to show actual video frame */}
-        {Video && uri && !thumbnailError ? (
+        {Video && resolvedMainUri && !thumbnailError ? (
           <Video
             ref={thumbnailVideoRef}
-            source={{ uri }}
+            source={{ uri: resolvedMainUri }}
             style={styles.videoThumbnail}
             resizeMode={ResizeMode?.COVER || "cover"}
             shouldPlay={false}
@@ -347,7 +436,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                 )}
                 <Video
                   ref={playerVideoRef}
-                  source={{ uri }}
+                  source={{ uri: resolvedMainUri }}
                   style={styles.videoPlayer}
                   useNativeControls={true}
                   resizeMode={ResizeMode?.CONTAIN || "contain"}

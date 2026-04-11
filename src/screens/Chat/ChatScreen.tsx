@@ -584,13 +584,17 @@ export const ChatScreen: React.FC = () => {
         );
 
         if (before) {
-          // Loading older messages - append to end (oldest last for inverted FlatList)
+          // Loading older messages — merge, deduplicate and re-sort desc
+          // so the inverted FlatList always renders newest at bottom.
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
             const deduped = messagesWithRelations.filter(
               (m) => !existingIds.has(m.id),
             );
-            return [...prev, ...deduped];
+            return [...prev, ...deduped].sort(
+              (a, b) =>
+                new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+            );
           });
           setHasMore(messagesWithRelations.length === 50);
         } else {
@@ -1090,26 +1094,34 @@ export const ChatScreen: React.FC = () => {
   const messagesWithSeparators = useMemo(() => {
     if (messages.length === 0) return [];
 
+    // messages is sorted newest-first (desc) for the inverted FlatList.
+    // In an inverted list, index 0 renders at the bottom, so we need
+    // date separators to appear AFTER (higher index = visually above)
+    // the last message of each date group.
     const result: Array<
       MessageWithRelations | { type: "date"; date: Date; id: string }
     > = [];
-    let lastDate: string | null = null;
 
-    messages.forEach((message) => {
+    messages.forEach((message, index) => {
       const messageDate = new Date(message.sent_at);
       const dateKey = messageDate.toDateString();
 
-      // Add date separator if date changed
-      if (lastDate !== dateKey) {
+      result.push(message);
+
+      // Look ahead: insert separator AFTER this message if the next
+      // message belongs to a different date (or this is the last message).
+      const nextMessage = messages[index + 1];
+      const nextDateKey = nextMessage
+        ? new Date(nextMessage.sent_at).toDateString()
+        : null;
+
+      if (nextDateKey !== dateKey) {
         result.push({
           type: "date",
           date: messageDate,
           id: `date-${dateKey}`,
         } as any);
-        lastDate = dateKey;
       }
-
-      result.push(message);
     });
 
     return result;

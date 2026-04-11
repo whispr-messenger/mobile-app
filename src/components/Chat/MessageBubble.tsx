@@ -35,12 +35,16 @@ import { getApiBaseUrl } from "../../services/apiBase";
 /** Resolve a media URL — prepend the API base when it is a relative path */
 function resolveMediaUrl(url: string | undefined): string {
   if (!url) return "";
-  if (
-    url.startsWith("http://") ||
-    url.startsWith("https://") ||
-    url.startsWith("file://") ||
-    url.startsWith("data:")
-  ) {
+  if (url.startsWith("file://") || url.startsWith("data:")) {
+    return url;
+  }
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    // URLs pointing to the media service blob/thumbnail endpoints are always valid
+    if (url.includes("/media/v1/") && (url.includes("/blob") || url.includes("/thumbnail"))) {
+      return url;
+    }
+    // Other absolute URLs (e.g. expired presigned S3/MinIO URLs) are returned as-is;
+    // the caller should prefer blob-endpoint URLs when available.
     return url;
   }
   // Relative path from the API — prepend base URL
@@ -77,11 +81,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const themeColors = getThemeColors();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
-  // Safety check
+  // Safety check — also allow media messages that carry metadata (no attachments yet)
+  const hasMetadataMedia =
+    message?.message_type === "media" &&
+    message?.metadata &&
+    ((message.metadata as any).media_url || (message.metadata as any).media_id);
   if (
     !message ||
     (!message.content &&
       !message.is_deleted &&
+      !hasMetadataMedia &&
       (!message.attachments || message.attachments.length === 0))
   ) {
     return null;
@@ -93,31 +102,37 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const hasExplicitAttachments =
     message.attachments && message.attachments.length > 0;
 
-  const metadataAttachment =
-    !hasExplicitAttachments &&
-    message.message_type === "media" &&
-    message.metadata &&
-    (message.metadata as any).media_url
-      ? {
-          id: `synth-${message.id}`,
-          message_id: message.id,
-          media_id: (message.metadata as any).media_id || message.id,
-          media_type:
-            (message.metadata as any).media_type ||
-            ("image" as "image" | "video" | "file" | "audio"),
-          metadata: {
-            filename: (message.metadata as any).filename,
-            size: (message.metadata as any).size,
-            mime_type: (message.metadata as any).mime_type,
-            media_url: (message.metadata as any).media_url,
-            thumbnail_url:
-              (message.metadata as any).thumbnail_url ||
-              (message.metadata as any).media_url,
-            duration: (message.metadata as any).duration,
-          },
-          created_at: message.sent_at,
-        }
-      : null;
+  const metadataAttachment = (() => {
+    if (hasExplicitAttachments || message.message_type !== "media" || !message.metadata) {
+      return null;
+    }
+    const meta = message.metadata as any;
+    if (!meta.media_url && !meta.media_id) return null;
+
+    // Prefer media-service blob/thumbnail endpoints when a media_id is available
+    const mediaId = meta.media_id;
+    const apiBase = getApiBaseUrl();
+    const blobUrl = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : meta.media_url;
+    const thumbUrl = mediaId
+      ? `${apiBase}/media/v1/${mediaId}/thumbnail`
+      : meta.thumbnail_url || meta.media_url;
+
+    return {
+      id: `synth-${message.id}`,
+      message_id: message.id,
+      media_id: mediaId || message.id,
+      media_type: meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
+      metadata: {
+        filename: meta.filename,
+        size: meta.size,
+        mime_type: meta.mime_type,
+        media_url: blobUrl,
+        thumbnail_url: thumbUrl,
+        duration: meta.duration,
+      },
+      created_at: message.sent_at,
+    };
+  })();
 
   const hasMedia = hasExplicitAttachments || metadataAttachment !== null;
   const firstAttachment = hasExplicitAttachments
