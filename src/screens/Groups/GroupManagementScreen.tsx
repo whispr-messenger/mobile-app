@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -959,7 +960,7 @@ export const GroupManagementScreen: React.FC = () => {
                     <Text style={styles.contactName}>{displayName}</Text>
                     {user?.username && (
                       <Text style={styles.contactUsername}>
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>

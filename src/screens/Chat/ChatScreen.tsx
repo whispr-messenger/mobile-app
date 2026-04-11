@@ -553,7 +553,7 @@ export const ChatScreen: React.FC = () => {
                 const reactionData = await messagingAPI.getMessageReactions(
                   msg.id,
                 );
-                reactions = reactionData.reactions || [];
+                reactions = Array.isArray(reactionData) ? reactionData : reactionData?.reactions || [];
               } catch (error) {
                 // Ignore errors for reactions
               }
@@ -1064,7 +1064,7 @@ export const ChatScreen: React.FC = () => {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === messageId
-              ? { ...m, reactions: reactionData.reactions || [] }
+              ? { ...m, reactions: Array.isArray(reactionData) ? reactionData : reactionData?.reactions || [] }
               : m,
           ),
         );
