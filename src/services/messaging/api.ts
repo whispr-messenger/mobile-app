@@ -294,32 +294,36 @@ export const messagingAPI = {
     return unwrap(response);
   },
 
-  async pinMessage(conversationId: string, messageId: string): Promise<void> {
+  /**
+   * Pin a conversation (POST /conversations/:id/pin).
+   * Per-message pinning is not supported by the backend.
+   */
+  async pinMessage(conversationId: string, _messageId: string): Promise<void> {
     const response = await authenticatedFetch(
-      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/pin`,
+      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pin`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversation_id: conversationId,
-        }),
       },
     );
 
     if (!response.ok) {
-      throw new Error("Failed to pin message");
+      throw new Error("Failed to pin conversation");
     }
   },
 
-  async unpinMessage(conversationId: string, messageId: string): Promise<void> {
-    const url = `${API_BASE_URL}/messages/${encodeURIComponent(
-      messageId,
-    )}/pin?conversation_id=${encodeURIComponent(conversationId)}`;
-
-    const response = await authenticatedFetch(url, { method: "DELETE" });
+  /**
+   * Unpin a conversation (DELETE /conversations/:id/pin).
+   * Per-message pinning is not supported by the backend.
+   */
+  async unpinMessage(conversationId: string, _messageId: string): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pin`,
+      { method: "DELETE" },
+    );
 
     if (!response.ok) {
-      throw new Error("Failed to unpin message");
+      throw new Error("Failed to unpin conversation");
     }
   },
 
