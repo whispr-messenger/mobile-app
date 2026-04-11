@@ -372,31 +372,53 @@ export const messagingAPI = {
     const data = await unwrap(response);
     const raw = Array.isArray(data) ? data : [];
 
-    // The backend returns { file_url, file_name, file_size, mime_type, ... }
+    // The backend returns { file_url, file_name, file_size, mime_type, media_id, metadata, ... }
     // but the app expects MessageAttachment shape with media_type + metadata.
     return raw.map((att: any) => {
       // If the attachment already has the expected shape, return as-is
-      if (att.metadata && att.media_type) return att;
+      if (att.metadata?.media_url && att.media_type) return att;
 
-      // Derive media_type from mime_type
+      // Derive media_type from file_type or mime_type
+      const fileType = att.file_type || "";
       const mime = att.mime_type || "";
-      let media_type: string = "file";
-      if (mime.startsWith("image/")) media_type = "image";
-      else if (mime.startsWith("video/")) media_type = "video";
-      else if (mime.startsWith("audio/")) media_type = "audio";
+      let media_type: string = fileType || "file";
+      if (!fileType || fileType === "file") {
+        if (mime.startsWith("image/")) media_type = "image";
+        else if (mime.startsWith("video/")) media_type = "video";
+        else if (mime.startsWith("audio/")) media_type = "audio";
+      }
+
+      // Prefer media_id-based blob URL over stored file_url (which may be
+      // an expired presigned URL from S3/MinIO).
+      const meta = att.metadata || {};
+      const mediaId = att.media_id || meta.media_id;
+      const mediaBlobUrl = mediaId
+        ? `${getApiBaseUrl()}/media/v1/${mediaId}/blob`
+        : null;
+      const mediaThumbnailUrl = mediaId
+        ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
+        : null;
+
+      // Use the blob endpoint URL; fall back to stored URL only if no media_id
+      const resolvedUrl =
+        mediaBlobUrl || meta.media_url || att.file_url || att.storage_url;
+      const resolvedThumbnail =
+        mediaThumbnailUrl ||
+        att.thumbnail_url ||
+        meta.thumbnail_url ||
+        resolvedUrl;
 
       return {
         id: att.id,
         message_id: att.message_id || messageId,
-        media_id: att.media_id || att.id,
+        media_id: mediaId || att.id,
         media_type,
         metadata: {
-          filename: att.file_name || att.filename,
-          size: att.file_size || att.size,
-          mime_type: att.mime_type,
-          media_url: att.file_url || att.storage_url || att.media_url,
-          thumbnail_url:
-            att.thumbnail_url || att.file_url || att.storage_url || att.media_url,
+          filename: att.file_name || att.filename || meta.filename,
+          size: att.file_size || att.size || meta.size,
+          mime_type: att.mime_type || meta.mime_type,
+          media_url: resolvedUrl,
+          thumbnail_url: resolvedThumbnail,
         },
         created_at: att.uploaded_at || att.created_at || new Date().toISOString(),
       };
