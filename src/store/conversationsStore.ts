@@ -282,6 +282,11 @@ export const useConversationsStore = create<ConversationsState & ConversationsAc
           display_name: existing.display_name || conv.display_name,
           member_user_ids: conv.member_user_ids || existing.member_user_ids,
           avatar_url: existing.avatar_url,
+          // Preserve local enrichments the backend summary doesn't include
+          last_message: conv.last_message || existing.last_message,
+          is_pinned: conv.is_pinned || existing.is_pinned,
+          is_muted: conv.is_muted || existing.is_muted,
+          is_archived: conv.is_archived || existing.is_archived,
         };
       }
       return conv;
