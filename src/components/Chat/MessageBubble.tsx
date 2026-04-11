@@ -30,6 +30,17 @@ import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
 import { AudioMessage } from "./AudioMessage";
 import { FormattedText } from "../../utils/textFormatter";
+import { getApiBaseUrl } from "../../services/apiBase";
+
+/** Resolve a media URL — prepend the API base when it is a relative path */
+function resolveMediaUrl(url: string | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://") || url.startsWith("data:")) {
+    return url;
+  }
+  // Relative path from the API — prepend base URL
+  return `${getApiBaseUrl()}${url.startsWith("/") ? "" : "/"}${url}`;
+}
 
 interface MessageBubbleProps {
   message: MessageWithRelations;
@@ -154,15 +165,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         >
           {hasMedia && firstAttachment && firstAttachment.metadata ? (
             <MediaMessage
-              uri={
+              uri={resolveMediaUrl(
                 firstAttachment.metadata.media_url ||
-                firstAttachment.metadata.thumbnail_url ||
-                ""
-              }
+                firstAttachment.metadata.thumbnail_url
+              )}
               type={firstAttachment.media_type as any}
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
-              thumbnailUri={firstAttachment.metadata.thumbnail_url}
+              thumbnailUri={resolveMediaUrl(firstAttachment.metadata.thumbnail_url)}
             />
           ) : null}
           <View
@@ -213,21 +223,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <>
               {firstAttachment.media_type === "audio" ? (
                 <AudioMessage
-                  uri={firstAttachment.metadata.media_url || ""}
+                  uri={resolveMediaUrl(firstAttachment.metadata.media_url)}
                   duration={firstAttachment.metadata.duration}
                   isSent={true}
                 />
               ) : (
                 <MediaMessage
-                  uri={
+                  uri={resolveMediaUrl(
                     firstAttachment.metadata.media_url ||
-                    firstAttachment.metadata.thumbnail_url ||
-                    ""
-                  }
+                    firstAttachment.metadata.thumbnail_url
+                  )}
                   type={firstAttachment.media_type}
                   filename={firstAttachment.metadata.filename}
                   size={firstAttachment.metadata.size}
-                  thumbnailUri={firstAttachment.metadata.thumbnail_url}
+                  thumbnailUri={resolveMediaUrl(firstAttachment.metadata.thumbnail_url)}
                 />
               )}
             </>
@@ -305,21 +314,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <>
             {firstAttachment.media_type === "audio" ? (
               <AudioMessage
-                uri={firstAttachment.metadata.media_url || ""}
+                uri={resolveMediaUrl(firstAttachment.metadata.media_url)}
                 duration={firstAttachment.metadata.duration}
                 isSent={false}
               />
             ) : (
               <MediaMessage
-                uri={
+                uri={resolveMediaUrl(
                   firstAttachment.metadata.media_url ||
-                  firstAttachment.metadata.thumbnail_url ||
-                  ""
-                }
+                  firstAttachment.metadata.thumbnail_url
+                )}
                 type={firstAttachment.media_type as "image" | "video" | "file"}
                 filename={firstAttachment.metadata.filename}
                 size={firstAttachment.metadata.size}
-                thumbnailUri={firstAttachment.metadata.thumbnail_url}
+                thumbnailUri={resolveMediaUrl(firstAttachment.metadata.thumbnail_url)}
               />
             )}
           </>
