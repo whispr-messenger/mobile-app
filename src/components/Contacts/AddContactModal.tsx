@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useCallback, useRef } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -243,7 +244,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               ]}
               numberOfLines={1}
             >
-              @{user.username}
+              {formatUsername(user.username)}
             </Text>
           </View>
           <View style={styles.resultActions}>
@@ -475,7 +476,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                         ]}
                         numberOfLines={1}
                       >
-                        @{selectedUser.user.username}
+                        {formatUsername(selectedUser.user.username)}
                       </Text>
                     )}
                   </View>

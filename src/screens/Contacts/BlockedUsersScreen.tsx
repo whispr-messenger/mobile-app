@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -112,7 +113,7 @@ export const BlockedUsersScreen: React.FC = () => {
               ]}
               numberOfLines={1}
             >
-              @{user.username}
+              {formatUsername(user.username)}
             </Text>
             {item.reason && (
               <Text

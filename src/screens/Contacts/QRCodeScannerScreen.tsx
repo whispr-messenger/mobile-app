@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -158,7 +159,7 @@ export const QRCodeScannerScreen: React.FC = () => {
 
       Alert.alert(
         "Ajouter le contact",
-        `Voulez-vous ajouter ${displayName} (@${u.username}) à vos contacts ?`,
+        `Voulez-vous ajouter ${displayName} (${formatUsername(u.username)}) à vos contacts ?`,
         [
           {
             text: "Annuler",

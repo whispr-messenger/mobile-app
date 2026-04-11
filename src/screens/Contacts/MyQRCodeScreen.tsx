@@ -9,6 +9,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -316,7 +317,7 @@ export const MyQRCodeScreen: React.FC = () => {
                       { color: colors.text.light, opacity: 0.8 },
                     ]}
                   >
-                    @{userProfile.username}
+                    {formatUsername(userProfile.username)}
                   </Text>
                 ) : null}
                 <Text

@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   StyleSheet,
@@ -617,7 +618,7 @@ export const ContactsScreen: React.FC = () => {
                         ]}
                         numberOfLines={1}
                       >
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
