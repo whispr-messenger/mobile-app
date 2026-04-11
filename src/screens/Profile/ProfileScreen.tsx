@@ -3,7 +3,7 @@
  * WHISPR-132: Implement ProfileScreen with user profile management
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -110,31 +110,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-    // Load from API unless navigation params already provided full data
-    const loadProfile = async () => {
-      if (params?.firstName && params?.lastName) return;
-      try {
-        const service = UserService.getInstance();
-        const res = await service.getProfile();
-        if (res.success && res.profile) {
-          setProfile((prev) => ({
-            ...prev,
-            firstName: res.profile!.firstName || prev.firstName || "",
-            lastName: res.profile!.lastName || prev.lastName || "",
-            username: res.profile!.username || prev.username || "",
-            phoneNumber: res.profile!.phoneNumber || prev.phoneNumber || "",
-            biography: res.profile!.biography || prev.biography || "",
-            profilePicture: res.profile!.profilePicture,
-            createdAt: res.profile!.createdAt || prev.createdAt,
-          }));
-        }
-      } catch (e) {
-        console.error("[ProfileScreen] Failed to load profile:", e);
-      }
-    };
-
-    loadProfile();
   }, []);
+
+  // Re-fetch profile from API every time the screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadProfile = async () => {
+        try {
+          const service = UserService.getInstance();
+          const res = await service.getProfile();
+          if (res.success && res.profile) {
+            setProfile((prev) => ({
+              ...prev,
+              firstName: res.profile!.firstName || prev.firstName || "",
+              lastName: res.profile!.lastName || prev.lastName || "",
+              username: res.profile!.username || prev.username || "",
+              phoneNumber: res.profile!.phoneNumber || prev.phoneNumber || "",
+              biography: res.profile!.biography || prev.biography || "",
+              profilePicture: res.profile!.profilePicture,
+              createdAt: res.profile!.createdAt || prev.createdAt,
+            }));
+          }
+        } catch (e) {
+          console.error("[ProfileScreen] Failed to load profile:", e);
+        }
+      };
+
+      loadProfile();
+    }, []),
+  );
 
   // Handle profile picture change
   const handleImagePicker = async () => {
@@ -303,7 +307,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       }
 
       setIsEditing(false);
-      Alert.alert("Succès", "Profil mis à jour avec succès");
+      Alert.alert("Succès", "Profil mis à jour avec succès", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
     } catch (error) {
       Alert.alert("Erreur", "Impossible de mettre à jour le profil");
     } finally {
@@ -353,20 +359,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Handle field change with validation
+  // Handle field change (validation is done on save only)
   const handleFieldChange = (field: keyof UserProfile, value: string) => {
-    const error = validateField(field, value);
-
-    // Update profile
     setProfile((prev) => ({
       ...prev,
       [field]: value,
     }));
-
-    // Show validation error if any
-    if (error) {
-      Alert.alert("Erreur de validation", error);
-    }
   };
 
   // Handle settings navigation
@@ -387,7 +385,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         "Voulez-vous vraiment quitter sans sauvegarder ?",
         [
           { text: "Annuler", style: "cancel" },
-          { text: "Quitter", onPress: () => setIsEditing(false) },
+          {
+            text: "Quitter",
+            onPress: () => {
+              setIsEditing(false);
+              navigation.goBack();
+            },
+          },
         ],
       );
     } else {
