@@ -74,9 +74,12 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     onConvUpdate: (data: { conversation: Conversation }) => {
       callbacksRef.current.onConversationUpdate?.(data.conversation);
     },
-    onConvSummaries: (data: { conversations: Conversation[] } | Conversation[]) => {
-      // Handle both { conversations: [...] } and bare array formats
-      const conversations = Array.isArray(data) ? data : data?.conversations;
+    onConvSummaries: (data: any) => {
+      // Handle { conversations: [...] }, { summaries: [...] }, and bare array formats.
+      // The backend sends "summaries" as the key; after snakecaseKeys it stays "summaries".
+      const conversations = Array.isArray(data)
+        ? data
+        : data?.conversations ?? data?.summaries;
       if (conversations && Array.isArray(conversations)) {
         callbacksRef.current.onConversationSummaries?.(conversations);
       }

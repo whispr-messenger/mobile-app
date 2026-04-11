@@ -292,6 +292,9 @@ export const ChatScreen: React.FC = () => {
     const isNowConnected = connectionState === "connected";
 
     if (wasOffline && isNowConnected) {
+      // Reload messages to pick up any sent while we were disconnected
+      loadMessages();
+
       offlineQueue.getForConversation(conversationId).then(async (pending) => {
         for (const queued of pending) {
           try {

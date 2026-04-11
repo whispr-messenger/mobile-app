@@ -160,6 +160,19 @@ export const ConversationsListScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // Refresh conversations when WebSocket reconnects to pick up messages
+  // that were missed during the disconnection window
+  const prevConnStateRef = React.useRef<string>(connectionState);
+  useEffect(() => {
+    const wasOffline =
+      prevConnStateRef.current === "disconnected" ||
+      prevConnStateRef.current === "reconnecting";
+    if (wasOffline && connectionState === "connected") {
+      refreshConversations();
+    }
+    prevConnStateRef.current = connectionState;
+  }, [connectionState, refreshConversations]);
+
   const handleConversationPress = useCallback(
     (conversationId: string) => {
       if (editMode) {
