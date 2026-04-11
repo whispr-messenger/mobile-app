@@ -27,7 +27,14 @@ import {
   NotificationService,
   NotificationSettings,
 } from "../../services/NotificationService";
-import { SettingsSelectionModal } from "./SettingsSelectionModal";
+import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+
+const PRIVACY_ALERT_TITLE: Record<string, string> = {
+  profilePhoto: "Profile photo",
+  firstName: "First name",
+  lastName: "Last name",
+  biography: "Biography",
+};
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -829,7 +836,7 @@ export const SettingsScreen: React.FC = () => {
                 ? getLocalizedText("settings.theme.light")
                 : settings.theme === "dark"
                   ? getLocalizedText("settings.theme.dark")
-                  : "Automatic"
+                  : getLocalizedText("settings.theme.auto")
             }
             onPress={() => setShowThemeModal(true)}
           />
@@ -977,12 +984,11 @@ export const SettingsScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* Modals */}
-      <SettingsSelectionModal
+      {/* Modals — alerte centrée style iOS (Application + Privacy) */}
+      <SettingsChoiceAlert
         visible={showThemeModal}
         onClose={() => setShowThemeModal(false)}
         title={getLocalizedText("settings.theme")}
-        subtitle={getLocalizedText("settings.modalPickHint")}
         options={[
           { label: getLocalizedText("settings.theme.auto"), value: "auto" },
           { label: getLocalizedText("settings.theme.light"), value: "light" },
@@ -990,32 +996,28 @@ export const SettingsScreen: React.FC = () => {
         ]}
         selectedValue={settings.theme}
         onSelect={(value) => handleSelect("theme", value)}
-        themeColors={themeColors}
-        getFontSize={getFontSize}
         cancelLabel={getLocalizedText("common.cancel")}
+        layout="vertical"
       />
 
-      <SettingsSelectionModal
+      <SettingsChoiceAlert
         visible={showLanguageModal}
         onClose={() => setShowLanguageModal(false)}
         title={getLocalizedText("settings.language")}
-        subtitle={getLocalizedText("settings.modalPickHint")}
         options={[
           { label: getLocalizedText("settings.language.fr"), value: "fr" },
           { label: getLocalizedText("settings.language.en"), value: "en" },
         ]}
         selectedValue={settings.language}
         onSelect={(value) => handleSelect("language", value)}
-        themeColors={themeColors}
-        getFontSize={getFontSize}
         cancelLabel={getLocalizedText("common.cancel")}
+        layout="auto"
       />
 
-      <SettingsSelectionModal
+      <SettingsChoiceAlert
         visible={showFontSizeModal}
         onClose={() => setShowFontSizeModal(false)}
         title={getLocalizedText("settings.fontSize")}
-        subtitle={getLocalizedText("settings.modalPickHint")}
         options={[
           {
             label: getLocalizedText("settings.fontSize.small"),
@@ -1032,20 +1034,18 @@ export const SettingsScreen: React.FC = () => {
         ]}
         selectedValue={settings.fontSize}
         onSelect={(value) => handleSelect("fontSize", value)}
-        themeColors={themeColors}
-        getFontSize={getFontSize}
         cancelLabel={getLocalizedText("common.cancel")}
+        layout="vertical"
       />
 
       {selectedPrivacyItem && (
-        <SettingsSelectionModal
+        <SettingsChoiceAlert
           visible={showPrivacyModal}
           onClose={() => {
             setShowPrivacyModal(false);
             setSelectedPrivacyItem(null);
           }}
-          title={selectedPrivacyItem}
-          subtitle={getLocalizedText("settings.modalPickHint")}
+          title={PRIVACY_ALERT_TITLE[selectedPrivacyItem] ?? selectedPrivacyItem}
           options={[
             { label: "Everyone", value: "Everyone" },
             { label: "Contacts", value: "Contacts" },
@@ -1057,9 +1057,8 @@ export const SettingsScreen: React.FC = () => {
             ] as string
           }
           onSelect={(value) => handleSelect("privacy", value)}
-          themeColors={themeColors}
-          getFontSize={getFontSize}
           cancelLabel={getLocalizedText("common.cancel")}
+          layout="vertical"
         />
       )}
     </LinearGradient>
