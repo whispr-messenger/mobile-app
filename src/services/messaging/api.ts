@@ -294,36 +294,32 @@ export const messagingAPI = {
     return unwrap(response);
   },
 
-  /**
-   * Pin a conversation (POST /conversations/:id/pin).
-   * Per-message pinning is not supported by the backend.
-   */
-  async pinMessage(conversationId: string, _messageId: string): Promise<void> {
+  async pinMessage(conversationId: string, messageId: string): Promise<void> {
     const response = await authenticatedFetch(
-      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pin`,
+      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/pin`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+        }),
       },
     );
 
     if (!response.ok) {
-      throw new Error("Failed to pin conversation");
+      throw new Error("Failed to pin message");
     }
   },
 
-  /**
-   * Unpin a conversation (DELETE /conversations/:id/pin).
-   * Per-message pinning is not supported by the backend.
-   */
-  async unpinMessage(conversationId: string, _messageId: string): Promise<void> {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pin`,
-      { method: "DELETE" },
-    );
+  async unpinMessage(conversationId: string, messageId: string): Promise<void> {
+    const url = `${API_BASE_URL}/messages/${encodeURIComponent(
+      messageId,
+    )}/pin?conversation_id=${encodeURIComponent(conversationId)}`;
+
+    const response = await authenticatedFetch(url, { method: "DELETE" });
 
     if (!response.ok) {
-      throw new Error("Failed to unpin conversation");
+      throw new Error("Failed to unpin message");
     }
   },
 
@@ -344,24 +340,21 @@ export const messagingAPI = {
     return Array.isArray(data) ? data : [];
   },
 
-  /**
-   * Fetch a single attachment by ID via GET /attachments/:id.
-   * There is no route to list attachments by message — attachments are
-   * included inline in the message payload from the backend.
-   */
-  async getAttachment(attachmentId: string) {
+  async getAttachments(messageId: string) {
     const response = await authenticatedFetch(
-      `${API_BASE_URL}/attachments/${encodeURIComponent(attachmentId)}`,
+      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/attachments`,
     );
 
     if (!response.ok) {
+      // Endpoint may not exist yet (404) — return empty array gracefully
       if (response.status === 404) {
-        return null;
+        return [];
       }
-      throw new Error("Failed to fetch attachment");
+      throw new Error("Failed to fetch attachments");
     }
 
-    return unwrap(response);
+    const data = await unwrap(response);
+    return Array.isArray(data) ? data : [];
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {
@@ -533,9 +526,8 @@ export const messagingAPI = {
 
   /**
    * Search messages globally across all conversations.
-   * Calls GET /messages/search?query=...
-   * Returns null if the endpoint is unavailable so callers fall back to
-   * local filtering (conversation name + last message content).
+   * Calls GET /messaging/api/messages/search?query=...
+   * Returns null if the endpoint is not available so callers can fall back.
    */
   async searchMessagesGlobal(
     query: string,
@@ -556,89 +548,13 @@ export const messagingAPI = {
       const response = await authenticatedFetch(url);
 
       if (!response.ok) {
-        // Endpoint may not exist or returned error — signal fallback to local search
-        console.warn("[searchMessagesGlobal] API returned", response.status, "— falling back to local search");
         return null;
       }
 
       const data = await unwrap(response);
       return Array.isArray(data) ? data : [];
-    } catch (err) {
-      console.warn("[searchMessagesGlobal] Network error — falling back to local search", err);
+    } catch {
       return null;
-    }
-  },
-
-  // ─── Scheduled Messages ───────────────────────────────────────────────────
-
-  /**
-   * GET /messaging/api/v1/messages/scheduled
-   */
-  async getScheduledMessages(params?: {
-    conversation_id?: string;
-    status?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<any[]> {
-    const query = new URLSearchParams();
-    if (params?.conversation_id)
-      query.append("conversation_id", params.conversation_id);
-    if (params?.status) query.append("status", params.status);
-    if (params?.limit !== undefined)
-      query.append("limit", String(params.limit));
-    if (params?.offset !== undefined)
-      query.append("offset", String(params.offset));
-
-    const qs = query.toString();
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/messages/scheduled${qs ? `?${qs}` : ""}`,
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch scheduled messages");
-    }
-
-    const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
-  },
-
-  /**
-   * POST /messaging/api/v1/messages/scheduled
-   */
-  async createScheduledMessage(dto: {
-    conversation_id: string;
-    content: string;
-    message_type?: string;
-    scheduled_at: string;
-    metadata?: Record<string, unknown>;
-  }): Promise<any> {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/messages/scheduled`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dto),
-      },
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to create scheduled message");
-    }
-
-    return unwrap(response);
-  },
-
-  /**
-   * DELETE /messaging/api/v1/messages/scheduled/:id
-   */
-  async deleteScheduledMessage(id: string): Promise<void> {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/messages/scheduled/${encodeURIComponent(id)}`,
-      { method: "DELETE" },
-    );
-
-    if (!response.ok) {
-      throw new Error("Failed to delete scheduled message");
     }
   },
 };

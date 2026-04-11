@@ -20,6 +20,7 @@ export { SchedulingService } from './SchedulingService';
 export type {
   ScheduledMessage,
   CreateScheduledMessageDto,
+  UpdateScheduledMessageDto,
 } from './SchedulingService';
 
 export { TwoFactorAuthService, DeviceManagerService, SignalKeysService } from './SecurityService';

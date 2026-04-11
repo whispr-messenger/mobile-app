@@ -58,7 +58,7 @@ import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
-
+import { SchedulingService } from "../../services/SchedulingService";
 import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
@@ -281,36 +281,6 @@ export const ChatScreen: React.FC = () => {
         });
       }
     },
-    onReactionAdded: (messageId: string, reactUserId: string, reaction: string) => {
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id !== messageId) return msg;
-          const existing = (msg.reactions as any[]) || [];
-          return {
-            ...msg,
-            reactions: [
-              ...existing,
-              { message_id: messageId, user_id: reactUserId, reaction },
-            ],
-          };
-        }),
-      );
-    },
-    onReactionRemoved: (messageId: string, reactUserId: string, reaction: string) => {
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id !== messageId) return msg;
-          const existing = (msg.reactions as any[]) || [];
-          return {
-            ...msg,
-            reactions: existing.filter(
-              (r: any) =>
-                !(r.user_id === reactUserId && r.reaction === reaction),
-            ),
-          };
-        }),
-      );
-    },
   });
 
   // Drain offline queue when connection is restored
@@ -385,14 +355,15 @@ export const ChatScreen: React.FC = () => {
 
       setConversation(conv);
 
-      // Load members from the conversation response (no dedicated GET /members route)
-      if (conv.type === "group" && conv.members) {
-        const members = conv.members.map((m: any) => ({
-          id: m.user_id || m.id,
-          display_name: m.display_name || m.username || "Utilisateur",
-          username: m.username,
-        }));
-        setConversationMembers(members);
+      // Load members if it's a group
+      if (conv.type === "group") {
+        try {
+          const members =
+            await messagingAPI.getConversationMembers(conversationId);
+          setConversationMembers(members);
+        } catch (error) {
+          logger.error("ChatScreen", "Error loading members", error);
+        }
       }
     } catch (error) {
       logger.error("ChatScreen", "Error loading conversation", error);
@@ -448,14 +419,24 @@ export const ChatScreen: React.FC = () => {
             .map(async (msg) => {
               const status = (msg as any)?.status || ("sent" as const);
 
-              // Reactions are included in the message payload from the backend
-              // and updated in real-time via WS "reaction_added"/"reaction_removed".
-              // No separate REST call needed (the REST endpoint doesn't exist).
-              const reactions = (msg as any).reactions || [];
+              // Load reactions for this message
+              let reactions = [];
+              try {
+                const reactionData = await messagingAPI.getMessageReactions(
+                  msg.id,
+                );
+                reactions = reactionData.reactions || [];
+              } catch (error) {
+                // Ignore errors for reactions
+              }
 
-              // Attachments are included in the message payload from the backend.
-              // No separate REST call needed (GET /messages/:id/attachments doesn't exist).
-              const attachments = (msg as any).attachments || [];
+              // Load attachments for this message
+              let attachments = [];
+              try {
+                attachments = await messagingAPI.getAttachments(msg.id);
+              } catch (error) {
+                // Ignore errors for attachments
+              }
 
               // Find reply_to message if exists (search in current batch only)
               let replyTo: Message | undefined;
@@ -878,7 +859,7 @@ export const ChatScreen: React.FC = () => {
       if (!scheduleMessageText.trim()) return;
 
       try {
-        await messagingAPI.createScheduledMessage({
+        await SchedulingService.createScheduledMessage({
           conversation_id: conversationId,
           content: scheduleMessageText.trim(),
           message_type: "text",
@@ -908,22 +889,22 @@ export const ChatScreen: React.FC = () => {
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
       try {
-        // Use WebSocket push instead of REST — the backend only exposes
-        // reactions via the conversation channel, not via REST endpoints.
-        const channel = conversationChannelRef.current;
-        if (channel) {
-          channel.push("add_reaction", {
-            message_id: messageId,
-            reaction: emoji,
-          });
-        } else {
-          logger.warn("ChatScreen", "No WS channel available for reaction");
-        }
+        await messagingAPI.addReaction(messageId, userId, emoji);
+
+        // Reload reactions and update local state
+        const reactionData = await messagingAPI.getMessageReactions(messageId);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? { ...msg, reactions: reactionData.reactions || [] }
+              : msg,
+          ),
+        );
       } catch (error) {
         logger.error("ChatScreen", "Error adding reaction", error);
       }
     },
-    [],
+    [userId],
   );
 
   // Group messages by date and add date separators

@@ -23,8 +23,6 @@ interface UseWebSocketOptions {
   onDeliveryStatus?: (messageId: string, status: string) => void;
   onContactRequest?: (request: any) => void;
   onPresenceUpdate?: (userId: string, isOnline: boolean) => void;
-  onReactionAdded?: (messageId: string, userId: string, reaction: string) => void;
-  onReactionRemoved?: (messageId: string, userId: string, reaction: string) => void;
 }
 
 export const useWebSocket = (options: UseWebSocketOptions) => {
@@ -73,12 +71,18 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     onDelivery: (data: { message_id: string; status: string }) => {
       callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
     },
+    onConvUpdate: (data: { conversation: Conversation }) => {
+      callbacksRef.current.onConversationUpdate?.(data.conversation);
+    },
     onConvSummaries: (data: { conversations: Conversation[] } | Conversation[]) => {
       // Handle both { conversations: [...] } and bare array formats
       const conversations = Array.isArray(data) ? data : data?.conversations;
       if (conversations && Array.isArray(conversations)) {
         callbacksRef.current.onConversationSummaries?.(conversations);
       }
+    },
+    onContactReq: (data: { request: any }) => {
+      callbacksRef.current.onContactRequest?.(data.request);
     },
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -94,16 +98,25 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     // duplicate subscriptions when the component re-renders during reconnect.
     userChannel.off("new_message", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
+    userChannel.off("conversation_updated", userHandlers.onConvUpdate);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
+    userChannel.off("contact_request_created", userHandlers.onContactReq);
+    userChannel.off("contact_request_updated", userHandlers.onContactReq);
 
     userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
+    userChannel.on("conversation_updated", userHandlers.onConvUpdate);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
+    userChannel.on("contact_request_created", userHandlers.onContactReq);
+    userChannel.on("contact_request_updated", userHandlers.onContactReq);
 
     return () => {
       userChannel.off("new_message", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
+      userChannel.off("conversation_updated", userHandlers.onConvUpdate);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
+      userChannel.off("contact_request_created", userHandlers.onContactReq);
+      userChannel.off("contact_request_updated", userHandlers.onContactReq);
     };
   }, [options.userId, options.token, userHandlers]);
 
@@ -147,33 +160,23 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           callbacksRef.current.onPresenceUpdate?.(uid, true);
         });
       };
-      const onReactionAdded = (data: { messageId: string; userId: string; reaction: string }) => {
-        callbacksRef.current.onReactionAdded?.(data.messageId, data.userId, data.reaction);
-      };
-      const onReactionRemoved = (data: { messageId: string; userId: string; reaction: string }) => {
-        callbacksRef.current.onReactionRemoved?.(data.messageId, data.userId, data.reaction);
-      };
 
       channel.on("new_message", onMsg);
       channel.on("user_typing", onTyping);
-      channel.on("message_edited", onMsgUpdated);
+      channel.on("message_updated", onMsgUpdated);
       channel.on("message_deleted", onMsgDeleted);
       channel.on("delivery_status", onDelivery);
       channel.on("presence_diff", onPresenceDiff);
       channel.on("presence_state", onPresenceState);
-      channel.on("reaction_added", onReactionAdded);
-      channel.on("reaction_removed", onReactionRemoved);
 
       const cleanup = () => {
         channel.off("new_message", onMsg);
         channel.off("user_typing", onTyping);
-        channel.off("message_edited", onMsgUpdated);
+        channel.off("message_updated", onMsgUpdated);
         channel.off("message_deleted", onMsgDeleted);
         channel.off("delivery_status", onDelivery);
         channel.off("presence_diff", onPresenceDiff);
         channel.off("presence_state", onPresenceState);
-        channel.off("reaction_added", onReactionAdded);
-        channel.off("reaction_removed", onReactionRemoved);
       };
 
       return { channel, cleanup };

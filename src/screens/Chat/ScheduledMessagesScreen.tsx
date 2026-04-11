@@ -21,8 +21,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, withOpacity } from '../../theme/colors';
 import { useTheme } from '../../context/ThemeContext';
-import { ScheduledMessage } from '../../services/SchedulingService';
-import { messagingAPI } from '../../services/messaging/api';
+import {
+  SchedulingService,
+  ScheduledMessage,
+} from '../../services/SchedulingService';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import { logger } from '../../utils/logger';
 
@@ -97,7 +99,7 @@ export const ScheduledMessagesScreen: React.FC = () => {
 
   const loadMessages = useCallback(async () => {
     try {
-      const data = await messagingAPI.getScheduledMessages({
+      const data = await SchedulingService.getScheduledMessages({
         conversation_id: conversationId,
       });
       // Sort by scheduled_at ascending (soonest first)
@@ -136,7 +138,7 @@ export const ScheduledMessagesScreen: React.FC = () => {
             onPress: async () => {
               try {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                await messagingAPI.deleteScheduledMessage(message.id);
+                await SchedulingService.cancelScheduledMessage(message.id);
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === message.id ? { ...m, status: 'cancelled' as const } : m,
