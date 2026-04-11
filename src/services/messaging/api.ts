@@ -394,8 +394,9 @@ export const messagingAPI = {
       // Handle both camelCase (from user-service) and snake_case formats
       const firstName = user.firstName || user.first_name || "";
       const lastName = user.lastName || user.last_name || "";
+      const phoneNumber = user.phoneNumber || user.phone_number || "";
       const fullName = `${firstName} ${lastName}`.trim();
-      const displayName = fullName || user.username || "Utilisateur";
+      const displayName = fullName || user.username || phoneNumber || "Utilisateur";
 
       return {
         id: user.id,
