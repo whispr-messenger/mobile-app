@@ -27,6 +27,7 @@ export interface UpdateProfileRequest {
   username?: string;
   biography?: string;
   profilePicture?: string;
+  profilePictureUrl?: string;
 }
 
 export interface UpdateProfileResponse {
@@ -83,6 +84,10 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
+      // Map profilePictureUrl from backend to profilePicture for frontend
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
       return { success: true, profile: data };
     } catch (error) {
       console.error("Erreur récupération profil:", error);
@@ -108,13 +113,24 @@ export class UserService {
       const payload = TokenService.decodeAccessToken(token);
       if (!payload?.sub) return { success: false, message: "Token invalide" };
 
+      // Map profilePicture to profilePictureUrl for the backend API
+      const { profilePicture, ...restData } = profileData;
+      const apiData = {
+        ...restData,
+        profilePictureUrl: profileData.profilePictureUrl || profilePicture,
+      };
+      // Remove undefined profilePictureUrl to avoid overwriting with null
+      if (apiData.profilePictureUrl === undefined) {
+        delete apiData.profilePictureUrl;
+      }
+
       const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(profileData),
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
@@ -122,6 +138,10 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
+      // Map profilePictureUrl from backend to profilePicture for frontend
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
       return {
         success: true,
         message: "Profil mis à jour avec succès",
@@ -153,7 +173,7 @@ export class UserService {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ profilePicture: imageUri }),
+        body: JSON.stringify({ profilePictureUrl: imageUri }),
       });
 
       if (!response.ok) {
@@ -161,6 +181,10 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
+      // Map profilePictureUrl from backend to profilePicture for frontend
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
       return {
         success: true,
         message: "Photo de profil mise à jour avec succès",
