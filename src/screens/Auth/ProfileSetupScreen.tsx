@@ -110,7 +110,7 @@ export const ProfileSetupScreen: React.FC = () => {
         body: JSON.stringify(body),
       });
 
-      if (!response.ok && response.status !== 404) {
+      if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 

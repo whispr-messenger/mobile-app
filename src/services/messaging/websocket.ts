@@ -77,6 +77,30 @@ function encodeMessage(
   return JSON.stringify([join_ref, ref, topic, event, payload]);
 }
 
+/**
+ * Convert a camelCase string to snake_case.
+ */
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+/**
+ * Recursively convert all keys in an object/array from camelCase to snake_case.
+ * The backend sends camelCase keys over WebSocket but our types use snake_case.
+ */
+function snakecaseKeys(obj: any): any {
+  if (Array.isArray(obj)) return obj.map(snakecaseKeys);
+  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        toSnakeCase(key),
+        snakecaseKeys(value),
+      ]),
+    );
+  }
+  return obj;
+}
+
 export class SocketConnection {
   private socket: WebSocket | null = null;
   private channels: Record<
@@ -204,13 +228,14 @@ export class SocketConnection {
           return;
         }
 
-        // Dispatch to user callbacks
+        // Dispatch to user callbacks (normalise keys to snake_case)
         if (msg.topic && msg.event) {
           const ch = this.channels[msg.topic];
           const cbs = ch?.callbacks[msg.event] || [];
+          const normalised = snakecaseKeys(msg.payload);
           console.log('[WS] Event:', msg.topic, msg.event, 'callbacks:', cbs.length);
           cbs.forEach((cb) => {
-            try { cb(msg.payload); } catch { /* isolate bad callbacks */ }
+            try { cb(normalised); } catch { /* isolate bad callbacks */ }
           });
         }
       } catch {
