@@ -32,3 +32,7 @@ build/
 CLAUDE.local.md
 .gitnexus
 .gstack/
+.claude/
+.gitnexus/
+.playwright-mcp/
+AGENTS.md
