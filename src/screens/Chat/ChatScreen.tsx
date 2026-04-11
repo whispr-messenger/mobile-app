@@ -281,6 +281,36 @@ export const ChatScreen: React.FC = () => {
         });
       }
     },
+    onReactionAdded: (messageId: string, reactUserId: string, reaction: string) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== messageId) return msg;
+          const existing = (msg.reactions as any[]) || [];
+          return {
+            ...msg,
+            reactions: [
+              ...existing,
+              { message_id: messageId, user_id: reactUserId, reaction },
+            ],
+          };
+        }),
+      );
+    },
+    onReactionRemoved: (messageId: string, reactUserId: string, reaction: string) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== messageId) return msg;
+          const existing = (msg.reactions as any[]) || [];
+          return {
+            ...msg,
+            reactions: existing.filter(
+              (r: any) =>
+                !(r.user_id === reactUserId && r.reaction === reaction),
+            ),
+          };
+        }),
+      );
+    },
   });
 
   // Drain offline queue when connection is restored
