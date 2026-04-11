@@ -22,7 +22,7 @@ async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/auth${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/v1${path}`, {
     ...fetchOptions,
     headers,
   });
@@ -53,13 +53,10 @@ export const AuthService = {
     phoneNumber: string,
     purpose: AuthPurpose,
   ): Promise<VerificationRequestResponse> {
-    return apiFetch<VerificationRequestResponse>(
-      `/verify/${purpose}/request`,
-      {
-        method: "POST",
-        body: JSON.stringify({ phoneNumber }),
-      },
-    );
+    return apiFetch<VerificationRequestResponse>(`/verify/${purpose}/request`, {
+      method: "POST",
+      body: JSON.stringify({ phoneNumber }),
+    });
   },
 
   async confirmVerification(
@@ -67,13 +64,10 @@ export const AuthService = {
     code: string,
     purpose: AuthPurpose,
   ): Promise<VerificationConfirmResponse> {
-    return apiFetch<VerificationConfirmResponse>(
-      `/verify/${purpose}/confirm`,
-      {
-        method: "POST",
-        body: JSON.stringify({ verificationId, code }),
-      },
-    );
+    return apiFetch<VerificationConfirmResponse>(`/verify/${purpose}/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ verificationId, code }),
+    });
   },
 
   async register(verificationId: string): Promise<TokenPair> {
@@ -170,7 +164,7 @@ export const AuthService = {
 
     // Validate with a network call (GET /auth/device)
     try {
-      const response = await fetch(`${getApiBaseUrl()}/auth/device`, {
+      const response = await fetch(`${getApiBaseUrl()}/auth/v1/device`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

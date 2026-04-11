@@ -17,7 +17,7 @@ import { getApiBaseUrl } from "../apiBase";
 
 export type { Contact };
 
-const API_BASE_URL = `${getApiBaseUrl()}/user`;
+const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
@@ -231,6 +231,22 @@ export const contactsAPI = {
     };
   },
 
+  /**
+   * Profil utilisateur par ID (scan QR, liens profonds).
+   */
+  async getUserPreviewById(userId: string): Promise<UserSearchResult | null> {
+    const user = await fetchUserById(userId);
+    if (!user) return null;
+    let contactIds: Set<string>;
+    try {
+      const { contacts } = await this.getContacts();
+      contactIds = new Set(contacts.map((c) => c.contact_id));
+    } catch {
+      contactIds = new Set();
+    }
+    return buildSearchResult(user, contactIds);
+  },
+
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
     const query = params.username?.trim() || params.phoneHash?.trim();
     if (!query) {
@@ -414,55 +430,132 @@ export const contactsAPI = {
     return results;
   },
 
-  // The backend (user-service) has no contact request system — contacts are
-  // added/removed directly. This returns an empty array by design.
   async getContactRequests(): Promise<ContactRequest[]> {
-    return [];
+    const ownerId = await getOwnerId();
+    const response = await fetch(
+      `${API_BASE_URL}/contact-requests/${encodeURIComponent(ownerId)}`,
+      {
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const data = await response.json();
+    const items = Array.isArray(data) ? data : [];
+    return items.map((r: any) => ({
+      id: r.id,
+      requester_id: r.requesterId ?? r.requester_id,
+      recipient_id: r.recipientId ?? r.recipient_id,
+      status: r.status,
+      created_at: toIso(r.createdAt ?? r.created_at),
+      updated_at: toIso(r.updatedAt ?? r.updated_at),
+      requester_user: r.requester
+        ? {
+            id: r.requester.id,
+            username: r.requester.username ?? "",
+            phone_number: r.requester.phoneNumber ?? r.requester.phone_number,
+            first_name: r.requester.firstName ?? r.requester.first_name,
+            last_name: r.requester.lastName ?? r.requester.last_name,
+            avatar_url: r.requester.profilePictureUrl ?? r.requester.avatar_url,
+            last_seen: r.requester.lastSeen ?? r.requester.last_seen,
+            is_active: r.requester.isActive ?? r.requester.is_active ?? true,
+          }
+        : undefined,
+      recipient_user: r.recipient
+        ? {
+            id: r.recipient.id,
+            username: r.recipient.username ?? "",
+            phone_number: r.recipient.phoneNumber ?? r.recipient.phone_number,
+            first_name: r.recipient.firstName ?? r.recipient.first_name,
+            last_name: r.recipient.lastName ?? r.recipient.last_name,
+            avatar_url: r.recipient.profilePictureUrl ?? r.recipient.avatar_url,
+            last_seen: r.recipient.lastSeen ?? r.recipient.last_seen,
+            is_active: r.recipient.isActive ?? r.recipient.is_active ?? true,
+          }
+        : undefined,
+    }));
   },
 
-  // The backend has no request system — contacts are added directly.
-  // This calls addContact and returns a ContactRequest-shaped response
-  // for callers that expect the request/accept flow.
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
-    const requesterId = await getOwnerId();
-    const contact = await this.addContact({ contactId: recipientId });
+    const response = await fetch(`${API_BASE_URL}/contact-requests`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({ contactId: recipientId }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || "Failed to send contact request");
+    }
+
+    const r = await response.json();
     return {
-      id: contact.id,
-      requester_id: requesterId,
-      recipient_id: recipientId,
-      status: "accepted",
-      created_at: contact.added_at,
-      updated_at: contact.updated_at,
+      id: r.id,
+      requester_id: r.requesterId ?? r.requester_id,
+      recipient_id: r.recipientId ?? r.recipient_id,
+      status: r.status,
+      created_at: toIso(r.createdAt ?? r.created_at),
+      updated_at: toIso(r.updatedAt ?? r.updated_at),
     };
   },
 
-  // No-op: the backend adds contacts directly (no request/accept flow).
-  // Returns a ContactRequest-shaped response for interface compatibility.
   async acceptContactRequest(requestId: string): Promise<ContactRequest> {
-    const ownerId = await getOwnerId();
-    const now = new Date().toISOString();
+    const response = await fetch(
+      `${API_BASE_URL}/contact-requests/${encodeURIComponent(requestId)}/accept`,
+      {
+        method: "PATCH",
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || "Failed to accept contact request");
+    }
+
+    const r = await response.json();
     return {
-      id: requestId,
-      requester_id: "",
-      recipient_id: ownerId,
-      status: "accepted",
-      created_at: now,
-      updated_at: now,
+      id: r.id,
+      requester_id: r.requesterId ?? r.requester_id,
+      recipient_id: r.recipientId ?? r.recipient_id,
+      status: r.status,
+      created_at: toIso(r.createdAt ?? r.created_at),
+      updated_at: toIso(r.updatedAt ?? r.updated_at),
     };
   },
 
-  // No-op: the backend has no contact request system, so there is nothing
-  // to refuse. Returns a ContactRequest-shaped response for interface compatibility.
   async refuseContactRequest(requestId: string): Promise<ContactRequest> {
-    const ownerId = await getOwnerId();
-    const now = new Date().toISOString();
+    const response = await fetch(
+      `${API_BASE_URL}/contact-requests/${encodeURIComponent(requestId)}/reject`,
+      {
+        method: "PATCH",
+        headers: {
+          ...(await getAuthHeaders()),
+        },
+      },
+    );
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || "Failed to reject contact request");
+    }
+
+    const r = await response.json();
     return {
-      id: requestId,
-      requester_id: "",
-      recipient_id: ownerId,
-      status: "rejected",
-      created_at: now,
-      updated_at: now,
+      id: r.id,
+      requester_id: r.requesterId ?? r.requester_id,
+      recipient_id: r.recipientId ?? r.recipient_id,
+      status: r.status,
+      created_at: toIso(r.createdAt ?? r.created_at),
+      updated_at: toIso(r.updatedAt ?? r.updated_at),
     };
   },
 

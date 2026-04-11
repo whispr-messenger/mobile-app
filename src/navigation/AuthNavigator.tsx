@@ -1,5 +1,4 @@
-import React from "react";
-import { ActivityIndicator, View } from "react-native";
+import React, { useEffect, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
@@ -16,12 +15,19 @@ import { ConversationsListScreen } from "../screens/Chat/ConversationsListScreen
 import { ChatScreen } from "../screens/Chat/ChatScreen";
 import { ContactsScreen } from "../screens/Contacts/ContactsScreen";
 import { BlockedUsersScreen } from "../screens/Contacts/BlockedUsersScreen";
+import { MyQRCodeScreen } from "../screens/Contacts/MyQRCodeScreen";
 import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
 import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
+import { CallsScreen } from "../screens/Calls/CallsScreen";
+import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
+
 import { useAuth } from "../context/AuthContext";
-import { colors } from "../theme/colors";
+import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
 import type { AuthPurpose } from "../types/auth";
+
+/** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
+const SPLASH_MIN_MS = 2000;
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -52,30 +58,31 @@ export type AuthStackParamList = {
   ConversationsList: undefined;
   Chat: { conversationId: string };
   Contacts: undefined;
+  MyQRCode: undefined;
+  QRCodeScanner: undefined;
   BlockedUsers: undefined;
   GroupDetails: { groupId: string; conversationId: string };
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
+  Calls: undefined;
+  ModerationTest: undefined;
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
 export const AuthNavigator: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
+  const [splashMinElapsed, setSplashMinElapsed] = useState(false);
 
-  if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: colors.background.dark,
-        }}
-      >
-        <ActivityIndicator size="large" color={colors.primary.main} />
-      </View>
-    );
+  useEffect(() => {
+    const t = setTimeout(() => setSplashMinElapsed(true), SPLASH_MIN_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  const showSplash = isLoading || !splashMinElapsed;
+
+  if (showSplash) {
+    return <SplashScreen />;
   }
 
   return (
@@ -104,7 +111,14 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Otp" component={OtpScreen} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />
-      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          // Le swipe-back horizontal capturait les gestes verticaux sur iOS ; le retour reste via la flèche.
+          gestureEnabled: false,
+        }}
+      />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
@@ -128,6 +142,13 @@ export const AuthNavigator: React.FC = () => {
       />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Contacts" component={ContactsScreen} />
+      <Stack.Screen name="MyQRCode" component={MyQRCodeScreen} />
+      <Stack.Screen
+        name="QRCodeScanner"
+        getComponent={() =>
+          require("../screens/Contacts/QRCodeScannerScreen").QRCodeScannerScreen
+        }
+      />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
       <Stack.Screen name="GroupManagement" component={GroupManagementScreen} />
@@ -135,6 +156,10 @@ export const AuthNavigator: React.FC = () => {
         name="ScheduledMessages"
         component={ScheduledMessagesScreen}
       />
+      <Stack.Screen name="Calls" component={CallsScreen} />
+      {__DEV__ && (
+        <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
+      )}
     </Stack.Navigator>
   );
 };

@@ -1,18 +1,24 @@
 import * as Device from "expo-device";
-import { randomUUID } from "expo-crypto";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import * as ExpoCrypto from "expo-crypto";
 import type { DeviceInfo } from "../types/auth";
 import { storage } from "./storage";
 
 const DEVICE_ID_KEY = "whispr.device.id";
+
+function generateUUID(): string {
+  // expo-crypto.randomUUID() is available in both React Native/Hermes and web
+  // and always uses a cryptographically secure source.
+  return ExpoCrypto.randomUUID();
+}
 
 export const DeviceService = {
   async getOrCreateDeviceId(): Promise<string> {
     const existing = await storage.getItem(DEVICE_ID_KEY);
     if (existing) return existing;
 
-    const id = randomUUID();
+    const id = generateUUID();
     await storage.setItem(DEVICE_ID_KEY, id);
     return id;
   },

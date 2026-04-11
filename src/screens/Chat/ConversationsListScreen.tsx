@@ -35,6 +35,7 @@ import { colors } from "../../theme/colors";
 import Toast from "../../components/Toast/Toast";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { messagingAPI } from "../../services/messaging/api";
+import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
@@ -50,6 +51,9 @@ export const ConversationsListScreen: React.FC = () => {
   );
   const applyConversationUpdate = useConversationsStore(
     (s) => s.applyConversationUpdate,
+  );
+  const applyConversationSummaries = useConversationsStore(
+    (s) => s.applyConversationSummaries,
   );
   const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
   const storeDeleteConversation = useConversationsStore(
@@ -135,7 +139,7 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  useWebSocket({
+  const { connectionState } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -145,6 +149,9 @@ export const ConversationsListScreen: React.FC = () => {
     onConversationUpdate: (conversation: Conversation) => {
       applyConversationUpdate(conversation);
     },
+    onConversationSummaries: (conversations: Conversation[]) => {
+      applyConversationSummaries(conversations);
+    },
   });
 
   useEffect(() => {
@@ -152,6 +159,19 @@ export const ConversationsListScreen: React.FC = () => {
     loadManuallyUnreadIds();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Refresh conversations when WebSocket reconnects to pick up messages
+  // that were missed during the disconnection window
+  const prevConnStateRef = React.useRef<string>(connectionState);
+  useEffect(() => {
+    const wasOffline =
+      prevConnStateRef.current === "disconnected" ||
+      prevConnStateRef.current === "reconnecting";
+    if (wasOffline && connectionState === "connected") {
+      refreshConversations();
+    }
+    prevConnStateRef.current = connectionState;
+  }, [connectionState, refreshConversations]);
 
   const handleConversationPress = useCallback(
     (conversationId: string) => {
@@ -382,6 +402,7 @@ export const ConversationsListScreen: React.FC = () => {
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineBanner connectionState={connectionState} />
         {/* Header */}
         <View
           style={[

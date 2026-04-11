@@ -73,6 +73,8 @@ jobs:
                 exit 1
               fi
 
+              git fetch --all --quiet
+
               if ! git rev-parse --verify "${COMMIT_SHA}^{commit}" >/dev/null 2>&1; then
                 echo "❌ Error: Commit SHA '${COMMIT_SHA}' does not exist."
                 exit 1
@@ -115,13 +117,13 @@ jobs:
         with:
           repository: whispr-messenger/infrastructure
           path: infrastructure
-          ref: main
+          ref: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
           token: ${{ steps.generate_token.outputs.token }}
           fetch-depth: 0
 
       - name: Validate deployment manifest path
         run: |
-          MANIFEST_PATH="infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml"
+          MANIFEST_PATH="infrastructure/k8s/whispr/preprod/mobile-web/deployment.yaml"
           if [ ! -f "$MANIFEST_PATH" ]; then
             echo "❌ Error: Deployment manifest not found at $MANIFEST_PATH"
             exit 1
@@ -138,12 +140,12 @@ jobs:
           FULL_IMAGE=$(echo "${FULL_IMAGE}" | tr '[:upper:]' '[:lower:]')
 
           echo "Updating deployment image to: ${FULL_IMAGE}"
-          yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml
+          yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/preprod/mobile-web/deployment.yaml
 
       - name: Verify update
         run: |
           echo "Updated deployment manifest:"
-          yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml
+          yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/preprod/mobile-web/deployment.yaml
 
       - name: Commit and push changes
         working-directory: infrastructure
@@ -151,11 +153,12 @@ jobs:
           COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+          INFRA_BRANCH: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          if git diff --quiet k8s/whispr/prod/mobile-web/deployment.yaml; then
+          if git diff --quiet k8s/whispr/preprod/mobile-web/deployment.yaml; then
             echo "No changes to commit"
             exit 0
           fi
@@ -168,14 +171,14 @@ jobs:
             COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA}"
           fi
 
-          git add k8s/whispr/prod/mobile-web/deployment.yaml
+          git add k8s/whispr/preprod/mobile-web/deployment.yaml
           git commit -m "${COMMIT_MSG}"
 
           MAX_RETRIES=3
           for attempt in $(seq 1 "$MAX_RETRIES"); do
             echo "Attempt ${attempt}/${MAX_RETRIES}..."
 
-            if ! git pull origin main --rebase; then
+            if ! git pull origin "${INFRA_BRANCH}" --rebase; then
               git rebase --abort 2>/dev/null || true
               git reset --soft HEAD~1
               git commit -m "${COMMIT_MSG}"
@@ -183,7 +186,7 @@ jobs:
               continue
             fi
 
-            if git push "https://x-access-token:${GH_TOKEN}@github.com/whispr-messenger/infrastructure.git" main; then
+            if git push "https://x-access-token:${GH_TOKEN}@github.com/whispr-messenger/infrastructure.git" "${INFRA_BRANCH}"; then
               echo "✅ Push successful"
               exit 0
             fi
