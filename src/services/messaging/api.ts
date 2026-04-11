@@ -533,8 +533,9 @@ export const messagingAPI = {
 
   /**
    * Search messages globally across all conversations.
-   * Calls GET /messaging/api/messages/search?query=...
-   * Returns null if the endpoint is not available so callers can fall back.
+   * Calls GET /messages/search?query=...
+   * Returns null if the endpoint is unavailable so callers fall back to
+   * local filtering (conversation name + last message content).
    */
   async searchMessagesGlobal(
     query: string,
@@ -555,12 +556,15 @@ export const messagingAPI = {
       const response = await authenticatedFetch(url);
 
       if (!response.ok) {
+        // Endpoint may not exist or returned error — signal fallback to local search
+        console.warn("[searchMessagesGlobal] API returned", response.status, "— falling back to local search");
         return null;
       }
 
       const data = await unwrap(response);
       return Array.isArray(data) ? data : [];
-    } catch {
+    } catch (err) {
+      console.warn("[searchMessagesGlobal] Network error — falling back to local search", err);
       return null;
     }
   },
