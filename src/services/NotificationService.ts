@@ -75,7 +75,7 @@ export const NotificationService = {
   },
 
   /**
-   * POST /notification/api/settings/:id
+   * PUT /notification/api/settings/:id
    * Update notification settings for a user.
    */
   async updateSettings(
@@ -83,7 +83,7 @@ export const NotificationService = {
     settings: Partial<NotificationSettings>
   ): Promise<NotificationSettings> {
     return apiFetch<NotificationSettings>(`/api/settings/${encodeURIComponent(userId)}`, {
-      method: 'POST',
+      method: 'PUT',
       body: JSON.stringify(settings),
     });
   },
