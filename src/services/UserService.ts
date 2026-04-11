@@ -266,7 +266,23 @@ export class UserService {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json().catch(() => null);
+      const raw = await response.json().catch(() => null);
+      const data: PrivacySettings = {
+        profilePictureVisibility:
+          raw?.profilePictureVisibility ??
+          raw?.profile_picture_visibility ??
+          "everyone",
+        firstNameVisibility:
+          raw?.firstNameVisibility ?? raw?.first_name_visibility ?? "everyone",
+        lastNameVisibility:
+          raw?.lastNameVisibility ?? raw?.last_name_visibility ?? "everyone",
+        biographyVisibility:
+          raw?.biographyVisibility ?? raw?.biography_visibility ?? "everyone",
+        searchVisibility:
+          raw?.searchVisibility ?? raw?.search_visibility ?? true,
+        phoneNumberSearch:
+          raw?.phoneNumberSearch ?? raw?.phone_number_search ?? "everyone",
+      };
       return { success: true, settings: data };
     } catch (error) {
       console.error("Erreur récupération paramètres confidentialité:", error);
@@ -296,7 +312,14 @@ export class UserService {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(settings),
+        body: JSON.stringify({
+          profile_picture_visibility: settings.profilePictureVisibility,
+          first_name_visibility: settings.firstNameVisibility,
+          last_name_visibility: settings.lastNameVisibility,
+          biography_visibility: settings.biographyVisibility,
+          search_visibility: settings.searchVisibility,
+          phone_number_search: settings.phoneNumberSearch,
+        }),
       });
 
       if (!response.ok) {
