@@ -59,6 +59,8 @@ interface MessageBubbleProps {
   onReactionPress?: (messageId: string, emoji: string) => void;
   /** Appui long sur une pastille de réaction : afficher les réacteurs */
   onReactionDetailsPress?: (messageId: string, emoji: string) => void;
+  /** Resolve a user_id to a display name (for reaction hover tooltips) */
+  resolveReactorName?: (userId: string) => string;
   onReplyPress?: (messageId: string) => void;
   onLongPress?: () => void;
   isHighlighted?: boolean;
@@ -72,6 +74,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   senderName,
   onReactionPress,
   onReactionDetailsPress,
+  resolveReactorName,
   onReplyPress,
   onLongPress,
   isHighlighted = false,
@@ -470,6 +473,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   ? (emoji) => onReactionDetailsPress(message.id, emoji)
                   : undefined
               }
+              resolveReactorName={resolveReactorName}
             />
           ) : null}
         </Animated.View>

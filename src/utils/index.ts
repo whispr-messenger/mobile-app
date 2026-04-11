@@ -9,7 +9,8 @@ export { copyToClipboard } from "./clipboard";
  * preventing the "@@username" bug.
  */
 export const formatUsername = (username: string | undefined | null): string => {
-  if (!username) return "@";
+  if (!username) return "";
   const clean = username.replace(/^@+/, "");
+  if (!clean) return "";
   return `@${clean}`;
 };

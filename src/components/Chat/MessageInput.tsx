@@ -186,7 +186,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         const member = members.find(
           (m) =>
             m.username === username ||
-            m.display_name.toLowerCase() === username.toLowerCase(),
+            (m.display_name || "").toLowerCase() === username.toLowerCase(),
         );
         if (member) {
           mentions.push(member.id);
@@ -564,7 +564,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                       {members
                         .filter((member) => {
                           if (!mentionQuery) return true;
-                          const name = member.display_name.toLowerCase();
+                          const name = (member.display_name || "").toLowerCase();
                           const username = member.username?.toLowerCase() || "";
                           return (
                             name.includes(mentionQuery) ||
