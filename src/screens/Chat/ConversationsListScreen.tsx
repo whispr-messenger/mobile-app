@@ -464,21 +464,26 @@ export const ConversationsListScreen: React.FC = () => {
                   setMessageSearchConvIds(new Set());
                   return;
                 }
+                // Server-side global search is best-effort.
+                // If the endpoint is unavailable or errors, local filtering
+                // (conversation name + last message) still works as fallback.
                 searchTimeoutRef.current = setTimeout(async () => {
                   try {
                     const results = await messagingAPI.searchMessagesGlobal(
                       text.trim(),
                       { limit: 50 },
                     );
-                    if (results) {
+                    if (results && results.length > 0) {
                       const convIds = new Set(
                         results.map((msg) => msg.conversation_id),
                       );
                       setMessageSearchConvIds(convIds);
                     } else {
+                      // API returned null (unavailable) or empty — rely on local search
                       setMessageSearchConvIds(new Set());
                     }
                   } catch {
+                    // Global search failed — local filtering handles search
                     setMessageSearchConvIds(new Set());
                   }
                 }, 300);
