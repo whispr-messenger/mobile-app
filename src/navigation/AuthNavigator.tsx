@@ -41,7 +41,7 @@ export type AuthStackParamList = {
     firstName?: string;
     lastName?: string;
     phoneNumber?: string;
-    profilePictureUrl?: string;
+    profilePicture?: string;
     username?: string;
     biography?: string;
   };
