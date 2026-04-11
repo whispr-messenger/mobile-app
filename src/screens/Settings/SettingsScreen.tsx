@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
-  Modal,
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -28,6 +27,7 @@ import {
   NotificationService,
   NotificationSettings,
 } from "../../services/NotificationService";
+import { SettingsSelectionModal } from "./SettingsSelectionModal";
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -543,140 +543,6 @@ export const SettingsScreen: React.FC = () => {
     </View>
   );
 
-  const SelectionModal = ({
-    visible,
-    onClose,
-    title,
-    subtitle,
-    options,
-    selectedValue,
-    onSelect,
-  }: {
-    visible: boolean;
-    onClose: () => void;
-    title: string;
-    subtitle?: string;
-    options: { label: string; value: string }[];
-    selectedValue: string;
-    onSelect: (value: string) => void;
-  }) => {
-    const handleSelect = (value: string) => {
-      if (selectedValue !== value) {
-        onSelect(value);
-      }
-    };
-
-    return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="slide"
-        onRequestClose={onClose}
-        statusBarTranslucent
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={onClose}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View
-              style={[
-                styles.modalContent,
-                { backgroundColor: themeColors.background.primary },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modalTitle,
-                  {
-                    color: themeColors.text.primary,
-                    fontSize: getFontSize("xl"),
-                  },
-                ]}
-              >
-                {title}
-              </Text>
-              {subtitle && (
-                <Text
-                  style={[
-                    styles.modalSubtitle,
-                    {
-                      color: themeColors.text.secondary,
-                      fontSize: getFontSize("base"),
-                    },
-                  ]}
-                >
-                  {subtitle}
-                </Text>
-              )}
-              <ScrollView style={styles.modalScrollView}>
-                {options.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.modalOption,
-                      {
-                        backgroundColor:
-                          selectedValue === option.value
-                            ? themeColors.primary + "20"
-                            : "transparent",
-                      },
-                    ]}
-                    onPress={() => handleSelect(option.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.modalOptionText,
-                        {
-                          color:
-                            selectedValue === option.value
-                              ? themeColors.primary
-                              : themeColors.text.primary,
-                          fontSize: getFontSize("base"),
-                        },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    {selectedValue === option.value && (
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color={themeColors.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={[
-                  styles.modalCloseButton,
-                  { backgroundColor: themeColors.primary },
-                ]}
-                onPress={onClose}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.modalCloseButtonText,
-                    { color: "#FFFFFF", fontSize: getFontSize("base") },
-                  ]}
-                >
-                  {getLocalizedText("common.cancel")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    );
-  };
-
   return (
     <LinearGradient
       colors={themeColors.background.gradient}
@@ -1112,36 +978,44 @@ export const SettingsScreen: React.FC = () => {
       </ScrollView>
 
       {/* Modals */}
-      <SelectionModal
+      <SettingsSelectionModal
         visible={showThemeModal}
         onClose={() => setShowThemeModal(false)}
         title={getLocalizedText("settings.theme")}
-        subtitle="Choose your theme"
+        subtitle={getLocalizedText("settings.modalPickHint")}
         options={[
-          { label: "Automatic", value: "auto" },
+          { label: getLocalizedText("settings.theme.auto"), value: "auto" },
           { label: getLocalizedText("settings.theme.light"), value: "light" },
           { label: getLocalizedText("settings.theme.dark"), value: "dark" },
         ]}
         selectedValue={settings.theme}
         onSelect={(value) => handleSelect("theme", value)}
+        themeColors={themeColors}
+        getFontSize={getFontSize}
+        cancelLabel={getLocalizedText("common.cancel")}
       />
 
-      <SelectionModal
+      <SettingsSelectionModal
         visible={showLanguageModal}
         onClose={() => setShowLanguageModal(false)}
         title={getLocalizedText("settings.language")}
+        subtitle={getLocalizedText("settings.modalPickHint")}
         options={[
           { label: getLocalizedText("settings.language.fr"), value: "fr" },
           { label: getLocalizedText("settings.language.en"), value: "en" },
         ]}
         selectedValue={settings.language}
         onSelect={(value) => handleSelect("language", value)}
+        themeColors={themeColors}
+        getFontSize={getFontSize}
+        cancelLabel={getLocalizedText("common.cancel")}
       />
 
-      <SelectionModal
+      <SettingsSelectionModal
         visible={showFontSizeModal}
         onClose={() => setShowFontSizeModal(false)}
         title={getLocalizedText("settings.fontSize")}
+        subtitle={getLocalizedText("settings.modalPickHint")}
         options={[
           {
             label: getLocalizedText("settings.fontSize.small"),
@@ -1158,16 +1032,20 @@ export const SettingsScreen: React.FC = () => {
         ]}
         selectedValue={settings.fontSize}
         onSelect={(value) => handleSelect("fontSize", value)}
+        themeColors={themeColors}
+        getFontSize={getFontSize}
+        cancelLabel={getLocalizedText("common.cancel")}
       />
 
       {selectedPrivacyItem && (
-        <SelectionModal
+        <SettingsSelectionModal
           visible={showPrivacyModal}
           onClose={() => {
             setShowPrivacyModal(false);
             setSelectedPrivacyItem(null);
           }}
           title={selectedPrivacyItem}
+          subtitle={getLocalizedText("settings.modalPickHint")}
           options={[
             { label: "Everyone", value: "Everyone" },
             { label: "Contacts", value: "Contacts" },
@@ -1179,6 +1057,9 @@ export const SettingsScreen: React.FC = () => {
             ] as string
           }
           onSelect={(value) => handleSelect("privacy", value)}
+          themeColors={themeColors}
+          getFontSize={getFontSize}
+          cancelLabel={getLocalizedText("common.cancel")}
         />
       )}
     </LinearGradient>
@@ -1255,50 +1136,6 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     marginTop: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: "80%",
-  },
-  modalTitle: {
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  modalScrollView: {
-    maxHeight: 400,
-  },
-  modalOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  modalOptionText: {
-    fontWeight: "500",
-  },
-  modalCloseButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  modalCloseButtonText: {
-    fontWeight: "600",
   },
 });
 
