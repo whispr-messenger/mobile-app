@@ -307,7 +307,15 @@ export const messagingAPI = {
       throw new Error("Failed to fetch message reactions");
     }
 
-    return unwrap(response);
+    const data = await unwrap(response);
+    if (Array.isArray(data)) {
+      return { reactions: data };
+    }
+    const reactions = (data as { reactions?: unknown })?.reactions;
+    if (Array.isArray(reactions)) {
+      return { reactions };
+    }
+    return { reactions: [] };
   },
 
   async pinMessage(conversationId: string, messageId: string): Promise<void> {

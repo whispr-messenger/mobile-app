@@ -1,8 +1,9 @@
 /**
- * Réactions rapides (spec) + bouton « Plus » ouvrant le sélecteur Unicode complet.
+ * Réactions rapides + bouton « Plus » (grille complète).
+ * Design aligné palette Whispr (dark) ou carte claire simple (light).
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,10 +11,12 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { QUICK_REACTION_DEFAULTS } from "../../data/emojiPickerData";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
@@ -29,7 +32,15 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
   onClose,
   onReactionSelect,
 }) => {
+  const { settings } = useTheme();
+  const isLight = settings.theme === "light";
   const [showFullPicker, setShowFullPicker] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setShowFullPicker(false);
+    }
+  }, [visible]);
 
   const handleQuick = (emoji: string) => {
     if (Platform.OS !== "web") {
@@ -39,73 +50,123 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
     onClose();
   };
 
+  const openFullPicker = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setShowFullPicker(true);
+  };
+
+  /** Barre rapide : masquée quand la grille complète est ouverte (évite 2 modales qui se bloquent). */
+  const showQuickBar = visible && !showFullPicker;
+
   return (
     <>
       <Modal
-        visible={visible}
+        visible={showQuickBar}
         transparent
         animationType="fade"
         onRequestClose={onClose}
       >
-        <TouchableOpacity
+        <Pressable
           style={styles.overlay}
-          activeOpacity={1}
           onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer"
         >
-          <View
-            style={styles.centerWrap}
-            onStartShouldSetResponder={() => true}
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.cardWrap,
+              isLight ? styles.cardWrapLight : styles.cardWrapDark,
+            ]}
           >
-            <LinearGradient
-              colors={[
-                "rgba(26, 31, 58, 0.97)",
-                "rgba(40, 45, 85, 0.98)",
-                "rgba(79, 70, 229, 0.35)",
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.card}
-            >
-              <View style={styles.glowRing} />
-              <View style={styles.row}>
-                {QUICK_REACTION_DEFAULTS.map((emoji) => (
+            {isLight ? (
+              <View style={[styles.cardInner, styles.cardInnerLight]}>
+                <Text style={styles.titleLight}>Réagir</Text>
+                <View style={styles.row}>
+                  {QUICK_REACTION_DEFAULTS.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={styles.reactionHit}
+                      onPress={() => handleQuick(emoji)}
+                      activeOpacity={0.65}
+                      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                    >
+                      <Text style={styles.emoji}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
                   <TouchableOpacity
-                    key={emoji}
-                    style={styles.reactionHit}
-                    onPress={() => handleQuick(emoji)}
-                    activeOpacity={0.65}
+                    style={styles.plusWrap}
+                    onPress={openFullPicker}
+                    accessibilityLabel="Plus d'emojis"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={styles.emoji}>{emoji}</Text>
+                    <View style={styles.plusCircleLight}>
+                      <Ionicons
+                        name="add"
+                        size={26}
+                        color={colors.primary.main}
+                      />
+                    </View>
                   </TouchableOpacity>
-                ))}
-                <TouchableOpacity
-                  style={styles.plusWrap}
-                  onPress={() => {
-                    if (Platform.OS !== "web") {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                    setShowFullPicker(true);
-                  }}
-                  accessibilityLabel="Plus d'emojis"
-                >
-                  <LinearGradient
-                    colors={[colors.primary.main, colors.secondary.main]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.plusGradient}
-                  >
-                    <Ionicons name="add" size={26} color={colors.text.light} />
-                  </LinearGradient>
-                </TouchableOpacity>
+                </View>
               </View>
-            </LinearGradient>
-          </View>
-        </TouchableOpacity>
+            ) : (
+              <LinearGradient
+                colors={[
+                  "rgba(26, 31, 58, 0.98)",
+                  "rgba(44, 36, 92, 0.95)",
+                  "rgba(254, 122, 92, 0.22)",
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardInner}
+              >
+                <View style={styles.accentTop} />
+                <View style={styles.row}>
+                  {QUICK_REACTION_DEFAULTS.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={styles.reactionHit}
+                      onPress={() => handleQuick(emoji)}
+                      activeOpacity={0.65}
+                      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                    >
+                      <Text style={styles.emoji}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.plusWrap}
+                    onPress={openFullPicker}
+                    accessibilityLabel="Plus d'emojis"
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <LinearGradient
+                      colors={[colors.primary.main, colors.secondary.main]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.plusGradient}
+                    >
+                      <Ionicons
+                        name="add"
+                        size={26}
+                        color={colors.text.light}
+                      />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            )}
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <EmojiPickerSheet
-        visible={showFullPicker}
-        onClose={() => setShowFullPicker(false)}
+        visible={visible && showFullPicker}
+        onClose={() => {
+          setShowFullPicker(false);
+        }}
         onSelect={(emoji) => {
           onReactionSelect(emoji);
           setShowFullPicker(false);
@@ -121,36 +182,60 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(8, 10, 26, 0.45)",
+    backgroundColor: "rgba(8, 10, 26, 0.5)",
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 20,
   },
-  centerWrap: {
-    borderRadius: 28,
-    overflow: "visible",
+  cardWrap: {
+    borderRadius: 24,
+    maxWidth: 400,
+    width: "100%",
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.35,
-        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
       },
-      android: { elevation: 16 },
+      android: { elevation: 14 },
       default: {},
     }),
   },
-  card: {
-    borderRadius: 28,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+  cardWrapDark: {
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255, 255, 255, 0.12)",
   },
-  glowRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+  cardWrapLight: {
     borderWidth: 1,
-    borderColor: "rgba(255, 122, 92, 0.35)",
+    borderColor: "rgba(0, 0, 0, 0.08)",
+    backgroundColor: "#FFFFFF",
+  },
+  cardInner: {
+    borderRadius: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    overflow: "hidden",
+  },
+  cardInnerLight: {
+    backgroundColor: "#FFFFFF",
+  },
+  accentTop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: colors.primary.main,
+    opacity: 0.85,
+  },
+  titleLight: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text.secondary,
+    textAlign: "center",
+    marginBottom: 10,
+    letterSpacing: 0.3,
   },
   row: {
     flexDirection: "row",
@@ -167,7 +252,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
   },
   plusWrap: {
-    marginLeft: 4,
+    marginLeft: 6,
   },
   plusGradient: {
     width: 44,
@@ -176,6 +261,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.35)",
+    borderColor: "rgba(255, 255, 255, 0.35)",
+  },
+  plusCircleLight: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(254, 122, 92, 0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(254, 122, 92, 0.35)",
   },
 });

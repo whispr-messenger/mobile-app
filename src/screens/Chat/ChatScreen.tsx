@@ -1050,11 +1050,23 @@ export const ChatScreen: React.FC = () => {
           ),
         );
       } catch (error: unknown) {
-        const e = error as { message?: string };
-        showAlert(
-          "Réaction",
-          e.message || "Impossible de mettre à jour la réaction.",
-        );
+        const e = error as {
+          message?: string;
+          body?: { details?: Record<string, string[]>; error?: string };
+        };
+        let msg = e.message || "Impossible de mettre à jour la réaction.";
+        const details = e.body?.details;
+        if (details && typeof details === "object") {
+          const lines = Object.entries(details).flatMap(([field, errs]) =>
+            (Array.isArray(errs) ? errs : [String(errs)]).map(
+              (x) => `${field}: ${x}`,
+            ),
+          );
+          if (lines.length > 0) {
+            msg = lines.join("\n");
+          }
+        }
+        showAlert("Réaction", msg);
         logger.error("ChatScreen", "Error toggling reaction", error);
       }
     },
