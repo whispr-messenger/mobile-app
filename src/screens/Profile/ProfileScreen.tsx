@@ -43,7 +43,7 @@ interface UserProfile {
   username: string;
   phoneNumber: string;
   biography: string;
-  profilePictureUrl?: string;
+  profilePicture?: string;
   isOnline: boolean;
   lastSeen?: string;
   createdAt?: string;
@@ -63,7 +63,7 @@ type RouteParams = {
   username?: string;
   phoneNumber?: string;
   biography?: string;
-  profilePictureUrl?: string;
+  profilePicture?: string;
 };
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
@@ -83,7 +83,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     username: params?.username || "",
     phoneNumber: params?.phoneNumber || "",
     biography: params?.biography || "",
-    profilePictureUrl: params?.profilePictureUrl,
+    profilePicture: params?.profilePicture,
     isOnline: true,
     lastSeen: "Maintenant",
     createdAt: "",
@@ -124,7 +124,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             username: res.profile!.username || prev.username || "",
             phoneNumber: res.profile!.phoneNumber || prev.phoneNumber || "",
             biography: res.profile!.biography || prev.biography || "",
-            profilePictureUrl: res.profile!.profilePictureUrl,
+            profilePicture: res.profile!.profilePicture,
             createdAt: res.profile!.createdAt || prev.createdAt,
           }));
         }
@@ -159,7 +159,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (!result.canceled && result.assets[0]) {
         setProfile((prev) => ({
           ...prev,
-          profilePictureUrl: result.assets[0].uri,
+          profilePicture: result.assets[0].uri,
         }));
         setShowImagePicker(false);
         Alert.alert("Succès", "Photo de profil mise à jour");
@@ -191,7 +191,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (!result.canceled && result.assets[0]) {
         setProfile((prev) => ({
           ...prev,
-          profilePictureUrl: result.assets[0].uri,
+          profilePicture: result.assets[0].uri,
         }));
         setShowImagePicker(false);
         Alert.alert("Succès", "Photo de profil mise à jour");
@@ -245,35 +245,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
     try {
       // Upload avatar if it's a local URI (not already a remote URL)
-      let avatarUrl = profile.profilePictureUrl;
-      const previousProfilePicture = profile.profilePictureUrl;
+      let profilePictureUrl = profile.profilePicture;
+      const previousProfilePicture = profile.profilePicture;
       if (
-        avatarUrl &&
-        (avatarUrl.startsWith("file://") ||
-          avatarUrl.startsWith("content://") ||
-          avatarUrl.startsWith("ph://"))
+        profilePictureUrl &&
+        (profilePictureUrl.startsWith("file://") ||
+          profilePictureUrl.startsWith("content://") ||
+          profilePictureUrl.startsWith("ph://"))
       ) {
         try {
-          const fileName = avatarUrl.split("/").pop() || "avatar.jpg";
+          const fileName = profilePictureUrl.split("/").pop() || "avatar.jpg";
           const fileType = fileName.endsWith(".png")
             ? "image/png"
             : "image/jpeg";
           const uploadResult = await MediaService.uploadMedia({
-            uri: avatarUrl,
+            uri: profilePictureUrl,
             name: fileName,
             type: fileType,
           });
-          avatarUrl = uploadResult.url;
+          profilePictureUrl = uploadResult.url;
           setProfile((prev) => ({
             ...prev,
-            profilePictureUrl: uploadResult.url,
+            profilePicture: uploadResult.url,
           }));
         } catch (uploadError) {
           console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
           // Revert to previous profile picture to avoid broken state
           setProfile((prev) => ({
             ...prev,
-            profilePictureUrl: previousProfilePicture,
+            profilePicture: previousProfilePicture,
           }));
           Alert.alert("Erreur", "Impossible de télécharger la photo de profil");
           setLoading(false);
@@ -287,7 +287,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         lastName: profile.lastName,
         username: profile.username,
         biography: profile.biography,
-        profilePictureUrl: avatarUrl,
+        profilePicture: profilePictureUrl,
       });
 
       if (!res.success) {
@@ -462,23 +462,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             {/* Profile Picture Section */}
             <Animated.View
               style={[
-                styles.profilePictureUrlSection,
+                styles.profilePictureSection,
                 { transform: [{ scale: scaleAnim }] },
               ]}
             >
               <TouchableOpacity
                 onPress={() => setShowImagePicker(true)}
-                style={styles.profilePictureUrlContainer}
+                style={styles.profilePictureContainer}
                 disabled={!isEditing}
               >
-                {profile.profilePictureUrl ? (
+                {profile.profilePicture ? (
                   <Image
-                    source={{ uri: profile.profilePictureUrl }}
-                    style={styles.profilePictureUrl}
+                    source={{ uri: profile.profilePicture }}
+                    style={styles.profilePicture}
                   />
                 ) : (
-                  <View style={styles.profilePictureUrlPlaceholder}>
-                    <Text style={styles.profilePictureUrlPlaceholderText}>
+                  <View style={styles.profilePicturePlaceholder}>
+                    <Text style={styles.profilePicturePlaceholderText}>
                       {(profile.firstName || "").charAt(0)}
                       {(profile.lastName || "").charAt(0)}
                     </Text>
@@ -492,7 +492,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 )}
               </TouchableOpacity>
 
-              <Text style={styles.profilePictureUrlLabel}>
+              <Text style={styles.profilePictureLabel}>
                 {isEditing ? "Appuyez pour changer" : "Photo de profil"}
               </Text>
             </Animated.View>
@@ -781,15 +781,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
   },
-  profilePictureUrlSection: {
+  profilePictureSection: {
     alignItems: "center",
     paddingVertical: spacing.xxxl,
   },
-  profilePictureUrlContainer: {
+  profilePictureContainer: {
     position: "relative",
     marginBottom: spacing.md,
   },
-  profilePictureUrl: {
+  profilePicture: {
     width: 120,
     height: 120,
     borderRadius: 60,
@@ -797,7 +797,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.25)",
   },
-  profilePictureUrlPlaceholder: {
+  profilePicturePlaceholder: {
     width: 120,
     height: 120,
     borderRadius: 60,
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  profilePictureUrlPlaceholderText: {
+  profilePicturePlaceholderText: {
     fontSize: typography.fontSize.xxxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text.light,
@@ -826,7 +826,7 @@ const styles = StyleSheet.create({
   editOverlayText: {
     fontSize: typography.fontSize.md,
   },
-  profilePictureUrlLabel: {
+  profilePictureLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.text.light,
     textAlign: "center",

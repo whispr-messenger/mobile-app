@@ -14,7 +14,7 @@ export interface UserProfile {
   username: string;
   phoneNumber: string;
   biography: string;
-  profilePictureUrl?: string;
+  profilePicture?: string;
   isOnline: boolean;
   lastSeen?: string;
   createdAt: string;
@@ -26,7 +26,7 @@ export interface UpdateProfileRequest {
   lastName?: string;
   username?: string;
   biography?: string;
-  profilePictureUrl?: string;
+  profilePicture?: string;
 }
 
 export interface UpdateProfileResponse {
@@ -153,7 +153,7 @@ export class UserService {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ profilePictureUrl: imageUri }),
+        body: JSON.stringify({ profilePicture: imageUri }),
       });
 
       if (!response.ok) {
