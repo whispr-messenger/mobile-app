@@ -126,10 +126,27 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getLastMessagePreview = () => {
     const msg = conversation.last_message;
     if (!msg) return "";
-    if (msg.message_type === "media" || msg.content === "Photo") return "Photo";
-    if (msg.content === "Vidéo") return "Vidéo";
-    if (msg.content === "Message vocal") return "Message vocal";
-    if (msg.content === "Fichier") return "Fichier";
+    if (
+      msg.content === "Photo" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Photo"))
+    )
+      return "Photo";
+    if (
+      msg.content === "Vidéo" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Vidéo"))
+    )
+      return "Vidéo";
+    if (
+      msg.content === "Message vocal" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Message vocal"))
+    )
+      return "Message vocal";
+    if (
+      msg.content === "Fichier" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Fichier"))
+    )
+      return "Fichier";
+
     return msg.content || "";
   };
 
@@ -382,6 +399,8 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
       nextProps.conversation.unread_count &&
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
     prevProps.conversation.is_muted === nextProps.conversation.is_muted &&
+    prevProps.conversation.display_name === nextProps.conversation.display_name &&
+    prevProps.conversation.avatar_url === nextProps.conversation.avatar_url &&
     prevEditMode === nextEditMode &&
     prevIsSelected === nextIsSelected
   );

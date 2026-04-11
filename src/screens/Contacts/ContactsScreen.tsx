@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   StyleSheet,
@@ -18,6 +19,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Contact,
@@ -31,15 +34,22 @@ import { ContactItem } from "../../components/Contacts/ContactItem";
 import { AddContactModal } from "../../components/Contacts/AddContactModal";
 import { EditContactModal } from "../../components/Contacts/EditContactModal";
 import { SyncContactsModal } from "../../components/Contacts/SyncContactsModal";
+import { DeleteContactModal } from "../../components/Contacts/DeleteContactModal";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
+import {
+  getFavoriteIds,
+  toggleFavorite,
+} from "../../services/contacts/favorites";
 
 declare module "@expo/vector-icons";
 
 export const ContactsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,6 +61,8 @@ export const ContactsScreen: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const { getThemeColors } = useTheme();
@@ -102,8 +114,17 @@ export const ContactsScreen: React.FC = () => {
         sort: sortBy,
         favorites: showFavoritesOnly || undefined,
       };
-      const result = await contactsAPI.getContacts(params, userId);
-      setContacts(result.contacts);
+      const [result, favIds] = await Promise.all([
+        contactsAPI.getContacts(params, userId),
+        getFavoriteIds(),
+      ]);
+      setFavoriteIds(favIds);
+      // Merge local favorite state into contacts
+      const enriched = result.contacts.map((c) => ({
+        ...c,
+        is_favorite: favIds.has(c.id),
+      }));
+      setContacts(enriched);
     } catch (error) {
       console.error("[ContactsScreen] Error loading contacts:", error);
     } finally {
@@ -196,6 +217,31 @@ export const ContactsScreen: React.FC = () => {
     setEditingContact(contact);
   }, []);
 
+  // Handle contact delete request
+  const handleContactDelete = useCallback((contact: Contact) => {
+    setDeletingContact(contact);
+  }, []);
+
+  // Handle favorite toggle (client-side via AsyncStorage)
+  const handleToggleFavorite = useCallback(async (contact: Contact) => {
+    const newFavorite = await toggleFavorite(contact.id);
+    // Update local state immediately for responsiveness
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (newFavorite) {
+        next.add(contact.id);
+      } else {
+        next.delete(contact.id);
+      }
+      return next;
+    });
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === contact.id ? { ...c, is_favorite: newFavorite } : c,
+      ),
+    );
+  }, []);
+
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
     let result = contacts;
@@ -210,8 +256,41 @@ export const ContactsScreen: React.FC = () => {
     if (showFavoritesOnly) {
       result = result.filter((c) => c.is_favorite);
     }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      if (sortBy === "name") {
+        const nameA = (
+          a.nickname ||
+          a.contact_user?.first_name ||
+          a.contact_user?.username ||
+          ""
+        ).toLowerCase();
+        const nameB = (
+          b.nickname ||
+          b.contact_user?.first_name ||
+          b.contact_user?.username ||
+          ""
+        ).toLowerCase();
+        return nameA.localeCompare(nameB, "fr");
+      }
+      if (sortBy === "added_at") {
+        return new Date(b.added_at).getTime() - new Date(a.added_at).getTime();
+      }
+      if (sortBy === "last_seen") {
+        const seenA = a.contact_user?.last_seen
+          ? new Date(a.contact_user.last_seen).getTime()
+          : 0;
+        const seenB = b.contact_user?.last_seen
+          ? new Date(b.contact_user.last_seen).getTime()
+          : 0;
+        return seenB - seenA;
+      }
+      return 0;
+    });
+
     return result;
-  }, [contacts, searchQuery, showFavoritesOnly]);
+  }, [contacts, searchQuery, showFavoritesOnly, sortBy]);
 
   const pendingRequests = useMemo(() => {
     if (!userId) {
@@ -231,9 +310,16 @@ export const ContactsScreen: React.FC = () => {
         contact={item}
         onPress={handleContactPress}
         onLongPress={handleContactLongPress}
+        onDelete={handleContactDelete}
+        onToggleFavorite={handleToggleFavorite}
       />
     ),
-    [handleContactPress, handleContactLongPress],
+    [
+      handleContactPress,
+      handleContactLongPress,
+      handleContactDelete,
+      handleToggleFavorite,
+    ],
   );
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
@@ -248,27 +334,31 @@ export const ContactsScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
           <Text
             style={[styles.headerTitle, { color: themeColors.text.primary }]}
           >
             Contacts
           </Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons name="add" size={24} color={themeColors.text.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => navigation.navigate("MyQRCode")}
+              accessibilityLabel="Mon QR code"
+            >
+              <Ionicons
+                name="qr-code-outline"
+                size={24}
+                color={themeColors.text.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setShowAddModal(true)}
+              accessibilityLabel="Ajouter un contact"
+            >
+              <Ionicons name="add" size={24} color={themeColors.text.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -307,16 +397,115 @@ export const ContactsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Filters */}
+        {/* Sort + Filters */}
         <View style={styles.filtersContainer}>
           <TouchableOpacity
             style={[
               styles.filterButton,
-              showFavoritesOnly && styles.filterButtonActive,
-              {
-                backgroundColor: showFavoritesOnly
-                  ? colors.primary.main
-                  : "rgba(255, 255, 255, 0.1)",
+              sortBy === "name" && { backgroundColor: colors.primary.main },
+              sortBy !== "name" && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            ]}
+            onPress={() => setSortBy("name")}
+          >
+            <Ionicons
+              name="text-outline"
+              size={16}
+              color={
+                sortBy === "name"
+                  ? colors.text.light
+                  : themeColors.text.secondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color:
+                    sortBy === "name"
+                      ? colors.text.light
+                      : themeColors.text.secondary,
+                },
+              ]}
+            >
+              A-Z
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortBy === "added_at" && { backgroundColor: colors.primary.main },
+              sortBy !== "added_at" && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            ]}
+            onPress={() => setSortBy("added_at")}
+          >
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={
+                sortBy === "added_at"
+                  ? colors.text.light
+                  : themeColors.text.secondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color:
+                    sortBy === "added_at"
+                      ? colors.text.light
+                      : themeColors.text.secondary,
+                },
+              ]}
+            >
+              Récent
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortBy === "last_seen" && {
+                backgroundColor: colors.primary.main,
+              },
+              sortBy !== "last_seen" && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            ]}
+            onPress={() => setSortBy("last_seen")}
+          >
+            <Ionicons
+              name="pulse-outline"
+              size={16}
+              color={
+                sortBy === "last_seen"
+                  ? colors.text.light
+                  : themeColors.text.secondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color:
+                    sortBy === "last_seen"
+                      ? colors.text.light
+                      : themeColors.text.secondary,
+                },
+              ]}
+            >
+              Actif
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              showFavoritesOnly && { backgroundColor: colors.primary.main },
+              !showFavoritesOnly && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
               },
             ]}
             onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -330,19 +519,11 @@ export const ContactsScreen: React.FC = () => {
                   : themeColors.text.secondary
               }
             />
-            <Text
-              style={[
-                styles.filterText,
-                {
-                  color: showFavoritesOnly
-                    ? colors.text.light
-                    : themeColors.text.secondary,
-                },
-              ]}
-            >
-              Favoris
-            </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.filtersContainer}>
           <TouchableOpacity
             style={[
               styles.filterButton,
@@ -367,7 +548,7 @@ export const ContactsScreen: React.FC = () => {
               { backgroundColor: "rgba(255, 255, 255, 0.1)" },
             ]}
             onPress={() => {
-              // @ts-ignore - navigation type will be fixed later
+              // @ts-ignore
               navigation.navigate("BlockedUsers");
             }}
           >
@@ -437,7 +618,7 @@ export const ContactsScreen: React.FC = () => {
                         ]}
                         numberOfLines={1}
                       >
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
@@ -533,6 +714,11 @@ export const ContactsScreen: React.FC = () => {
             loadContacts();
             loadContactRequests();
           }}
+          onMessageUser={(conversationId) => {
+            setShowAddModal(false);
+            // @ts-ignore - navigation type will be fixed later
+            navigation.navigate("Chat", { conversationId });
+          }}
         />
 
         {/* Edit Contact Modal */}
@@ -543,6 +729,14 @@ export const ContactsScreen: React.FC = () => {
           onContactUpdated={loadContacts}
         />
 
+        {/* Delete Contact Modal */}
+        <DeleteContactModal
+          visible={!!deletingContact}
+          contact={deletingContact}
+          onClose={() => setDeletingContact(null)}
+          onContactDeleted={loadContacts}
+        />
+
         {/* Sync Contacts Modal */}
         <SyncContactsModal
           visible={showSyncModal}
@@ -550,6 +744,7 @@ export const ContactsScreen: React.FC = () => {
           onContactsSynced={loadContacts}
         />
       </SafeAreaView>
+      <BottomTabBar />
     </LinearGradient>
   );
 };
@@ -577,7 +772,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
   },
-  addButton: {
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerIconButton: {
     padding: 4,
   },
   searchContainer: {

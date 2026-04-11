@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -661,7 +662,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               fontWeight: typography.fontWeight.regular,
             },
           ]}
-          placeholder="Rechercher un contact"
+          placeholder="Rechercher un utilisateur"
           placeholderTextColor={colors.text.tertiary}
           value={searchQuery}
           onChangeText={handleSearchChange}
@@ -686,7 +687,6 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               const user = contact.contact_user;
               const displayName =
                 contact.nickname ||
-                user?.first_name ||
                 user?.first_name ||
                 user?.username ||
                 "Contact";
@@ -738,7 +738,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                           },
                         ]}
                       >
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
@@ -758,10 +758,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             const result = item.user;
             const user = result.user;
             const displayName =
-              user.first_name ||
-              user.first_name ||
-              user.username ||
-              "Utilisateur";
+              user.first_name || user.username || "Utilisateur";
             const isSelected =
               selectedDirectTarget?.type === "user" &&
               selectedDirectTarget.user.user.id === user.id;
@@ -813,7 +810,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         },
                       ]}
                     >
-                      @{user.username}
+                      {formatUsername(user.username)}
                     </Text>
                   )}
                 </View>
@@ -1156,7 +1153,6 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                     const displayName =
                       contact.nickname ||
                       user?.first_name ||
-                      user?.first_name ||
                       user?.username ||
                       "Contact";
                     return (
@@ -1204,7 +1200,6 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   const userId = user?.id;
                   const displayName =
                     item.nickname ||
-                    user?.first_name ||
                     user?.first_name ||
                     user?.username ||
                     "Contact";
@@ -1261,7 +1256,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                               },
                             ]}
                           >
-                            @{user.username}
+                            {formatUsername(user.username)}
                           </Text>
                         )}
                       </View>
