@@ -258,7 +258,15 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to add reaction");
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number; body: unknown };
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
   },
 
@@ -274,7 +282,15 @@ export const messagingAPI = {
     const response = await authenticatedFetch(url, { method: "DELETE" });
 
     if (!response.ok) {
-      throw new Error("Failed to remove reaction");
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number; body: unknown };
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
   },
 
@@ -372,9 +388,7 @@ export const messagingAPI = {
     }
   },
 
-  async getUserInfo(
-    userId: string,
-  ): Promise<{
+  async getUserInfo(userId: string): Promise<{
     id: string;
     display_name: string;
     username?: string;
