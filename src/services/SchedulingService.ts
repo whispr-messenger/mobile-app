@@ -5,7 +5,7 @@ import { getApiBaseUrl } from './apiBase';
 type ApiError = Error & { status?: number; body?: unknown };
 
 function getSchedulingBaseUrl(): string {
-  return `${getApiBaseUrl()}/scheduling`;
+  return `${getApiBaseUrl()}/messaging`;
 }
 
 async function apiFetch<T>(
@@ -106,7 +106,7 @@ export const SchedulingService = {
   async createScheduledMessage(
     dto: CreateScheduledMessageDto
   ): Promise<ScheduledMessage> {
-    return apiFetch<ScheduledMessage>('/api/v1/scheduled-messages', {
+    return apiFetch<ScheduledMessage>('/api/v1/messages/scheduled', {
       method: 'POST',
       body: JSON.stringify(dto),
     });
@@ -129,7 +129,7 @@ export const SchedulingService = {
     if (params?.offset !== undefined) query.append('offset', String(params.offset));
 
     const qs = query.toString();
-    return apiFetch<ScheduledMessage[]>(`/api/v1/scheduled-messages${qs ? `?${qs}` : ''}`);
+    return apiFetch<ScheduledMessage[]>(`/api/v1/messages/scheduled${qs ? `?${qs}` : ''}`);
   },
 
   /**
@@ -141,7 +141,7 @@ export const SchedulingService = {
     dto: UpdateScheduledMessageDto
   ): Promise<ScheduledMessage> {
     return apiFetch<ScheduledMessage>(
-      `/api/v1/scheduled-messages/${encodeURIComponent(id)}`,
+      `/api/v1/messages/scheduled/${encodeURIComponent(id)}`,
       {
         method: 'PATCH',
         body: JSON.stringify(dto),
@@ -154,7 +154,7 @@ export const SchedulingService = {
    * Cancel a scheduled message.
    */
   async cancelScheduledMessage(id: string): Promise<void> {
-    await apiFetch<void>(`/api/v1/scheduled-messages/${encodeURIComponent(id)}`, {
+    await apiFetch<void>(`/api/v1/messages/scheduled/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },
