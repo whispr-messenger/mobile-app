@@ -151,6 +151,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.small": "Petit",
     "settings.fontSize.medium": "Moyen",
     "settings.fontSize.large": "Grand",
+    "settings.modalPickHint":
+      "Touchez une option — le changement est appliqué tout de suite. La sélection active est surlignée en bleu.",
 
     // Notifications
     "notif.success": "Succès",
@@ -363,6 +365,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.small": "Small",
     "settings.fontSize.medium": "Medium",
     "settings.fontSize.large": "Large",
+    "settings.modalPickHint":
+      "Tap an option — it applies instantly. The active choice is highlighted in blue.",
 
     // Notifications
     "notif.success": "Success",
