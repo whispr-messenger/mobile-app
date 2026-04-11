@@ -1,6 +1,8 @@
 import { getWsBaseUrl } from "../apiBase";
 import { TokenService } from "../TokenService";
 import { AuthService } from "../AuthService";
+import { snakecaseKeys } from "../../utils/caseTransform";
+import { logger } from "../../utils/logger";
 
 type EventCallback = (data: any) => void;
 
@@ -81,30 +83,6 @@ function encodeMessage(
   return JSON.stringify([join_ref, ref, topic, event, payload]);
 }
 
-/**
- * Convert a camelCase string to snake_case.
- */
-function toSnakeCase(str: string): string {
-  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-}
-
-/**
- * Recursively convert all keys in an object/array from camelCase to snake_case.
- * The backend sends camelCase keys over WebSocket but our types use snake_case.
- */
-function snakecaseKeys(obj: any): any {
-  if (Array.isArray(obj)) return obj.map(snakecaseKeys);
-  if (obj !== null && typeof obj === "object" && !(obj instanceof Date)) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [
-        toSnakeCase(key),
-        snakecaseKeys(value),
-      ]),
-    );
-  }
-  return obj;
-}
-
 export class SocketConnection {
   private socket: WebSocket | null = null;
   private channels: Record<
@@ -174,13 +152,16 @@ export class SocketConnection {
       this.reconnectAttempt > 0 ? "reconnecting" : "connecting",
     );
     this.socket = new WebSocket(url);
-    console.log("[WS] Connecting to", url.replace(/token=[^&]+/, "token=***"));
+    logger.info(
+      "WS",
+      `Connecting to ${url.replace(/token=[^&]+/, "token=***")}`,
+    );
 
     this.socket.onopen = () => {
       const socket = this.socket;
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-      console.log("[WS] Connected");
+      logger.info("WS", "Connected");
       this.reconnectAttempt = 0;
       this.setConnectionState("connected");
       this.startHeartbeat();
@@ -204,8 +185,9 @@ export class SocketConnection {
       try {
         const msg = parseMessage(event.data);
         if (!msg) {
-          console.warn(
-            "[WS] Unparseable frame:",
+          logger.warn(
+            "WS",
+            "Unparseable frame",
             event.data?.substring?.(0, 200),
           );
           return;
@@ -214,7 +196,7 @@ export class SocketConnection {
         // Handle join reply
         if (msg.event === "phx_reply") {
           const ch = this.channels[msg.topic];
-          console.log("[WS] phx_reply", msg.topic, msg.payload?.status);
+          logger.debug("WS", `phx_reply ${msg.topic} ${msg.payload?.status}`);
           if (ch && msg.payload?.status === "ok") {
             ch.joined = true;
           }
@@ -245,12 +227,9 @@ export class SocketConnection {
           const ch = this.channels[msg.topic];
           const cbs = ch?.callbacks[msg.event] || [];
           const normalised = snakecaseKeys(msg.payload);
-          console.log(
-            "[WS] Event:",
-            msg.topic,
-            msg.event,
-            "callbacks:",
-            cbs.length,
+          logger.debug(
+            "WS",
+            `Event ${msg.topic} ${msg.event} callbacks=${cbs.length}`,
           );
           cbs.forEach((cb) => {
             try {
@@ -266,7 +245,7 @@ export class SocketConnection {
     };
 
     this.socket.onclose = (ev) => {
-      console.log("[WS] Closed, code:", ev.code, "reason:", ev.reason);
+      logger.info("WS", `Closed code=${ev.code} reason=${ev.reason}`);
       this.stopHeartbeat();
       Object.values(this.channels).forEach((ch) => {
         ch.joined = false;
@@ -281,7 +260,7 @@ export class SocketConnection {
     };
 
     this.socket.onerror = (err) => {
-      console.error("[WS] Error:", err);
+      logger.error("WS", "Socket error", err);
     };
   }
 
@@ -292,7 +271,7 @@ export class SocketConnection {
     const ch = this.channels[topic];
     if (ch) ch.joinRef = joinRef;
     const payload = encodeMessage(joinRef, ref, topic, "phx_join", {});
-    console.log("[WS] Joining", topic, "ref:", ref);
+    logger.debug("WS", `Joining ${topic} ref=${ref}`);
     socket.send(payload);
   }
 
@@ -319,7 +298,7 @@ export class SocketConnection {
 
     // Stop reconnecting after max attempts (~10 minutes with exponential backoff)
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
-      console.warn("[WS] Max reconnect attempts reached, giving up");
+      logger.warn("WS", "Max reconnect attempts reached, giving up");
       this.shouldReconnect = false;
       this.setConnectionState("disconnected");
       return;
@@ -337,23 +316,25 @@ export class SocketConnection {
       // If the token is expired, try to refresh it before reconnecting
       if (TokenService.isTokenExpired(this.lastToken)) {
         try {
-          console.log(
-            "[WS] Token expired, attempting refresh before reconnect",
+          logger.info(
+            "WS",
+            "Token expired, attempting refresh before reconnect",
           );
           await AuthService.refreshTokens();
           const newToken = await TokenService.getAccessToken();
           if (newToken) {
             this.lastToken = newToken;
           } else {
-            console.warn(
-              "[WS] Token refresh returned null, stopping reconnect",
+            logger.warn(
+              "WS",
+              "Token refresh returned null, stopping reconnect",
             );
             this.shouldReconnect = false;
             this.setConnectionState("disconnected");
             return;
           }
         } catch (err) {
-          console.warn("[WS] Token refresh failed, stopping reconnect", err);
+          logger.warn("WS", "Token refresh failed, stopping reconnect", err);
           this.shouldReconnect = false;
           this.setConnectionState("disconnected");
           return;

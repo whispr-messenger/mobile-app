@@ -2,6 +2,7 @@
 export { FormattedText } from "./textFormatter";
 export { logger } from "./logger";
 export { copyToClipboard } from "./clipboard";
+export { toSnakeCase, snakecaseKeys } from "./caseTransform";
 
 /**
  * Format a username for display with a single "@" prefix.
