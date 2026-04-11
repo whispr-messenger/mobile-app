@@ -3,6 +3,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   TextInput,
@@ -157,8 +158,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         .substring(mentionStartIndex)
         .replace(/@[^\s]*/, "");
       const mentionText = member.username
-        ? `@${member.username} `
-        : `@${member.display_name} `;
+        ? `${formatUsername(member.username)} `
+        : `${formatUsername(member.display_name)} `;
       const newText = beforeMention + mentionText + afterMention;
 
       setText(newText);
@@ -600,7 +601,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                                     { color: themeColors.text.secondary },
                                   ]}
                                 >
-                                  @{member.username}
+                                  {formatUsername(member.username)}
                                 </Text>
                               )}
                             </View>

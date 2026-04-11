@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -737,7 +738,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                           },
                         ]}
                       >
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
@@ -809,7 +810,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         },
                       ]}
                     >
-                      @{user.username}
+                      {formatUsername(user.username)}
                     </Text>
                   )}
                 </View>
@@ -1255,7 +1256,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                               },
                             ]}
                           >
-                            @{user.username}
+                            {formatUsername(user.username)}
                           </Text>
                         )}
                       </View>

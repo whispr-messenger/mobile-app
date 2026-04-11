@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -546,7 +547,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     autoCapitalize="none"
                   />
                 ) : (
-                  <Text style={styles.sectionValue}>@{profile.username}</Text>
+                  <Text style={styles.sectionValue}>{formatUsername(profile.username)}</Text>
                 )}
               </View>
 
