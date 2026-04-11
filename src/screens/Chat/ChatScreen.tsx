@@ -33,6 +33,7 @@ import {
   Message,
   MessageWithStatus,
   MessageWithRelations,
+  MessageReaction,
   Conversation,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
@@ -295,6 +296,40 @@ export const ChatScreen: React.FC = () => {
           return { ...prev, ...updatedConversation };
         });
       }
+    },
+    onReactionAdded: ({ message_id, user_id, reaction: reactionEmoji }) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== message_id) return msg;
+          const list = msg.reactions ?? [];
+          if (
+            list.some(
+              (r) => r.user_id === user_id && r.reaction === reactionEmoji,
+            )
+          ) {
+            return msg;
+          }
+          const row: MessageReaction = {
+            id: `rt-${message_id}-${user_id}-${reactionEmoji}`,
+            message_id,
+            user_id,
+            reaction: reactionEmoji,
+            created_at: new Date().toISOString(),
+          };
+          return { ...msg, reactions: [...list, row] };
+        }),
+      );
+    },
+    onReactionRemoved: ({ message_id, user_id, reaction: reactionEmoji }) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== message_id) return msg;
+          const list = (msg.reactions ?? []).filter(
+            (r) => !(r.user_id === user_id && r.reaction === reactionEmoji),
+          );
+          return { ...msg, reactions: list };
+        }),
+      );
     },
   });
 
