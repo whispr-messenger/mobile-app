@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **mobile-app** (863 symbols, 2445 relationships, 66 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **mobile-app** (946 symbols, 2610 relationships, 73 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -97,5 +97,19 @@ To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Work in the Services area (76 symbols) | `.claude/skills/generated/services/SKILL.md` |
+| Work in the Chat area (61 symbols) | `.claude/skills/generated/chat/SKILL.md` |
+| Work in the Messaging area (53 symbols) | `.claude/skills/generated/messaging/SKILL.md` |
+| Work in the Security area (46 symbols) | `.claude/skills/generated/security/SKILL.md` |
+| Work in the Contacts area (38 symbols) | `.claude/skills/generated/contacts/SKILL.md` |
+| Work in the Groups area (25 symbols) | `.claude/skills/generated/groups/SKILL.md` |
+| Work in the Auth area (16 symbols) | `.claude/skills/generated/auth/SKILL.md` |
+| Work in the Moderation area (9 symbols) | `.claude/skills/generated/moderation/SKILL.md` |
+| Work in the Settings area (8 symbols) | `.claude/skills/generated/settings/SKILL.md` |
+| Work in the Media area (6 symbols) | `.claude/skills/generated/media/SKILL.md` |
+| Work in the Profile area (6 symbols) | `.claude/skills/generated/profile/SKILL.md` |
+| Work in the Cluster_2 area (5 symbols) | `.claude/skills/generated/cluster-2/SKILL.md` |
+| Work in the Cluster_5 area (4 symbols) | `.claude/skills/generated/cluster-5/SKILL.md` |
+| Work in the Button area (3 symbols) | `.claude/skills/generated/button/SKILL.md` |
 
 <!-- gitnexus:end -->
