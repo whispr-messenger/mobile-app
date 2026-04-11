@@ -47,6 +47,7 @@ import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
+import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
 import { SystemMessage } from "../../components/Chat/SystemMessage";
 import { MessageSearch } from "../../components/Chat/MessageSearch";
@@ -64,6 +65,11 @@ import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { offlineQueue, QueuedMessage } from "../../services/offlineQueue";
+import {
+  validateReactionEmoji,
+  checkReactionLimits,
+  userHasReaction,
+} from "../../utils/reactionEmoji";
 
 /** Cross-platform alert: falls back to window.alert on web where RN Alert is a no-op */
 function showAlert(title: string, message: string): void {
@@ -103,6 +109,10 @@ export const ChatScreen: React.FC = () => {
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<
     string | null
   >(null);
+  const [reactionReactorsModal, setReactionReactorsModal] = useState<{
+    messageId: string;
+    emoji: string;
+  } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MessageWithRelations[]>(
@@ -475,7 +485,10 @@ export const ChatScreen: React.FC = () => {
               // Derive delivery status: prefer explicit status, then check delivery_statuses array
               let status: "sending" | "sent" | "delivered" | "read" | "failed" =
                 (msg as any)?.status || ("sent" as const);
-              if (status === "sent" && (msg as any)?.delivery_statuses?.length) {
+              if (
+                status === "sent" &&
+                (msg as any)?.delivery_statuses?.length
+              ) {
                 const ds = (msg as any).delivery_statuses;
                 if (ds.some((d: any) => d.read_at)) {
                   status = "read";
@@ -951,25 +964,76 @@ export const ChatScreen: React.FC = () => {
     navigation.navigate("ScheduledMessages", { conversationId });
   }, [navigation, conversationId]);
 
+  const resolveReactorDisplayName = useCallback(
+    (uid: string) => {
+      if (uid === userId) return "Vous";
+      const m = conversationMembers.find((x) => x.id === uid);
+      if (m?.display_name) return m.display_name;
+      return "Utilisateur";
+    },
+    [userId, conversationMembers],
+  );
+
+  const reactionModalList = useMemo(() => {
+    if (!reactionReactorsModal) return [];
+    const msg = messages.find((m) => m.id === reactionReactorsModal.messageId);
+    return (msg?.reactions ?? []).filter(
+      (r) => r.reaction === reactionReactorsModal.emoji,
+    );
+  }, [reactionReactorsModal, messages]);
+
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
-      try {
-        await messagingAPI.addReaction(messageId, userId, emoji);
+      const validated = validateReactionEmoji(emoji);
+      if (!validated.ok) {
+        showAlert("Emoji non supporté", validated.reason);
+        return;
+      }
 
-        // Reload reactions and update local state
+      const msg = messages.find((m) => m.id === messageId);
+      const reactions = msg?.reactions ?? [];
+      const already = userHasReaction(reactions, userId, emoji);
+
+      try {
+        if (already) {
+          await messagingAPI.removeReaction(messageId, userId, emoji);
+        } else {
+          const limits = checkReactionLimits(reactions, userId, emoji);
+          if (!limits.ok) {
+            showAlert("Réaction impossible", limits.reason);
+            return;
+          }
+          await messagingAPI.addReaction(messageId, userId, emoji);
+        }
+
         const reactionData = await messagingAPI.getMessageReactions(messageId);
         setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId
-              ? { ...msg, reactions: reactionData.reactions || [] }
-              : msg,
+          prev.map((m) =>
+            m.id === messageId
+              ? { ...m, reactions: reactionData.reactions || [] }
+              : m,
           ),
         );
-      } catch (error) {
-        logger.error("ChatScreen", "Error adding reaction", error);
+      } catch (error: unknown) {
+        const e = error as { message?: string };
+        showAlert(
+          "Réaction",
+          e.message || "Impossible de mettre à jour la réaction.",
+        );
+        logger.error("ChatScreen", "Error toggling reaction", error);
       }
     },
-    [userId],
+    [userId, messages],
+  );
+
+  const handleReactionDetailsPress = useCallback(
+    (messageId: string, emoji: string) => {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      setReactionReactorsModal({ messageId, emoji });
+    },
+    [],
   );
 
   // Group messages by date and add date separators
@@ -1436,6 +1500,7 @@ export const ChatScreen: React.FC = () => {
           currentUserId={userId}
           senderName={senderName}
           onReactionPress={handleReactionPress}
+          onReactionDetailsPress={handleReactionDetailsPress}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
@@ -1448,6 +1513,7 @@ export const ChatScreen: React.FC = () => {
       conversation,
       conversationMembers,
       handleReactionPress,
+      handleReactionDetailsPress,
       handleReplyPress,
       handleMessageLongPress,
       searchQuery,
@@ -1612,6 +1678,13 @@ export const ChatScreen: React.FC = () => {
             onReactionSelect={handleReactionSelectFromPicker}
           />
         )}
+        <ReactionReactorsModal
+          visible={reactionReactorsModal !== null}
+          emoji={reactionReactorsModal?.emoji ?? ""}
+          reactors={reactionModalList}
+          resolveName={resolveReactorDisplayName}
+          onClose={() => setReactionReactorsModal(null)}
+        />
         <MessageSearch
           visible={showSearch}
           onClose={() => {
