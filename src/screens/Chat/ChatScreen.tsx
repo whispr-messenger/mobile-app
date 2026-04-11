@@ -556,7 +556,7 @@ export const ChatScreen: React.FC = () => {
               }
 
               // Load reactions for this message
-              let reactions = [];
+              let reactions: MessageReaction[] = [];
               try {
                 const reactionData = await messagingAPI.getMessageReactions(
                   msg.id,
@@ -567,7 +567,7 @@ export const ChatScreen: React.FC = () => {
               }
 
               // Load attachments for this message
-              let attachments = [];
+              let attachments: MessageAttachment[] = [];
               try {
                 attachments = await messagingAPI.getAttachments(msg.id);
               } catch (error) {
