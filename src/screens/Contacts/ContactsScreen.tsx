@@ -694,6 +694,11 @@ export const ContactsScreen: React.FC = () => {
             loadContacts();
             loadContactRequests();
           }}
+          onMessageUser={(conversationId) => {
+            setShowAddModal(false);
+            // @ts-ignore - navigation type will be fixed later
+            navigation.navigate("Chat", { conversationId });
+          }}
         />
 
         {/* Edit Contact Modal */}
