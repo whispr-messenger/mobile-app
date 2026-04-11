@@ -188,6 +188,12 @@ export const ChatScreen: React.FC = () => {
               m.id === message.id
                 ? {
                     ...message,
+                    // Preserve attachments from the optimistic message when the
+                    // WebSocket echo doesn't carry them (server Message has no
+                    // attachments array).
+                    attachments:
+                      (message as any).attachments ||
+                      (m as MessageWithRelations).attachments,
                     status: (message as any).status || ("sent" as const),
                   }
                 : m,
@@ -200,9 +206,13 @@ export const ChatScreen: React.FC = () => {
               m.client_random === message.client_random,
           );
           if (optimisticMessageIndex !== -1) {
+            const existing = prev[optimisticMessageIndex] as MessageWithRelations;
             const newMessages = [...prev];
             newMessages[optimisticMessageIndex] = {
               ...message,
+              // Preserve attachments from the optimistic message
+              attachments:
+                (message as any).attachments || existing.attachments,
               status: (message as any).status || ("sent" as const),
             };
             return newMessages;
@@ -849,6 +859,11 @@ export const ChatScreen: React.FC = () => {
 
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
+
+      // Scroll to bottom so the newly sent media message is visible
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
 
       try {
         // Gate check: block inappropriate images before upload
