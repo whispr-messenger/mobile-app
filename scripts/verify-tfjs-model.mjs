@@ -20,10 +20,33 @@ const CLASS_NAMES = [
 ];
 const INPUT_SIZE = 224;
 
+/**
+ * Sanitize a URL path from an HTTP request so it cannot escape PUBLIC_DIR.
+ * Strips query strings, decodes percent-encoding, resolves the joined path,
+ * and rejects anything that does not resolve to a child of PUBLIC_DIR.
+ * Returns null when the path is unsafe.
+ */
+function safeResolvePublicPath(reqUrl) {
+  // Strip query string / fragment
+  const urlPath = reqUrl.split("?")[0].split("#")[0];
+  // Resolve to an absolute path; path.resolve normalises ".." segments
+  const resolved = path.resolve(PUBLIC_DIR, "." + path.normalize("/" + urlPath));
+  // Reject if the resolved path escapes PUBLIC_DIR
+  if (!resolved.startsWith(PUBLIC_DIR + path.sep) && resolved !== PUBLIC_DIR) {
+    return null;
+  }
+  return resolved;
+}
+
 function startServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      const filePath = path.join(PUBLIC_DIR, req.url);
+      const filePath = safeResolvePublicPath(req.url);
+      if (!filePath) {
+        res.writeHead(400);
+        res.end("Bad request");
+        return;
+      }
       if (!fs.existsSync(filePath)) {
         res.writeHead(404);
         res.end("Not found");

@@ -868,6 +868,10 @@ export const ChatScreen: React.FC = () => {
         if (type === "image") {
           const gateResult = await gateChatImageBeforeSend(uri);
           if (!gateResult.ok) {
+            const blockedReason =
+              gateResult.reason || "Contenu bloqué par la modération";
+            // Show a user-visible alert so the sender is aware the image was blocked
+            showAlert("Envoi bloqué", blockedReason);
             // Keep message in chat but mark as blocked
             setMessages((prev) =>
               prev.map((m) =>
@@ -875,8 +879,7 @@ export const ChatScreen: React.FC = () => {
                   ? {
                       ...m,
                       status: "failed" as const,
-                      content:
-                        gateResult.reason || "Contenu bloqué par la modération",
+                      content: blockedReason,
                     }
                   : m,
               ),
