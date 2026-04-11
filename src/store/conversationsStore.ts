@@ -127,6 +127,7 @@ interface ConversationsActions {
   pinConversation: (id: string) => void;
   markAsUnread: (id: string) => Promise<void>;
   clearManualUnread: (id: string) => Promise<void>;
+  resetUnreadCount: (conversationId: string) => void;
   reset: () => void;
   loadManuallyUnreadIds: () => Promise<void>;
   _startGracePeriod: () => void;
@@ -528,6 +529,15 @@ export const useConversationsStore = create<
     } catch {
       // Storage write failed — local state is still correct for this session
     }
+  },
+
+  resetUnreadCount: (conversationId) => {
+    const { conversations } = get();
+    const index = conversations.findIndex((c) => c.id === conversationId);
+    if (index === -1 || conversations[index].unread_count === 0) return;
+    const updated = [...conversations];
+    updated[index] = { ...updated[index], unread_count: 0 };
+    set({ conversations: updated });
   },
 
   loadManuallyUnreadIds: async () => {

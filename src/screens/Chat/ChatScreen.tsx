@@ -437,14 +437,11 @@ export const ChatScreen: React.FC = () => {
   useEffect(() => {
     if (!conversationId || !messages.length) return;
     const lastMsg = messages[0]; // messages are sorted newest first
+    // Always reset the unread badge when the conversation is open
+    useConversationsStore.getState().resetUnreadCount(conversationId);
+    // Send read receipt to backend only if the last message is from someone else
     if (lastMsg?.id && lastMsg?.sender_id !== userId) {
       markAsRead(conversationId, lastMsg.id);
-      // Reset unread count in store
-      const store = useConversationsStore.getState();
-      const updated = store.conversations.map((c: any) =>
-        c.id === conversationId ? { ...c, unread_count: 0 } : c
-      );
-      store.setConversations(updated);
     }
   }, [conversationId, messages.length, userId, markAsRead]);
 
@@ -1585,6 +1582,7 @@ export const ChatScreen: React.FC = () => {
           senderName={senderName}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
+          resolveReactorName={resolveReactorDisplayName}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
@@ -1598,6 +1596,7 @@ export const ChatScreen: React.FC = () => {
       conversationMembers,
       handleReactionPress,
       handleReactionDetailsPress,
+      resolveReactorDisplayName,
       handleReplyPress,
       handleMessageLongPress,
       searchQuery,

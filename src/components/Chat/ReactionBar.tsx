@@ -12,6 +12,8 @@ interface ReactionBarProps {
   currentUserId: string;
   onReactionPress: (emoji: string) => void;
   onReactionLongPress?: (emoji: string) => void;
+  /** Resolve a user_id to a display name (for hover tooltips) */
+  resolveReactorName?: (userId: string) => string;
 }
 
 export const ReactionBar: React.FC<ReactionBarProps> = ({
@@ -19,19 +21,25 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
   currentUserId,
   onReactionPress,
   onReactionLongPress,
+  resolveReactorName,
 }) => {
   // Aggregate reactions by emoji
   const reactionSummary = useMemo(() => {
-    const summary: Record<string, { count: number; userReacted: boolean }> = {};
+    const summary: Record<
+      string,
+      { count: number; userReacted: boolean; userIds: string[] }
+    > = {};
 
     reactions.forEach((reaction) => {
       if (!summary[reaction.reaction]) {
         summary[reaction.reaction] = {
           count: 0,
           userReacted: false,
+          userIds: [],
         };
       }
       summary[reaction.reaction].count++;
+      summary[reaction.reaction].userIds.push(reaction.user_id);
       if (reaction.user_id === currentUserId) {
         summary[reaction.reaction].userReacted = true;
       }
@@ -55,6 +63,11 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
           onPress={() => onReactionPress(emoji)}
           onLongPress={
             onReactionLongPress ? () => onReactionLongPress(emoji) : undefined
+          }
+          reactorNames={
+            resolveReactorName
+              ? data.userIds.map(resolveReactorName)
+              : undefined
           }
         />
       ))}

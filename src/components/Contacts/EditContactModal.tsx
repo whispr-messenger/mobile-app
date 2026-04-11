@@ -191,14 +191,16 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
             >
               {user?.first_name || user?.username || "Contact"}
             </Text>
-            <Text
-              style={[
-                styles.contactUsername,
-                { color: themeColors.text.secondary },
-              ]}
-            >
-              {formatUsername(user?.username)}
-            </Text>
+            {user?.username ? (
+              <Text
+                style={[
+                  styles.contactUsername,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
+                {formatUsername(user.username)}
+              </Text>
+            ) : null}
           </View>
 
           {/* Form */}
