@@ -4,6 +4,7 @@
  */
 
 import { TokenService } from "./TokenService";
+import { AuthService } from "./AuthService";
 import { getApiBaseUrl } from "./apiBase";
 
 // Types
@@ -61,6 +62,48 @@ export class UserService {
   }
 
   /**
+   * Authenticated fetch with automatic token refresh on 401.
+   */
+  private async authFetch(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<Response> {
+    const token = await TokenService.getAccessToken();
+    if (!token) throw new Error("Non authentifié");
+
+    const payload = TokenService.decodeAccessToken(token);
+    if (!payload?.sub) throw new Error("Token invalide");
+
+    const url = `${this.baseUrl}${path.replace("{userId}", payload.sub)}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers as Record<string, string>),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      try {
+        await AuthService.refreshTokens();
+        const newToken = await TokenService.getAccessToken();
+        if (!newToken) throw new Error("Non authentifié");
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...(options.headers as Record<string, string>),
+            Authorization: `Bearer ${newToken}`,
+          },
+        });
+      } catch {
+        // refresh failed — return the 401 response
+      }
+    }
+
+    return response;
+  }
+
+  /**
    * Get current user profile
    */
   async getProfile(): Promise<{
@@ -69,22 +112,13 @@ export class UserService {
     message?: string;
   }> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await this.authFetch("/profile/{userId}");
 
       if (!response.ok) {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
       const data = await response.json().catch(() => null);
-      // Map profilePictureUrl from backend to profilePicture for frontend
       if (data && data.profilePictureUrl && !data.profilePicture) {
         data.profilePicture = data.profilePictureUrl;
       }
@@ -107,29 +141,19 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
       // Map profilePicture to profilePictureUrl for the backend API
       const { profilePicture, ...restData } = profileData;
       const apiData = {
         ...restData,
         profilePictureUrl: profileData.profilePictureUrl || profilePicture,
       };
-      // Remove undefined profilePictureUrl to avoid overwriting with null
       if (apiData.profilePictureUrl === undefined) {
         delete apiData.profilePictureUrl;
       }
 
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+      const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(apiData),
       });
 
@@ -161,18 +185,9 @@ export class UserService {
    */
   async updateProfilePicture(imageUri: string): Promise<UpdateProfileResponse> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+      const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profilePictureUrl: imageUri }),
       });
 
@@ -209,18 +224,9 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+      const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
 
@@ -252,15 +258,7 @@ export class UserService {
     message?: string;
   }> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
-      const response = await fetch(`${this.baseUrl}/privacy/${payload.sub}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await this.authFetch("/privacy/{userId}");
 
       if (!response.ok) {
         return { success: false, message: `Erreur ${response.status}` };
@@ -300,18 +298,9 @@ export class UserService {
     settings: PrivacySettings,
   ): Promise<UpdateProfileResponse> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
-      const response = await fetch(`${this.baseUrl}/privacy/${payload.sub}`, {
+      const response = await this.authFetch("/privacy/{userId}", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           profilePicturePrivacy: settings.profilePictureVisibility,
           firstNamePrivacy: settings.firstNameVisibility,
@@ -352,18 +341,9 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: "Non authentifié" };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: "Token invalide" };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
+      const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: newPhoneNumber }),
       });
 
