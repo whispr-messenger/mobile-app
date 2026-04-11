@@ -58,7 +58,7 @@ import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
-import { SchedulingService } from "../../services/SchedulingService";
+
 import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
@@ -453,13 +453,9 @@ export const ChatScreen: React.FC = () => {
               // No separate REST call needed (the REST endpoint doesn't exist).
               const reactions = (msg as any).reactions || [];
 
-              // Load attachments for this message
-              let attachments = [];
-              try {
-                attachments = await messagingAPI.getAttachments(msg.id);
-              } catch (error) {
-                // Ignore errors for attachments
-              }
+              // Attachments are included in the message payload from the backend.
+              // No separate REST call needed (GET /messages/:id/attachments doesn't exist).
+              const attachments = (msg as any).attachments || [];
 
               // Find reply_to message if exists (search in current batch only)
               let replyTo: Message | undefined;
@@ -882,7 +878,7 @@ export const ChatScreen: React.FC = () => {
       if (!scheduleMessageText.trim()) return;
 
       try {
-        await SchedulingService.createScheduledMessage({
+        await messagingAPI.createScheduledMessage({
           conversation_id: conversationId,
           content: scheduleMessageText.trim(),
           message_type: "text",

@@ -344,21 +344,24 @@ export const messagingAPI = {
     return Array.isArray(data) ? data : [];
   },
 
-  async getAttachments(messageId: string) {
+  /**
+   * Fetch a single attachment by ID via GET /attachments/:id.
+   * There is no route to list attachments by message — attachments are
+   * included inline in the message payload from the backend.
+   */
+  async getAttachment(attachmentId: string) {
     const response = await authenticatedFetch(
-      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/attachments`,
+      `${API_BASE_URL}/attachments/${encodeURIComponent(attachmentId)}`,
     );
 
     if (!response.ok) {
-      // Endpoint may not exist yet (404) — return empty array gracefully
       if (response.status === 404) {
-        return [];
+        return null;
       }
-      throw new Error("Failed to fetch attachments");
+      throw new Error("Failed to fetch attachment");
     }
 
-    const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    return unwrap(response);
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {
@@ -559,6 +562,79 @@ export const messagingAPI = {
       return Array.isArray(data) ? data : [];
     } catch {
       return null;
+    }
+  },
+
+  // ─── Scheduled Messages ───────────────────────────────────────────────────
+
+  /**
+   * GET /messaging/api/v1/messages/scheduled
+   */
+  async getScheduledMessages(params?: {
+    conversation_id?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    const query = new URLSearchParams();
+    if (params?.conversation_id)
+      query.append("conversation_id", params.conversation_id);
+    if (params?.status) query.append("status", params.status);
+    if (params?.limit !== undefined)
+      query.append("limit", String(params.limit));
+    if (params?.offset !== undefined)
+      query.append("offset", String(params.offset));
+
+    const qs = query.toString();
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/messages/scheduled${qs ? `?${qs}` : ""}`,
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch scheduled messages");
+    }
+
+    const data = await unwrap(response);
+    return Array.isArray(data) ? data : [];
+  },
+
+  /**
+   * POST /messaging/api/v1/messages/scheduled
+   */
+  async createScheduledMessage(dto: {
+    conversation_id: string;
+    content: string;
+    message_type?: string;
+    scheduled_at: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<any> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/messages/scheduled`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dto),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to create scheduled message");
+    }
+
+    return unwrap(response);
+  },
+
+  /**
+   * DELETE /messaging/api/v1/messages/scheduled/:id
+   */
+  async deleteScheduledMessage(id: string): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/messages/scheduled/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to delete scheduled message");
     }
   },
 };
