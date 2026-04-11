@@ -420,7 +420,17 @@ export const ChatScreen: React.FC = () => {
                   msg.message_type === "system"),
             ) // Include all message types
             .map(async (msg) => {
-              const status = (msg as any)?.status || ("sent" as const);
+              // Derive delivery status: prefer explicit status, then check delivery_statuses array
+              let status: "sending" | "sent" | "delivered" | "read" | "failed" =
+                (msg as any)?.status || ("sent" as const);
+              if (status === "sent" && (msg as any)?.delivery_statuses?.length) {
+                const ds = (msg as any).delivery_statuses;
+                if (ds.some((d: any) => d.read_at)) {
+                  status = "read";
+                } else if (ds.some((d: any) => d.delivered_at)) {
+                  status = "delivered";
+                }
+              }
 
               // Load reactions for this message
               let reactions = [];
