@@ -1,17 +1,20 @@
 import React, { useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { Button, Logo } from '../../components';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, typography } from '../../theme';
 import type { AuthStackParamList } from '../../navigation/AuthNavigator';
+import { AuthLanguageSwitcher } from './AuthLanguageSwitcher';
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'Welcome'>;
 
 export const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
@@ -41,6 +44,15 @@ export const WelcomeScreen: React.FC = () => {
       end={{ x: 1, y: 1 }}
       style={styles.container}
     >
+      <View
+        style={[
+          styles.langBar,
+          { top: insets.top + spacing.sm, paddingHorizontal: spacing.xl },
+        ]}
+      >
+        <AuthLanguageSwitcher />
+      </View>
+
       <Animated.View
         style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
       >
@@ -81,6 +93,12 @@ export const WelcomeScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  langBar: {
+    position: 'absolute',
+    right: 0,
+    zIndex: 10,
+    alignItems: 'flex-end',
+  },
   content: {
     flex: 1,
     padding: spacing.xl,
