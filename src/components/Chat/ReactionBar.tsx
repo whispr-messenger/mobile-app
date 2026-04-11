@@ -2,27 +2,29 @@
  * ReactionBar - Display reactions for a message
  */
 
-import React, { useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { ReactionButton } from './ReactionButton';
-import { MessageReaction } from '../../types/messaging';
+import React, { useMemo } from "react";
+import { View, StyleSheet } from "react-native";
+import { ReactionButton } from "./ReactionButton";
+import { MessageReaction } from "../../types/messaging";
 
 interface ReactionBarProps {
   reactions: MessageReaction[];
   currentUserId: string;
   onReactionPress: (emoji: string) => void;
+  onReactionLongPress?: (emoji: string) => void;
 }
 
 export const ReactionBar: React.FC<ReactionBarProps> = ({
   reactions,
   currentUserId,
   onReactionPress,
+  onReactionLongPress,
 }) => {
   // Aggregate reactions by emoji
   const reactionSummary = useMemo(() => {
     const summary: Record<string, { count: number; userReacted: boolean }> = {};
 
-    reactions.forEach(reaction => {
+    reactions.forEach((reaction) => {
       if (!summary[reaction.reaction]) {
         summary[reaction.reaction] = {
           count: 0,
@@ -51,6 +53,9 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
           count={data.count}
           isActive={data.userReacted}
           onPress={() => onReactionPress(emoji)}
+          onLongPress={
+            onReactionLongPress ? () => onReactionLongPress(emoji) : undefined
+          }
         />
       ))}
     </View>
@@ -59,10 +64,9 @@ export const ReactionBar: React.FC<ReactionBarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginTop: 4,
     marginBottom: 2,
   },
 });
-
