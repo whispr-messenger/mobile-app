@@ -35,7 +35,12 @@ import { getApiBaseUrl } from "../../services/apiBase";
 /** Resolve a media URL — prepend the API base when it is a relative path */
 function resolveMediaUrl(url: string | undefined): string {
   if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file://") || url.startsWith("data:")) {
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("file://") ||
+    url.startsWith("data:")
+  ) {
     return url;
   }
   // Relative path from the API — prepend base URL
@@ -48,6 +53,8 @@ interface MessageBubbleProps {
   currentUserId: string;
   senderName?: string;
   onReactionPress?: (messageId: string, emoji: string) => void;
+  /** Appui long sur une pastille de réaction : afficher les réacteurs */
+  onReactionDetailsPress?: (messageId: string, emoji: string) => void;
   onReplyPress?: (messageId: string) => void;
   onLongPress?: () => void;
   isHighlighted?: boolean;
@@ -60,6 +67,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   currentUserId,
   senderName,
   onReactionPress,
+  onReactionDetailsPress,
   onReplyPress,
   onLongPress,
   isHighlighted = false,
@@ -167,12 +175,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <MediaMessage
               uri={resolveMediaUrl(
                 firstAttachment.metadata.media_url ||
-                firstAttachment.metadata.thumbnail_url
+                  firstAttachment.metadata.thumbnail_url,
               )}
               type={firstAttachment.media_type as any}
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
-              thumbnailUri={resolveMediaUrl(firstAttachment.metadata.thumbnail_url)}
+              thumbnailUri={resolveMediaUrl(
+                firstAttachment.metadata.thumbnail_url,
+              )}
             />
           ) : null}
           <View
@@ -231,12 +241,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <MediaMessage
                   uri={resolveMediaUrl(
                     firstAttachment.metadata.media_url ||
-                    firstAttachment.metadata.thumbnail_url
+                      firstAttachment.metadata.thumbnail_url,
                   )}
                   type={firstAttachment.media_type}
                   filename={firstAttachment.metadata.filename}
                   size={firstAttachment.metadata.size}
-                  thumbnailUri={resolveMediaUrl(firstAttachment.metadata.thumbnail_url)}
+                  thumbnailUri={resolveMediaUrl(
+                    firstAttachment.metadata.thumbnail_url,
+                  )}
                 />
               )}
             </>
@@ -322,12 +334,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <MediaMessage
                 uri={resolveMediaUrl(
                   firstAttachment.metadata.media_url ||
-                  firstAttachment.metadata.thumbnail_url
+                    firstAttachment.metadata.thumbnail_url,
                 )}
                 type={firstAttachment.media_type as "image" | "video" | "file"}
                 filename={firstAttachment.metadata.filename}
                 size={firstAttachment.metadata.size}
-                thumbnailUri={resolveMediaUrl(firstAttachment.metadata.thumbnail_url)}
+                thumbnailUri={resolveMediaUrl(
+                  firstAttachment.metadata.thumbnail_url,
+                )}
               />
             )}
           </>
@@ -404,6 +418,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               reactions={message.reactions}
               currentUserId={currentUserId}
               onReactionPress={handleReactionSelect}
+              onReactionLongPress={
+                onReactionDetailsPress
+                  ? (emoji) => onReactionDetailsPress(message.id, emoji)
+                  : undefined
+              }
             />
           ) : null}
         </Animated.View>
@@ -499,6 +518,7 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
     prevProps.senderName === nextProps.senderName &&
+    prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );

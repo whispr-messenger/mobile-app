@@ -2,16 +2,18 @@
  * ReactionButton - Individual reaction button with emoji and count
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
 
 interface ReactionButtonProps {
   emoji: string;
   count: number;
   isActive: boolean;
   onPress: () => void;
+  /** Appui long : voir qui a réagi (spec) */
+  onLongPress?: () => void;
 }
 
 export const ReactionButton: React.FC<ReactionButtonProps> = ({
@@ -19,6 +21,7 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
   count,
   isActive,
   onPress,
+  onLongPress,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -26,11 +29,13 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
   return (
     <TouchableOpacity
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={380}
       style={[
         styles.container,
         {
           backgroundColor: isActive
-            ? colors.primary.light + '30'
+            ? colors.primary.light + "30"
             : themeColors.background.secondary,
           borderColor: isActive ? themeColors.primary : colors.ui.divider,
         },
@@ -42,7 +47,11 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
         <Text
           style={[
             styles.count,
-            { color: isActive ? themeColors.primary : themeColors.text.secondary },
+            {
+              color: isActive
+                ? themeColors.primary
+                : themeColors.text.secondary,
+            },
           ]}
         >
           {count}
@@ -54,8 +63,8 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -69,7 +78,6 @@ const styles = StyleSheet.create({
   },
   count: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
-
