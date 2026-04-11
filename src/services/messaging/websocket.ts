@@ -1,10 +1,16 @@
 import { getWsBaseUrl } from "../apiBase";
 import { TokenService } from "../TokenService";
 import { AuthService } from "../AuthService";
+import { snakecaseKeys } from "../../utils/caseTransform";
+import { logger } from "../../utils/logger";
 
 type EventCallback = (data: any) => void;
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+export type ConnectionState =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "reconnecting";
 
 type Channel = {
   join: (params?: Record<string, any>) => Promise<{ status: string }>;
@@ -44,7 +50,7 @@ function parseMessage(raw: string): PhxMessage | null {
   }
 
   // v1 format: { topic, event, payload, ref }
-  if (data && typeof data === 'object' && data.topic && data.event) {
+  if (data && typeof data === "object" && data.topic && data.event) {
     return {
       join_ref: data.join_ref ?? null,
       ref: data.ref ?? null,
@@ -90,8 +96,9 @@ export class SocketConnection {
   private pendingTopics: Set<string> = new Set();
 
   // Reconnection state
-  private _connectionState: ConnectionState = 'disconnected';
-  private connectionStateListeners: Set<(state: ConnectionState) => void> = new Set();
+  private _connectionState: ConnectionState = "disconnected";
+  private connectionStateListeners: Set<(state: ConnectionState) => void> =
+    new Set();
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private maxReconnectDelay = 30000;
@@ -109,7 +116,9 @@ export class SocketConnection {
 
   addConnectionStateListener(cb: (state: ConnectionState) => void): () => void {
     this.connectionStateListeners.add(cb);
-    return () => { this.connectionStateListeners.delete(cb); };
+    return () => {
+      this.connectionStateListeners.delete(cb);
+    };
   }
 
   private setConnectionState(state: ConnectionState): void {
@@ -139,17 +148,22 @@ export class SocketConnection {
       userId,
     )}&token=${encodeURIComponent(token)}&vsn=2.0.0`;
 
-    this.setConnectionState(this.reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
+    this.setConnectionState(
+      this.reconnectAttempt > 0 ? "reconnecting" : "connecting",
+    );
     this.socket = new WebSocket(url);
-    console.log('[WS] Connecting to', url.replace(/token=[^&]+/, 'token=***'));
+    logger.info(
+      "WS",
+      `Connecting to ${url.replace(/token=[^&]+/, "token=***")}`,
+    );
 
     this.socket.onopen = () => {
       const socket = this.socket;
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-      console.log('[WS] Connected');
+      logger.info("WS", "Connected");
       this.reconnectAttempt = 0;
-      this.setConnectionState('connected');
+      this.setConnectionState("connected");
       this.startHeartbeat();
 
       // Join pending topics
@@ -171,14 +185,18 @@ export class SocketConnection {
       try {
         const msg = parseMessage(event.data);
         if (!msg) {
-          console.warn('[WS] Unparseable frame:', event.data?.substring?.(0, 200));
+          logger.warn(
+            "WS",
+            "Unparseable frame",
+            event.data?.substring?.(0, 200),
+          );
           return;
         }
 
         // Handle join reply
         if (msg.event === "phx_reply") {
           const ch = this.channels[msg.topic];
-          console.log('[WS] phx_reply', msg.topic, msg.payload?.status);
+          logger.debug("WS", `phx_reply ${msg.topic} ${msg.payload?.status}`);
           if (ch && msg.payload?.status === "ok") {
             ch.joined = true;
           }
@@ -204,13 +222,21 @@ export class SocketConnection {
           return;
         }
 
-        // Dispatch to user callbacks
+        // Dispatch to user callbacks (normalise keys to snake_case)
         if (msg.topic && msg.event) {
           const ch = this.channels[msg.topic];
           const cbs = ch?.callbacks[msg.event] || [];
-          console.log('[WS] Event:', msg.topic, msg.event, 'callbacks:', cbs.length);
+          const normalised = snakecaseKeys(msg.payload);
+          logger.debug(
+            "WS",
+            `Event ${msg.topic} ${msg.event} callbacks=${cbs.length}`,
+          );
           cbs.forEach((cb) => {
-            try { cb(msg.payload); } catch { /* isolate bad callbacks */ }
+            try {
+              cb(normalised);
+            } catch {
+              /* isolate bad callbacks */
+            }
           });
         }
       } catch {
@@ -219,22 +245,22 @@ export class SocketConnection {
     };
 
     this.socket.onclose = (ev) => {
-      console.log('[WS] Closed, code:', ev.code, 'reason:', ev.reason);
+      logger.info("WS", `Closed code=${ev.code} reason=${ev.reason}`);
       this.stopHeartbeat();
       Object.values(this.channels).forEach((ch) => {
         ch.joined = false;
         ch.joinRef = null;
       });
       if (this.shouldReconnect) {
-        this.setConnectionState('reconnecting');
+        this.setConnectionState("reconnecting");
         this.scheduleReconnect();
       } else {
-        this.setConnectionState('disconnected');
+        this.setConnectionState("disconnected");
       }
     };
 
     this.socket.onerror = (err) => {
-      console.error('[WS] Error:', err);
+      logger.error("WS", "Socket error", err);
     };
   }
 
@@ -245,7 +271,7 @@ export class SocketConnection {
     const ch = this.channels[topic];
     if (ch) ch.joinRef = joinRef;
     const payload = encodeMessage(joinRef, ref, topic, "phx_join", {});
-    console.log('[WS] Joining', topic, 'ref:', ref);
+    logger.debug("WS", `Joining ${topic} ref=${ref}`);
     socket.send(payload);
   }
 
@@ -272,9 +298,9 @@ export class SocketConnection {
 
     // Stop reconnecting after max attempts (~10 minutes with exponential backoff)
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
-      console.warn('[WS] Max reconnect attempts reached, giving up');
+      logger.warn("WS", "Max reconnect attempts reached, giving up");
       this.shouldReconnect = false;
-      this.setConnectionState('disconnected');
+      this.setConnectionState("disconnected");
       return;
     }
 
@@ -290,21 +316,27 @@ export class SocketConnection {
       // If the token is expired, try to refresh it before reconnecting
       if (TokenService.isTokenExpired(this.lastToken)) {
         try {
-          console.log('[WS] Token expired, attempting refresh before reconnect');
+          logger.info(
+            "WS",
+            "Token expired, attempting refresh before reconnect",
+          );
           await AuthService.refreshTokens();
           const newToken = await TokenService.getAccessToken();
           if (newToken) {
             this.lastToken = newToken;
           } else {
-            console.warn('[WS] Token refresh returned null, stopping reconnect');
+            logger.warn(
+              "WS",
+              "Token refresh returned null, stopping reconnect",
+            );
             this.shouldReconnect = false;
-            this.setConnectionState('disconnected');
+            this.setConnectionState("disconnected");
             return;
           }
         } catch (err) {
-          console.warn('[WS] Token refresh failed, stopping reconnect', err);
+          logger.warn("WS", "Token refresh failed, stopping reconnect", err);
           this.shouldReconnect = false;
-          this.setConnectionState('disconnected');
+          this.setConnectionState("disconnected");
           return;
         }
       }
@@ -328,7 +360,7 @@ export class SocketConnection {
       this.pendingTopics.clear();
     }
     this.reconnectAttempt = 0;
-    this.setConnectionState('disconnected');
+    this.setConnectionState("disconnected");
   }
 
   channel(topic: string): Channel {
@@ -340,49 +372,51 @@ export class SocketConnection {
       };
     }
 
-    const self = this;
-
     const join = async (): Promise<{ status: string }> => {
-      const ch = self.channels[topic];
+      const ch = this.channels[topic];
       if (ch?.joined) return { status: "ok" };
 
-      if (!self.socket || self.socket.readyState !== WebSocket.OPEN) {
-        self.pendingTopics.add(topic);
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        this.pendingTopics.add(topic);
         return { status: "pending" };
       }
 
-      self.sendJoin(self.socket, topic);
+      this.sendJoin(this.socket, topic);
       return { status: "ok" };
     };
 
     const on = (event: string, callback: EventCallback): void => {
-      const ch = self.channels[topic];
+      const ch = this.channels[topic];
       if (!ch) return;
       if (!ch.callbacks[event]) ch.callbacks[event] = [];
       ch.callbacks[event].push(callback);
     };
 
     const off = (event: string, callback: EventCallback): void => {
-      const ch = self.channels[topic];
+      const ch = this.channels[topic];
       if (!ch?.callbacks[event]) return;
       ch.callbacks[event] = ch.callbacks[event].filter((cb) => cb !== callback);
     };
 
     const push = (event: string, payload: Record<string, any>): void => {
-      if (!self.socket || self.socket.readyState !== WebSocket.OPEN) return;
-      const ch = self.channels[topic];
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+      const ch = this.channels[topic];
       const ref = nextRef();
-      self.socket.send(encodeMessage(ch?.joinRef ?? null, ref, topic, event, payload));
+      this.socket.send(
+        encodeMessage(ch?.joinRef ?? null, ref, topic, event, payload),
+      );
     };
 
     const leave = (): void => {
-      if (self.socket && self.socket.readyState === WebSocket.OPEN) {
-        const ch = self.channels[topic];
+      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+        const ch = this.channels[topic];
         const ref = nextRef();
-        self.socket.send(encodeMessage(ch?.joinRef ?? null, ref, topic, "phx_leave", {}));
+        this.socket.send(
+          encodeMessage(ch?.joinRef ?? null, ref, topic, "phx_leave", {}),
+        );
       }
-      delete self.channels[topic];
-      self.pendingTopics.delete(topic);
+      delete this.channels[topic];
+      this.pendingTopics.delete(topic);
     };
 
     return { join, on, off, push, leave };

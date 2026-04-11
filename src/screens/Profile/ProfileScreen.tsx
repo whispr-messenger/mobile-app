@@ -3,7 +3,8 @@
  * WHISPR-132: Implement ProfileScreen with user profile management
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -20,7 +21,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -91,6 +92,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const saveAbortRef = useRef<AbortController | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -110,31 +112,43 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-    // Load from API unless navigation params already provided full data
-    const loadProfile = async () => {
-      if (params?.firstName && params?.lastName) return;
-      try {
-        const service = UserService.getInstance();
-        const res = await service.getProfile();
-        if (res.success && res.profile) {
-          setProfile((prev) => ({
-            ...prev,
-            firstName: res.profile!.firstName,
-            lastName: res.profile!.lastName,
-            username: res.profile!.username,
-            phoneNumber: res.profile!.phoneNumber,
-            biography: res.profile!.biography,
-            profilePicture: res.profile!.profilePicture,
-            createdAt: res.profile!.createdAt || prev.createdAt,
-          }));
-        }
-      } catch (e) {
-        console.error("[ProfileScreen] Failed to load profile:", e);
+
+    // Cleanup: cancel any pending save on unmount
+    return () => {
+      if (saveAbortRef.current) {
+        saveAbortRef.current.abort();
+        saveAbortRef.current = null;
       }
     };
-
-    loadProfile();
   }, []);
+
+  // Re-fetch profile from API every time the screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadProfile = async () => {
+        try {
+          const service = UserService.getInstance();
+          const res = await service.getProfile();
+          if (res.success && res.profile) {
+            setProfile((prev) => ({
+              ...prev,
+              firstName: res.profile!.firstName || prev.firstName || "",
+              lastName: res.profile!.lastName || prev.lastName || "",
+              username: res.profile!.username || prev.username || "",
+              phoneNumber: res.profile!.phoneNumber || prev.phoneNumber || "",
+              biography: res.profile!.biography || prev.biography || "",
+              profilePicture: res.profile!.profilePicture,
+              createdAt: res.profile!.createdAt || prev.createdAt,
+            }));
+          }
+        } catch (e) {
+          console.error("[ProfileScreen] Failed to load profile:", e);
+        }
+      };
+
+      loadProfile();
+    }, []),
+  );
 
   // Handle profile picture change
   const handleImagePicker = async () => {
@@ -202,6 +216,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
+  // Cancel any pending save operation
+  const cancelSave = useCallback(() => {
+    if (saveAbortRef.current) {
+      saveAbortRef.current.abort();
+      saveAbortRef.current = null;
+    }
+    setLoading(false);
+  }, []);
+
   // Handle profile update
   const handleSaveProfile = async () => {
     // Validation globale avant sauvegarde
@@ -216,8 +239,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const usernameError = validateField("username", profile.username);
     if (usernameError) errors.push(`Nom d'utilisateur: ${usernameError}`);
 
-    const phoneError = validateField("phoneNumber", profile.phoneNumber);
-    if (phoneError) errors.push(`Téléphone: ${phoneError}`);
+    // phoneNumber is read-only from registration — skip validation on save
 
     const bioError = validateField("biography", profile.biography);
     if (bioError) errors.push(`Biographie: ${bioError}`);
@@ -226,6 +248,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       Alert.alert("Erreurs de validation", errors.join("\n\n"));
       return;
     }
+
+    // Abort any previous pending save
+    cancelSave();
+
+    const abortController = new AbortController();
+    saveAbortRef.current = abortController;
 
     setLoading(true);
 
@@ -258,28 +286,55 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           const fileType = fileName.endsWith(".png")
             ? "image/png"
             : "image/jpeg";
-          const uploadResult = await MediaService.uploadMedia({
+
+          // Race the upload against a 15-second timeout
+          const uploadPromise = MediaService.uploadMedia({
             uri: profilePictureUrl,
             name: fileName,
             type: fileType,
           });
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Upload timeout")),
+              15000,
+            ),
+          );
+          const uploadResult = await Promise.race([
+            uploadPromise,
+            timeoutPromise,
+          ]);
+
+          // Check if save was cancelled while uploading
+          if (abortController.signal.aborted) return;
+
           profilePictureUrl = uploadResult.url;
           setProfile((prev) => ({
             ...prev,
             profilePicture: uploadResult.url,
           }));
         } catch (uploadError) {
+          // If save was cancelled, exit silently
+          if (abortController.signal.aborted) return;
+
           console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
           // Revert to previous profile picture to avoid broken state
           setProfile((prev) => ({
             ...prev,
             profilePicture: previousProfilePicture,
           }));
-          Alert.alert("Erreur", "Impossible de télécharger la photo de profil");
+          const errorMsg =
+            uploadError instanceof Error &&
+            uploadError.message === "Upload timeout"
+              ? "Le téléchargement de la photo a expiré. Vérifiez votre connexion et réessayez."
+              : "Impossible de télécharger la photo de profil. Vérifiez votre connexion et réessayez.";
+          Alert.alert("Erreur", errorMsg);
           setLoading(false);
           return;
         }
       }
+
+      // Check if save was cancelled
+      if (abortController.signal.aborted) return;
 
       const service = UserService.getInstance();
       const res = await service.updateProfile({
@@ -290,8 +345,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         profilePicture: profilePictureUrl,
       });
 
+      // Check if save was cancelled while updating profile
+      if (abortController.signal.aborted) return;
+
       if (!res.success) {
-        Alert.alert("Erreur", res.message || "Impossible de mettre à jour le profil");
+        Alert.alert(
+          "Erreur",
+          res.message || "Impossible de mettre à jour le profil",
+        );
         return;
       }
 
@@ -300,38 +361,46 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       }
 
       setIsEditing(false);
-      Alert.alert("Succès", "Profil mis à jour avec succès");
+      Alert.alert("Succès", "Profil mis à jour avec succès", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de mettre à jour le profil");
+      // If save was cancelled, exit silently
+      if (abortController.signal.aborted) return;
+      Alert.alert("Erreur", "Impossible de mettre à jour le profil. Vérifiez votre connexion et réessayez.");
     } finally {
       setLoading(false);
+      if (saveAbortRef.current === abortController) {
+        saveAbortRef.current = null;
+      }
     }
   };
 
   // Validation functions
   const validateField = (
     field: keyof UserProfile,
-    value: string,
+    value: string | null | undefined,
   ): string | null => {
+    const v = value || "";
     switch (field) {
       case "firstName":
       case "lastName":
-        if (!value.trim()) return "Ce champ est obligatoire";
-        if (value.trim().length < 2) return "Minimum 2 caractères";
-        if (value.trim().length > 50) return "Maximum 50 caractères";
+        if (!v.trim()) return "Ce champ est obligatoire";
+        if (v.trim().length < 2) return "Minimum 2 caractères";
+        if (v.trim().length > 50) return "Maximum 50 caractères";
         return null;
 
       case "username":
-        if (!value.trim()) return "Le nom d'utilisateur est obligatoire";
-        if (value.trim().length < 3) return "Minimum 3 caractères";
-        if (value.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-zA-Z0-9_]+$/.test(value.trim()))
+        if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
+        if (v.trim().length < 3) return "Minimum 3 caractères";
+        if (v.trim().length > 20) return "Maximum 20 caractères";
+        if (!/^[a-zA-Z0-9_]+$/.test(v.trim()))
           return "Seuls lettres, chiffres et _ autorisés";
         return null;
 
       case "phoneNumber":
-        if (!value.trim()) return "Le numéro de téléphone est obligatoire";
-        const cleanNumber = value.replace(/\s/g, "");
+        if (!v.trim()) return "Le numéro de téléphone est obligatoire";
+        const cleanNumber = v.replace(/\s/g, "");
         // Validation format international E.164: +[code pays][numéro]
         // Exemples: +33123456789, +1234567890, +86123456789
         if (!/^\+[1-9]\d{1,14}$/.test(cleanNumber))
@@ -341,7 +410,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         return null;
 
       case "biography":
-        if (value.length > 500) return "Maximum 500 caractères";
+        if (v.length > 500) return "Maximum 500 caractères";
         return null;
 
       default:
@@ -349,20 +418,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Handle field change with validation
+  // Handle field change (validation is done on save only)
   const handleFieldChange = (field: keyof UserProfile, value: string) => {
-    const error = validateField(field, value);
-
-    // Update profile
     setProfile((prev) => ({
       ...prev,
       [field]: value,
     }));
-
-    // Show validation error if any
-    if (error) {
-      Alert.alert("Erreur de validation", error);
-    }
   };
 
   // Handle settings navigation
@@ -377,13 +438,37 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Handle back navigation
   const handleBackPress = () => {
-    if (isEditing) {
+    if (loading) {
+      // Cancel any in-progress save and allow navigation
+      Alert.alert(
+        "Sauvegarde en cours",
+        "Voulez-vous annuler la sauvegarde et quitter ?",
+        [
+          { text: "Attendre", style: "cancel" },
+          {
+            text: "Quitter",
+            style: "destructive",
+            onPress: () => {
+              cancelSave();
+              setIsEditing(false);
+              navigation.goBack();
+            },
+          },
+        ],
+      );
+    } else if (isEditing) {
       Alert.alert(
         "Modifications non sauvegardées",
         "Voulez-vous vraiment quitter sans sauvegarder ?",
         [
           { text: "Annuler", style: "cancel" },
-          { text: "Quitter", onPress: () => setIsEditing(false) },
+          {
+            text: "Quitter",
+            onPress: () => {
+              setIsEditing(false);
+              navigation.goBack();
+            },
+          },
         ],
       );
     } else {
@@ -443,7 +528,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
             ) : (
               <TouchableOpacity
-                onPress={() => setIsEditing(false)}
+                onPress={() => {
+                  cancelSave();
+                  setIsEditing(false);
+                }}
                 style={styles.cancelButton}
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
@@ -475,8 +563,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 ) : (
                   <View style={styles.profilePicturePlaceholder}>
                     <Text style={styles.profilePicturePlaceholderText}>
-                      {profile.firstName.charAt(0)}
-                      {profile.lastName.charAt(0)}
+                      {(profile.firstName || "").charAt(0)}
+                      {(profile.lastName || "").charAt(0)}
                     </Text>
                   </View>
                 )}
@@ -539,7 +627,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     autoCapitalize="none"
                   />
                 ) : (
-                  <Text style={styles.sectionValue}>@{profile.username}</Text>
+                  <Text style={styles.sectionValue}>{formatUsername(profile.username)}</Text>
                 )}
               </View>
 
@@ -581,7 +669,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       maxLength={500}
                     />
                     <Text style={styles.characterCount}>
-                      {profile.biography.length}/500 caractères
+                      {(profile.biography || "").length}/500 caractères
                     </Text>
                   </>
                 ) : (

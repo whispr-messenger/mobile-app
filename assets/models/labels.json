@@ -1,0 +1,33 @@
+{
+  "class_names": [
+    "Baked Potato",
+    "Burger",
+    "Crispy Chicken",
+    "Donut",
+    "Fries",
+    "Hot Dog",
+    "Pizza",
+    "Sandwich"
+  ],
+  "num_classes": 8,
+  "id2label": {
+    "0": "Baked Potato",
+    "1": "Burger",
+    "2": "Crispy Chicken",
+    "3": "Donut",
+    "4": "Fries",
+    "5": "Hot Dog",
+    "6": "Pizza",
+    "7": "Sandwich"
+  },
+  "label2id": {
+    "Baked Potato": 0,
+    "Burger": 1,
+    "Crispy Chicken": 2,
+    "Donut": 3,
+    "Fries": 4,
+    "Hot Dog": 5,
+    "Pizza": 6,
+    "Sandwich": 7
+  }
+}

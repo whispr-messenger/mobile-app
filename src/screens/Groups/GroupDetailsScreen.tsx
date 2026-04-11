@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatUsername } from '../../utils';
 import {
   View,
   Text,
@@ -400,7 +401,7 @@ export const GroupDetailsScreen: React.FC = () => {
               </View>
               {member.username && (
                 <Text style={[styles.memberUsername, { color: withOpacity(colors.text.light, 0.7) }]}>
-                  @{member.username}
+                  {formatUsername(member.username)}
                 </Text>
               )}
               <Text style={[styles.memberJoined, { color: withOpacity(colors.text.light, 0.5) }]}>
@@ -891,7 +892,7 @@ export const GroupDetailsScreen: React.FC = () => {
                       <View style={styles.memberSelectInfo}>
                         <Text style={styles.memberSelectName}>{member.display_name}</Text>
                         {member.username && (
-                          <Text style={styles.memberSelectUsername}>@{member.username}</Text>
+                          <Text style={styles.memberSelectUsername}>{formatUsername(member.username)}</Text>
                         )}
                       </View>
                       <View style={styles.memberSelectArrow}>

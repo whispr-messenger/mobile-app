@@ -5,8 +5,11 @@ import { messagingAPI } from "../services/messaging/api";
 import { cacheService } from "../services/messaging/cache";
 import { TokenService } from "../services/TokenService";
 import { NotificationService } from "../services/NotificationService";
+import { logger } from "../utils/logger";
 
-const EMPTY_STATE_GRACE_PERIOD_MS = 10_000;
+// Short grace period: absorbs transient empty fetches (e.g. first WS payload
+// arriving just after an HTTP fetch returns []) without flashing an empty UI.
+const EMPTY_STATE_GRACE_PERIOD_MS = 2_000;
 const MANUALLY_UNREAD_KEY = "@whispr/manually_unread_ids";
 
 async function getCurrentUserId(): Promise<string | null> {
@@ -16,48 +19,68 @@ async function getCurrentUserId(): Promise<string | null> {
   return payload?.sub ?? null;
 }
 
+async function enrichSingleConversation(
+  conv: Conversation,
+  currentUserId: string,
+): Promise<Conversation> {
+  if (conv.type !== "direct" || (conv.display_name && conv.avatar_url)) {
+    return conv;
+  }
+
+  try {
+    let memberIds = conv.member_user_ids;
+
+    // If member IDs are not available from the list, fetch conversation detail
+    if (!memberIds || memberIds.length === 0) {
+      const detail = await messagingAPI.getConversation(conv.id);
+      if (detail?.members) {
+        memberIds = detail.members.map((m: any) => m.user_id || m.userId);
+      } else if (detail?.member_user_ids) {
+        memberIds = detail.member_user_ids;
+      }
+    }
+
+    if (!memberIds || memberIds.length === 0) {
+      logger.warn("enrich", `No members found for conversation ${conv.id}`);
+      return conv;
+    }
+
+    const otherUserId = memberIds.find((id: string) => id !== currentUserId);
+
+    if (!otherUserId) {
+      logger.warn("enrich", `No other user found in conversation ${conv.id}`);
+      return conv;
+    }
+
+    const userInfo = await messagingAPI.getUserInfo(otherUserId);
+    if (userInfo?.display_name) {
+      return {
+        ...conv,
+        display_name: userInfo.display_name,
+        avatar_url: userInfo.avatar_url || conv.avatar_url,
+        member_user_ids: memberIds,
+      };
+    }
+
+    logger.warn(
+      "enrich",
+      `getUserInfo returned no display_name for ${otherUserId}`,
+    );
+    return { ...conv, member_user_ids: memberIds };
+  } catch (err) {
+    logger.warn("enrich", `Failed for conversation ${conv.id}`, err);
+    return conv;
+  }
+}
+
 async function enrichWithDisplayNames(
   conversations: Conversation[],
   currentUserId: string,
 ): Promise<Conversation[]> {
-  const enriched = await Promise.all(
-    conversations.map(async (conv) => {
-      if (conv.type === "direct" && !conv.display_name) {
-        try {
-          // The list endpoint doesn't return members, so fetch conversation detail
-          let memberIds = conv.member_user_ids;
-          if (!memberIds || memberIds.length === 0) {
-            const detail = await messagingAPI.getConversation(conv.id);
-            if (detail?.members) {
-              memberIds = detail.members.map(
-                (m: { user_id: string }) => m.user_id,
-              );
-            } else if (detail?.member_user_ids) {
-              memberIds = detail.member_user_ids;
-            }
-          }
-
-          const otherUserId = memberIds?.find(
-            (id: string) => id !== currentUserId,
-          );
-          if (otherUserId) {
-            const userInfo = await messagingAPI.getUserInfo(otherUserId);
-            if (userInfo) {
-              return {
-                ...conv,
-                display_name: userInfo.display_name,
-                member_user_ids: memberIds,
-              };
-            }
-          }
-        } catch {
-          // Silently fail - will show "Contact" as fallback
-        }
-      }
-      return conv;
-    }),
+  const results = await Promise.all(
+    conversations.map((conv) => enrichSingleConversation(conv, currentUserId)),
   );
-  return enriched;
+  return results;
 }
 
 export type ConversationsStatus =
@@ -79,6 +102,7 @@ interface ConversationsActions {
   fetchConversations: () => Promise<void>;
   refreshConversations: () => Promise<void>;
   applyConversationUpdate: (conversation: Conversation) => void;
+  applyConversationSummaries: (conversations: Conversation[]) => void;
   applyNewMessage: (message: Message) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   archiveConversation: (id: string) => void;
@@ -86,6 +110,7 @@ interface ConversationsActions {
   pinConversation: (id: string) => void;
   markAsUnread: (id: string) => Promise<void>;
   clearManualUnread: (id: string) => Promise<void>;
+  resetUnreadCount: (conversationId: string) => void;
   reset: () => void;
   loadManuallyUnreadIds: () => Promise<void>;
   _startGracePeriod: () => void;
@@ -169,7 +194,7 @@ export const useConversationsStore = create<
       await cacheService.saveConversations(enriched);
       _setConversations(enriched);
     } catch (err) {
-      console.error("[conversationsStore] fetchConversations error:", err);
+      logger.error("conversationsStore", "fetchConversations error", err);
       // If we already have cached data shown, stay on it but start grace period
       // so skeletons don't flash forever if cache was empty
       const { conversations } = get();
@@ -191,7 +216,7 @@ export const useConversationsStore = create<
       await cacheService.saveConversations(enriched);
       _setConversations(enriched, true);
     } catch (err) {
-      console.error("[conversationsStore] refreshConversations error:", err);
+      logger.error("conversationsStore", "refreshConversations error", err);
       set({ error: "Failed to refresh conversations" });
     }
   },
@@ -200,15 +225,132 @@ export const useConversationsStore = create<
     const { conversations, _cancelGracePeriod } = get();
     const index = conversations.findIndex((c) => c.id === conversation.id);
     let next: Conversation[];
+    let needsEnrichment = false;
     if (index === -1) {
       next = [conversation, ...conversations];
+      needsEnrichment =
+        conversation.type === "direct" &&
+        (!conversation.display_name || !conversation.avatar_url);
     } else {
+      // Preserve display_name from existing conversation if the update doesn't include one
+      const existing = conversations[index];
+      const merged = {
+        ...conversation,
+        display_name: conversation.display_name || existing.display_name,
+        avatar_url: conversation.avatar_url || existing.avatar_url,
+        member_user_ids:
+          conversation.member_user_ids || existing.member_user_ids,
+      };
       next = [...conversations];
-      next[index] = conversation;
+      next[index] = merged;
     }
     if (next.length > 0) {
       _cancelGracePeriod();
       set({ conversations: next, status: "loaded" });
+    }
+
+    // Async enrichment for new direct conversations without display_name
+    if (needsEnrichment) {
+      getCurrentUserId().then((userId) => {
+        if (!userId) return;
+        enrichSingleConversation(conversation, userId).then((enriched) => {
+          if (enriched.display_name) {
+            const { conversations: current } = get();
+            const idx = current.findIndex((c) => c.id === enriched.id);
+            if (idx !== -1) {
+              const updated = [...current];
+              updated[idx] = {
+                ...current[idx],
+                display_name: enriched.display_name,
+                avatar_url: enriched.avatar_url || current[idx].avatar_url,
+                member_user_ids: enriched.member_user_ids,
+              };
+              set({ conversations: updated });
+            }
+          }
+        });
+      });
+    }
+  },
+
+  applyConversationSummaries: (wsConversations) => {
+    // conversation_summaries WS event: merge with existing enriched data,
+    // then enrich any new conversations that lack display_name.
+    const { conversations, _cancelGracePeriod } = get();
+    const existingMap = new Map(conversations.map((c) => [c.id, c]));
+
+    const merged = wsConversations.map((wsConv: any) => {
+      // Normalise camelCase keys from WS to snake_case
+      const conv: Conversation = {
+        id: wsConv.id,
+        type: wsConv.type,
+        metadata: wsConv.metadata || {},
+        created_at:
+          wsConv.created_at ||
+          wsConv.createdAt ||
+          wsConv.inserted_at ||
+          wsConv.insertedAt ||
+          "",
+        updated_at: wsConv.updated_at || wsConv.updatedAt || "",
+        is_active: wsConv.is_active ?? wsConv.isActive ?? true,
+        last_message: wsConv.last_message || wsConv.lastMessage,
+        unread_count: wsConv.unread_count ?? wsConv.unreadCount ?? 0,
+        member_user_ids: wsConv.member_user_ids || wsConv.memberUserIds,
+        is_pinned: wsConv.is_pinned ?? wsConv.isPinned ?? false,
+        is_muted: wsConv.is_muted ?? wsConv.isMuted ?? false,
+        is_archived: wsConv.is_archived ?? wsConv.isArchived ?? false,
+      };
+      const existing = existingMap.get(conv.id);
+      if (existing) {
+        return {
+          ...conv,
+          display_name: existing.display_name || conv.display_name,
+          member_user_ids: conv.member_user_ids || existing.member_user_ids,
+          avatar_url: existing.avatar_url,
+          // Preserve local enrichments the backend summary doesn't include
+          last_message: conv.last_message || existing.last_message,
+          is_pinned: conv.is_pinned || existing.is_pinned,
+          is_muted: conv.is_muted || existing.is_muted,
+          is_archived: conv.is_archived || existing.is_archived,
+        };
+      }
+      return conv;
+    });
+
+    if (merged.length > 0) {
+      _cancelGracePeriod();
+      set({ conversations: merged, status: "loaded" });
+    }
+
+    // Async enrichment for any conversations without display_name
+    const needEnrichment = merged.filter(
+      (c: Conversation) =>
+        c.type === "direct" && (!c.display_name || !c.avatar_url),
+    );
+    if (needEnrichment.length > 0) {
+      getCurrentUserId().then((userId) => {
+        if (!userId) return;
+        enrichWithDisplayNames(needEnrichment, userId).then((enriched) => {
+          const { conversations: current } = get();
+          const enrichedMap = new Map(
+            enriched.filter((e) => e.display_name).map((e) => [e.id, e]),
+          );
+          if (enrichedMap.size === 0) return;
+          const updated = current.map((c) => {
+            const e = enrichedMap.get(c.id);
+            return e
+              ? {
+                  ...c,
+                  display_name: e.display_name,
+                  avatar_url: e.avatar_url || c.avatar_url,
+                  member_user_ids: e.member_user_ids,
+                }
+              : c;
+          });
+          set({ conversations: updated });
+          cacheService.saveConversations(updated);
+        });
+      });
     }
   },
 
@@ -231,15 +373,27 @@ export const useConversationsStore = create<
             updated_at: message.sent_at,
             unread_count: 1,
           };
-          _cancelGracePeriod();
-          set({
-            conversations: [newConv, ...get().conversations],
-            status: "loaded",
-          });
+          // Enrich display name for new direct conversations
+          const userId = await getCurrentUserId();
+          if (userId) {
+            const enriched = await enrichWithDisplayNames([newConv], userId);
+            _cancelGracePeriod();
+            set({
+              conversations: [enriched[0], ...get().conversations],
+              status: "loaded",
+            });
+          } else {
+            _cancelGracePeriod();
+            set({
+              conversations: [newConv, ...get().conversations],
+              status: "loaded",
+            });
+          }
         }
       } catch (err) {
-        console.error(
-          "[conversationsStore] applyNewMessage: failed to fetch unknown conversation",
+        logger.error(
+          "conversationsStore",
+          "applyNewMessage: failed to fetch unknown conversation",
           err,
         );
       }
@@ -308,7 +462,7 @@ export const useConversationsStore = create<
         await NotificationService.muteConversation(id);
       }
     } catch (err) {
-      console.error("[conversationsStore] muteConversation error:", err);
+      logger.error("conversationsStore", "muteConversation error", err);
       // Rollback on failure
       set({ conversations });
     }
@@ -359,6 +513,15 @@ export const useConversationsStore = create<
     } catch {
       // Storage write failed — local state is still correct for this session
     }
+  },
+
+  resetUnreadCount: (conversationId) => {
+    const { conversations } = get();
+    const index = conversations.findIndex((c) => c.id === conversationId);
+    if (index === -1 || conversations[index].unread_count === 0) return;
+    const updated = [...conversations];
+    updated[index] = { ...updated[index], unread_count: 0 };
+    set({ conversations: updated });
   },
 
   loadManuallyUnreadIds: async () => {

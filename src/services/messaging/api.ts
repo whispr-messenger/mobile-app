@@ -2,14 +2,70 @@ import { Conversation, Message } from "../../types/messaging";
 import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
+import { snakecaseKeys } from "../../utils/caseTransform";
+import { logger } from "../../utils/logger";
 
-const API_BASE_URL = `${getApiBaseUrl()}/messaging/api`;
+const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
+
+/**
+ * Normalise a backend attachment payload into the MessageAttachment shape the
+ * app consumes. The backend returns { file_url, file_name, file_size, mime_type,
+ * media_id, metadata, ... } while the app expects { media_type, metadata: {...} }.
+ * Prefers media_id-based blob URLs over stored file_url (which may be an expired
+ * presigned S3/MinIO URL).
+ */
+export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
+  // Already in the expected shape — pass through
+  if (att?.metadata?.media_url && att?.media_type) return att;
+
+  const fileType = att?.file_type || "";
+  const mime = att?.mime_type || "";
+  let media_type: string = fileType || "file";
+  if (!fileType || fileType === "file") {
+    if (mime.startsWith("image/")) media_type = "image";
+    else if (mime.startsWith("video/")) media_type = "video";
+    else if (mime.startsWith("audio/")) media_type = "audio";
+  }
+
+  const meta = att?.metadata || {};
+  const mediaId = att?.media_id || meta.media_id;
+  const mediaBlobUrl = mediaId
+    ? `${getApiBaseUrl()}/media/v1/${mediaId}/blob`
+    : null;
+  const mediaThumbnailUrl = mediaId
+    ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
+    : null;
+
+  const resolvedUrl =
+    mediaBlobUrl || meta.media_url || att?.file_url || att?.storage_url;
+  const resolvedThumbnail =
+    mediaThumbnailUrl ||
+    att?.thumbnail_url ||
+    meta.thumbnail_url ||
+    resolvedUrl;
+
+  return {
+    id: att?.id,
+    message_id: att?.message_id || fallbackMessageId,
+    media_id: mediaId || att?.id,
+    media_type,
+    metadata: {
+      filename: att?.file_name || att?.filename || meta.filename,
+      size: att?.file_size || att?.size || meta.size,
+      mime_type: att?.mime_type || meta.mime_type,
+      media_url: resolvedUrl,
+      thumbnail_url: resolvedThumbnail,
+    },
+    created_at: att?.uploaded_at || att?.created_at || new Date().toISOString(),
+  };
+};
 
 // Backend wraps responses in { data: ... } — unwrap if present
 const unwrap = async (response: Response) => {
   try {
     const json = await response.json();
-    return json?.data !== undefined ? json.data : json;
+    const data = json?.data !== undefined ? json.data : json;
+    return snakecaseKeys(data);
   } catch {
     return null;
   }
@@ -147,7 +203,7 @@ export const messagingAPI = {
     message: {
       content: string;
       message_type: "text" | "media" | "system";
-      client_random: number;
+      client_random: number | string;
       metadata?: Record<string, any>;
       reply_to_id?: string;
     },
@@ -234,7 +290,15 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to add reaction");
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number; body: unknown };
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
   },
 
@@ -250,7 +314,15 @@ export const messagingAPI = {
     const response = await authenticatedFetch(url, { method: "DELETE" });
 
     if (!response.ok) {
-      throw new Error("Failed to remove reaction");
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number; body: unknown };
+      err.status = response.status;
+      err.body = body;
+      throw err;
     }
   },
 
@@ -260,6 +332,10 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
+      // Back ou routes pas encore alignés — pas de réactions affichées
+      if (response.status === 404 || response.status === 400) {
+        return { reactions: [] };
+      }
       throw new Error("Failed to fetch message reactions");
     }
 
@@ -301,6 +377,10 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
+      // Endpoint may not exist yet (404) — return empty array gracefully
+      if (response.status === 404) {
+        return [];
+      }
       throw new Error("Failed to fetch pinned messages");
     }
 
@@ -314,11 +394,16 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
+      // Endpoint may not exist yet (404) — return empty array gracefully
+      if (response.status === 404) {
+        return [];
+      }
       throw new Error("Failed to fetch attachments");
     }
 
     const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    const raw = Array.isArray(data) ? data : [];
+    return raw.map((att: any) => mapBackendAttachment(att, messageId));
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {
@@ -336,30 +421,55 @@ export const messagingAPI = {
     }
   },
 
-  async getUserInfo(
-    userId: string,
-  ): Promise<{ id: string; display_name: string; username?: string } | null> {
-    const response = await authenticatedFetch(
-      `${getApiBaseUrl()}/user/profile/${encodeURIComponent(userId)}`,
-    );
+  async getUserInfo(userId: string): Promise<{
+    id: string;
+    display_name: string;
+    username?: string;
+    avatar_url?: string;
+  } | null> {
+    try {
+      const response = await authenticatedFetch(
+        `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
+      );
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch user info");
-    }
+      if (!response.ok) {
+        logger.warn(
+          "getUserInfo",
+          `HTTP ${response.status} for user ${userId}`,
+        );
+        return null;
+      }
 
-    const user = await response.json().catch(() => null);
-    if (!user) {
+      const user = await response.json().catch(() => null);
+      if (!user) {
+        logger.warn("getUserInfo", `Empty body for user ${userId}`);
+        return null;
+      }
+
+      // Handle both camelCase (from user-service) and snake_case formats
+      const firstName = user.firstName || user.first_name || "";
+      const lastName = user.lastName || user.last_name || "";
+      const phoneNumber = user.phoneNumber || user.phone_number || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+      const displayName =
+        fullName || user.username || phoneNumber || "Utilisateur";
+
+      const avatarUrl =
+        user.profilePictureUrl ||
+        user.profile_picture_url ||
+        user.avatar_url ||
+        undefined;
+
+      return {
+        id: user.id,
+        display_name: displayName,
+        username: user.username,
+        avatar_url: avatarUrl,
+      };
+    } catch (err) {
+      logger.warn("getUserInfo", `Failed for user ${userId}`, err);
       return null;
     }
-
-    const displayName =
-      user.firstName || user.first_name || user.username || "Utilisateur";
-
-    return {
-      id: user.id,
-      display_name: displayName,
-      username: user.username,
-    };
   },
 
   async getConversationMembers(
