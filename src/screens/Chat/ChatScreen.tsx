@@ -211,13 +211,14 @@ export const ChatScreen: React.FC = () => {
               m.client_random === message.client_random,
           );
           if (optimisticMessageIndex !== -1) {
-            const existing = prev[optimisticMessageIndex] as MessageWithRelations;
+            const existing = prev[
+              optimisticMessageIndex
+            ] as MessageWithRelations;
             const newMessages = [...prev];
             newMessages[optimisticMessageIndex] = {
               ...message,
               // Preserve attachments from the optimistic message
-              attachments:
-                (message as any).attachments || existing.attachments,
+              attachments: (message as any).attachments || existing.attachments,
               status: (message as any).status || ("sent" as const),
             };
             return newMessages;
@@ -566,7 +567,9 @@ export const ChatScreen: React.FC = () => {
                 const reactionData = await messagingAPI.getMessageReactions(
                   msg.id,
                 );
-                reactions = Array.isArray(reactionData) ? reactionData : reactionData?.reactions || [];
+                reactions = Array.isArray(reactionData)
+                  ? reactionData
+                  : reactionData?.reactions || [];
               } catch (error) {
                 // Ignore errors for reactions
               }
@@ -1085,7 +1088,12 @@ export const ChatScreen: React.FC = () => {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === messageId
-              ? { ...m, reactions: Array.isArray(reactionData) ? reactionData : reactionData?.reactions || [] }
+              ? {
+                  ...m,
+                  reactions: Array.isArray(reactionData)
+                    ? reactionData
+                    : reactionData?.reactions || [],
+                }
               : m,
           ),
         );

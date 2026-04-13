@@ -36,12 +36,10 @@ import type { MessageWithRelations } from "../../types/messaging";
 const { height: SCREEN_H } = Dimensions.get("window");
 const SHEET_MAX_H = SCREEN_H * 0.9;
 
-/** Fond sheet : navy → violet (sans corail plein large — réservé aux CTA) */
-const SHEET_GRADIENT = [
-  colors.background.darkCard,
-  colors.secondary.medium,
-  colors.secondary.darker,
-] as const;
+/** Même dégradé que l’écran chat (identité Whispr : navy → violet → corail) */
+const APP_GRADIENT = colors.background.gradient.app;
+const BRAND_NAVY = APP_GRADIENT[0];
+const BRAND_VIOLET = APP_GRADIENT[1];
 
 const CATEGORY_ORDER: ReportCategoryId[] = [
   "offensive",
@@ -233,9 +231,9 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
           ]}
         >
           <LinearGradient
-            colors={[...SHEET_GRADIENT]}
+            colors={[...APP_GRADIENT]}
             start={{ x: 0, y: 0 }}
-            end={{ x: 0.85, y: 1 }}
+            end={{ x: 1, y: 1 }}
             style={styles.sheetGradient}
           >
             <KeyboardAvoidingView
@@ -303,7 +301,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                     <Ionicons
                       name="cloud-offline-outline"
                       size={36}
-                      color={colors.secondary.light}
+                      color={themeColors.text.tertiary}
                     />
                   </View>
                   <Text
@@ -370,7 +368,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                   <Text
                     style={[
                       styles.stepBadge,
-                      { color: colors.secondary.light },
+                      { color: themeColors.text.secondary },
                     ]}
                   >
                     {getLocalizedText("report.step1of2")}
@@ -378,7 +376,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                   <Text
                     style={[
                       styles.labelSmall,
-                      { color: colors.secondary.main },
+                      { color: withOpacity(BRAND_VIOLET, 0.95) },
                     ]}
                   >
                     {getLocalizedText("report.conversationLabel")} ·{" "}
@@ -407,10 +405,10 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                             {
                               borderColor: selected
                                 ? colors.primary.main
-                                : withOpacity(colors.secondary.light, 0.35),
+                                : withOpacity(BRAND_VIOLET, 0.45),
                               backgroundColor: selected
                                 ? withOpacity(colors.primary.main, 0.14)
-                                : withOpacity(colors.secondary.darker, 0.45),
+                                : withOpacity(BRAND_NAVY, 0.5),
                             },
                           ]}
                           onPress={() => setCategory(id)}
@@ -422,7 +420,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                             color={
                               selected
                                 ? colors.primary.main
-                                : colors.secondary.light
+                                : themeColors.text.secondary
                             }
                           />
                           <Text
@@ -464,8 +462,8 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                         category
                           ? [colors.primary.main, colors.primary.dark]
                           : [
-                              withOpacity(colors.secondary.medium, 0.55),
-                              withOpacity(colors.secondary.dark, 0.75),
+                              withOpacity(BRAND_VIOLET, 0.5),
+                              withOpacity(BRAND_NAVY, 0.9),
                             ]
                       }
                       start={{ x: 0, y: 0 }}
@@ -512,7 +510,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                   <Text
                     style={[
                       styles.stepBadge,
-                      { color: colors.secondary.light },
+                      { color: themeColors.text.secondary },
                     ]}
                   >
                     {getLocalizedText("report.step2of2")}
@@ -530,11 +528,8 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                       styles.textArea,
                       {
                         color: themeColors.text.primary,
-                        backgroundColor: withOpacity(
-                          colors.secondary.darker,
-                          0.55,
-                        ),
-                        borderColor: withOpacity(colors.secondary.main, 0.4),
+                        backgroundColor: withOpacity(BRAND_NAVY, 0.58),
+                        borderColor: withOpacity(BRAND_VIOLET, 0.45),
                       },
                     ]}
                     placeholder={getLocalizedText("report.placeholder")}
@@ -557,10 +552,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                       styles.attachBox,
                       {
                         borderColor: withOpacity(colors.primary.main, 0.4),
-                        backgroundColor: withOpacity(
-                          colors.secondary.darker,
-                          0.35,
-                        ),
+                        backgroundColor: withOpacity(BRAND_NAVY, 0.42),
                       },
                     ]}
                     onPress={pickImage}
@@ -603,7 +595,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
                   </TouchableOpacity>
                   <View style={styles.rowActions}>
                     <TouchableOpacity onPress={() => setStep(1)}>
-                      <Text style={{ color: colors.secondary.light }}>
+                      <Text style={{ color: themeColors.text.secondary }}>
                         {getLocalizedText("report.back")}
                       </Text>
                     </TouchableOpacity>
@@ -671,7 +663,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 5,
     borderRadius: 3,
-    backgroundColor: withOpacity(colors.secondary.light, 0.35),
+    backgroundColor: withOpacity(colors.text.light, 0.22),
     marginBottom: 14,
     marginTop: 4,
   },
