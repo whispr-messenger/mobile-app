@@ -153,6 +153,29 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.large": "Grand",
     "settings.modalPickHint":
       "Touchez une option — le changement est appliqué tout de suite. La sélection active est surlignée en bleu.",
+    "settings.aboutWhispr": "À propos",
+    "settings.aboutWhisprSubtitle": "Contenu, sécurité et informations légales",
+
+    // About — contenu & sécurité (WHISPR)
+    "about.title": "À propos",
+    "about.sectionContentSecurity": "Contenu et sécurité",
+    "about.p1":
+      "Pour contribuer à la sécurité tout en limitant l'exposition de vos médias, certaines images peuvent être analysées directement sur votre appareil avant l'envoi.",
+    "about.p2":
+      "Cette technologie a des limites : des faux positifs ou des détections manquées sont possibles. Elle ne remplace pas votre vigilance.",
+    "about.p3":
+      "Pour plus de détails sur le traitement de vos données, consultez notre politique de confidentialité.",
+    "about.reportCallout":
+      "Vous pouvez signaler un abus ou un contenu problématique depuis le menu d'un message, dans une conversation.",
+    "about.p4":
+      "Une modération automatique côté serveur peut également être appliquée pour protéger l'intégrité du réseau ; cela ne garantit pas une intervention humaine pour chaque signalement.",
+    "about.privacyPolicy": "Politique de confidentialité",
+    "about.termsOfUse": "Conditions d'utilisation",
+    "about.reportContent": "Signaler un contenu",
+    "about.reportComingSoon":
+      "Le flux de signalement sera bientôt disponible. En attendant, utilisez le menu du message lorsque l'option sera proposée.",
+    "about.legalOpenError":
+      "Impossible d'ouvrir le lien. Vérifiez votre connexion ou l'URL configurée.",
 
     // Notifications
     "notif.success": "Succès",
@@ -367,6 +390,28 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.large": "Large",
     "settings.modalPickHint":
       "Tap an option — it applies instantly. The active choice is highlighted in blue.",
+    "settings.aboutWhispr": "About",
+    "settings.aboutWhisprSubtitle": "Content, security, and legal information",
+
+    // About — content & security (WHISPR)
+    "about.title": "About",
+    "about.sectionContentSecurity": "Content & security",
+    "about.p1":
+      "To improve safety while limiting exposure of your media, some images may be analyzed on your device before they are sent.",
+    "about.p2":
+      "This technology has limits: false positives or missed detections can happen. It does not replace your own judgment.",
+    "about.p3": "For more on how we process your data, see our privacy policy.",
+    "about.reportCallout":
+      "You can report abuse or problematic content from a message's menu inside a conversation.",
+    "about.p4":
+      "Automatic server-side moderation may also be used to protect the network; this does not guarantee human review for every report.",
+    "about.privacyPolicy": "Privacy policy",
+    "about.termsOfUse": "Terms of use",
+    "about.reportContent": "Report content",
+    "about.reportComingSoon":
+      "The reporting flow is coming soon. Until then, use the message menu when the option is available.",
+    "about.legalOpenError":
+      "Could not open the link. Check your connection or the configured URL.",
 
     // Notifications
     "notif.success": "Success",
