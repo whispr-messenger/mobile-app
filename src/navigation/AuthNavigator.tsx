@@ -6,6 +6,7 @@ import { OtpScreen } from "../screens/Auth/OtpScreen";
 import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
 import { ProfileScreen } from "../screens/Profile/ProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
+import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
 import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
 import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
 import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
@@ -50,6 +51,7 @@ export type AuthStackParamList = {
     biography?: string;
   };
   Settings: undefined;
+  AboutContent: undefined;
   SecurityKeys: undefined;
   TwoFactorAuth: undefined;
   TwoFactorSetup: undefined;
@@ -119,6 +121,7 @@ export const AuthNavigator: React.FC = () => {
           gestureEnabled: false,
         }}
       />
+      <Stack.Screen name="AboutContent" component={AboutContentScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
