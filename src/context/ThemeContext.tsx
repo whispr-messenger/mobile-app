@@ -267,6 +267,37 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Cette action va générer de nouveaux codes et invalider les précédents. Vos anciens codes ne fonctionneront plus.",
     "twoFactor.codesRegenerated": "Codes de récupération régénérés",
 
+    // Report message (WHISPR-174)
+    "report.menuAction": "Signaler",
+    "report.sheetTitle": "Signaler un contenu",
+    "report.step1of2": "ÉTAPE 1 / 2",
+    "report.step2of2": "ÉTAPE 2 / 2",
+    "report.conversationLabel": "CONVERSATION",
+    "report.step1Subtitle": "Pourquoi signalez-vous ce message ?",
+    "report.step2Header": "Précisez votre signalement",
+    "report.category.offensive": "Contenu offensant",
+    "report.category.spam": "Spam / arnaque",
+    "report.category.nudity": "Nudité ou contenu sexuel",
+    "report.category.violence": "Violence",
+    "report.category.harassment": "Harcèlement",
+    "report.category.other": "Autre",
+    "report.disclaimer":
+      "Votre signalement est traité de manière confidentielle. L'autre personne n'est pas notifiée automatiquement.",
+    "report.continue": "Continuer",
+    "report.additionalDetails": "INFORMATIONS COMPLÉMENTAIRES",
+    "report.placeholder": "Décrivez le problème (recommandé)",
+    "report.attachOptional": "PIÈCE JOINTE (OPTIONNEL)",
+    "report.attachHint": "Ajouter une photo",
+    "report.back": "Retour",
+    "report.send": "Envoyer le signalement",
+    "report.successTitle": "Signalement envoyé",
+    "report.successBody":
+      "Merci, votre signalement a bien été reçu. Nos modérateurs vont l'examiner dans les plus brefs délais.",
+    "report.errorBanner": "Une erreur est survenue",
+    "report.errorTitle": "Impossible d'envoyer",
+    "report.errorBody":
+      "Veuillez vérifier votre connexion internet et réessayer l'envoi de votre signalement.",
+
     // Common
     "common.confirm": "Confirmer",
     "common.cancel": "Annuler",
@@ -473,6 +504,37 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.regenerateConfirm":
       "This will generate new codes and invalidate your previous ones. Your old codes will no longer work.",
     "twoFactor.codesRegenerated": "Recovery codes regenerated",
+
+    // Report message (WHISPR-174)
+    "report.menuAction": "Report",
+    "report.sheetTitle": "Report content",
+    "report.step1of2": "STEP 1 / 2",
+    "report.step2of2": "STEP 2 / 2",
+    "report.conversationLabel": "CONVERSATION",
+    "report.step1Subtitle": "Why are you reporting this message?",
+    "report.step2Header": "Add details",
+    "report.category.offensive": "Offensive content",
+    "report.category.spam": "Spam or scam",
+    "report.category.nudity": "Nudity or sexual content",
+    "report.category.violence": "Violence",
+    "report.category.harassment": "Harassment",
+    "report.category.other": "Other",
+    "report.disclaimer":
+      "Your report is handled confidentially. The other person is not notified automatically.",
+    "report.continue": "Continue",
+    "report.additionalDetails": "ADDITIONAL DETAILS",
+    "report.placeholder": "Describe the issue (recommended)",
+    "report.attachOptional": "ATTACHMENT (OPTIONAL)",
+    "report.attachHint": "Add a photo",
+    "report.back": "Back",
+    "report.send": "Submit report",
+    "report.successTitle": "Report sent",
+    "report.successBody":
+      "Thank you. Your report has been received. Our moderators will review it as soon as possible.",
+    "report.errorBanner": "Something went wrong",
+    "report.errorTitle": "Could not send",
+    "report.errorBody":
+      "Please check your internet connection and try sending your report again.",
 
     // Common
     "common.confirm": "Confirm",

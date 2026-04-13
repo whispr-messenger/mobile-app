@@ -22,6 +22,7 @@ interface MessageActionsMenuProps {
   onReact?: () => void;
   onPin?: () => void;
   onForward?: () => void;
+  onReport?: () => void;
 }
 
 export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
@@ -36,9 +37,9 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   onReact,
   onPin,
   onForward,
+  onReport,
 }) => {
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+  const { getLocalizedText } = useTheme();
 
   if (!visible || !message) return null;
 
@@ -153,6 +154,22 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
               </TouchableOpacity>
             )}
 
+            {onReport && (
+              <TouchableOpacity
+                style={styles.actionItem}
+                onPress={() => {
+                  onReport();
+                  onClose();
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="flag-outline" size={20} color={colors.ui.warning} />
+                <Text style={[styles.actionText, styles.reportText]}>
+                  {getLocalizedText("report.menuAction")}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {onDelete && (
               <>
                 <View style={styles.separator} />
@@ -233,6 +250,10 @@ const styles = StyleSheet.create({
   },
   dangerText: {
     color: colors.ui.error,
+  },
+  reportText: {
+    color: colors.ui.warning,
+    fontWeight: "600",
   },
   cancelText: {
     color: colors.text.tertiary,
