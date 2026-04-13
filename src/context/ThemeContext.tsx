@@ -155,6 +155,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Touchez une option — le changement est appliqué tout de suite. La sélection active est surlignée en bleu.",
     "settings.aboutWhispr": "À propos",
     "settings.aboutWhisprSubtitle": "Contenu, sécurité et informations légales",
+    "settings.aboutSection": "Légal & contenu",
 
     // About — contenu & sécurité (WHISPR)
     "about.title": "À propos",
@@ -392,6 +393,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Tap an option — it applies instantly. The active choice is highlighted in blue.",
     "settings.aboutWhispr": "About",
     "settings.aboutWhisprSubtitle": "Content, security, and legal information",
+    "settings.aboutSection": "Legal & content",
 
     // About — content & security (WHISPR)
     "about.title": "About",
