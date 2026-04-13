@@ -841,6 +841,18 @@ export const SettingsScreen: React.FC = () => {
           />
         </SettingSection>
 
+        <SettingSection
+          title={getLocalizedText("settings.aboutSection")}
+          icon="document-text-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.aboutWhispr")}
+            subtitle={getLocalizedText("settings.aboutWhisprSubtitle")}
+            onPress={() => navigation.navigate("AboutContent")}
+            icon="information-circle-outline"
+          />
+        </SettingSection>
+
         {/* Security Settings */}
         <SettingSection
           title={getLocalizedText("settings.security")}
