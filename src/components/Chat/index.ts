@@ -18,6 +18,7 @@ export { MessageSearch } from "./MessageSearch";
 export { PinnedMessagesBar } from "./PinnedMessagesBar";
 export { EmptyChatState } from "./EmptyChatState";
 export { MessageActionsMenu } from "./MessageActionsMenu";
+export { ReportMessageSheet } from "./ReportMessageSheet";
 export { ForwardMessageModal } from "./ForwardMessageModal";
 export { NewConversationModal } from "./NewConversationModal";
 export { CameraCapture } from "./CameraCapture";
