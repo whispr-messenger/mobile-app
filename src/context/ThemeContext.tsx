@@ -153,7 +153,6 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.large": "Grand",
     "settings.modalPickHint":
       "Touchez une option — le changement est appliqué tout de suite. La sélection active est surlignée en bleu.",
-<<<<<<< HEAD
     "settings.aboutWhispr": "À propos",
     "settings.aboutWhisprSubtitle": "Contenu, sécurité et informations légales",
     "settings.aboutSection": "Légal & contenu",
@@ -178,8 +177,6 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Le flux de signalement sera bientôt disponible. En attendant, utilisez le menu du message lorsque l'option sera proposée.",
     "about.legalOpenError":
       "Impossible d'ouvrir le lien. Vérifiez votre connexion ou l'URL configurée.",
-=======
->>>>>>> feat/moderation-screens
 
     // Notifications
     "notif.success": "Succès",
@@ -425,7 +422,6 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.large": "Large",
     "settings.modalPickHint":
       "Tap an option — it applies instantly. The active choice is highlighted in blue.",
-<<<<<<< HEAD
     "settings.aboutWhispr": "About",
     "settings.aboutWhisprSubtitle": "Content, security, and legal information",
     "settings.aboutSection": "Legal & content",
@@ -449,8 +445,6 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "The reporting flow is coming soon. Until then, use the message menu when the option is available.",
     "about.legalOpenError":
       "Could not open the link. Check your connection or the configured URL.",
-=======
->>>>>>> feat/moderation-screens
 
     // Notifications
     "notif.success": "Success",
