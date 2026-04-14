@@ -1,5 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,11 +23,17 @@ type SubmittedRoute = RouteProp<
 
 const SCREEN_GRADIENT = colors.background.gradient.app;
 
+function formatAppealStatusFr(status?: string): string {
+  if (!status) return "REÇUE";
+  const s = status.toLowerCase();
+  if (s === "received") return "REÇUE";
+  return status.toUpperCase().replace(/_/g, " ");
+}
+
 export const ModerationAppealSubmittedScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<SubmittedRoute>();
-  const statusLabel =
-    route.params.status?.toUpperCase().replace(/_/g, " ") ?? "RECUE";
+  const statusLabel = formatAppealStatusFr(route.params.status);
 
   return (
     <LinearGradient
@@ -48,43 +60,53 @@ export const ModerationAppealSubmittedScreen: React.FC = () => {
           <View style={styles.iconBtn} />
         </View>
 
-        <View style={styles.successWrap}>
-          <View style={styles.successCircle}>
-            <Ionicons name="checkmark" size={34} color={colors.primary.main} />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.successWrap}>
+            <View style={styles.successCircle}>
+              <Ionicons
+                name="checkmark"
+                size={34}
+                color={colors.primary.main}
+              />
+            </View>
+            <Text style={styles.title}>Demande envoyée</Text>
+            <Text style={styles.subtitle}>
+              Votre demande n°{route.params.appealId} a été reçue. Nos
+              modérateurs vous répondront sous 48 h.
+            </Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{statusLabel}</Text>
+            </View>
           </View>
-          <Text style={styles.title}>Demande envoyee</Text>
-          <Text style={styles.subtitle}>
-            Votre demande #{route.params.appealId} a ete recue. Nos moderateurs
-            vous repondront sous 48h.
-          </Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{statusLabel}</Text>
-          </View>
-        </View>
 
-        <View style={styles.timelineCard}>
-          <Text style={styles.timelineTitle}>SUIVI DU TRAITEMENT</Text>
-          <View style={styles.timelineRow}>
-            <View style={styles.stepCol}>
-              <View style={[styles.stepDot, styles.stepDotActive]}>
-                <Ionicons name="checkmark" size={11} color="#0B1124" />
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineTitle}>SUIVI DU TRAITEMENT</Text>
+            <View style={styles.timelineRow}>
+              <View style={styles.stepCol}>
+                <View style={[styles.stepDot, styles.stepDotActive]}>
+                  <Ionicons name="checkmark" size={11} color="#0B1124" />
+                </View>
+                <Text style={[styles.stepLabel, styles.stepLabelActive]}>
+                  REÇUE
+                </Text>
               </View>
-              <Text style={[styles.stepLabel, styles.stepLabelActive]}>
-                RECUE
-              </Text>
-            </View>
-            <View style={styles.stepLine} />
-            <View style={styles.stepCol}>
-              <View style={styles.stepDot} />
-              <Text style={styles.stepLabel}>EN COURS</Text>
-            </View>
-            <View style={styles.stepLine} />
-            <View style={styles.stepCol}>
-              <View style={styles.stepDot} />
-              <Text style={styles.stepLabel}>TRAITEE</Text>
+              <View style={styles.stepLine} />
+              <View style={styles.stepCol}>
+                <View style={styles.stepDot} />
+                <Text style={styles.stepLabel}>EN COURS</Text>
+              </View>
+              <View style={styles.stepLine} />
+              <View style={styles.stepCol}>
+                <View style={styles.stepDot} />
+                <Text style={styles.stepLabel}>TRAITÉE</Text>
+              </View>
             </View>
           </View>
-        </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity
@@ -113,9 +135,13 @@ export const ModerationAppealSubmittedScreen: React.FC = () => {
             onPress={() => navigation.navigate("ConversationsList")}
           >
             <Text style={styles.secondaryBtnText}>
-              Retour a la conversation
+              Retour à la conversation
             </Text>
           </TouchableOpacity>
+
+          <Text style={styles.securityFooter}>
+            WHISPR SECURITY PROTOCOLS © 2026
+          </Text>
         </View>
       </SafeAreaView>
     </LinearGradient>
@@ -125,6 +151,8 @@ export const ModerationAppealSubmittedScreen: React.FC = () => {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   safe: { flex: 1, paddingHorizontal: 20, paddingTop: 6, paddingBottom: 14 },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 12, flexGrow: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -218,7 +246,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   stepLabelActive: { color: colors.primary.light },
-  footer: { marginTop: "auto", gap: 10, paddingTop: 16 },
+  footer: { marginTop: "auto", gap: 10, paddingTop: 8 },
+  securityFooter: {
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 10,
+    letterSpacing: 0.6,
+    fontWeight: "600",
+    color: withOpacity(colors.text.light, 0.38),
+  },
   primaryBtn: { borderRadius: 999, overflow: "hidden" },
   primaryBtnGrad: {
     flexDirection: "row",

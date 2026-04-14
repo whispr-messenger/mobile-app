@@ -51,7 +51,7 @@ export const ModerationDecisionScreen: React.FC = () => {
           <View style={styles.iconBtn} />
         </View>
 
-        <Text style={styles.pageTitle}>Decision de moderation</Text>
+        <Text style={styles.pageTitle}>Décision de modération</Text>
 
         <View style={styles.card}>
           <View style={styles.badgeRow}>
@@ -91,14 +91,14 @@ export const ModerationDecisionScreen: React.FC = () => {
               color={colors.primary.main}
             />
             <View>
-              <Text style={styles.label}>ECHEANCE CONTESTATION</Text>
+              <Text style={styles.label}>ÉCHÉANCE DE CONTESTATION</Text>
               <Text style={styles.valueSmall}>{details.deadlineDate}</Text>
             </View>
           </View>
 
           <Text style={styles.hint}>
-            Vous pouvez contester cette decision jusqu'au {details.deadlineDate}{" "}
-            si vous estimez qu'il s'agit d'une erreur.
+            Vous pouvez contester cette décision jusqu’au {details.deadlineDate}{" "}
+            si vous estimez qu’il s’agit d’une erreur.
           </Text>
         </View>
 

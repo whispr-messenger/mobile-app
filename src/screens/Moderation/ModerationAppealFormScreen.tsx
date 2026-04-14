@@ -67,7 +67,7 @@ export const ModerationAppealFormScreen: React.FC = () => {
     } catch (error) {
       const e = error as Error & { status?: number };
       if (e.status === 429) {
-        setErrorText("Trop de tentatives. Merci de reessayer plus tard.");
+        setErrorText("Trop de tentatives. Merci de réessayer plus tard.");
       } else if (e.status === 400) {
         setErrorText("La contestation est invalide ou expirée.");
       } else {
@@ -99,15 +99,15 @@ export const ModerationAppealFormScreen: React.FC = () => {
           >
             <Ionicons name="arrow-back" size={22} color={colors.text.light} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Contester la decision</Text>
+          <Text style={styles.headerTitle}>Contester la décision</Text>
           <Text style={styles.brand}>Whispr</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.title}>Nous sommes a l'ecoute.</Text>
+          <Text style={styles.title}>Nous sommes à l’écoute.</Text>
           <Text style={styles.subtitle}>
-            Si vous estimez qu'une erreur a ete commise, detaillez votre
-            situation ci-dessous. Notre equipe examinera votre demande avec
+            Si vous estimez qu’une erreur a été commise, détaillez votre
+            situation ci-dessous. Notre équipe examinera votre demande avec
             soin.
           </Text>
 
@@ -151,7 +151,7 @@ export const ModerationAppealFormScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>DESCRIPTION DETAILLEE</Text>
+            <Text style={styles.label}>DESCRIPTION DÉTAILLÉE</Text>
             <TextInput
               multiline
               placeholder="Expliquez pourquoi vous pensez qu'il s'agit d'une erreur..."
@@ -164,7 +164,7 @@ export const ModerationAppealFormScreen: React.FC = () => {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.label}>PIECE JOINTE (OPTIONNELLE)</Text>
+            <Text style={styles.label}>PIÈCE JOINTE (OPTIONNELLE)</Text>
             <TouchableOpacity
               style={styles.uploadBox}
               onPress={() =>
@@ -187,6 +187,23 @@ export const ModerationAppealFormScreen: React.FC = () => {
                 {fakeAttachmentName ?? "Cliquez pour ajouter un fichier"}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.delayInfo}>
+            <View style={styles.delayIconWrap}>
+              <Ionicons
+                name="information-circle"
+                size={22}
+                color={colors.primary.main}
+              />
+            </View>
+            <View style={styles.delayTextCol}>
+              <Text style={styles.delayTitle}>Délai de traitement</Text>
+              <Text style={styles.delayBody}>
+                Les contestations sont généralement traitées sous 48 à 72 heures
+                ouvrées par nos modérateurs humains.
+              </Text>
+            </View>
           </View>
         </ScrollView>
 
@@ -314,6 +331,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   uploadText: { color: withOpacity(colors.text.light, 0.75), fontSize: 14 },
+  delayInfo: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.text.light, 0.1),
+    backgroundColor: withOpacity("#0B1124", 0.55),
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  delayIconWrap: { paddingTop: 2 },
+  delayTextCol: { flex: 1, gap: 6 },
+  delayTitle: {
+    color: colors.text.light,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  delayBody: {
+    color: withOpacity(colors.text.light, 0.78),
+    fontSize: 13,
+    lineHeight: 19,
+  },
   footer: { gap: 10, paddingTop: 8 },
   errorBanner: {
     borderRadius: 12,
