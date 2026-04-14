@@ -22,8 +22,6 @@ import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
 import { CallsScreen } from "../screens/Calls/CallsScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
-<<<<<<< HEAD
-=======
 import {
   ReportHistoryScreen,
   ReportDetailScreen,
@@ -40,7 +38,6 @@ import {
   UserModerationScreen,
   SanctionFormScreen,
 } from "../screens/Admin";
->>>>>>> feat/moderation-screens
 
 import { useAuth } from "../context/AuthContext";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
@@ -87,8 +84,6 @@ export type AuthStackParamList = {
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
   ModerationTest: undefined;
-<<<<<<< HEAD
-=======
   // Moderation (user-facing)
   ReportHistory: undefined;
   ReportDetail: { reportId: string };
@@ -103,7 +98,6 @@ export type AuthStackParamList = {
   AppealReview: { appealId: string };
   UserModeration: { userId: string };
   SanctionForm: { userId: string };
->>>>>>> feat/moderation-screens
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -157,10 +151,7 @@ export const AuthNavigator: React.FC = () => {
           gestureEnabled: false,
         }}
       />
-<<<<<<< HEAD
       <Stack.Screen name="AboutContent" component={AboutContentScreen} />
-=======
->>>>>>> feat/moderation-screens
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
@@ -199,8 +190,6 @@ export const AuthNavigator: React.FC = () => {
         component={ScheduledMessagesScreen}
       />
       <Stack.Screen name="Calls" component={CallsScreen} />
-<<<<<<< HEAD
-=======
       {/* Moderation — user-facing */}
       <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
       <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
@@ -222,7 +211,6 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="AppealReview" component={AppealReviewScreen} />
       <Stack.Screen name="UserModeration" component={UserModerationScreen} />
       <Stack.Screen name="SanctionForm" component={SanctionFormScreen} />
->>>>>>> feat/moderation-screens
       {__DEV__ && (
         <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
       )}
