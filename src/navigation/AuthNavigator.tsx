@@ -22,6 +22,9 @@ import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
 import { CallsScreen } from "../screens/Calls/CallsScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
+import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
+import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
+import { ModerationAppealSubmittedScreen } from "../screens/Moderation/ModerationAppealSubmittedScreen";
 
 import { useAuth } from "../context/AuthContext";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
@@ -68,6 +71,9 @@ export type AuthStackParamList = {
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
   ModerationTest: undefined;
+  ModerationDecision: undefined;
+  ModerationAppealForm: { decisionId: string };
+  ModerationAppealSubmitted: { appealId: string };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -160,6 +166,18 @@ export const AuthNavigator: React.FC = () => {
         component={ScheduledMessagesScreen}
       />
       <Stack.Screen name="Calls" component={CallsScreen} />
+      <Stack.Screen
+        name="ModerationDecision"
+        component={ModerationDecisionScreen}
+      />
+      <Stack.Screen
+        name="ModerationAppealForm"
+        component={ModerationAppealFormScreen}
+      />
+      <Stack.Screen
+        name="ModerationAppealSubmitted"
+        component={ModerationAppealSubmittedScreen}
+      />
       {__DEV__ && (
         <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
       )}
