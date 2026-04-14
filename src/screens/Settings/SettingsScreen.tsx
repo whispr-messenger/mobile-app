@@ -23,6 +23,7 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { useModerationStore } from "../../store/moderationStore";
 import { UserService, PrivacySettings } from "../../services/UserService";
 import {
   NotificationService,
@@ -48,6 +49,7 @@ export const SettingsScreen: React.FC = () => {
   } = useTheme();
   const themeColors = getThemeColors();
   const { signOut, userId } = useAuth();
+  const { isModerator, isAdmin, fetchMyRole } = useModerationStore();
   const insets = useSafeAreaInsets();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
@@ -282,6 +284,7 @@ export const SettingsScreen: React.FC = () => {
     };
 
     loadSettings();
+    fetchMyRole();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (category: string, key: string, value: boolean) => {
@@ -897,6 +900,47 @@ export const SettingsScreen: React.FC = () => {
               thumbColor="#FFFFFF"
             />
           </View>
+        </SettingSection>
+
+        {/* Moderation Section */}
+        <SettingSection
+          title={getLocalizedText("settings.moderation") || "Moderation"}
+          icon="flag-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.myReports") || "My Reports"}
+            subtitle={
+              getLocalizedText("settings.myReportsSubtitle") ||
+              "History of your reports"
+            }
+            onPress={() => navigation.navigate("ReportHistory" as never)}
+            icon="document-text-outline"
+          />
+          <SettingItem
+            label={getLocalizedText("settings.mySanctions") || "My Sanctions"}
+            subtitle={
+              getLocalizedText("settings.mySanctionsSubtitle") ||
+              "View your sanctions"
+            }
+            onPress={() => navigation.navigate("ReportHistory" as never)}
+            icon="alert-circle-outline"
+          />
+          {(isAdmin || isModerator) && (
+            <SettingItem
+              label={
+                getLocalizedText("settings.moderationDashboard") ||
+                "Moderation Dashboard"
+              }
+              subtitle={
+                getLocalizedText("settings.moderationDashboardSubtitle") ||
+                "Moderation management"
+              }
+              onPress={() =>
+                navigation.navigate("ModerationDashboard" as never)
+              }
+              icon="shield-outline"
+            />
+          )}
         </SettingSection>
 
         {/* Account Settings */}
