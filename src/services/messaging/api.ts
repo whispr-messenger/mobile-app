@@ -2,10 +2,13 @@ import { Conversation, Message } from "../../types/messaging";
 import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
+import { snakecaseKeys } from "../../utils/caseTransform";
+import { logger } from "../../utils/logger";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 /**
+<<<<<<< HEAD
  * Convert a camelCase string to snake_case.
  */
 const toSnakeCase = (str: string): string =>
@@ -26,6 +29,58 @@ const snakecaseKeys = (obj: any): any => {
     );
   }
   return obj;
+=======
+ * Normalise a backend attachment payload into the MessageAttachment shape the
+ * app consumes. The backend returns { file_url, file_name, file_size, mime_type,
+ * media_id, metadata, ... } while the app expects { media_type, metadata: {...} }.
+ * Prefers media_id-based blob URLs over stored file_url (which may be an expired
+ * presigned S3/MinIO URL).
+ */
+export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
+  // Already in the expected shape — pass through
+  if (att?.metadata?.media_url && att?.media_type) return att;
+
+  const fileType = att?.file_type || "";
+  const mime = att?.mime_type || "";
+  let media_type: string = fileType || "file";
+  if (!fileType || fileType === "file") {
+    if (mime.startsWith("image/")) media_type = "image";
+    else if (mime.startsWith("video/")) media_type = "video";
+    else if (mime.startsWith("audio/")) media_type = "audio";
+  }
+
+  const meta = att?.metadata || {};
+  const mediaId = att?.media_id || meta.media_id;
+  const mediaBlobUrl = mediaId
+    ? `${getApiBaseUrl()}/media/v1/${mediaId}/blob`
+    : null;
+  const mediaThumbnailUrl = mediaId
+    ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
+    : null;
+
+  const resolvedUrl =
+    mediaBlobUrl || meta.media_url || att?.file_url || att?.storage_url;
+  const resolvedThumbnail =
+    mediaThumbnailUrl ||
+    att?.thumbnail_url ||
+    meta.thumbnail_url ||
+    resolvedUrl;
+
+  return {
+    id: att?.id,
+    message_id: att?.message_id || fallbackMessageId,
+    media_id: mediaId || att?.id,
+    media_type,
+    metadata: {
+      filename: att?.file_name || att?.filename || meta.filename,
+      size: att?.file_size || att?.size || meta.size,
+      mime_type: att?.mime_type || meta.mime_type,
+      media_url: resolvedUrl,
+      thumbnail_url: resolvedThumbnail,
+    },
+    created_at: att?.uploaded_at || att?.created_at || new Date().toISOString(),
+  };
+>>>>>>> feat/moderation-screens
 };
 
 // Backend wraps responses in { data: ... } — unwrap if present
@@ -309,7 +364,11 @@ export const messagingAPI = {
       if (response.status === 404 || response.status === 400) {
         return { reactions: [] };
       }
+<<<<<<< HEAD
       throw httpError("Failed to fetch message reactions", response);
+=======
+      throw new Error("Failed to fetch message reactions");
+>>>>>>> feat/moderation-screens
     }
 
     return unwrap(response);
@@ -354,7 +413,11 @@ export const messagingAPI = {
       if (response.status === 404) {
         return [];
       }
+<<<<<<< HEAD
       throw httpError("Failed to fetch pinned messages", response);
+=======
+      throw new Error("Failed to fetch pinned messages");
+>>>>>>> feat/moderation-screens
     }
 
     const data = await unwrap(response);
@@ -371,11 +434,16 @@ export const messagingAPI = {
       if (response.status === 404) {
         return [];
       }
+<<<<<<< HEAD
       throw httpError("Failed to fetch attachments", response);
+=======
+      throw new Error("Failed to fetch attachments");
+>>>>>>> feat/moderation-screens
     }
 
     const data = await unwrap(response);
     const raw = Array.isArray(data) ? data : [];
+<<<<<<< HEAD
 
     // The backend returns { file_url, file_name, file_size, mime_type, media_id, metadata, ... }
     // but the app expects MessageAttachment shape with media_type + metadata.
@@ -429,6 +497,9 @@ export const messagingAPI = {
           att.uploaded_at || att.created_at || new Date().toISOString(),
       };
     });
+=======
+    return raw.map((att: any) => mapBackendAttachment(att, messageId));
+>>>>>>> feat/moderation-screens
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {
@@ -458,13 +529,24 @@ export const messagingAPI = {
       );
 
       if (!response.ok) {
+<<<<<<< HEAD
         console.warn("[getUserInfo] HTTP", response.status, "for user", userId);
+=======
+        logger.warn(
+          "getUserInfo",
+          `HTTP ${response.status} for user ${userId}`,
+        );
+>>>>>>> feat/moderation-screens
         return null;
       }
 
       const user = await response.json().catch(() => null);
       if (!user) {
+<<<<<<< HEAD
         console.warn("[getUserInfo] Empty body for user", userId);
+=======
+        logger.warn("getUserInfo", `Empty body for user ${userId}`);
+>>>>>>> feat/moderation-screens
         return null;
       }
 
@@ -489,7 +571,11 @@ export const messagingAPI = {
         avatar_url: avatarUrl,
       };
     } catch (err) {
+<<<<<<< HEAD
       console.warn("[getUserInfo] Failed for user", userId, err);
+=======
+      logger.warn("getUserInfo", `Failed for user ${userId}`, err);
+>>>>>>> feat/moderation-screens
       return null;
     }
   },

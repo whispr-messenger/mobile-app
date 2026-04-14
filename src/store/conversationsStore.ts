@@ -5,7 +5,10 @@ import { messagingAPI } from "../services/messaging/api";
 import { cacheService } from "../services/messaging/cache";
 import { TokenService } from "../services/TokenService";
 import { NotificationService } from "../services/NotificationService";
+import { logger } from "../utils/logger";
 
+// Short grace period: absorbs transient empty fetches (e.g. first WS payload
+// arriving just after an HTTP fetch returns []) without flashing an empty UI.
 const EMPTY_STATE_GRACE_PERIOD_MS = 2_000;
 const MANUALLY_UNREAD_KEY = "@whispr/manually_unread_ids";
 
@@ -44,6 +47,7 @@ async function enrichSingleConversation(
 
     if (!memberIds || memberIds.length === 0) {
       console.warn("[enrich] No members found for conversation", conv.id);
+      logger.warn("enrich", `No members found for conversation ${conv.id}`);
       return conv;
     }
 
@@ -58,6 +62,7 @@ async function enrichSingleConversation(
         "members:",
         memberIds,
       );
+      logger.warn("enrich", `No other user found in conversation ${conv.id}`);
       return conv;
     }
 
@@ -86,6 +91,13 @@ async function enrichSingleConversation(
     return { ...conv, member_user_ids: memberIds };
   } catch (err) {
     console.warn("[enrich] Failed for conversation", conv.id, err);
+    logger.warn(
+      "enrich",
+      `getUserInfo returned no display_name for ${otherUserId}`,
+    );
+    return { ...conv, member_user_ids: memberIds };
+  } catch (err) {
+    logger.warn("enrich", `Failed for conversation ${conv.id}`, err);
     return conv;
   }
 }
@@ -211,7 +223,7 @@ export const useConversationsStore = create<
       await cacheService.saveConversations(enriched);
       _setConversations(enriched);
     } catch (err) {
-      console.error("[conversationsStore] fetchConversations error:", err);
+      logger.error("conversationsStore", "fetchConversations error", err);
       // If we already have cached data shown, stay on it but start grace period
       // so skeletons don't flash forever if cache was empty
       const { conversations } = get();
@@ -233,7 +245,7 @@ export const useConversationsStore = create<
       await cacheService.saveConversations(enriched);
       _setConversations(enriched, true);
     } catch (err) {
-      console.error("[conversationsStore] refreshConversations error:", err);
+      logger.error("conversationsStore", "refreshConversations error", err);
       set({ error: "Failed to refresh conversations" });
     }
   },
@@ -408,8 +420,9 @@ export const useConversationsStore = create<
           }
         }
       } catch (err) {
-        console.error(
-          "[conversationsStore] applyNewMessage: failed to fetch unknown conversation",
+        logger.error(
+          "conversationsStore",
+          "applyNewMessage: failed to fetch unknown conversation",
           err,
         );
       }
@@ -478,7 +491,7 @@ export const useConversationsStore = create<
         await NotificationService.muteConversation(id);
       }
     } catch (err) {
-      console.error("[conversationsStore] muteConversation error:", err);
+      logger.error("conversationsStore", "muteConversation error", err);
       // Rollback on failure
       set({ conversations });
     }
