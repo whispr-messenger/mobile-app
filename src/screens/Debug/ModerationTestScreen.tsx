@@ -77,7 +77,16 @@ export const ModerationTestScreen: React.FC = () => {
       </TouchableOpacity>
       <TouchableOpacity
         style={[s.btn, s.appealBtn]}
-        onPress={() => navigation.navigate("ModerationDecision")}
+        onPress={() =>
+          navigation.navigate("ModerationDecision", {
+            decisionId: "WH-8902",
+            sanctionType: "Avertissement",
+            reasonLabel: "Spam / arnaque",
+            incidentDate: "12 Octobre 2023",
+            deadlineDate: "26 Octobre 2023",
+            reference: "WH-8902",
+          })
+        }
       >
         <Text style={s.btnText}>Open appeal flow mock</Text>
       </TouchableOpacity>

@@ -89,7 +89,12 @@ export const ModerationAppealSubmittedScreen: React.FC = () => {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => navigation.navigate("ModerationDecision")}
+            onPress={() =>
+              navigation.navigate("ModerationDecision", {
+                decisionId: route.params.decisionId,
+                reference: route.params.decisionId,
+              })
+            }
             activeOpacity={0.85}
           >
             <LinearGradient

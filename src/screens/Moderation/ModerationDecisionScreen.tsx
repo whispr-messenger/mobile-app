@@ -3,17 +3,28 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
 
 type Nav = StackNavigationProp<AuthStackParamList, "ModerationDecision">;
+type DecisionRoute = RouteProp<AuthStackParamList, "ModerationDecision">;
 
 const SCREEN_GRADIENT = colors.background.gradient.app;
 
 export const ModerationDecisionScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<DecisionRoute>();
+  const details = {
+    decisionId: route.params?.decisionId ?? "WH-8902",
+    sanctionType: route.params?.sanctionType ?? "Avertissement",
+    reasonLabel: route.params?.reasonLabel ?? "Spam",
+    incidentDate: route.params?.incidentDate ?? "12 Octobre 2023",
+    deadlineDate: route.params?.deadlineDate ?? "26 Octobre 2023",
+    reference: route.params?.reference ?? "WH-8902",
+  };
 
   return (
     <LinearGradient
@@ -47,17 +58,17 @@ export const ModerationDecisionScreen: React.FC = () => {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>ACTION REQUISE</Text>
             </View>
-            <Text style={styles.refText}>REF #WH-8902</Text>
+            <Text style={styles.refText}>REF #{details.reference}</Text>
           </View>
 
           <View style={styles.twoCols}>
             <View style={styles.col}>
               <Text style={styles.label}>TYPE DE SANCTION</Text>
-              <Text style={styles.value}>Avertissement</Text>
+              <Text style={styles.value}>{details.sanctionType}</Text>
             </View>
             <View style={styles.col}>
               <Text style={styles.label}>MOTIF</Text>
-              <Text style={styles.value}>Spam</Text>
+              <Text style={styles.value}>{details.reasonLabel}</Text>
             </View>
           </View>
 
@@ -69,7 +80,7 @@ export const ModerationDecisionScreen: React.FC = () => {
             />
             <View>
               <Text style={styles.label}>DATE DE L'INCIDENT</Text>
-              <Text style={styles.valueSmall}>12 Octobre 2023</Text>
+              <Text style={styles.valueSmall}>{details.incidentDate}</Text>
             </View>
           </View>
 
@@ -81,13 +92,13 @@ export const ModerationDecisionScreen: React.FC = () => {
             />
             <View>
               <Text style={styles.label}>ECHEANCE CONTESTATION</Text>
-              <Text style={styles.valueSmall}>26 Octobre 2023</Text>
+              <Text style={styles.valueSmall}>{details.deadlineDate}</Text>
             </View>
           </View>
 
           <Text style={styles.hint}>
-            Vous pouvez contester cette decision jusqu'au 26 Octobre 2023 si
-            vous estimez qu'il s'agit d'une erreur.
+            Vous pouvez contester cette decision jusqu'au {details.deadlineDate}{" "}
+            si vous estimez qu'il s'agit d'une erreur.
           </Text>
         </View>
 
@@ -96,7 +107,7 @@ export const ModerationDecisionScreen: React.FC = () => {
             style={styles.primaryBtn}
             onPress={() =>
               navigation.navigate("ModerationAppealForm", {
-                decisionId: "WH-8902",
+                decisionId: details.decisionId,
               })
             }
             activeOpacity={0.85}

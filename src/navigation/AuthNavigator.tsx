@@ -71,7 +71,16 @@ export type AuthStackParamList = {
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
   ModerationTest: undefined;
-  ModerationDecision: undefined;
+  ModerationDecision:
+    | {
+        decisionId?: string;
+        sanctionType?: string;
+        reasonLabel?: string;
+        incidentDate?: string;
+        deadlineDate?: string;
+        reference?: string;
+      }
+    | undefined;
   ModerationAppealForm: { decisionId: string };
   ModerationAppealSubmitted: {
     appealId: string;
