@@ -118,6 +118,10 @@ export const contactsAPI = {
       },
     });
     if (!response.ok) {
+      if (response.status === 404) {
+        // No contacts yet, not an error
+        return { contacts: [], total: 0 };
+      }
       throw new Error("Failed to fetch contacts");
     }
 
