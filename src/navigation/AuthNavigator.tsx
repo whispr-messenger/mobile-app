@@ -73,7 +73,11 @@ export type AuthStackParamList = {
   ModerationTest: undefined;
   ModerationDecision: undefined;
   ModerationAppealForm: { decisionId: string };
-  ModerationAppealSubmitted: { appealId: string };
+  ModerationAppealSubmitted: {
+    appealId: string;
+    decisionId: string;
+    status?: string;
+  };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();

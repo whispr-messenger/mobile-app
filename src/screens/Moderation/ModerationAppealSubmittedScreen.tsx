@@ -20,6 +20,8 @@ const SCREEN_GRADIENT = colors.background.gradient.app;
 export const ModerationAppealSubmittedScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<SubmittedRoute>();
+  const statusLabel =
+    route.params.status?.toUpperCase().replace(/_/g, " ") ?? "RECUE";
 
   return (
     <LinearGradient
@@ -56,7 +58,7 @@ export const ModerationAppealSubmittedScreen: React.FC = () => {
             vous repondront sous 48h.
           </Text>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>RECUE</Text>
+            <Text style={styles.badgeText}>{statusLabel}</Text>
           </View>
         </View>
 

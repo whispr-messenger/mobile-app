@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,31 +16,67 @@ import type { RouteProp } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
+import {
+  submitModerationAppeal,
+  type AppealReason,
+} from "../../services/moderation/appealApi";
 
 type Nav = StackNavigationProp<AuthStackParamList, "ModerationAppealForm">;
 type FormRoute = RouteProp<AuthStackParamList, "ModerationAppealForm">;
 
 const SCREEN_GRADIENT = colors.background.gradient.app;
-const REASONS = [
-  "Contexte incomplet",
-  "Erreur de classification",
-  "Usurpation / faux signalement",
-  "Autre",
+const REASONS: Array<{ label: string; value: AppealReason }> = [
+  { label: "Contexte incomplet", value: "context_incomplete" },
+  { label: "Erreur de classification", value: "misclassification" },
+  { label: "Usurpation / faux signalement", value: "false_report" },
+  { label: "Autre", value: "other" },
 ];
 
 export const ModerationAppealFormScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
   const route = useRoute<FormRoute>();
-  const [reason, setReason] = useState(REASONS[0]);
+  const [reason, setReason] = useState<AppealReason>(REASONS[0].value);
   const [description, setDescription] = useState("");
   const [fakeAttachmentName, setFakeAttachmentName] = useState<string | null>(
     null,
   );
+  const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   const canSubmit = useMemo(
-    () => description.trim().length >= 8,
-    [description],
+    () => description.trim().length >= 8 && !loading,
+    [description, loading],
   );
+
+  const onSubmit = async () => {
+    if (!canSubmit) return;
+    setErrorText(null);
+    setLoading(true);
+    try {
+      const result = await submitModerationAppeal({
+        decisionId: route.params.decisionId,
+        reason,
+        description,
+        attachmentFileName: fakeAttachmentName ?? undefined,
+      });
+      navigation.navigate("ModerationAppealSubmitted", {
+        appealId: result.appealId,
+        decisionId: route.params.decisionId,
+        status: result.status,
+      });
+    } catch (error) {
+      const e = error as Error & { status?: number };
+      if (e.status === 429) {
+        setErrorText("Trop de tentatives. Merci de reessayer plus tard.");
+      } else if (e.status === 400) {
+        setErrorText("La contestation est invalide ou expirée.");
+      } else {
+        setErrorText("Impossible d'envoyer votre contestation.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <LinearGradient
@@ -77,7 +114,10 @@ export const ModerationAppealFormScreen: React.FC = () => {
           <View style={styles.section}>
             <Text style={styles.label}>MOTIF DE LA CONTESTATION</Text>
             <TouchableOpacity style={styles.inputLike} activeOpacity={0.75}>
-              <Text style={styles.inputLikeText}>{reason}</Text>
+              <Text style={styles.inputLikeText}>
+                {REASONS.find((item) => item.value === reason)?.label ??
+                  "Autre"}
+              </Text>
               <Ionicons
                 name="chevron-down"
                 size={18}
@@ -86,15 +126,15 @@ export const ModerationAppealFormScreen: React.FC = () => {
             </TouchableOpacity>
             <View style={styles.reasonChips}>
               {REASONS.map((item) => {
-                const selected = item === reason;
+                const selected = item.value === reason;
                 return (
                   <TouchableOpacity
-                    key={item}
+                    key={item.value}
                     style={[
                       styles.reasonChip,
                       selected && styles.reasonChipSelected,
                     ]}
-                    onPress={() => setReason(item)}
+                    onPress={() => setReason(item.value)}
                   >
                     <Text
                       style={[
@@ -102,7 +142,7 @@ export const ModerationAppealFormScreen: React.FC = () => {
                         selected && styles.reasonChipTextSelected,
                       ]}
                     >
-                      {item}
+                      {item.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -151,14 +191,16 @@ export const ModerationAppealFormScreen: React.FC = () => {
         </ScrollView>
 
         <View style={styles.footer}>
+          {errorText ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={16} color={colors.ui.error} />
+              <Text style={styles.errorText}>{errorText}</Text>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={[styles.primaryBtn, !canSubmit && { opacity: 0.5 }]}
             disabled={!canSubmit}
-            onPress={() =>
-              navigation.navigate("ModerationAppealSubmitted", {
-                appealId: route.params?.decisionId ?? "WH-8902",
-              })
-            }
+            onPress={onSubmit}
           >
             <LinearGradient
               colors={[colors.primary.light, colors.primary.main]}
@@ -166,7 +208,13 @@ export const ModerationAppealFormScreen: React.FC = () => {
               end={{ x: 1, y: 1 }}
               style={styles.primaryBtnGrad}
             >
-              <Text style={styles.primaryBtnText}>Envoyer la contestation</Text>
+              {loading ? (
+                <ActivityIndicator color="#0B1124" />
+              ) : (
+                <Text style={styles.primaryBtnText}>
+                  Envoyer la contestation
+                </Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
 
@@ -267,6 +315,22 @@ const styles = StyleSheet.create({
   },
   uploadText: { color: withOpacity(colors.text.light, 0.75), fontSize: 14 },
   footer: { gap: 10, paddingTop: 8 },
+  errorBanner: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.error, 0.45),
+    backgroundColor: withOpacity(colors.ui.error, 0.12),
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  errorText: {
+    color: withOpacity(colors.text.light, 0.92),
+    flex: 1,
+    fontSize: 13,
+  },
   primaryBtn: { borderRadius: 999, overflow: "hidden" },
   primaryBtnGrad: { alignItems: "center", paddingVertical: 15 },
   primaryBtnText: { color: "#0B1124", fontSize: 17, fontWeight: "800" },
