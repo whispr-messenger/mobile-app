@@ -12,11 +12,15 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { tfjsService } from "../../services/moderation";
 import type { GateResult } from "../../services/moderation/moderation.types";
 
+type Nav = StackNavigationProp<AuthStackParamList>;
+
 export const ModerationTestScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<Nav>();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [result, setResult] = useState<GateResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,6 +74,12 @@ export const ModerationTestScreen: React.FC = () => {
 
       <TouchableOpacity style={s.btn} onPress={pickImage}>
         <Text style={s.btnText}>Pick Image</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[s.btn, s.appealBtn]}
+        onPress={() => navigation.navigate("ModerationDecision")}
+      >
+        <Text style={s.btnText}>Open appeal flow mock</Text>
       </TouchableOpacity>
 
       {imageUri && (
@@ -141,6 +151,10 @@ const s = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 20,
+  },
+  appealBtn: {
+    backgroundColor: "#FE7A5C",
+    marginBottom: 14,
   },
   btnText: { color: "#000", fontSize: 16, fontWeight: "600" },
   img: { width: 224, height: 224, borderRadius: 12, marginBottom: 16 },
