@@ -8,7 +8,6 @@ import { logger } from "../../utils/logger";
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 /**
-<<<<<<< HEAD
  * Convert a camelCase string to snake_case.
  */
 const toSnakeCase = (str: string): string =>
@@ -29,7 +28,6 @@ const snakecaseKeys = (obj: any): any => {
     );
   }
   return obj;
-=======
  * Normalise a backend attachment payload into the MessageAttachment shape the
  * app consumes. The backend returns { file_url, file_name, file_size, mime_type,
  * media_id, metadata, ... } while the app expects { media_type, metadata: {...} }.
@@ -80,7 +78,6 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     },
     created_at: att?.uploaded_at || att?.created_at || new Date().toISOString(),
   };
->>>>>>> feat/moderation-screens
 };
 
 // Backend wraps responses in { data: ... } — unwrap if present
@@ -364,11 +361,8 @@ export const messagingAPI = {
       if (response.status === 404 || response.status === 400) {
         return { reactions: [] };
       }
-<<<<<<< HEAD
       throw httpError("Failed to fetch message reactions", response);
-=======
       throw new Error("Failed to fetch message reactions");
->>>>>>> feat/moderation-screens
     }
 
     return unwrap(response);
@@ -413,11 +407,8 @@ export const messagingAPI = {
       if (response.status === 404) {
         return [];
       }
-<<<<<<< HEAD
       throw httpError("Failed to fetch pinned messages", response);
-=======
       throw new Error("Failed to fetch pinned messages");
->>>>>>> feat/moderation-screens
     }
 
     const data = await unwrap(response);
@@ -434,16 +425,12 @@ export const messagingAPI = {
       if (response.status === 404) {
         return [];
       }
-<<<<<<< HEAD
       throw httpError("Failed to fetch attachments", response);
-=======
       throw new Error("Failed to fetch attachments");
->>>>>>> feat/moderation-screens
     }
 
     const data = await unwrap(response);
     const raw = Array.isArray(data) ? data : [];
-<<<<<<< HEAD
 
     // The backend returns { file_url, file_name, file_size, mime_type, media_id, metadata, ... }
     // but the app expects MessageAttachment shape with media_type + metadata.
@@ -497,9 +484,7 @@ export const messagingAPI = {
           att.uploaded_at || att.created_at || new Date().toISOString(),
       };
     });
-=======
     return raw.map((att: any) => mapBackendAttachment(att, messageId));
->>>>>>> feat/moderation-screens
   },
 
   async addAttachment(messageId: string, attachment: any): Promise<void> {
@@ -529,24 +514,18 @@ export const messagingAPI = {
       );
 
       if (!response.ok) {
-<<<<<<< HEAD
         console.warn("[getUserInfo] HTTP", response.status, "for user", userId);
-=======
         logger.warn(
           "getUserInfo",
           `HTTP ${response.status} for user ${userId}`,
         );
->>>>>>> feat/moderation-screens
         return null;
       }
 
       const user = await response.json().catch(() => null);
       if (!user) {
-<<<<<<< HEAD
         console.warn("[getUserInfo] Empty body for user", userId);
-=======
         logger.warn("getUserInfo", `Empty body for user ${userId}`);
->>>>>>> feat/moderation-screens
         return null;
       }
 
@@ -571,11 +550,8 @@ export const messagingAPI = {
         avatar_url: avatarUrl,
       };
     } catch (err) {
-<<<<<<< HEAD
       console.warn("[getUserInfo] Failed for user", userId, err);
-=======
       logger.warn("getUserInfo", `Failed for user ${userId}`, err);
->>>>>>> feat/moderation-screens
       return null;
     }
   },

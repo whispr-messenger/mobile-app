@@ -49,10 +49,7 @@ export const SettingsScreen: React.FC = () => {
   } = useTheme();
   const themeColors = getThemeColors();
   const { signOut, userId } = useAuth();
-<<<<<<< HEAD
-=======
   const { isModerator, isAdmin, fetchMyRole } = useModerationStore();
->>>>>>> feat/moderation-screens
   const insets = useSafeAreaInsets();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
