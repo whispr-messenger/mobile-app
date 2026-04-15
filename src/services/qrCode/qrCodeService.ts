@@ -65,9 +65,6 @@ export class QRCodeService {
         const m = trimmed.match(/[?&]userId=([^&]+)/);
         if (m?.[1]) {
           return { type: "contact", userId: decodeURIComponent(m[1]) };
-        const userId = new URLSearchParams(q).get("userId");
-        if (userId) {
-          return { type: "contact", userId };
         }
       }
 

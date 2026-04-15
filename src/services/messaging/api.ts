@@ -8,26 +8,6 @@ import { logger } from "../../utils/logger";
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 /**
- * Convert a camelCase string to snake_case.
- */
-const toSnakeCase = (str: string): string =>
-  str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-
-/**
- * Recursively convert all keys in an object/array from camelCase to snake_case.
- * The backend returns camelCase keys but our types use snake_case.
- */
-const snakecaseKeys = (obj: any): any => {
-  if (Array.isArray(obj)) return obj.map(snakecaseKeys);
-  if (obj !== null && typeof obj === "object" && !(obj instanceof Date)) {
-    return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [
-        toSnakeCase(key),
-        snakecaseKeys(value),
-      ]),
-    );
-  }
-  return obj;
  * Normalise a backend attachment payload into the MessageAttachment shape the
  * app consumes. The backend returns { file_url, file_name, file_size, mime_type,
  * media_id, metadata, ... } while the app expects { media_type, metadata: {...} }.

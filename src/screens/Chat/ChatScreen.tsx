@@ -35,7 +35,6 @@ import {
   MessageWithStatus,
   MessageWithRelations,
   MessageReaction,
-  MessageAttachment,
   Conversation,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";

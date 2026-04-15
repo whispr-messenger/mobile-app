@@ -84,13 +84,6 @@ async function enrichSingleConversation(
       };
     }
 
-    console.warn(
-      "[enrich] getUserInfo returned no display_name for",
-      otherUserId,
-    );
-    return { ...conv, member_user_ids: memberIds };
-  } catch (err) {
-    console.warn("[enrich] Failed for conversation", conv.id, err);
     logger.warn(
       "enrich",
       `getUserInfo returned no display_name for ${otherUserId}`,

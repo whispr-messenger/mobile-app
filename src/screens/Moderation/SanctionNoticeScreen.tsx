@@ -13,7 +13,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute, RouteProp, useFocusEffect } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  RouteProp,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
@@ -91,8 +96,14 @@ export const SanctionNoticeScreen: React.FC = () => {
   const themeColors = getThemeColors();
   const { sanction } = route.params;
 
-  const config = useMemo(() => SANCTION_CONFIG[sanction.type] || SANCTION_CONFIG.warning, [sanction.type]);
-  const expiryText = useMemo(() => formatExpiryInfo(sanction.expiresAt), [sanction.expiresAt]);
+  const config = useMemo(
+    () => SANCTION_CONFIG[sanction.type] || SANCTION_CONFIG.warning,
+    [sanction.type],
+  );
+  const expiryText = useMemo(
+    () => formatExpiryInfo(sanction.expiresAt),
+    [sanction.expiresAt],
+  );
   const isBan = sanction.type === "temp_ban" || sanction.type === "perm_ban";
 
   // Block hardware back button for bans
@@ -105,8 +116,11 @@ export const SanctionNoticeScreen: React.FC = () => {
         return true;
       };
 
-      BackHandler.addEventListener("hardwareBackPress", onBackPress);
-      return () => BackHandler.removeEventListener("hardwareBackPress", onBackPress);
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress,
+      );
+      return () => subscription.remove();
     }, [isBan]),
   );
 
@@ -130,7 +144,12 @@ export const SanctionNoticeScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.content}>
           {/* Warning Icon */}
-          <View style={[styles.iconCircle, { backgroundColor: config.color + "20" }]}>
+          <View
+            style={[
+              styles.iconCircle,
+              { backgroundColor: config.color + "20" },
+            ]}
+          >
             <Ionicons name={config.icon} size={64} color={config.color} />
           </View>
 
@@ -140,41 +159,83 @@ export const SanctionNoticeScreen: React.FC = () => {
           </Text>
 
           {/* Sanction Details Card */}
-          <View style={[styles.detailsCard, { backgroundColor: themeColors.background.secondary }]}>
+          <View
+            style={[
+              styles.detailsCard,
+              { backgroundColor: themeColors.background.secondary },
+            ]}
+          >
             {/* Reason */}
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: themeColors.text.tertiary }]}>
+              <Text
+                style={[
+                  styles.detailLabel,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
                 Raison
               </Text>
-              <Text style={[styles.detailValue, { color: themeColors.text.primary }]}>
+              <Text
+                style={[
+                  styles.detailValue,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 {sanction.reason}
               </Text>
             </View>
 
             {/* Separator */}
-            <View style={[styles.separator, { backgroundColor: themeColors.text.tertiary + "20" }]} />
+            <View
+              style={[
+                styles.separator,
+                { backgroundColor: themeColors.text.tertiary + "20" },
+              ]}
+            />
 
             {/* Date */}
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: themeColors.text.tertiary }]}>
+              <Text
+                style={[
+                  styles.detailLabel,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
                 Date
               </Text>
-              <Text style={[styles.detailValue, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.detailValue,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 {formatDate(sanction.createdAt)}
               </Text>
             </View>
 
             {/* Separator */}
-            <View style={[styles.separator, { backgroundColor: themeColors.text.tertiary + "20" }]} />
+            <View
+              style={[
+                styles.separator,
+                { backgroundColor: themeColors.text.tertiary + "20" },
+              ]}
+            />
 
             {/* Expiry */}
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: themeColors.text.tertiary }]}>
+              <Text
+                style={[
+                  styles.detailLabel,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
                 Durée
               </Text>
               <View style={styles.expiryRow}>
                 <Ionicons
-                  name={sanction.expiresAt ? "timer-outline" : "infinity-outline"}
+                  name={
+                    sanction.expiresAt ? "timer-outline" : "infinite-outline"
+                  }
                   size={16}
                   color={config.color}
                 />
@@ -188,8 +249,14 @@ export const SanctionNoticeScreen: React.FC = () => {
           {/* Info Text */}
           {isBan && (
             <View style={styles.infoBox}>
-              <Ionicons name="information-circle-outline" size={20} color={themeColors.text.tertiary} />
-              <Text style={[styles.infoText, { color: themeColors.text.tertiary }]}>
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+              <Text
+                style={[styles.infoText, { color: themeColors.text.tertiary }]}
+              >
                 {sanction.type === "perm_ban"
                   ? "Votre compte a été définitivement suspendu. Vous pouvez contester cette décision."
                   : "Votre accès à l'application est temporairement restreint."}
@@ -202,22 +269,35 @@ export const SanctionNoticeScreen: React.FC = () => {
 
           {/* Contest Button */}
           <TouchableOpacity
-            style={[styles.contestButton, { backgroundColor: colors.primary.main }]}
+            style={[
+              styles.contestButton,
+              { backgroundColor: colors.primary.main },
+            ]}
             onPress={handleContestDecision}
             activeOpacity={0.8}
           >
             <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.contestButtonText}>Contester cette décision</Text>
+            <Text style={styles.contestButtonText}>
+              Contester cette décision
+            </Text>
           </TouchableOpacity>
 
           {/* Dismiss Button (only for warnings) */}
           {config.dismissible && (
             <TouchableOpacity
-              style={[styles.dismissButton, { borderColor: themeColors.text.tertiary + "40" }]}
+              style={[
+                styles.dismissButton,
+                { borderColor: themeColors.text.tertiary + "40" },
+              ]}
               onPress={handleDismiss}
               activeOpacity={0.7}
             >
-              <Text style={[styles.dismissButtonText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.dismissButtonText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 J'ai compris
               </Text>
             </TouchableOpacity>

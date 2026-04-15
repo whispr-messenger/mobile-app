@@ -307,7 +307,6 @@ export class UserService {
           lastNamePrivacy: settings.lastNameVisibility,
           biographyPrivacy: settings.biographyVisibility,
           searchByPhone: settings.phoneNumberSearch,
-          searchByUsername: settings.searchVisibility === true,
           searchByUsername: settings.searchVisibility,
         }),
       });

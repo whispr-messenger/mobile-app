@@ -1,7 +1,6 @@
 import { getWsBaseUrl } from "../apiBase";
 import { TokenService } from "../TokenService";
 import { AuthService } from "../AuthService";
-import { snakecaseKeys } from "../../utils/caseTransform";
 import { logger } from "../../utils/logger";
 
 type EventCallback = (data: any) => void;
@@ -211,8 +210,6 @@ export class SocketConnection {
       try {
         const msg = parseMessage(event.data);
         if (!msg) {
-          console.warn(
-            "[WS] Unparseable frame:",
           logger.warn(
             "WS",
             "Unparseable frame",
@@ -224,7 +221,6 @@ export class SocketConnection {
         // Handle join reply
         if (msg.event === "phx_reply") {
           const ch = this.channels[msg.topic];
-          console.log("[WS] phx_reply", msg.topic, msg.payload?.status);
           logger.debug("WS", `phx_reply ${msg.topic} ${msg.payload?.status}`);
           if (ch && msg.payload?.status === "ok") {
             ch.joined = true;
@@ -256,12 +252,6 @@ export class SocketConnection {
           const ch = this.channels[msg.topic];
           const cbs = ch?.callbacks[msg.event] || [];
           const normalised = snakecaseKeys(msg.payload);
-          console.log(
-            "[WS] Event:",
-            msg.topic,
-            msg.event,
-            "callbacks:",
-            cbs.length,
           logger.debug(
             "WS",
             `Event ${msg.topic} ${msg.event} callbacks=${cbs.length}`,
@@ -355,8 +345,6 @@ export class SocketConnection {
       // If the token is expired, try to refresh it before reconnecting
       if (TokenService.isTokenExpired(this.lastToken)) {
         try {
-          console.log(
-            "[WS] Token expired, attempting refresh before reconnect",
           logger.info(
             "WS",
             "Token expired, attempting refresh before reconnect",
@@ -366,8 +354,6 @@ export class SocketConnection {
           if (newToken) {
             this.lastToken = newToken;
           } else {
-            console.warn(
-              "[WS] Token refresh returned null, stopping reconnect",
             logger.warn(
               "WS",
               "Token refresh returned null, stopping reconnect",
