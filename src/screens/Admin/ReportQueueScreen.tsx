@@ -21,7 +21,11 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useModerationStore } from "../../store/moderationStore";
 import { AdminGate, ReportCard } from "../../components/Moderation";
-import type { Report, ReportCategory, ReportStatus } from "../../types/moderation";
+import type {
+  Report,
+  ReportCategory,
+  ReportStatus,
+} from "../../types/moderation";
 
 type StatusFilter = "all" | "pending" | "under_review";
 
@@ -35,9 +39,9 @@ const CATEGORIES: { key: ReportCategory | "all"; label: string }[] = [
   { key: "all", label: "Toutes" },
   { key: "offensive", label: "Offensant" },
   { key: "spam", label: "Spam" },
-  { key: "nudity", label: "Nudit\u00e9" },
+  { key: "nudity", label: "Nudité" },
   { key: "violence", label: "Violence" },
-  { key: "harassment", label: "Harc\u00e8lement" },
+  { key: "harassment", label: "Harcèlement" },
   { key: "other", label: "Autre" },
 ];
 
@@ -48,7 +52,9 @@ export const ReportQueueScreen: React.FC = () => {
   const { reportQueue, loading, fetchReportQueue } = useModerationStore();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [categoryFilter, setCategoryFilter] = useState<ReportCategory | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState<ReportCategory | "all">(
+    "all",
+  );
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   useEffect(() => {
@@ -61,7 +67,8 @@ export const ReportQueueScreen: React.FC = () => {
 
   const filteredReports = reportQueue.filter((report) => {
     if (statusFilter !== "all" && report.status !== statusFilter) return false;
-    if (categoryFilter !== "all" && report.category !== categoryFilter) return false;
+    if (categoryFilter !== "all" && report.category !== categoryFilter)
+      return false;
     return true;
   });
 
@@ -88,10 +95,19 @@ export const ReportQueueScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Signalements
             </Text>
             {pendingCount > 0 && (
@@ -113,7 +129,9 @@ export const ReportQueueScreen: React.FC = () => {
                   onPress={() => setStatusFilter(tab.key)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                  <Text
+                    style={[styles.tabText, isActive && styles.tabTextActive]}
+                  >
                     {tab.label}
                   </Text>
                 </TouchableOpacity>
@@ -129,7 +147,8 @@ export const ReportQueueScreen: React.FC = () => {
           >
             <Ionicons name="filter" size={16} color="rgba(255,255,255,0.7)" />
             <Text style={styles.categoryFilterText}>
-              Cat\u00e9gorie : {CATEGORIES.find((c) => c.key === categoryFilter)?.label}
+              Catégorie :{" "}
+              {CATEGORIES.find((c) => c.key === categoryFilter)?.label}
             </Text>
             <Ionicons
               name={showCategoryPicker ? "chevron-up" : "chevron-down"}
@@ -145,13 +164,21 @@ export const ReportQueueScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={cat.key}
-                    style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                    style={[
+                      styles.categoryChip,
+                      isActive && styles.categoryChipActive,
+                    ]}
                     onPress={() => {
                       setCategoryFilter(cat.key);
                       setShowCategoryPicker(false);
                     }}
                   >
-                    <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        isActive && styles.categoryChipTextActive,
+                      ]}
+                    >
                       {cat.label}
                     </Text>
                   </TouchableOpacity>
@@ -168,7 +195,11 @@ export const ReportQueueScreen: React.FC = () => {
             </View>
           ) : filteredReports.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="checkmark-circle-outline" size={64} color="rgba(255,255,255,0.3)" />
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={64}
+                color="rgba(255,255,255,0.3)"
+              />
               <Text style={styles.emptyText}>Aucun signalement</Text>
               <Text style={styles.emptySubtext}>
                 La file est vide pour ces filtres

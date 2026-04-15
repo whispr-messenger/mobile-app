@@ -39,9 +39,9 @@ const CATEGORY_ICONS: Record<ReportCategory, keyof typeof Ionicons.glyphMap> = {
 const CATEGORY_LABELS: Record<ReportCategory, string> = {
   offensive: "Contenu offensant",
   spam: "Spam",
-  nudity: "Nudit\u00e9",
+  nudity: "Nudité",
   violence: "Violence",
-  harassment: "Harc\u00e8lement",
+  harassment: "Harcèlement",
   other: "Autre",
 };
 
@@ -72,8 +72,8 @@ export const ReportReviewScreen: React.FC = () => {
   const handleAction = useCallback(
     (action: string, actionLabel: string, sanctionType?: string) => {
       const message = sanctionType
-        ? `Cette action va r\u00e9soudre le signalement et cr\u00e9er une sanction "${sanctionType}" pour l'utilisateur.`
-        : `Cette action va r\u00e9soudre le signalement comme "${actionLabel}".`;
+        ? `Cette action va résoudre le signalement et créer une sanction "${sanctionType}" pour l'utilisateur.`
+        : `Cette action va résoudre le signalement comme "${actionLabel}".`;
 
       Alert.alert(
         `Confirmer : ${actionLabel}`,
@@ -101,7 +101,7 @@ export const ReportReviewScreen: React.FC = () => {
                   });
                 }
 
-                Alert.alert("Succ\u00e8s", "Signalement trait\u00e9 avec succ\u00e8s.", [
+                Alert.alert("Succès", "Signalement traité avec succès.", [
                   { text: "OK", onPress: () => navigation.goBack() },
                 ]);
               } catch (e: any) {
@@ -128,10 +128,19 @@ export const ReportReviewScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Examiner le signalement
             </Text>
             <View style={styles.placeholder} />
@@ -141,12 +150,23 @@ export const ReportReviewScreen: React.FC = () => {
             {/* Report Info */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.iconCircle, { backgroundColor: "rgba(254, 122, 92, 0.15)" }]}>
-                  <Ionicons name={categoryIcon} size={28} color={colors.primary.main} />
+                <View
+                  style={[
+                    styles.iconCircle,
+                    { backgroundColor: "rgba(254, 122, 92, 0.15)" },
+                  ]}
+                >
+                  <Ionicons
+                    name={categoryIcon}
+                    size={28}
+                    color={colors.primary.main}
+                  />
                 </View>
                 <View style={styles.sectionHeaderInfo}>
                   <Text style={styles.sectionTitle}>{categoryLabel}</Text>
-                  <Text style={styles.sectionSubtitle}>{formatDate(report.created_at)}</Text>
+                  <Text style={styles.sectionSubtitle}>
+                    {formatDate(report.created_at)}
+                  </Text>
                 </View>
                 <ReportStatusBadge status={report.status} size="medium" />
               </View>
@@ -154,14 +174,16 @@ export const ReportReviewScreen: React.FC = () => {
               {report.description && (
                 <View style={styles.descriptionBox}>
                   <Text style={styles.descriptionLabel}>Description</Text>
-                  <Text style={styles.descriptionText}>{report.description}</Text>
+                  <Text style={styles.descriptionText}>
+                    {report.description}
+                  </Text>
                 </View>
               )}
 
               {report.auto_escalated && (
                 <View style={styles.escalatedBadge}>
                   <Ionicons name="flash" size={16} color="#F5A623" />
-                  <Text style={styles.escalatedText}>Auto-escalad\u00e9</Text>
+                  <Text style={styles.escalatedText}>Auto-escaladé</Text>
                 </View>
               )}
             </View>
@@ -172,7 +194,11 @@ export const ReportReviewScreen: React.FC = () => {
                 <Text style={styles.sectionLabel}>Preuve</Text>
                 {report.evidence.message_content && (
                   <View style={styles.evidenceBox}>
-                    <Ionicons name="chatbubble" size={16} color="rgba(255,255,255,0.5)" />
+                    <Ionicons
+                      name="chatbubble"
+                      size={16}
+                      color="rgba(255,255,255,0.5)"
+                    />
                     <View style={styles.evidenceContent}>
                       <Text style={styles.evidenceLabel}>Message original</Text>
                       <Text style={styles.evidenceText}>
@@ -180,7 +206,8 @@ export const ReportReviewScreen: React.FC = () => {
                       </Text>
                       {report.evidence.sender_id && (
                         <Text style={styles.evidenceMeta}>
-                          Envoy\u00e9 par : {report.evidence.sender_id.slice(0, 8)}...
+                          Envoyé par : {report.evidence.sender_id.slice(0, 8)}
+                          ...
                         </Text>
                       )}
                       {report.evidence.timestamp && (
@@ -193,7 +220,11 @@ export const ReportReviewScreen: React.FC = () => {
                 )}
                 {!report.evidence.message_content && (
                   <View style={styles.evidenceBox}>
-                    <Ionicons name="document-text" size={16} color="rgba(255,255,255,0.5)" />
+                    <Ionicons
+                      name="document-text"
+                      size={16}
+                      color="rgba(255,255,255,0.5)"
+                    />
                     <Text style={styles.evidenceText}>
                       {JSON.stringify(report.evidence, null, 2)}
                     </Text>
@@ -204,9 +235,14 @@ export const ReportReviewScreen: React.FC = () => {
 
             {/* Reported User */}
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Utilisateur signal\u00e9</Text>
+              <Text style={styles.sectionLabel}>Utilisateur signalé</Text>
               <View style={styles.userRow}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: "rgba(255,59,48,0.15)" }]}>
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    { backgroundColor: "rgba(255,59,48,0.15)" },
+                  ]}
+                >
                   <Ionicons name="person" size={20} color="#FF3B30" />
                 </View>
                 <View style={styles.userInfo}>
@@ -218,7 +254,9 @@ export const ReportReviewScreen: React.FC = () => {
                       })
                     }
                   >
-                    <Text style={styles.viewProfileLink}>Voir le profil de mod\u00e9ration</Text>
+                    <Text style={styles.viewProfileLink}>
+                      Voir le profil de modération
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -226,9 +264,14 @@ export const ReportReviewScreen: React.FC = () => {
 
             {/* Reporter */}
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Signal\u00e9 par</Text>
+              <Text style={styles.sectionLabel}>Signalé par</Text>
               <View style={styles.userRow}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: "rgba(103,116,189,0.15)" }]}>
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    { backgroundColor: "rgba(103,116,189,0.15)" },
+                  ]}
+                >
                   <Ionicons name="person" size={20} color="#6774BD" />
                 </View>
                 <Text style={styles.userId}>{report.reporter_id}</Text>
@@ -253,7 +296,7 @@ export const ReportReviewScreen: React.FC = () => {
             {/* Already resolved? */}
             {report.resolution && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>R\u00e9solution pr\u00e9c\u00e9dente</Text>
+                <Text style={styles.sectionLabel}>Résolution précédente</Text>
                 <View style={styles.resolutionBox}>
                   <Text style={styles.resolutionText}>
                     Action : {report.resolution.action}

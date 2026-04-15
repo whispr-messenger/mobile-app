@@ -157,6 +157,15 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.aboutWhisprSubtitle": "Contenu, sécurité et informations légales",
     "settings.aboutSection": "Légal & contenu",
 
+    // Moderation settings
+    "settings.moderation": "Modération",
+    "settings.myReports": "Mes signalements",
+    "settings.myReportsSubtitle": "Historique de vos signalements",
+    "settings.mySanctions": "Mes sanctions",
+    "settings.mySanctionsSubtitle": "Voir vos sanctions",
+    "settings.moderationDashboard": "Tableau de bord",
+    "settings.moderationDashboardSubtitle": "Gestion de la modération",
+
     // About — contenu & sécurité (WHISPR)
     "about.title": "À propos",
     "about.sectionContentSecurity": "Contenu et sécurité",
@@ -425,6 +434,15 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.aboutWhispr": "About",
     "settings.aboutWhisprSubtitle": "Content, security, and legal information",
     "settings.aboutSection": "Legal & content",
+
+    // Moderation settings
+    "settings.moderation": "Moderation",
+    "settings.myReports": "My Reports",
+    "settings.myReportsSubtitle": "History of your reports",
+    "settings.mySanctions": "My Sanctions",
+    "settings.mySanctionsSubtitle": "View your sanctions",
+    "settings.moderationDashboard": "Dashboard",
+    "settings.moderationDashboardSubtitle": "Moderation management",
 
     // About — content & security (WHISPR)
     "about.title": "About",

@@ -62,7 +62,7 @@ export const AppealReviewScreen: React.FC = () => {
     (status: "accepted" | "rejected", actionLabel: string) => {
       const message =
         status === "accepted"
-          ? "La sanction sera lev\u00e9e et l'utilisateur sera r\u00e9tabli."
+          ? "La sanction sera levée et l'utilisateur sera rétabli."
           : "La sanction sera maintenue.";
 
       Alert.alert(
@@ -86,7 +86,7 @@ export const AppealReviewScreen: React.FC = () => {
                   }
                 }
 
-                Alert.alert("Succ\u00e8s", "Appel trait\u00e9 avec succ\u00e8s.", [
+                Alert.alert("Succès", "Appel traité avec succès.", [
                   { text: "OK", onPress: () => navigation.goBack() },
                 ]);
               } catch (e: any) {
@@ -113,10 +113,19 @@ export const AppealReviewScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Examiner l'appel
             </Text>
             <View style={styles.placeholder} />
@@ -125,9 +134,14 @@ export const AppealReviewScreen: React.FC = () => {
           <ScrollView contentContainerStyle={styles.scrollContent}>
             {/* Appeal Details */}
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>D\u00e9tails de l'appel</Text>
+              <Text style={styles.sectionLabel}>Détails de l'appel</Text>
               <View style={styles.userRow}>
-                <View style={[styles.avatarPlaceholder, { backgroundColor: "rgba(103,116,189,0.15)" }]}>
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    { backgroundColor: "rgba(103,116,189,0.15)" },
+                  ]}
+                >
                   <Ionicons name="person" size={20} color="#6774BD" />
                 </View>
                 <View style={styles.userInfo}>
@@ -146,11 +160,16 @@ export const AppealReviewScreen: React.FC = () => {
               {/* Evidence images */}
               {appeal.evidence && Object.keys(appeal.evidence).length > 0 && (
                 <View style={styles.evidenceSection}>
-                  <Text style={styles.evidenceLabel}>Pi\u00e8ces jointes</Text>
-                  {appeal.evidence.images && Array.isArray(appeal.evidence.images) ? (
+                  <Text style={styles.evidenceLabel}>Pièces jointes</Text>
+                  {appeal.evidence.images &&
+                  Array.isArray(appeal.evidence.images) ? (
                     appeal.evidence.images.map((img: string, idx: number) => (
                       <View key={idx} style={styles.evidenceItem}>
-                        <Ionicons name="image" size={16} color="rgba(255,255,255,0.5)" />
+                        <Ionicons
+                          name="image"
+                          size={16}
+                          color="rgba(255,255,255,0.5)"
+                        />
                         <Text style={styles.evidenceText} numberOfLines={1}>
                           {img}
                         </Text>
@@ -158,7 +177,11 @@ export const AppealReviewScreen: React.FC = () => {
                     ))
                   ) : (
                     <View style={styles.evidenceItem}>
-                      <Ionicons name="document" size={16} color="rgba(255,255,255,0.5)" />
+                      <Ionicons
+                        name="document"
+                        size={16}
+                        color="rgba(255,255,255,0.5)"
+                      />
                       <Text style={styles.evidenceText}>
                         {JSON.stringify(appeal.evidence)}
                       </Text>
@@ -176,7 +199,11 @@ export const AppealReviewScreen: React.FC = () => {
               ) : sanction ? (
                 <>
                   <View style={styles.sanctionRow}>
-                    <SanctionBadge type={sanction.type} active={sanction.active} size="medium" />
+                    <SanctionBadge
+                      type={sanction.type}
+                      active={sanction.active}
+                      size="medium"
+                    />
                     {sanction.active && (
                       <View style={styles.activeDot}>
                         <Text style={styles.activeLabel}>Active</Text>
@@ -190,34 +217,44 @@ export const AppealReviewScreen: React.FC = () => {
                     </View>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Date</Text>
-                      <Text style={styles.detailValue}>{formatDate(sanction.createdAt)}</Text>
+                      <Text style={styles.detailValue}>
+                        {formatDate(sanction.createdAt)}
+                      </Text>
                     </View>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Par</Text>
-                      <Text style={styles.detailValue}>{sanction.issuedBy.slice(0, 8)}...</Text>
+                      <Text style={styles.detailValue}>
+                        {sanction.issuedBy.slice(0, 8)}...
+                      </Text>
                     </View>
                     {sanction.expiresAt && (
                       <View style={styles.detailRow}>
                         <Text style={styles.detailLabel}>Expire</Text>
-                        <Text style={styles.detailValue}>{formatDate(sanction.expiresAt)}</Text>
+                        <Text style={styles.detailValue}>
+                          {formatDate(sanction.expiresAt)}
+                        </Text>
                       </View>
                     )}
                   </View>
                 </>
               ) : (
-                <Text style={styles.noData}>Sanction introuvable (ID: {appeal.sanctionId.slice(0, 8)}...)</Text>
+                <Text style={styles.noData}>
+                  Sanction introuvable (ID: {appeal.sanctionId.slice(0, 8)}...)
+                </Text>
               )}
             </View>
 
             {/* Previous review */}
             {appeal.reviewerId && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Examen pr\u00e9c\u00e9dent</Text>
+                <Text style={styles.sectionLabel}>Examen précédent</Text>
                 <Text style={styles.noData}>
-                  Examin\u00e9 par {appeal.reviewerId.slice(0, 8)}...
+                  Examiné par {appeal.reviewerId.slice(0, 8)}...
                 </Text>
                 {appeal.reviewerNotes && (
-                  <Text style={styles.previousNotes}>{appeal.reviewerNotes}</Text>
+                  <Text style={styles.previousNotes}>
+                    {appeal.reviewerNotes}
+                  </Text>
                 )}
               </View>
             )}
@@ -229,7 +266,7 @@ export const AppealReviewScreen: React.FC = () => {
                 style={styles.notesInput}
                 value={adminNotes}
                 onChangeText={setAdminNotes}
-                placeholder="Expliquez votre d\u00e9cision..."
+                placeholder="Expliquez votre décision..."
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 multiline
                 numberOfLines={4}
@@ -261,7 +298,11 @@ export const AppealReviewScreen: React.FC = () => {
                     onPress={() => handleAction("accepted", "Accepter l'appel")}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color="#FFFFFF"
+                    />
                     <Text style={styles.actionBtnText}>Accepter l'appel</Text>
                   </TouchableOpacity>
                 </>

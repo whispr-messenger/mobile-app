@@ -71,7 +71,7 @@ export const UserModerationScreen: React.FC = () => {
     (type: "warning" | "temp_ban" | "perm_ban", label: string) => {
       Alert.alert(
         `${label}`,
-        `Voulez-vous cr\u00e9er un formulaire de sanction pour cet utilisateur ?`,
+        `Voulez-vous créer un formulaire de sanction pour cet utilisateur ?`,
         [
           { text: "Annuler", style: "cancel" },
           {
@@ -92,42 +92,36 @@ export const UserModerationScreen: React.FC = () => {
   const activeSanctions = sanctions.filter((s) => s.active);
   const inactiveSanctions = sanctions.filter((s) => !s.active);
 
-  const renderSanction = useCallback(
-    ({ item }: { item: UserSanction }) => {
-      return (
-        <View
-          style={[
-            styles.sanctionItem,
-            item.active && styles.sanctionItemActive,
-          ]}
-        >
-          <View style={styles.sanctionHeader}>
-            <SanctionBadge type={item.type} active={item.active} size="medium" />
-            {item.active && (
-              <View style={styles.activeBadge}>
-                <Text style={styles.activeText}>Active</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.sanctionReason} numberOfLines={2}>
-            {item.reason}
-          </Text>
-          <View style={styles.sanctionMeta}>
-            <Text style={styles.sanctionDate}>{formatDate(item.createdAt)}</Text>
-            {item.expiresAt && (
-              <Text style={styles.sanctionExpiry}>
-                Expire : {formatDate(item.expiresAt)}
-              </Text>
-            )}
-          </View>
-          <Text style={styles.sanctionIssuer}>
-            Par : {item.issuedBy.slice(0, 8)}...
-          </Text>
+  const renderSanction = useCallback(({ item }: { item: UserSanction }) => {
+    return (
+      <View
+        style={[styles.sanctionItem, item.active && styles.sanctionItemActive]}
+      >
+        <View style={styles.sanctionHeader}>
+          <SanctionBadge type={item.type} active={item.active} size="medium" />
+          {item.active && (
+            <View style={styles.activeBadge}>
+              <Text style={styles.activeText}>Active</Text>
+            </View>
+          )}
         </View>
-      );
-    },
-    [],
-  );
+        <Text style={styles.sanctionReason} numberOfLines={2}>
+          {item.reason}
+        </Text>
+        <View style={styles.sanctionMeta}>
+          <Text style={styles.sanctionDate}>{formatDate(item.createdAt)}</Text>
+          {item.expiresAt && (
+            <Text style={styles.sanctionExpiry}>
+              Expire : {formatDate(item.expiresAt)}
+            </Text>
+          )}
+        </View>
+        <Text style={styles.sanctionIssuer}>
+          Par : {item.issuedBy.slice(0, 8)}...
+        </Text>
+      </View>
+    );
+  }, []);
 
   const allSanctions = [...activeSanctions, ...inactiveSanctions];
 
@@ -142,11 +136,20 @@ export const UserModerationScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
-              Mod\u00e9ration utilisateur
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
+              Modération utilisateur
             </Text>
             <View style={styles.placeholder} />
           </View>
@@ -167,11 +170,22 @@ export const UserModerationScreen: React.FC = () => {
               <>
                 {/* User Info */}
                 <View style={styles.userCard}>
-                  <View style={[styles.avatarContainer, { backgroundColor: "rgba(254, 122, 92, 0.15)" }]}>
+                  <View
+                    style={[
+                      styles.avatarContainer,
+                      { backgroundColor: "rgba(254, 122, 92, 0.15)" },
+                    ]}
+                  >
                     {userAvatar ? (
-                      <Text style={styles.avatarText}>{userName?.[0]?.toUpperCase() || "?"}</Text>
+                      <Text style={styles.avatarText}>
+                        {userName?.[0]?.toUpperCase() || "?"}
+                      </Text>
                     ) : (
-                      <Ionicons name="person" size={32} color={colors.primary.main} />
+                      <Ionicons
+                        name="person"
+                        size={32}
+                        color={colors.primary.main}
+                      />
                     )}
                   </View>
                   <View style={styles.userInfo}>
@@ -181,7 +195,8 @@ export const UserModerationScreen: React.FC = () => {
                     <Text style={styles.userIdText}>{userId}</Text>
                     <View style={styles.sanctionSummary}>
                       <Text style={styles.summaryText}>
-                        {activeSanctions.length} active{activeSanctions.length !== 1 ? "s" : ""}
+                        {activeSanctions.length} active
+                        {activeSanctions.length !== 1 ? "s" : ""}
                         {" / "}
                         {sanctions.length} total
                       </Text>
@@ -193,30 +208,57 @@ export const UserModerationScreen: React.FC = () => {
                 <Text style={styles.sectionTitle}>Actions manuelles</Text>
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
-                    style={[styles.quickAction, { backgroundColor: "rgba(245, 166, 35, 0.15)" }]}
-                    onPress={() => handleQuickAction("warning", "Avertissement")}
+                    style={[
+                      styles.quickAction,
+                      { backgroundColor: "rgba(245, 166, 35, 0.15)" },
+                    ]}
+                    onPress={() =>
+                      handleQuickAction("warning", "Avertissement")
+                    }
                     activeOpacity={0.7}
                   >
                     <Ionicons name="warning" size={20} color="#F5A623" />
-                    <Text style={[styles.quickActionText, { color: "#F5A623" }]}>Avertir</Text>
+                    <Text
+                      style={[styles.quickActionText, { color: "#F5A623" }]}
+                    >
+                      Avertir
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.quickAction, { backgroundColor: "rgba(255, 107, 53, 0.15)" }]}
-                    onPress={() => handleQuickAction("temp_ban", "Ban temporaire")}
+                    style={[
+                      styles.quickAction,
+                      { backgroundColor: "rgba(255, 107, 53, 0.15)" },
+                    ]}
+                    onPress={() =>
+                      handleQuickAction("temp_ban", "Ban temporaire")
+                    }
                     activeOpacity={0.7}
                   >
                     <Ionicons name="timer" size={20} color="#FF6B35" />
-                    <Text style={[styles.quickActionText, { color: "#FF6B35" }]}>Ban temp.</Text>
+                    <Text
+                      style={[styles.quickActionText, { color: "#FF6B35" }]}
+                    >
+                      Ban temp.
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.quickAction, { backgroundColor: "rgba(255, 59, 48, 0.15)" }]}
-                    onPress={() => handleQuickAction("perm_ban", "Ban permanent")}
+                    style={[
+                      styles.quickAction,
+                      { backgroundColor: "rgba(255, 59, 48, 0.15)" },
+                    ]}
+                    onPress={() =>
+                      handleQuickAction("perm_ban", "Ban permanent")
+                    }
                     activeOpacity={0.7}
                   >
                     <Ionicons name="ban" size={20} color="#FF3B30" />
-                    <Text style={[styles.quickActionText, { color: "#FF3B30" }]}>Ban perm.</Text>
+                    <Text
+                      style={[styles.quickActionText, { color: "#FF3B30" }]}
+                    >
+                      Ban perm.
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
@@ -227,16 +269,23 @@ export const UserModerationScreen: React.FC = () => {
 
                 {loading && sanctions.length === 0 && (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primary.main} />
+                    <ActivityIndicator
+                      size="large"
+                      color={colors.primary.main}
+                    />
                   </View>
                 )}
 
                 {!loading && sanctions.length === 0 && (
                   <View style={styles.emptyContainer}>
-                    <Ionicons name="checkmark-circle-outline" size={48} color="rgba(255,255,255,0.3)" />
+                    <Ionicons
+                      name="checkmark-circle-outline"
+                      size={48}
+                      color="rgba(255,255,255,0.3)"
+                    />
                     <Text style={styles.emptyText}>Aucune sanction</Text>
                     <Text style={styles.emptySubtext}>
-                      Cet utilisateur n'a aucune sanction enregistr\u00e9e
+                      Cet utilisateur n'a aucune sanction enregistrée
                     </Text>
                   </View>
                 )}

@@ -40,7 +40,10 @@ export const AppealQueueScreen: React.FC = () => {
   // Sort by oldest first (FIFO)
   const sortedAppeals = [...appealQueue]
     .filter((a) => a.status === "pending" || a.status === "under_review")
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
 
   const renderAppeal = useCallback(
     ({ item }: { item: Appeal }) => (
@@ -63,10 +66,19 @@ export const AppealQueueScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               File d'appels
             </Text>
             <View style={styles.placeholder} />
@@ -74,9 +86,13 @@ export const AppealQueueScreen: React.FC = () => {
 
           {/* Info bar */}
           <View style={styles.infoBar}>
-            <Ionicons name="information-circle" size={16} color="rgba(255,255,255,0.5)" />
+            <Ionicons
+              name="information-circle"
+              size={16}
+              color="rgba(255,255,255,0.5)"
+            />
             <Text style={styles.infoText}>
-              Tri\u00e9 par anciennet\u00e9 (FIFO) - {sortedAppeals.length} en attente
+              Trié par ancienneté (FIFO) - {sortedAppeals.length} en attente
             </Text>
           </View>
 
@@ -88,10 +104,14 @@ export const AppealQueueScreen: React.FC = () => {
             </View>
           ) : sortedAppeals.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="happy-outline" size={64} color="rgba(255,255,255,0.3)" />
+              <Ionicons
+                name="happy-outline"
+                size={64}
+                color="rgba(255,255,255,0.3)"
+              />
               <Text style={styles.emptyText}>Aucun appel en attente</Text>
               <Text style={styles.emptySubtext}>
-                Tous les appels ont \u00e9t\u00e9 trait\u00e9s
+                Tous les appels ont été traités
               </Text>
             </View>
           ) : (

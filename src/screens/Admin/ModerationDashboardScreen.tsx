@@ -45,7 +45,10 @@ export const ModerationDashboardScreen: React.FC = () => {
       fetchStats(),
       fetchReportQueue(),
       fetchAppealQueue(),
-      sanctionsAPI.getAllActive(1, 0).then((list) => setActiveSanctions(list.length)).catch(() => {}),
+      sanctionsAPI
+        .getAllActive(1, 0)
+        .then((list) => setActiveSanctions(list.length))
+        .catch(() => {}),
     ]);
   }, [fetchStats, fetchReportQueue, fetchAppealQueue]);
 
@@ -60,7 +63,9 @@ export const ModerationDashboardScreen: React.FC = () => {
   }, [loadAll]);
 
   const pendingReports = stats?.pending ?? 0;
-  const pendingAppeals = appealQueue.filter((a) => a.status === "pending").length;
+  const pendingAppeals = appealQueue.filter(
+    (a) => a.status === "pending",
+  ).length;
   const resolvedToday = stats?.resolved_today ?? 0;
 
   return (
@@ -74,11 +79,20 @@ export const ModerationDashboardScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
-              Mod\u00e9ration
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
+              Modération
             </Text>
             <View style={styles.placeholder} />
           </View>
@@ -131,7 +145,7 @@ export const ModerationDashboardScreen: React.FC = () => {
                   <ModerationStatCard
                     icon="checkmark-circle"
                     count={resolvedToday}
-                    label="R\u00e9solus aujourd'hui"
+                    label="Résolus aujourd'hui"
                     color="#4CD964"
                   />
                 </View>
@@ -139,30 +153,31 @@ export const ModerationDashboardScreen: React.FC = () => {
             )}
 
             {/* Category Breakdown */}
-            {stats?.by_category && Object.keys(stats.by_category).length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Par cat\u00e9gorie</Text>
-                <View style={styles.categoryList}>
-                  {Object.entries(stats.by_category).map(([cat, count]) => (
-                    <View key={cat} style={styles.categoryRow}>
-                      <Text style={styles.categoryLabel}>{cat}</Text>
-                      <View style={styles.categoryBarContainer}>
-                        <View
-                          style={[
-                            styles.categoryBar,
-                            {
-                              width: `${Math.min(100, (count / Math.max(pendingReports, 1)) * 100)}%`,
-                              backgroundColor: colors.primary.main,
-                            },
-                          ]}
-                        />
+            {stats?.by_category &&
+              Object.keys(stats.by_category).length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Par catégorie</Text>
+                  <View style={styles.categoryList}>
+                    {Object.entries(stats.by_category).map(([cat, count]) => (
+                      <View key={cat} style={styles.categoryRow}>
+                        <Text style={styles.categoryLabel}>{cat}</Text>
+                        <View style={styles.categoryBarContainer}>
+                          <View
+                            style={[
+                              styles.categoryBar,
+                              {
+                                width: `${Math.min(100, (count / Math.max(pendingReports, 1)) * 100)}%`,
+                                backgroundColor: colors.primary.main,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.categoryCount}>{count}</Text>
                       </View>
-                      <Text style={styles.categoryCount}>{count}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
+                    ))}
+                  </View>
+                </>
+              )}
 
             {/* Quick Actions */}
             <Text style={styles.sectionTitle}>Actions rapides</Text>
@@ -172,7 +187,12 @@ export const ModerationDashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate("ReportQueue")}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: "rgba(245, 166, 35, 0.15)" }]}>
+              <View
+                style={[
+                  styles.actionIcon,
+                  { backgroundColor: "rgba(245, 166, 35, 0.15)" },
+                ]}
+              >
                 <Ionicons name="list" size={22} color="#F5A623" />
               </View>
               <View style={styles.actionInfo}>
@@ -181,7 +201,11 @@ export const ModerationDashboardScreen: React.FC = () => {
                   {pendingReports} en attente
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color="rgba(255,255,255,0.4)"
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -189,7 +213,12 @@ export const ModerationDashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate("AppealQueue")}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: "rgba(103, 116, 189, 0.15)" }]}>
+              <View
+                style={[
+                  styles.actionIcon,
+                  { backgroundColor: "rgba(103, 116, 189, 0.15)" },
+                ]}
+              >
                 <Ionicons name="hand-left" size={22} color="#6774BD" />
               </View>
               <View style={styles.actionInfo}>
@@ -198,7 +227,11 @@ export const ModerationDashboardScreen: React.FC = () => {
                   {pendingAppeals} en attente
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color="rgba(255,255,255,0.4)"
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -206,16 +239,23 @@ export const ModerationDashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate("SanctionForm", {})}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: "rgba(255, 59, 48, 0.15)" }]}>
+              <View
+                style={[
+                  styles.actionIcon,
+                  { backgroundColor: "rgba(255, 59, 48, 0.15)" },
+                ]}
+              >
                 <Ionicons name="hammer" size={22} color="#FF3B30" />
               </View>
               <View style={styles.actionInfo}>
                 <Text style={styles.actionLabel}>Sanctions</Text>
-                <Text style={styles.actionSub}>
-                  {activeSanctions} actives
-                </Text>
+                <Text style={styles.actionSub}>{activeSanctions} actives</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.4)" />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color="rgba(255,255,255,0.4)"
+              />
             </TouchableOpacity>
 
             <View style={styles.bottomSpacer} />

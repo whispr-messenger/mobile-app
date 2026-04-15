@@ -32,10 +32,26 @@ type RouteParams = {
   };
 };
 
-const SANCTION_TYPES: { key: SanctionType; label: string; description: string }[] = [
-  { key: "warning", label: "Avertissement", description: "Notifie l'utilisateur sans restriction" },
-  { key: "temp_ban", label: "Ban temporaire", description: "Suspension temporaire du compte" },
-  { key: "perm_ban", label: "Ban permanent", description: "Suspension d\u00e9finitive du compte" },
+const SANCTION_TYPES: {
+  key: SanctionType;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "warning",
+    label: "Avertissement",
+    description: "Notifie l'utilisateur sans restriction",
+  },
+  {
+    key: "temp_ban",
+    label: "Ban temporaire",
+    description: "Suspension temporaire du compte",
+  },
+  {
+    key: "perm_ban",
+    label: "Ban permanent",
+    description: "Suspension définitive du compte",
+  },
 ];
 
 const DURATION_OPTIONS: { label: string; days: number }[] = [
@@ -43,7 +59,7 @@ const DURATION_OPTIONS: { label: string; days: number }[] = [
   { label: "3 jours", days: 3 },
   { label: "7 jours", days: 7 },
   { label: "30 jours", days: 30 },
-  { label: "Personnalis\u00e9", days: 0 },
+  { label: "Personnalisé", days: 0 },
 ];
 
 export const SanctionFormScreen: React.FC = () => {
@@ -70,17 +86,18 @@ export const SanctionFormScreen: React.FC = () => {
   const handleSubmit = useCallback(() => {
     const uid = userIdInput.trim();
     if (!uid) {
-      Alert.alert("Erreur", "Veuillez sp\u00e9cifier l'ID de l'utilisateur.");
+      Alert.alert("Erreur", "Veuillez spécifier l'ID de l'utilisateur.");
       return;
     }
     if (!reason.trim()) {
-      Alert.alert("Erreur", "Veuillez sp\u00e9cifier une raison.");
+      Alert.alert("Erreur", "Veuillez spécifier une raison.");
       return;
     }
 
-    const typeLabel = SANCTION_TYPES.find((t) => t.key === sanctionType)?.label || sanctionType;
+    const typeLabel =
+      SANCTION_TYPES.find((t) => t.key === sanctionType)?.label || sanctionType;
     const durationInfo =
-      sanctionType === "temp_ban" ? `\nDur\u00e9e : ${effectiveDays} jour(s)` : "";
+      sanctionType === "temp_ban" ? `\nDurée : ${effectiveDays} jour(s)` : "";
 
     Alert.alert(
       "Confirmer la sanction",
@@ -95,7 +112,9 @@ export const SanctionFormScreen: React.FC = () => {
             try {
               const expiresAt =
                 sanctionType === "temp_ban"
-                  ? new Date(Date.now() + effectiveDays * 86400000).toISOString()
+                  ? new Date(
+                      Date.now() + effectiveDays * 86400000,
+                    ).toISOString()
                   : undefined;
 
               await sanctionsAPI.createSanction({
@@ -105,7 +124,7 @@ export const SanctionFormScreen: React.FC = () => {
                 expiresAt,
               });
 
-              Alert.alert("Succ\u00e8s", "Sanction cr\u00e9\u00e9e avec succ\u00e8s.", [
+              Alert.alert("Succès", "Sanction créée avec succès.", [
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
             } catch (e: any) {
@@ -130,10 +149,19 @@ export const SanctionFormScreen: React.FC = () => {
         <AdminGate>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={24}
+                color={themeColors.text.primary}
+              />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+            <Text
+              style={[styles.headerTitle, { color: themeColors.text.primary }]}
+            >
               Nouvelle sanction
             </Text>
             <View style={styles.placeholder} />
@@ -145,8 +173,17 @@ export const SanctionFormScreen: React.FC = () => {
               <Text style={styles.sectionLabel}>Utilisateur cible</Text>
               {targetUserName ? (
                 <View style={styles.userRow}>
-                  <View style={[styles.avatarSmall, { backgroundColor: "rgba(254,122,92,0.15)" }]}>
-                    <Ionicons name="person" size={18} color={colors.primary.main} />
+                  <View
+                    style={[
+                      styles.avatarSmall,
+                      { backgroundColor: "rgba(254,122,92,0.15)" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={18}
+                      color={colors.primary.main}
+                    />
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{targetUserName}</Text>
@@ -173,17 +210,27 @@ export const SanctionFormScreen: React.FC = () => {
                 return (
                   <TouchableOpacity
                     key={type.key}
-                    style={[styles.typeOption, isSelected && styles.typeOptionSelected]}
+                    style={[
+                      styles.typeOption,
+                      isSelected && styles.typeOptionSelected,
+                    ]}
                     onPress={() => setSanctionType(type.key)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.typeOptionLeft}>
-                      <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          isSelected && styles.radioOuterSelected,
+                        ]}
+                      >
                         {isSelected && <View style={styles.radioInner} />}
                       </View>
                       <View style={styles.typeInfo}>
                         <SanctionBadge type={type.key} size="medium" />
-                        <Text style={styles.typeDescription}>{type.description}</Text>
+                        <Text style={styles.typeDescription}>
+                          {type.description}
+                        </Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -194,19 +241,25 @@ export const SanctionFormScreen: React.FC = () => {
             {/* Duration (only for temp_ban) */}
             {sanctionType === "temp_ban" && (
               <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Dur\u00e9e</Text>
+                <Text style={styles.sectionLabel}>Durée</Text>
                 <View style={styles.durationGrid}>
                   {DURATION_OPTIONS.map((opt) => {
                     const isSelected = selectedDuration === opt.days;
                     return (
                       <TouchableOpacity
                         key={opt.days}
-                        style={[styles.durationChip, isSelected && styles.durationChipSelected]}
+                        style={[
+                          styles.durationChip,
+                          isSelected && styles.durationChipSelected,
+                        ]}
                         onPress={() => setSelectedDuration(opt.days)}
                         activeOpacity={0.7}
                       >
                         <Text
-                          style={[styles.durationChipText, isSelected && styles.durationChipTextSelected]}
+                          style={[
+                            styles.durationChipText,
+                            isSelected && styles.durationChipTextSelected,
+                          ]}
                         >
                           {opt.label}
                         </Text>
@@ -237,7 +290,7 @@ export const SanctionFormScreen: React.FC = () => {
                 style={[styles.textInput, styles.reasonInput]}
                 value={reason}
                 onChangeText={setReason}
-                placeholder="D\u00e9crivez la raison de cette sanction..."
+                placeholder="Décrivez la raison de cette sanction..."
                 placeholderTextColor="rgba(255,255,255,0.3)"
                 multiline
                 numberOfLines={5}
@@ -247,7 +300,10 @@ export const SanctionFormScreen: React.FC = () => {
 
             {/* Submit */}
             <TouchableOpacity
-              style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                submitting && styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit}
               disabled={submitting}
               activeOpacity={0.7}
@@ -257,7 +313,9 @@ export const SanctionFormScreen: React.FC = () => {
               ) : (
                 <>
                   <Ionicons name="hammer" size={20} color="#FFFFFF" />
-                  <Text style={styles.submitButtonText}>Appliquer la sanction</Text>
+                  <Text style={styles.submitButtonText}>
+                    Appliquer la sanction
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
