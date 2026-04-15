@@ -46,7 +46,7 @@ export const ModerationDashboardScreen: React.FC = () => {
       fetchReportQueue(),
       fetchAppealQueue(),
       sanctionsAPI
-        .getAllActive(1, 0)
+        .getAllActive(1000, 0)
         .then((list) => setActiveSanctions(list.length))
         .catch(() => {}),
     ]);
