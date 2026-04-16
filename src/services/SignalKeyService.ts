@@ -10,8 +10,18 @@ nacl.setPRNG((x: Uint8Array, n: number) => {
   for (let i = 0; i < n; i++) x[i] = bytes[i];
 });
 
-const SIGNED_PREKEY_ID = 1;
 const NUM_ONE_TIME_PREKEYS = 100;
+
+// Generate keyIds that fit in 32-bit signed INT (< 2^31 ≈ 2.14e9).
+// Unix seconds (~1.77e9 now) fits; offset one-time prekeys by a safe margin
+// so they don't collide with the signed prekey id from the same login.
+function generateSignedPrekeyId(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function generatePrekeyIdBase(signedPrekeyId: number): number {
+  return signedPrekeyId + 1_000_000;
+}
 
 function toBase64(bytes: Uint8Array): string {
   return encodeBase64(bytes);
@@ -36,11 +46,17 @@ export const SignalKeyService = {
       signingKeyPair.secretKey,
     );
 
+    // Use timestamp-based ids to avoid collisions with previously
+    // uploaded keys on the same device (backend has a unique
+    // (deviceId, keyId) constraint).
+    const signedPrekeyId = generateSignedPrekeyId();
+    const prekeyBase = generatePrekeyIdBase(signedPrekeyId);
+
     // One-time pre-keys
     const preKeys = Array.from({ length: NUM_ONE_TIME_PREKEYS }, (_, i) => {
       const kp = nacl.box.keyPair();
       return {
-        keyId: i + 1,
+        keyId: prekeyBase + i,
         publicKey: toBase64(kp.publicKey),
       };
     });
@@ -53,7 +69,7 @@ export const SignalKeyService = {
     return {
       identityKey: toBase64(identityKeyPair.publicKey),
       signedPreKey: {
-        keyId: SIGNED_PREKEY_ID,
+        keyId: signedPrekeyId,
         publicKey: toBase64(signedPreKeyPair.publicKey),
         signature: toBase64(signature),
       },
