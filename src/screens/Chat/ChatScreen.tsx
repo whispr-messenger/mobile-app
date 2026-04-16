@@ -1326,7 +1326,7 @@ export const ChatScreen: React.FC = () => {
 
     try {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
@@ -1347,7 +1347,7 @@ export const ChatScreen: React.FC = () => {
       );
     } catch (error) {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       logger.error(
         "ChatScreen",
@@ -1759,7 +1759,9 @@ export const ChatScreen: React.FC = () => {
           visible={showActionsMenu}
           message={selectedMessage}
           isSent={selectedMessage?.sender_id === userId}
-          isPinned={pinnedMessages.some((m) => m.id === selectedMessage?.id)}
+          isPinned={pinnedMessages.some(
+            (m) => (m.messageId ?? m.message?.id) === selectedMessage?.id,
+          )}
           onClose={() => {
             setShowActionsMenu(false);
             setSelectedMessage(null);
