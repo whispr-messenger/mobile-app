@@ -15,12 +15,13 @@ const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
  * presigned S3/MinIO URL).
  */
 export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
-  // Already in the expected shape — pass through
-  if (att?.metadata?.media_url && att?.media_type) return att;
-
   const fileType = att?.file_type || "";
   const mime = att?.mime_type || "";
-  let media_type: string = fileType || "file";
+  let media_type: "audio" | "video" | "image" | "file" = (
+    ["audio", "video", "image", "file"] as const
+  ).includes(fileType)
+    ? fileType
+    : "file";
   if (!fileType || fileType === "file") {
     if (mime.startsWith("image/")) media_type = "image";
     else if (mime.startsWith("video/")) media_type = "video";
@@ -36,13 +37,22 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
     : null;
 
-  const resolvedUrl =
-    mediaBlobUrl || meta.media_url || att?.file_url || att?.storage_url;
+  // Reject any URL that points at the internal cluster (presigned MinIO URL
+  // baked at upload time) — the browser cannot resolve it. Always prefer the
+  // media-service proxy when a mediaId is available.
+  const isPublicUrl = (u?: string | null) =>
+    typeof u === "string" && !u.includes(".svc.cluster.local");
+
+  const fallbackUrl = [meta.media_url, att?.file_url, att?.storage_url].find(
+    isPublicUrl,
+  );
+  const fallbackThumbnail = [att?.thumbnail_url, meta.thumbnail_url].find(
+    isPublicUrl,
+  );
+
+  const resolvedUrl = mediaBlobUrl || fallbackUrl;
   const resolvedThumbnail =
-    mediaThumbnailUrl ||
-    att?.thumbnail_url ||
-    meta.thumbnail_url ||
-    resolvedUrl;
+    mediaThumbnailUrl || fallbackThumbnail || resolvedUrl;
 
   return {
     id: att?.id,
