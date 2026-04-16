@@ -36,6 +36,7 @@ import Toast from "../../components/Toast/Toast";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { messagingAPI } from "../../services/messaging/api";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
+import { getConversationDisplayName } from "../../utils";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
@@ -106,9 +107,7 @@ export const ConversationsListScreen: React.FC = () => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((conv) => {
-        const name =
-          conv.display_name ||
-          (conv.type === "direct" ? "Contact" : conv.metadata?.name || "Group");
+        const name = getConversationDisplayName(conv);
         const lastMessage = conv.last_message?.content || "";
         return (
           name.toLowerCase().includes(query) ||
