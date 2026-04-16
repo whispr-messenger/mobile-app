@@ -1,4 +1,4 @@
-import { Conversation, Message } from "../../types/messaging";
+import { Conversation, Message, PinnedMessage } from "../../types/messaging";
 import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
@@ -376,7 +376,7 @@ export const messagingAPI = {
     }
   },
 
-  async getPinnedMessages(conversationId: string): Promise<Message[]> {
+  async getPinnedMessages(conversationId: string): Promise<PinnedMessage[]> {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pins`,
     );
@@ -390,7 +390,7 @@ export const messagingAPI = {
     }
 
     const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data) ? (data as PinnedMessage[]) : [];
   },
 
   async getAttachments(messageId: string) {

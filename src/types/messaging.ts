@@ -2,7 +2,7 @@
  * Messaging Types - Based on backend specifications
  */
 
-export type ConversationType = 'direct' | 'group';
+export type ConversationType = "direct" | "group";
 
 export interface ConversationMember {
   user_id: string;
@@ -42,7 +42,7 @@ export interface ConversationParticipant {
   is_archived: boolean;
 }
 
-export type MessageType = 'text' | 'media' | 'system';
+export type MessageType = "text" | "media" | "system";
 
 export interface Message {
   id: string;
@@ -57,7 +57,7 @@ export interface Message {
   edited_at?: string;
   is_deleted: boolean;
   delete_for_everyone?: boolean;
-  status?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  status?: "sending" | "sent" | "delivered" | "read" | "failed";
   reply_to?: Message; // Populated reply chain
 }
 
@@ -71,7 +71,7 @@ export interface DeliveryStatus {
 }
 
 export interface MessageWithStatus extends Message {
-  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  status: "sending" | "sent" | "delivered" | "read" | "failed";
   delivery_statuses?: DeliveryStatus[];
 }
 
@@ -87,7 +87,7 @@ export interface MessageAttachment {
   id: string;
   message_id: string;
   media_id: string;
-  media_type: 'image' | 'video' | 'file' | 'audio';
+  media_type: "image" | "video" | "file" | "audio";
   metadata: {
     filename?: string;
     size?: number;
@@ -107,4 +107,10 @@ export interface MessageWithRelations extends MessageWithStatus {
   reaction_summary?: Record<string, number>; // { '❤️': 5, '👍': 2 }
 }
 
-
+export interface PinnedMessage {
+  id: string; // Pin entry id (NOT the message id)
+  messageId: string; // Actual message id — use this to match against Message.id
+  message: Message; // Nested message payload (content lives here)
+  pinnedBy: string;
+  pinnedAt: string;
+}

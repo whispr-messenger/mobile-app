@@ -36,6 +36,7 @@ import {
   MessageWithRelations,
   MessageReaction,
   Conversation,
+  PinnedMessage,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
 import { contactsAPI } from "../../services/contacts/api";
@@ -122,7 +123,7 @@ export const ChatScreen: React.FC = () => {
     [],
   );
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
