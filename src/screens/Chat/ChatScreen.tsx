@@ -31,10 +31,10 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import {
   Message,
+  MessageAttachment,
   MessageWithStatus,
   MessageWithRelations,
   MessageReaction,
-  MessageAttachment,
   Conversation,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
@@ -46,6 +46,7 @@ import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
 import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
+import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
@@ -132,6 +133,9 @@ export const ChatScreen: React.FC = () => {
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageWithRelations | null>(null);
   const [forwardSending, setForwardSending] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportSheetMessage, setReportSheetMessage] =
+    useState<MessageWithRelations | null>(null);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleMessageText, setScheduleMessageText] = useState("");
   const [isOtherUserContact, setIsOtherUserContact] = useState<boolean | null>(
@@ -1199,6 +1203,13 @@ export const ChatScreen: React.FC = () => {
     [],
   );
 
+  const handleOpenReportSheet = useCallback(() => {
+    if (selectedMessage) {
+      setReportSheetMessage(selectedMessage);
+      setShowReportSheet(true);
+    }
+  }, [selectedMessage]);
+
   const handleForwardMessage = useCallback(() => {
     if (selectedMessage) {
       setForwardingMessage(selectedMessage);
@@ -1753,6 +1764,17 @@ export const ChatScreen: React.FC = () => {
           onReact={handleStartReaction}
           onPin={handlePinMessage}
           onForward={handleForwardMessage}
+          onReport={handleOpenReportSheet}
+        />
+        <ReportMessageSheet
+          visible={showReportSheet}
+          message={reportSheetMessage}
+          conversationId={conversationId}
+          conversationTitle={conversation?.display_name || "Contact"}
+          onClose={() => {
+            setShowReportSheet(false);
+            setReportSheetMessage(null);
+          }}
         />
         <ForwardMessageModal
           visible={showForwardModal}
