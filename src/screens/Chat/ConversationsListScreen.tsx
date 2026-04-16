@@ -138,7 +138,7 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  const { connectionState } = useWebSocket({
+  const { connectionState, joinConversationChannel } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -152,6 +152,30 @@ export const ConversationsListScreen: React.FC = () => {
       applyConversationSummaries(conversations);
     },
   });
+
+  // Subscribe to every visible conversation so we receive presence_diff /
+  // presence_state events for members. Without this, the list items show
+  // stale online indicators — presence events are only broadcast on
+  // conversation:{id} channels, never on user:{userId}.
+  const conversationIdsKey = conversations
+    .map((c) => c?.id)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    if (!token || connectionState !== "connected" || !conversationIdsKey) {
+      return;
+    }
+    const ids = conversationIdsKey.split(",");
+    const cleanups: Array<() => void> = [];
+    for (const id of ids) {
+      const { cleanup } = joinConversationChannel(id);
+      cleanups.push(cleanup);
+    }
+    return () => {
+      cleanups.forEach((c) => c());
+    };
+  }, [token, connectionState, conversationIdsKey, joinConversationChannel]);
 
   useEffect(() => {
     fetchConversations();
