@@ -106,6 +106,11 @@ const authenticatedFetch = async (
   return response;
 };
 
+/** Erreur réseau / HTTP avec code statut (diagnostic logs / toasts). */
+function httpError(label: string, response: Response): Error {
+  return new Error(`${label} (${response.status})`);
+}
+
 export const messagingAPI = {
   async getConversations(params?: {
     include_archived?: boolean;
@@ -132,7 +137,7 @@ export const messagingAPI = {
 
     const response = await authenticatedFetch(url);
     if (!response.ok) {
-      throw new Error("Failed to fetch conversations");
+      throw httpError("Failed to fetch conversations", response);
     }
 
     const data = await unwrap(response);
@@ -144,7 +149,7 @@ export const messagingAPI = {
       `${API_BASE_URL}/conversations/${encodeURIComponent(id)}`,
     );
     if (!response.ok) {
-      throw new Error("Failed to fetch conversation");
+      throw httpError("Failed to fetch conversation", response);
     }
     return unwrap(response);
   },
@@ -156,7 +161,7 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to delete conversation");
+      throw httpError("Failed to delete conversation", response);
     }
   },
 
@@ -191,7 +196,7 @@ export const messagingAPI = {
 
     const response = await authenticatedFetch(url);
     if (!response.ok) {
-      throw new Error("Failed to fetch messages");
+      throw httpError("Failed to fetch messages", response);
     }
 
     const data = await unwrap(response);
@@ -224,7 +229,7 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to send message");
+      throw httpError("Failed to send message", response);
     }
 
     return unwrap(response);
@@ -248,7 +253,7 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to edit message");
+      throw httpError("Failed to edit message", response);
     }
 
     return unwrap(response);
@@ -268,7 +273,7 @@ export const messagingAPI = {
     const response = await authenticatedFetch(url, { method: "DELETE" });
 
     if (!response.ok) {
-      throw new Error("Failed to delete message");
+      throw httpError("Failed to delete message", response);
     }
   },
 
@@ -336,7 +341,7 @@ export const messagingAPI = {
       if (response.status === 404 || response.status === 400) {
         return { reactions: [] };
       }
-      throw new Error("Failed to fetch message reactions");
+      throw httpError("Failed to fetch message reactions", response);
     }
 
     return unwrap(response);
@@ -355,7 +360,7 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to pin message");
+      throw httpError("Failed to pin message", response);
     }
   },
 
@@ -367,7 +372,7 @@ export const messagingAPI = {
     const response = await authenticatedFetch(url, { method: "DELETE" });
 
     if (!response.ok) {
-      throw new Error("Failed to unpin message");
+      throw httpError("Failed to unpin message", response);
     }
   },
 
@@ -381,7 +386,7 @@ export const messagingAPI = {
       if (response.status === 404) {
         return [];
       }
-      throw new Error("Failed to fetch pinned messages");
+      throw httpError("Failed to fetch pinned messages", response);
     }
 
     const data = await unwrap(response);
@@ -398,7 +403,7 @@ export const messagingAPI = {
       if (response.status === 404) {
         return [];
       }
-      throw new Error("Failed to fetch attachments");
+      throw httpError("Failed to fetch attachments", response);
     }
 
     const data = await unwrap(response);
@@ -417,7 +422,7 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to add attachment");
+      throw httpError("Failed to add attachment", response);
     }
   },
 
@@ -480,7 +485,7 @@ export const messagingAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch conversation members");
+      throw httpError("Failed to fetch conversation members", response);
     }
 
     const data = await unwrap(response);
@@ -513,7 +518,7 @@ export const messagingAPI = {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to create direct conversation");
+      throw httpError("Failed to create direct conversation", response);
     }
 
     return unwrap(response);
@@ -547,7 +552,7 @@ export const messagingAPI = {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to create group conversation");
+      throw httpError("Failed to create group conversation", response);
     }
 
     return unwrap(response);

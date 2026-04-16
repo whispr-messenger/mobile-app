@@ -1,7 +1,6 @@
 import { getWsBaseUrl } from "../apiBase";
 import { TokenService } from "../TokenService";
 import { AuthService } from "../AuthService";
-import { snakecaseKeys } from "../../utils/caseTransform";
 import { logger } from "../../utils/logger";
 
 type EventCallback = (data: any) => void;
@@ -81,6 +80,30 @@ function encodeMessage(
   payload: any,
 ): string {
   return JSON.stringify([join_ref, ref, topic, event, payload]);
+}
+
+/**
+ * Convert a camelCase string to snake_case.
+ */
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+/**
+ * Recursively convert all keys in an object/array from camelCase to snake_case.
+ * The backend sends camelCase keys over WebSocket but our types use snake_case.
+ */
+function snakecaseKeys(obj: any): any {
+  if (Array.isArray(obj)) return obj.map(snakecaseKeys);
+  if (obj !== null && typeof obj === "object" && !(obj instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [
+        toSnakeCase(key),
+        snakecaseKeys(value),
+      ]),
+    );
+  }
+  return obj;
 }
 
 export class SocketConnection {

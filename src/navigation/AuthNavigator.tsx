@@ -6,6 +6,7 @@ import { OtpScreen } from "../screens/Auth/OtpScreen";
 import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
 import { ProfileScreen } from "../screens/Profile/ProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
+import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
 import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
 import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
 import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
@@ -21,6 +22,22 @@ import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
 import { CallsScreen } from "../screens/Calls/CallsScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
+import {
+  ReportHistoryScreen,
+  ReportDetailScreen,
+  SanctionNoticeScreen,
+  AppealFormScreen,
+  AppealStatusScreen,
+} from "../screens/Moderation";
+import {
+  ModerationDashboardScreen,
+  ReportQueueScreen,
+  ReportReviewScreen,
+  AppealQueueScreen,
+  AppealReviewScreen,
+  UserModerationScreen,
+  SanctionFormScreen,
+} from "../screens/Admin";
 
 import { useAuth } from "../context/AuthContext";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
@@ -50,6 +67,7 @@ export type AuthStackParamList = {
     biography?: string;
   };
   Settings: undefined;
+  AboutContent: undefined;
   SecurityKeys: undefined;
   TwoFactorAuth: undefined;
   TwoFactorSetup: undefined;
@@ -66,6 +84,20 @@ export type AuthStackParamList = {
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
   ModerationTest: undefined;
+  // Moderation (user-facing)
+  ReportHistory: undefined;
+  ReportDetail: { reportId: string };
+  SanctionNotice: { sanctionId: string };
+  AppealForm: { sanctionId: string };
+  AppealStatus: { appealId: string };
+  // Admin screens
+  ModerationDashboard: undefined;
+  ReportQueue: undefined;
+  ReportReview: { reportId: string };
+  AppealQueue: undefined;
+  AppealReview: { appealId: string };
+  UserModeration: { userId: string };
+  SanctionForm: { userId: string };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -119,6 +151,7 @@ export const AuthNavigator: React.FC = () => {
           gestureEnabled: false,
         }}
       />
+      <Stack.Screen name="AboutContent" component={AboutContentScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
@@ -157,6 +190,27 @@ export const AuthNavigator: React.FC = () => {
         component={ScheduledMessagesScreen}
       />
       <Stack.Screen name="Calls" component={CallsScreen} />
+      {/* Moderation — user-facing */}
+      <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
+      <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+      <Stack.Screen
+        name="SanctionNotice"
+        component={SanctionNoticeScreen}
+        options={{ gestureEnabled: false }}
+      />
+      <Stack.Screen name="AppealForm" component={AppealFormScreen} />
+      <Stack.Screen name="AppealStatus" component={AppealStatusScreen} />
+      {/* Moderation — admin */}
+      <Stack.Screen
+        name="ModerationDashboard"
+        component={ModerationDashboardScreen}
+      />
+      <Stack.Screen name="ReportQueue" component={ReportQueueScreen} />
+      <Stack.Screen name="ReportReview" component={ReportReviewScreen} />
+      <Stack.Screen name="AppealQueue" component={AppealQueueScreen} />
+      <Stack.Screen name="AppealReview" component={AppealReviewScreen} />
+      <Stack.Screen name="UserModeration" component={UserModerationScreen} />
+      <Stack.Screen name="SanctionForm" component={SanctionFormScreen} />
       {__DEV__ && (
         <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
       )}
