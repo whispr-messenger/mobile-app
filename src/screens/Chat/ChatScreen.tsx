@@ -704,6 +704,12 @@ export const ChatScreen: React.FC = () => {
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
+      // Scroll to bottom so the newly sent text message is visible
+      // (FlatList is inverted, so offset 0 is the bottom)
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+
       // If offline, queue the message for later delivery
       if (connectionState !== "connected") {
         const queued: QueuedMessage = {
