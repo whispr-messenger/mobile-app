@@ -148,6 +148,7 @@ export const ChatScreen: React.FC = () => {
   const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  const initialScrollDoneRef = useRef(false);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -455,6 +456,7 @@ export const ChatScreen: React.FC = () => {
 
   useEffect(() => {
     // Load data
+    initialScrollDoneRef.current = false;
     loadConversation();
     loadMessages();
     loadPinnedMessages();
@@ -1162,6 +1164,27 @@ export const ChatScreen: React.FC = () => {
 
     return result;
   }, [messages]);
+
+  // Initial scroll to the newest message once the list has rendered content.
+  // Using `scrollToIndex({ index: 0 })` (rather than `scrollToOffset`) is
+  // important on react-native-web: the inverted list is implemented via a
+  // CSS scaleY(-1) transform, so offset 0 is the *visual top* (oldest data),
+  // not the bottom. Index-based scrolling stays consistent across platforms.
+  useEffect(() => {
+    if (initialScrollDoneRef.current || messagesWithSeparators.length === 0) {
+      return;
+    }
+    initialScrollDoneRef.current = true;
+    // Defer one frame so FlatList has finished laying out items.
+    const id = setTimeout(() => {
+      try {
+        flatListRef.current?.scrollToIndex({ index: 0, animated: false });
+      } catch {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [messagesWithSeparators.length]);
 
   const scrollToMessage = useCallback(
     (messageId: string) => {
