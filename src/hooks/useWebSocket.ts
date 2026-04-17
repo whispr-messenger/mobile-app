@@ -121,16 +121,16 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     // Remove any prior listeners before registering new ones to prevent
     // duplicate subscriptions when the component re-renders during reconnect.
-    userChannel.off("message_created", userHandlers.onMsg);
+    userChannel.off("new_message", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
 
-    userChannel.on("message_created", userHandlers.onMsg);
+    userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
 
     return () => {
-      userChannel.off("message_created", userHandlers.onMsg);
+      userChannel.off("new_message", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     };
@@ -245,7 +245,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       }
     };
 
-    channel.on("message_created", onMsg);
+    channel.on("new_message", onMsg);
     channel.on("user_typing", onTyping);
     channel.on("message_updated", onMsgUpdated);
     channel.on("message_deleted", onMsgDeleted);
@@ -256,7 +256,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     channel.on("reaction_removed", onReactionRemoved);
 
     const cleanup = () => {
-      channel.off("message_created", onMsg);
+      channel.off("new_message", onMsg);
       channel.off("user_typing", onTyping);
       channel.off("message_updated", onMsgUpdated);
       channel.off("message_deleted", onMsgDeleted);
