@@ -47,6 +47,14 @@ function resolveApiBaseUrlFromConstants(): string | undefined {
 function resolveApiBaseUrlFromSameOrigin(): string | undefined {
   if (typeof window === "undefined") return undefined;
   const origin = window.location?.origin;
+  // En dev local le bundle est servi sur http://localhost:8081 mais l'API n'y
+  // est pas — il faut laisser passer la config Expo/.env.local ci-dessous.
+  if (
+    !origin ||
+    /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(origin)
+  ) {
+    return undefined;
+  }
   return pickBaseUrl(origin);
 }
 
