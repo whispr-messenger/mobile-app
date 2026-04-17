@@ -121,6 +121,41 @@ function httpError(label: string, response: Response): Error {
   return new Error(`${label} (${response.status})`);
 }
 
+// --- User profile cache ------------------------------------------------------
+// Avoid re-fetching the same /user/v1/profile/{id} on every render cycle. A
+// simple in-memory map keyed by userId with a short TTL is enough to smooth
+// out the startup burst (conversations list enrichment, chat screen opens,
+// typing indicators) without overloading the backend rate limiter (429).
+type CachedUserInfo = {
+  id: string;
+  display_name: string;
+  username?: string;
+  avatar_url?: string;
+};
+
+const USER_INFO_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const userInfoCache = new Map<
+  string,
+  { value: CachedUserInfo | null; expiresAt: number }
+>();
+// Dedup concurrent requests for the same user — first caller triggers the
+// network call, subsequent callers get the same Promise.
+const userInfoInflight = new Map<string, Promise<CachedUserInfo | null>>();
+
+/**
+ * Invalidate a cached user profile (e.g. after the current user edits their
+ * own profile, or when we know an external profile changed).
+ */
+export const invalidateUserInfoCache = (userId?: string): void => {
+  if (userId) {
+    userInfoCache.delete(userId);
+    userInfoInflight.delete(userId);
+  } else {
+    userInfoCache.clear();
+    userInfoInflight.clear();
+  }
+};
+
 export const messagingAPI = {
   async getConversations(params?: {
     include_archived?: boolean;
@@ -436,55 +471,88 @@ export const messagingAPI = {
     }
   },
 
-  async getUserInfo(userId: string): Promise<{
-    id: string;
-    display_name: string;
-    username?: string;
-    avatar_url?: string;
-  } | null> {
-    try {
-      const response = await authenticatedFetch(
-        `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
-      );
-
-      if (!response.ok) {
-        logger.warn(
-          "getUserInfo",
-          `HTTP ${response.status} for user ${userId}`,
-        );
-        return null;
-      }
-
-      const user = await response.json().catch(() => null);
-      if (!user) {
-        logger.warn("getUserInfo", `Empty body for user ${userId}`);
-        return null;
-      }
-
-      // Handle both camelCase (from user-service) and snake_case formats
-      const firstName = user.firstName || user.first_name || "";
-      const lastName = user.lastName || user.last_name || "";
-      const phoneNumber = user.phoneNumber || user.phone_number || "";
-      const fullName = `${firstName} ${lastName}`.trim();
-      const displayName =
-        fullName || user.username || phoneNumber || "Utilisateur";
-
-      const avatarUrl =
-        user.profilePictureUrl ||
-        user.profile_picture_url ||
-        user.avatar_url ||
-        undefined;
-
-      return {
-        id: user.id,
-        display_name: displayName,
-        username: user.username,
-        avatar_url: avatarUrl,
-      };
-    } catch (err) {
-      logger.warn("getUserInfo", `Failed for user ${userId}`, err);
-      return null;
+  async getUserInfo(userId: string): Promise<CachedUserInfo | null> {
+    // 1. Fresh cache hit → return immediately, no network call.
+    const cached = userInfoCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
     }
+
+    // 2. A request for the same userId is already in flight → reuse it.
+    const inflight = userInfoInflight.get(userId);
+    if (inflight) {
+      return inflight;
+    }
+
+    // 3. Kick off a new fetch and remember the Promise so concurrent callers
+    //    (conversations list enrichment, typing indicator, chat screen open)
+    //    share a single network round-trip.
+    const promise = (async (): Promise<CachedUserInfo | null> => {
+      try {
+        const response = await authenticatedFetch(
+          `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
+        );
+
+        if (!response.ok) {
+          logger.warn(
+            "getUserInfo",
+            `HTTP ${response.status} for user ${userId}`,
+          );
+          // Cache negative result briefly to prevent a retry storm when the
+          // backend returns 429 — TTL keeps it from being permanently stuck.
+          userInfoCache.set(userId, {
+            value: null,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          return null;
+        }
+
+        const user = await response.json().catch(() => null);
+        if (!user) {
+          logger.warn("getUserInfo", `Empty body for user ${userId}`);
+          userInfoCache.set(userId, {
+            value: null,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          return null;
+        }
+
+        // Handle both camelCase (from user-service) and snake_case formats
+        const firstName = user.firstName || user.first_name || "";
+        const lastName = user.lastName || user.last_name || "";
+        const phoneNumber = user.phoneNumber || user.phone_number || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        const displayName =
+          fullName || user.username || phoneNumber || "Utilisateur";
+
+        const avatarUrl =
+          user.profilePictureUrl ||
+          user.profile_picture_url ||
+          user.avatar_url ||
+          undefined;
+
+        const info: CachedUserInfo = {
+          id: user.id,
+          display_name: displayName,
+          username: user.username,
+          avatar_url: avatarUrl,
+        };
+
+        userInfoCache.set(userId, {
+          value: info,
+          expiresAt: Date.now() + USER_INFO_TTL_MS,
+        });
+        return info;
+      } catch (err) {
+        logger.warn("getUserInfo", `Failed for user ${userId}`, err);
+        return null;
+      } finally {
+        userInfoInflight.delete(userId);
+      }
+    })();
+
+    userInfoInflight.set(userId, promise);
+    return promise;
   },
 
   async getConversationMembers(
