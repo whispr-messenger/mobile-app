@@ -61,12 +61,26 @@ export interface UserSanction {
   updatedAt: string;
 }
 
+export type AppealType = "sanction" | "blocked_image";
+
+export interface AppealEvidence {
+  images?: string[];
+  thumbnailBase64?: string;
+  blockReason?: string;
+  scores?: Record<string, number>;
+  conversationId?: string;
+  recipientId?: string;
+  messageTempId?: string;
+  [key: string]: any;
+}
+
 export interface Appeal {
   id: string;
   userId: string;
-  sanctionId: string;
+  sanctionId: string | null;
+  type: AppealType;
   reason: string;
-  evidence: Record<string, any>;
+  evidence: AppealEvidence;
   status: AppealStatus;
   reviewerId: string | null;
   reviewerNotes: string | null;

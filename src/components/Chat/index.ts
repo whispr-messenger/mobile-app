@@ -23,3 +23,4 @@ export { ForwardMessageModal } from "./ForwardMessageModal";
 export { NewConversationModal } from "./NewConversationModal";
 export { CameraCapture } from "./CameraCapture";
 export type { CameraCaptureResult } from "./CameraCapture";
+export { BlockedImageAppealModal } from "./BlockedImageAppealModal";

@@ -1,7 +1,14 @@
 import { tfjsService } from "./tfjs.service";
 import { logger } from "../../utils/logger";
 
-export type GateChatImageResult = { ok: true } | { ok: false; reason: string };
+export type GateChatImageResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: string;
+      bestClass?: string;
+      scores?: Record<string, number>;
+    };
 
 /**
  * On-device TFJS image check before sending a chat image; block send if it fails.
@@ -20,6 +27,8 @@ export async function gateChatImageBeforeSend(
       return {
         ok: false,
         reason: "Cette image a été détectée comme contenu non autorisé.",
+        bestClass: r.bestClass,
+        scores: r.probs,
       };
     return { ok: true };
   } catch (e) {

@@ -68,6 +68,14 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   isHighlighted?: boolean;
   searchQuery?: string;
+  /** Blocked-image appeal state for this message (keyed by temp id) */
+  pendingAppeal?: {
+    appealId: string;
+    status: "pending" | "approved" | "rejected";
+    localUri: string;
+  };
+  /** Called when the user taps "Contester" on a locally blocked image */
+  onContest?: (message: MessageWithRelations) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -82,6 +90,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onLongPress,
   isHighlighted = false,
   searchQuery,
+  pendingAppeal,
+  onContest,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -276,6 +286,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </Text>
             <DeliveryStatus status="failed" />
           </View>
+          {(message.metadata as any)?.blockedByModeration === true ? (
+            <View style={styles.appealRow}>
+              {!pendingAppeal && !(message.metadata as any)?.appealRejected ? (
+                <TouchableOpacity
+                  style={styles.contestBtn}
+                  onPress={() => onContest?.(message)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.contestBtnText}>Contester</Text>
+                </TouchableOpacity>
+              ) : null}
+              {pendingAppeal?.status === "pending" ? (
+                <View style={[styles.appealBadge, styles.appealBadgePending]}>
+                  <Text style={styles.appealBadgeText}>
+                    Contestation envoyée
+                  </Text>
+                </View>
+              ) : null}
+              {pendingAppeal?.status === "rejected" ||
+              (message.metadata as any)?.appealRejected ? (
+                <View style={[styles.appealBadge, styles.appealBadgeRejected]}>
+                  <Text style={styles.appealBadgeText}>
+                    Refusée par l'admin
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       );
     }
@@ -578,6 +616,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 2,
   },
+  appealRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 8,
+  },
+  contestBtn: {
+    backgroundColor: "rgba(240, 72, 72, 0.25)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(240, 72, 72, 0.5)",
+  },
+  contestBtnText: {
+    color: "#F04848",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  appealBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  appealBadgePending: {
+    backgroundColor: "rgba(255, 176, 123, 0.2)",
+  },
+  appealBadgeRejected: {
+    backgroundColor: "rgba(120, 120, 120, 0.3)",
+  },
+  appealBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });
 
 export default memo(MessageBubble, (prevProps, nextProps) => {
@@ -589,6 +662,9 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
     prevProps.senderName === nextProps.senderName &&
     prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
+    prevProps.pendingAppeal?.status === nextProps.pendingAppeal?.status &&
+    JSON.stringify(prevProps.message.metadata) ===
+      JSON.stringify(nextProps.message.metadata) &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );
