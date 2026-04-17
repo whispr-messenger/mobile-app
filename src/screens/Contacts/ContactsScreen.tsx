@@ -299,8 +299,7 @@ export const ContactsScreen: React.FC = () => {
 
     return contactRequests.filter(
       (request) =>
-        request.status === "pending" &&
-        (request.requester_id === userId || request.recipient_id === userId),
+        request.status === "pending" && request.recipient_id === userId,
     );
   }, [contactRequests, userId]);
 
