@@ -104,6 +104,31 @@ export class UserService {
   }
 
   /**
+   * POST /user/v1/account/bootstrap
+   * Initialize user-service side state (privacy settings, role, etc.) after first login.
+   * Idempotent — safe to call on every login.
+   */
+  async bootstrapAccount(
+    userId: string,
+    phoneNumber: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await this.authFetch("/account/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, phoneNumber }),
+      });
+      if (!response.ok) {
+        return { success: false, message: `HTTP ${response.status}` };
+      }
+      return { success: true };
+    } catch (error) {
+      console.warn("[UserService] bootstrapAccount failed:", error);
+      return { success: false, message: "bootstrap failed" };
+    }
+  }
+
+  /**
    * Get current user profile
    */
   async getProfile(): Promise<{

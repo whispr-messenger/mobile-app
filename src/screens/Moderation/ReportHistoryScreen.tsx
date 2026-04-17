@@ -20,7 +20,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useModerationStore } from "../../store/moderationStore";
-import type { Report, ReportCategory, ReportStatus } from "../../types/moderation";
+import type {
+  Report,
+  ReportCategory,
+  ReportStatus,
+} from "../../types/moderation";
 
 const CATEGORY_ICONS: Record<ReportCategory, keyof typeof Ionicons.glyphMap> = {
   offensive: "alert-circle",
@@ -40,11 +44,22 @@ const CATEGORY_LABELS: Record<ReportCategory, string> = {
   other: "Autre",
 };
 
-const STATUS_CONFIG: Record<ReportStatus, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+const STATUS_CONFIG: Record<
+  ReportStatus,
+  { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }
+> = {
   pending: { label: "En attente", color: "#F5A623", icon: "time" },
   under_review: { label: "En cours d'examen", color: "#6774BD", icon: "eye" },
-  resolved_action: { label: "Action prise", color: "#4CD964", icon: "checkmark-circle" },
-  resolved_dismissed: { label: "Rejeté", color: "#8E8E93", icon: "close-circle" },
+  resolved_action: {
+    label: "Action prise",
+    color: "#4CD964",
+    icon: "checkmark-circle",
+  },
+  resolved_dismissed: {
+    label: "Rejeté",
+    color: "#8E8E93",
+    icon: "close-circle",
+  },
 };
 
 export const ReportHistoryScreen: React.FC = () => {
@@ -77,28 +92,63 @@ export const ReportHistoryScreen: React.FC = () => {
 
       return (
         <TouchableOpacity
-          style={[styles.reportItem, { backgroundColor: themeColors.background.secondary }]}
+          style={[
+            styles.reportItem,
+            { backgroundColor: themeColors.background.secondary },
+          ]}
           onPress={() => navigation.navigate("ReportDetail", { report: item })}
           activeOpacity={0.7}
         >
-          <View style={[styles.categoryIconContainer, { backgroundColor: "rgba(254, 122, 92, 0.15)" }]}>
-            <Ionicons name={categoryIcon} size={24} color={colors.primary.main} />
+          <View
+            style={[
+              styles.categoryIconContainer,
+              { backgroundColor: "rgba(254, 122, 92, 0.15)" },
+            ]}
+          >
+            <Ionicons
+              name={categoryIcon}
+              size={24}
+              color={colors.primary.main}
+            />
           </View>
 
           <View style={styles.reportInfo}>
-            <Text style={[styles.categoryLabel, { color: themeColors.text.primary }]} numberOfLines={1}>
+            <Text
+              style={[
+                styles.categoryLabel,
+                { color: themeColors.text.primary },
+              ]}
+              numberOfLines={1}
+            >
               {categoryLabel}
             </Text>
-            <Text style={[styles.reportTarget, { color: themeColors.text.secondary }]} numberOfLines={1}>
+            <Text
+              style={[
+                styles.reportTarget,
+                { color: themeColors.text.secondary },
+              ]}
+              numberOfLines={1}
+            >
               Utilisateur signalé: {item.reported_user_id.slice(0, 8)}...
             </Text>
-            <Text style={[styles.reportDate, { color: themeColors.text.tertiary }]}>
+            <Text
+              style={[styles.reportDate, { color: themeColors.text.tertiary }]}
+            >
               {formatDate(item.created_at)}
             </Text>
           </View>
 
-          <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + "20" }]}>
-            <Ionicons name={statusConfig.icon} size={14} color={statusConfig.color} />
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: statusConfig.color + "20" },
+            ]}
+          >
+            <Ionicons
+              name={statusConfig.icon}
+              size={14}
+              color={statusConfig.color}
+            />
             <Text style={[styles.statusText, { color: statusConfig.color }]}>
               {statusConfig.label}
             </Text>
@@ -119,10 +169,19 @@ export const ReportHistoryScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={themeColors.text.primary}
+            />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+          <Text
+            style={[styles.headerTitle, { color: themeColors.text.primary }]}
+          >
             Mes signalements
           </Text>
           <View style={styles.placeholder} />
@@ -132,17 +191,33 @@ export const ReportHistoryScreen: React.FC = () => {
         {loading && myReports.length === 0 ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.main} />
-            <Text style={[styles.loadingText, { color: themeColors.text.secondary }]}>
+            <Text
+              style={[
+                styles.loadingText,
+                { color: themeColors.text.secondary },
+              ]}
+            >
               Chargement...
             </Text>
           </View>
         ) : myReports.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="document-text-outline" size={64} color={themeColors.text.tertiary} />
-            <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+            <Ionicons
+              name="document-text-outline"
+              size={64}
+              color={themeColors.text.tertiary}
+            />
+            <Text
+              style={[styles.emptyText, { color: themeColors.text.secondary }]}
+            >
               Aucun signalement soumis
             </Text>
-            <Text style={[styles.emptySubtext, { color: themeColors.text.tertiary }]}>
+            <Text
+              style={[
+                styles.emptySubtext,
+                { color: themeColors.text.tertiary },
+              ]}
+            >
               Vos signalements apparaitront ici
             </Text>
           </View>

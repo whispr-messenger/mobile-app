@@ -72,6 +72,14 @@ export interface UploadMediaResult {
   size: number;
 }
 
+// The media-service upload response uses {mediaId, ...} but the rest of the
+// app (chat send path, attachment metadata) expects {id}. Normalise here so
+// callers don't have to know which key the server happened to return.
+const normaliseUpload = (raw: any): UploadMediaResult => ({
+  ...raw,
+  id: raw?.id ?? raw?.mediaId ?? raw?.media_id,
+});
+
 export const MediaService = {
   /**
    * POST /media/upload
@@ -123,7 +131,7 @@ export const MediaService = {
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText));
+            resolve(normaliseUpload(JSON.parse(xhr.responseText)));
           } else {
             reject(new Error(`Upload failed: HTTP ${xhr.status}`));
           }
@@ -149,7 +157,7 @@ export const MediaService = {
       throw error;
     }
 
-    return response.json();
+    return normaliseUpload(await response.json());
   },
 
   /**

@@ -1,6 +1,6 @@
-import { TokenService } from '../TokenService';
-import { AuthService } from '../AuthService';
-import { getApiBaseUrl } from '../apiBase';
+import { TokenService } from "../TokenService";
+import { AuthService } from "../AuthService";
+import { getApiBaseUrl } from "../apiBase";
 import type {
   Report,
   UserSanction,
@@ -9,7 +9,7 @@ import type {
   ConversationSanction,
   AuditLogEntry,
   UserRole,
-} from '../../types/moderation';
+} from "../../types/moderation";
 
 const MESSAGING_BASE = () => `${getApiBaseUrl()}/messaging/api/v1`;
 const USER_BASE = () => `${getApiBaseUrl()}/user/v1`;
@@ -28,7 +28,7 @@ const authenticatedFetch = async (
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
       ...(await getAuthHeaders()),
     },
@@ -66,7 +66,7 @@ export const reportsAPI = {
     description?: string;
   }): Promise<Report> {
     const res = await authenticatedFetch(`${MESSAGING_BASE()}/reports`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(params),
     });
     return parseJson<Report>(res);
@@ -91,10 +91,10 @@ export const reportsAPI = {
     category?: string;
   }): Promise<Report[]> {
     const query = new URLSearchParams();
-    if (params?.limit) query.set('limit', String(params.limit));
-    if (params?.offset) query.set('offset', String(params.offset));
-    if (params?.status) query.set('status', params.status);
-    if (params?.category) query.set('category', params.category);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    if (params?.status) query.set("status", params.status);
+    if (params?.category) query.set("category", params.category);
     const res = await authenticatedFetch(
       `${MESSAGING_BASE()}/reports/queue?${query}`,
     );
@@ -114,7 +114,7 @@ export const reportsAPI = {
     const res = await authenticatedFetch(
       `${MESSAGING_BASE()}/reports/${id}/resolve`,
       {
-        method: 'PUT',
+        method: "PUT",
         body: JSON.stringify({ action, notes }),
       },
     );
@@ -143,18 +143,15 @@ export const conversationSanctionsAPI = {
   ): Promise<ConversationSanction> {
     const res = await authenticatedFetch(
       `${MESSAGING_BASE()}/conversations/${conversationId}/sanctions`,
-      { method: 'POST', body: JSON.stringify(params) },
+      { method: "POST", body: JSON.stringify(params) },
     );
     return parseJson<ConversationSanction>(res);
   },
 
-  async lift(
-    conversationId: string,
-    sanctionId: string,
-  ): Promise<void> {
+  async lift(conversationId: string, sanctionId: string): Promise<void> {
     await authenticatedFetch(
       `${MESSAGING_BASE()}/conversations/${conversationId}/sanctions/${sanctionId}`,
-      { method: 'DELETE' },
+      { method: "DELETE" },
     );
   },
 };
@@ -187,7 +184,7 @@ export const sanctionsAPI = {
     expiresAt?: string;
   }): Promise<UserSanction> {
     const res = await authenticatedFetch(`${USER_BASE()}/sanctions`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(params),
     });
     return parseJson<UserSanction>(res);
@@ -196,7 +193,7 @@ export const sanctionsAPI = {
   async liftSanction(id: string): Promise<UserSanction> {
     const res = await authenticatedFetch(
       `${USER_BASE()}/sanctions/${id}/lift`,
-      { method: 'PUT' },
+      { method: "PUT" },
     );
     return parseJson<UserSanction>(res);
   },
@@ -228,7 +225,7 @@ export const appealsAPI = {
     evidence?: Record<string, any>;
   }): Promise<Appeal> {
     const res = await authenticatedFetch(`${USER_BASE()}/appeals`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(params),
     });
     return parseJson<Appeal>(res);
@@ -236,13 +233,13 @@ export const appealsAPI = {
 
   async reviewAppeal(
     id: string,
-    status: 'accepted' | 'rejected',
+    status: "accepted" | "rejected",
     reviewerNotes?: string,
   ): Promise<Appeal> {
     const res = await authenticatedFetch(
       `${USER_BASE()}/appeals/${id}/review`,
       {
-        method: 'PUT',
+        method: "PUT",
         body: JSON.stringify({ status, reviewerNotes }),
       },
     );
@@ -260,7 +257,7 @@ export const rolesAPI = {
 
   async setRole(userId: string, role: UserRole): Promise<any> {
     const res = await authenticatedFetch(`${USER_BASE()}/roles/${userId}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify({ role }),
     });
     return parseJson(res);
@@ -278,14 +275,12 @@ export const auditAPI = {
     action?: string;
   }): Promise<{ data: AuditLogEntry[]; total: number }> {
     const query = new URLSearchParams();
-    if (params?.limit) query.set('limit', String(params.limit));
-    if (params?.offset) query.set('offset', String(params.offset));
-    if (params?.actorId) query.set('actorId', params.actorId);
-    if (params?.targetType) query.set('targetType', params.targetType);
-    if (params?.action) query.set('action', params.action);
-    const res = await authenticatedFetch(
-      `${USER_BASE()}/audit-logs?${query}`,
-    );
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    if (params?.actorId) query.set("actorId", params.actorId);
+    if (params?.targetType) query.set("targetType", params.targetType);
+    if (params?.action) query.set("action", params.action);
+    const res = await authenticatedFetch(`${USER_BASE()}/audit-logs?${query}`);
     return parseJson(res);
   },
 };

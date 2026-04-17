@@ -32,11 +32,6 @@ async function enrichSingleConversation(
 
     // If member IDs are not available from the list, fetch conversation detail
     if (!memberIds || memberIds.length === 0) {
-      console.log(
-        "[enrich] No member_user_ids for",
-        conv.id,
-        "— fetching detail",
-      );
       const detail = await messagingAPI.getConversation(conv.id);
       if (detail?.members) {
         memberIds = detail.members.map((m: any) => m.user_id || m.userId);
@@ -46,7 +41,6 @@ async function enrichSingleConversation(
     }
 
     if (!memberIds || memberIds.length === 0) {
-      console.warn("[enrich] No members found for conversation", conv.id);
       logger.warn("enrich", `No members found for conversation ${conv.id}`);
       return conv;
     }
@@ -54,28 +48,12 @@ async function enrichSingleConversation(
     const otherUserId = memberIds.find((id: string) => id !== currentUserId);
 
     if (!otherUserId) {
-      console.warn(
-        "[enrich] No other user found in conversation",
-        conv.id,
-        "currentUser:",
-        currentUserId,
-        "members:",
-        memberIds,
-      );
       logger.warn("enrich", `No other user found in conversation ${conv.id}`);
       return conv;
     }
 
     const userInfo = await messagingAPI.getUserInfo(otherUserId);
     if (userInfo?.display_name) {
-      console.log(
-        "[enrich] Resolved",
-        conv.id,
-        "->",
-        userInfo.display_name,
-        "avatar:",
-        userInfo.avatar_url ? "yes" : "no",
-      );
       return {
         ...conv,
         display_name: userInfo.display_name,

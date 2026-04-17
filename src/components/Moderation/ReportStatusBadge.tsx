@@ -13,8 +13,16 @@ const STATUS_CONFIG: Record<
 > = {
   pending: { label: "En attente", color: "#F5A623", icon: "time" },
   under_review: { label: "En examen", color: "#6774BD", icon: "eye" },
-  resolved_action: { label: "Action prise", color: "#4CD964", icon: "checkmark-circle" },
-  resolved_dismissed: { label: "Rejet\u00e9", color: "#8E8E93", icon: "close-circle" },
+  resolved_action: {
+    label: "Action prise",
+    color: "#4CD964",
+    icon: "checkmark-circle",
+  },
+  resolved_dismissed: {
+    label: "Rejet\u00e9",
+    color: "#8E8E93",
+    icon: "close-circle",
+  },
 };
 
 interface Props {
@@ -22,7 +30,10 @@ interface Props {
   size?: "small" | "medium";
 }
 
-export const ReportStatusBadge: React.FC<Props> = ({ status, size = "small" }) => {
+export const ReportStatusBadge: React.FC<Props> = ({
+  status,
+  size = "small",
+}) => {
   const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
   const iconSize = size === "medium" ? 16 : 14;
   const fontSize = size === "medium" ? 13 : 11;

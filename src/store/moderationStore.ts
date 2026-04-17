@@ -1,17 +1,17 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import type {
   Report,
   UserSanction,
   Appeal,
   ReportStats,
   UserRole,
-} from '../types/moderation';
+} from "../types/moderation";
 import {
   reportsAPI,
   sanctionsAPI,
   appealsAPI,
   rolesAPI,
-} from '../services/moderation/moderationApi';
+} from "../services/moderation/moderationApi";
 
 interface ModerationState {
   // Role
@@ -42,13 +42,21 @@ interface ModerationState {
   fetchAppealQueue: () => Promise<void>;
   fetchStats: () => Promise<void>;
   resolveReport: (id: string, action: string, notes?: string) => Promise<void>;
-  reviewAppeal: (id: string, status: 'accepted' | 'rejected', notes?: string) => Promise<void>;
-  createAppeal: (sanctionId: string, reason: string, evidence?: Record<string, any>) => Promise<void>;
+  reviewAppeal: (
+    id: string,
+    status: "accepted" | "rejected",
+    notes?: string,
+  ) => Promise<void>;
+  createAppeal: (
+    sanctionId: string,
+    reason: string,
+    evidence?: Record<string, any>,
+  ) => Promise<void>;
   reset: () => void;
 }
 
 const initialState = {
-  role: 'user' as UserRole,
+  role: "user" as UserRole,
   isAdmin: false,
   isModerator: false,
   myReports: [] as Report[],
@@ -69,8 +77,8 @@ export const useModerationStore = create<ModerationState>((set, get) => ({
       const { role } = await rolesAPI.getMyRole();
       set({
         role,
-        isAdmin: role === 'admin',
-        isModerator: role === 'moderator' || role === 'admin',
+        isAdmin: role === "admin",
+        isModerator: role === "moderator" || role === "admin",
       });
     } catch (e: any) {
       set({ error: e.message });

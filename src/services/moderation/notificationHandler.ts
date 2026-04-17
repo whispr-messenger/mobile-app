@@ -5,21 +5,21 @@
  * the user to the appropriate screen.
  */
 
-import type { UserSanction, Appeal, Report } from '../../types/moderation';
+import type { UserSanction, Appeal, Report } from "../../types/moderation";
 
 // ─── Notification Types ──────────────────────────────────────────
 
 export type ModerationNotificationType =
-  | 'report_resolved'
-  | 'sanction_issued'
-  | 'sanction_lifted'
-  | 'appeal_update'
-  | 'appeal_accepted'
-  | 'appeal_rejected'
+  | "report_resolved"
+  | "sanction_issued"
+  | "sanction_lifted"
+  | "appeal_update"
+  | "appeal_accepted"
+  | "appeal_rejected"
   // Admin-only
-  | 'new_report'
-  | 'new_appeal'
-  | 'report_escalated';
+  | "new_report"
+  | "new_appeal"
+  | "report_escalated";
 
 export interface ModerationNotificationPayload {
   type: ModerationNotificationType;
@@ -45,43 +45,43 @@ export const resolveNotificationRoute = (
 ): NavigationRoute | null => {
   switch (payload.type) {
     // ── User-facing ──────────────────────────────────────────
-    case 'report_resolved':
+    case "report_resolved":
       return {
-        name: 'ReportDetail',
+        name: "ReportDetail",
         params: { reportId: payload.entityId },
       };
 
-    case 'sanction_issued':
+    case "sanction_issued":
       return {
-        name: 'SanctionNotice',
+        name: "SanctionNotice",
         params: { sanctionId: payload.entityId },
       };
 
-    case 'sanction_lifted':
+    case "sanction_lifted":
       return {
-        name: 'SanctionNotice',
+        name: "SanctionNotice",
         params: { sanctionId: payload.entityId },
       };
 
-    case 'appeal_update':
-    case 'appeal_accepted':
-    case 'appeal_rejected':
+    case "appeal_update":
+    case "appeal_accepted":
+    case "appeal_rejected":
       return {
-        name: 'AppealStatus',
+        name: "AppealStatus",
         params: { appealId: payload.entityId },
       };
 
     // ── Admin-facing ─────────────────────────────────────────
-    case 'new_report':
-    case 'report_escalated':
+    case "new_report":
+    case "report_escalated":
       return {
-        name: 'ReportReview',
+        name: "ReportReview",
         params: { reportId: payload.entityId },
       };
 
-    case 'new_appeal':
+    case "new_appeal":
       return {
-        name: 'AppealReview',
+        name: "AppealReview",
         params: { appealId: payload.entityId },
       };
 
@@ -140,83 +140,86 @@ interface NotificationDisplay {
  */
 export const getModerationNotificationDisplay = (
   type: ModerationNotificationType,
-  lang: 'fr' | 'en' = 'fr',
+  lang: "fr" | "en" = "fr",
 ): NotificationDisplay => {
-  const displays: Record<string, Record<ModerationNotificationType, NotificationDisplay>> = {
+  const displays: Record<
+    string,
+    Record<ModerationNotificationType, NotificationDisplay>
+  > = {
     fr: {
       report_resolved: {
-        title: 'Signalement resolu',
-        body: 'Votre signalement a ete traite.',
+        title: "Signalement resolu",
+        body: "Votre signalement a ete traite.",
       },
       sanction_issued: {
-        title: 'Sanction appliquee',
-        body: 'Une sanction a ete appliquee a votre compte.',
+        title: "Sanction appliquee",
+        body: "Une sanction a ete appliquee a votre compte.",
       },
       sanction_lifted: {
-        title: 'Sanction levee',
-        body: 'Une sanction sur votre compte a ete levee.',
+        title: "Sanction levee",
+        body: "Une sanction sur votre compte a ete levee.",
       },
       appeal_update: {
-        title: 'Mise a jour de contestation',
-        body: 'Le statut de votre contestation a change.',
+        title: "Mise a jour de contestation",
+        body: "Le statut de votre contestation a change.",
       },
       appeal_accepted: {
-        title: 'Contestation acceptee',
-        body: 'Votre contestation a ete acceptee.',
+        title: "Contestation acceptee",
+        body: "Votre contestation a ete acceptee.",
       },
       appeal_rejected: {
-        title: 'Contestation rejetee',
-        body: 'Votre contestation a ete rejetee.',
+        title: "Contestation rejetee",
+        body: "Votre contestation a ete rejetee.",
       },
       new_report: {
-        title: 'Nouveau signalement',
-        body: 'Un nouveau signalement necessite votre attention.',
+        title: "Nouveau signalement",
+        body: "Un nouveau signalement necessite votre attention.",
       },
       new_appeal: {
-        title: 'Nouvelle contestation',
-        body: 'Une nouvelle contestation necessite votre attention.',
+        title: "Nouvelle contestation",
+        body: "Une nouvelle contestation necessite votre attention.",
       },
       report_escalated: {
-        title: 'Signalement escalade',
-        body: 'Un signalement a ete escalade automatiquement.',
+        title: "Signalement escalade",
+        body: "Un signalement a ete escalade automatiquement.",
       },
     },
     en: {
       report_resolved: {
-        title: 'Report resolved',
-        body: 'Your report has been processed.',
+        title: "Report resolved",
+        body: "Your report has been processed.",
       },
       sanction_issued: {
-        title: 'Sanction applied',
-        body: 'A sanction has been applied to your account.',
+        title: "Sanction applied",
+        body: "A sanction has been applied to your account.",
       },
       sanction_lifted: {
-        title: 'Sanction lifted',
-        body: 'A sanction on your account has been lifted.',
+        title: "Sanction lifted",
+        body: "A sanction on your account has been lifted.",
       },
       appeal_update: {
-        title: 'Appeal update',
-        body: 'The status of your appeal has changed.',
+        title: "Appeal update",
+        body: "The status of your appeal has changed.",
       },
       appeal_accepted: {
-        title: 'Appeal accepted',
-        body: 'Your appeal has been accepted.',
+        title: "Appeal accepted",
+        body: "Your appeal has been accepted.",
       },
       appeal_rejected: {
-        title: 'Appeal rejected',
-        body: 'Your appeal has been rejected.',
+        title: "Appeal rejected",
+        body: "Your appeal has been rejected.",
       },
       new_report: {
-        title: 'New report',
-        body: 'A new report requires your attention.',
+        title: "New report",
+        body: "A new report requires your attention.",
       },
       new_appeal: {
-        title: 'New appeal',
-        body: 'A new appeal requires your attention.',
+        title: "New appeal",
+        body: "A new appeal requires your attention.",
       },
       report_escalated: {
-        title: 'Report escalated',
-        body: 'A report has been automatically escalated.',
+        title: "Report escalated",
+        body: "A report has been automatically escalated.",
       },
     },
   };

@@ -81,13 +81,20 @@ export const AppealFormScreen: React.FC = () => {
 
   const handlePickImage = useCallback(async () => {
     if (images.length >= MAX_IMAGES) {
-      Alert.alert("Limite atteinte", `Vous pouvez ajouter au maximum ${MAX_IMAGES} images.`);
+      Alert.alert(
+        "Limite atteinte",
+        `Vous pouvez ajouter au maximum ${MAX_IMAGES} images.`,
+      );
       return;
     }
 
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert("Permission requise", "Veuillez autoriser l'accès à la galerie photo.");
+      Alert.alert(
+        "Permission requise",
+        "Veuillez autoriser l'accès à la galerie photo.",
+      );
       return;
     }
 
@@ -123,10 +130,17 @@ export const AppealFormScreen: React.FC = () => {
               if (images.length > 0) {
                 evidence.images = images;
               }
-              await createAppeal(sanction.id, reason, Object.keys(evidence).length > 0 ? evidence : undefined);
+              await createAppeal(
+                sanction.id,
+                reason,
+                Object.keys(evidence).length > 0 ? evidence : undefined,
+              );
               navigation.replace("AppealStatus", { sanctionId: sanction.id });
             } catch (error: any) {
-              Alert.alert("Erreur", error.message || "Impossible de soumettre la contestation.");
+              Alert.alert(
+                "Erreur",
+                error.message || "Impossible de soumettre la contestation.",
+              );
             } finally {
               setSubmitting(false);
             }
@@ -146,10 +160,19 @@ export const AppealFormScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={themeColors.text.primary}
+            />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+          <Text
+            style={[styles.headerTitle, { color: themeColors.text.primary }]}
+          >
             Contester la décision
           </Text>
           <View style={styles.placeholder} />
@@ -160,32 +183,71 @@ export const AppealFormScreen: React.FC = () => {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           keyboardVerticalOffset={0}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Sanction Summary */}
-            <View style={[styles.sanctionSummary, { backgroundColor: themeColors.background.secondary }]}>
+            <View
+              style={[
+                styles.sanctionSummary,
+                { backgroundColor: themeColors.background.secondary },
+              ]}
+            >
               <View style={styles.sanctionHeader}>
-                <View style={[styles.sanctionBadge, { backgroundColor: sanctionColor + "20" }]}>
+                <View
+                  style={[
+                    styles.sanctionBadge,
+                    { backgroundColor: sanctionColor + "20" },
+                  ]}
+                >
                   <Ionicons name="ban" size={16} color={sanctionColor} />
                   <Text style={[styles.sanctionType, { color: sanctionColor }]}>
                     {sanctionLabel}
                   </Text>
                 </View>
-                <Text style={[styles.sanctionDate, { color: themeColors.text.tertiary }]}>
+                <Text
+                  style={[
+                    styles.sanctionDate,
+                    { color: themeColors.text.tertiary },
+                  ]}
+                >
                   {formatDate(sanction.createdAt)}
                 </Text>
               </View>
-              <Text style={[styles.sanctionReason, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.sanctionReason,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 {sanction.reason}
               </Text>
             </View>
 
             {/* Appeal Reason */}
-            <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+            <View
+              style={[
+                styles.section,
+                { backgroundColor: themeColors.background.secondary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 Motif de la contestation
               </Text>
-              <Text style={[styles.sectionHint, { color: themeColors.text.tertiary }]}>
-                Expliquez pourquoi vous pensez que cette sanction est injustifiée (minimum {MIN_CHARS} caractères)
+              <Text
+                style={[
+                  styles.sectionHint,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
+                Expliquez pourquoi vous pensez que cette sanction est
+                injustifiée (minimum {MIN_CHARS} caractères)
               </Text>
               <TextInput
                 style={[
@@ -193,7 +255,11 @@ export const AppealFormScreen: React.FC = () => {
                   {
                     color: themeColors.text.primary,
                     backgroundColor: "rgba(0, 0, 0, 0.15)",
-                    borderColor: isValid ? "rgba(76, 217, 100, 0.3)" : charCount > 0 ? "rgba(255, 59, 48, 0.3)" : "transparent",
+                    borderColor: isValid
+                      ? "rgba(76, 217, 100, 0.3)"
+                      : charCount > 0
+                        ? "rgba(255, 59, 48, 0.3)"
+                        : "transparent",
                   },
                 ]}
                 placeholder="Décrivez votre situation et les raisons de votre contestation..."
@@ -217,12 +283,28 @@ export const AppealFormScreen: React.FC = () => {
             </View>
 
             {/* Evidence Images */}
-            <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+            <View
+              style={[
+                styles.section,
+                { backgroundColor: themeColors.background.secondary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 Preuves (optionnel)
               </Text>
-              <Text style={[styles.sectionHint, { color: themeColors.text.tertiary }]}>
-                Ajoutez jusqu'à {MAX_IMAGES} captures d'écran pour appuyer votre contestation
+              <Text
+                style={[
+                  styles.sectionHint,
+                  { color: themeColors.text.tertiary },
+                ]}
+              >
+                Ajoutez jusqu'à {MAX_IMAGES} captures d'écran pour appuyer votre
+                contestation
               </Text>
 
               <View style={styles.imagesRow}>
@@ -240,12 +322,24 @@ export const AppealFormScreen: React.FC = () => {
 
                 {images.length < MAX_IMAGES && (
                   <TouchableOpacity
-                    style={[styles.addImageButton, { borderColor: themeColors.text.tertiary + "40" }]}
+                    style={[
+                      styles.addImageButton,
+                      { borderColor: themeColors.text.tertiary + "40" },
+                    ]}
                     onPress={handlePickImage}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="camera-outline" size={28} color={themeColors.text.tertiary} />
-                    <Text style={[styles.addImageText, { color: themeColors.text.tertiary }]}>
+                    <Ionicons
+                      name="camera-outline"
+                      size={28}
+                      color={themeColors.text.tertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.addImageText,
+                        { color: themeColors.text.tertiary },
+                      ]}
+                    >
                       Ajouter
                     </Text>
                   </TouchableOpacity>
@@ -260,7 +354,10 @@ export const AppealFormScreen: React.FC = () => {
               style={[
                 styles.submitButton,
                 {
-                  backgroundColor: isValid && !submitting ? colors.primary.main : colors.primary.main + "40",
+                  backgroundColor:
+                    isValid && !submitting
+                      ? colors.primary.main
+                      : colors.primary.main + "40",
                 },
               ]}
               onPress={handleSubmit}
@@ -272,7 +369,9 @@ export const AppealFormScreen: React.FC = () => {
               ) : (
                 <>
                   <Ionicons name="send" size={18} color="#FFFFFF" />
-                  <Text style={styles.submitButtonText}>Soumettre la contestation</Text>
+                  <Text style={styles.submitButtonText}>
+                    Soumettre la contestation
+                  </Text>
                 </>
               )}
             </TouchableOpacity>

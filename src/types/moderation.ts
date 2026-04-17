@@ -1,9 +1,19 @@
-export type ReportCategory = 'offensive' | 'spam' | 'nudity' | 'violence' | 'harassment' | 'other';
-export type ReportStatus = 'pending' | 'under_review' | 'resolved_action' | 'resolved_dismissed';
-export type SanctionType = 'warning' | 'temp_ban' | 'perm_ban';
-export type ConvSanctionType = 'mute' | 'kick' | 'shadow_restrict';
-export type AppealStatus = 'pending' | 'under_review' | 'accepted' | 'rejected';
-export type UserRole = 'user' | 'moderator' | 'admin';
+export type ReportCategory =
+  | "offensive"
+  | "spam"
+  | "nudity"
+  | "violence"
+  | "harassment"
+  | "other";
+export type ReportStatus =
+  | "pending"
+  | "under_review"
+  | "resolved_action"
+  | "resolved_dismissed";
+export type SanctionType = "warning" | "temp_ban" | "perm_ban";
+export type ConvSanctionType = "mute" | "kick" | "shadow_restrict";
+export type AppealStatus = "pending" | "under_review" | "accepted" | "rejected";
+export type UserRole = "user" | "moderator" | "admin";
 
 export interface Report {
   id: string;

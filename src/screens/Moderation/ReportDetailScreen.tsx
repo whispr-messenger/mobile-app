@@ -17,7 +17,11 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
-import type { Report, ReportCategory, ReportStatus } from "../../types/moderation";
+import type {
+  Report,
+  ReportCategory,
+  ReportStatus,
+} from "../../types/moderation";
 
 type RouteParams = {
   ReportDetail: { report: Report };
@@ -41,11 +45,22 @@ const CATEGORY_LABELS: Record<ReportCategory, string> = {
   other: "Autre",
 };
 
-const STATUS_CONFIG: Record<ReportStatus, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+const STATUS_CONFIG: Record<
+  ReportStatus,
+  { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }
+> = {
   pending: { label: "En attente", color: "#F5A623", icon: "time" },
   under_review: { label: "En cours d'examen", color: "#6774BD", icon: "eye" },
-  resolved_action: { label: "Action prise", color: "#4CD964", icon: "checkmark-circle" },
-  resolved_dismissed: { label: "Rejeté", color: "#8E8E93", icon: "close-circle" },
+  resolved_action: {
+    label: "Action prise",
+    color: "#4CD964",
+    icon: "checkmark-circle",
+  },
+  resolved_dismissed: {
+    label: "Rejeté",
+    color: "#8E8E93",
+    icon: "close-circle",
+  },
 };
 
 const formatDate = (dateStr: string): string => {
@@ -80,39 +95,90 @@ export const ReportDetailScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={themeColors.text.primary}
+            />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+          <Text
+            style={[styles.headerTitle, { color: themeColors.text.primary }]}
+          >
             Détail du signalement
           </Text>
           <View style={styles.placeholder} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Status Badge */}
-          <View style={[styles.statusCard, { backgroundColor: themeColors.background.secondary }]}>
-            <View style={[styles.statusBadgeLarge, { backgroundColor: statusConfig.color + "20" }]}>
-              <Ionicons name={statusConfig.icon} size={20} color={statusConfig.color} />
-              <Text style={[styles.statusTextLarge, { color: statusConfig.color }]}>
+          <View
+            style={[
+              styles.statusCard,
+              { backgroundColor: themeColors.background.secondary },
+            ]}
+          >
+            <View
+              style={[
+                styles.statusBadgeLarge,
+                { backgroundColor: statusConfig.color + "20" },
+              ]}
+            >
+              <Ionicons
+                name={statusConfig.icon}
+                size={20}
+                color={statusConfig.color}
+              />
+              <Text
+                style={[styles.statusTextLarge, { color: statusConfig.color }]}
+              >
                 {statusConfig.label}
               </Text>
             </View>
-            <Text style={[styles.dateText, { color: themeColors.text.tertiary }]}>
+            <Text
+              style={[styles.dateText, { color: themeColors.text.tertiary }]}
+            >
               Soumis le {formatDate(report.created_at)}
             </Text>
           </View>
 
           {/* Category Section */}
-          <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+          <View
+            style={[
+              styles.section,
+              { backgroundColor: themeColors.background.secondary },
+            ]}
+          >
+            <Text
+              style={[styles.sectionTitle, { color: themeColors.text.primary }]}
+            >
               Catégorie
             </Text>
             <View style={styles.categoryRow}>
-              <View style={[styles.categoryIconContainer, { backgroundColor: "rgba(254, 122, 92, 0.15)" }]}>
-                <Ionicons name={categoryIcon} size={24} color={colors.primary.main} />
+              <View
+                style={[
+                  styles.categoryIconContainer,
+                  { backgroundColor: "rgba(254, 122, 92, 0.15)" },
+                ]}
+              >
+                <Ionicons
+                  name={categoryIcon}
+                  size={24}
+                  color={colors.primary.main}
+                />
               </View>
-              <Text style={[styles.categoryLabel, { color: themeColors.text.primary }]}>
+              <Text
+                style={[
+                  styles.categoryLabel,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 {categoryLabel}
               </Text>
             </View>
@@ -120,11 +186,26 @@ export const ReportDetailScreen: React.FC = () => {
 
           {/* Description Section */}
           {report.description && (
-            <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+            <View
+              style={[
+                styles.section,
+                { backgroundColor: themeColors.background.secondary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 Description
               </Text>
-              <Text style={[styles.descriptionText, { color: themeColors.text.secondary }]}>
+              <Text
+                style={[
+                  styles.descriptionText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 {report.description}
               </Text>
             </View>
@@ -132,28 +213,66 @@ export const ReportDetailScreen: React.FC = () => {
 
           {/* Evidence Section - Message Snapshot */}
           {report.evidence && Object.keys(report.evidence).length > 0 && (
-            <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+            <View
+              style={[
+                styles.section,
+                { backgroundColor: themeColors.background.secondary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 Preuve
               </Text>
-              <View style={[styles.evidenceBox, { backgroundColor: "rgba(0, 0, 0, 0.15)" }]}>
+              <View
+                style={[
+                  styles.evidenceBox,
+                  { backgroundColor: "rgba(0, 0, 0, 0.15)" },
+                ]}
+              >
                 {report.evidence.messageContent && (
                   <View style={styles.evidenceItem}>
-                    <Ionicons name="chatbubble-outline" size={16} color={themeColors.text.tertiary} />
-                    <Text style={[styles.evidenceText, { color: themeColors.text.secondary }]}>
+                    <Ionicons
+                      name="chatbubble-outline"
+                      size={16}
+                      color={themeColors.text.tertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.evidenceText,
+                        { color: themeColors.text.secondary },
+                      ]}
+                    >
                       {report.evidence.messageContent}
                     </Text>
                   </View>
                 )}
                 {report.evidence.timestamp && (
-                  <Text style={[styles.evidenceTimestamp, { color: themeColors.text.tertiary }]}>
+                  <Text
+                    style={[
+                      styles.evidenceTimestamp,
+                      { color: themeColors.text.tertiary },
+                    ]}
+                  >
                     Message du {formatDate(report.evidence.timestamp)}
                   </Text>
                 )}
                 {report.evidence.screenshot && (
                   <View style={styles.evidenceItem}>
-                    <Ionicons name="image-outline" size={16} color={themeColors.text.tertiary} />
-                    <Text style={[styles.evidenceText, { color: themeColors.text.secondary }]}>
+                    <Ionicons
+                      name="image-outline"
+                      size={16}
+                      color={themeColors.text.tertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.evidenceText,
+                        { color: themeColors.text.secondary },
+                      ]}
+                    >
                       Capture d'écran jointe
                     </Text>
                   </View>
@@ -163,20 +282,42 @@ export const ReportDetailScreen: React.FC = () => {
           )}
 
           {/* Reported User Section */}
-          <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+          <View
+            style={[
+              styles.section,
+              { backgroundColor: themeColors.background.secondary },
+            ]}
+          >
+            <Text
+              style={[styles.sectionTitle, { color: themeColors.text.primary }]}
+            >
               Utilisateur signalé
             </Text>
             <View style={styles.infoRow}>
-              <Ionicons name="person-outline" size={18} color={themeColors.text.tertiary} />
-              <Text style={[styles.infoText, { color: themeColors.text.secondary }]}>
+              <Ionicons
+                name="person-outline"
+                size={18}
+                color={themeColors.text.tertiary}
+              />
+              <Text
+                style={[styles.infoText, { color: themeColors.text.secondary }]}
+              >
                 {report.reported_user_id}
               </Text>
             </View>
             {report.conversation_id && (
               <View style={styles.infoRow}>
-                <Ionicons name="chatbubbles-outline" size={18} color={themeColors.text.tertiary} />
-                <Text style={[styles.infoText, { color: themeColors.text.secondary }]}>
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={18}
+                  color={themeColors.text.tertiary}
+                />
+                <Text
+                  style={[
+                    styles.infoText,
+                    { color: themeColors.text.secondary },
+                  ]}
+                >
                   Conversation: {report.conversation_id.slice(0, 12)}...
                 </Text>
               </View>
@@ -185,23 +326,52 @@ export const ReportDetailScreen: React.FC = () => {
 
           {/* Resolution Section */}
           {isResolved && report.resolution && (
-            <View style={[styles.section, { backgroundColor: themeColors.background.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+            <View
+              style={[
+                styles.section,
+                { backgroundColor: themeColors.background.secondary },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  { color: themeColors.text.primary },
+                ]}
+              >
                 Résolution
               </Text>
               <View style={styles.resolutionContent}>
                 <View style={styles.infoRow}>
-                  <Ionicons name="shield-checkmark-outline" size={18} color={statusConfig.color} />
-                  <Text style={[styles.resolutionAction, { color: themeColors.text.primary }]}>
+                  <Ionicons
+                    name="shield-checkmark-outline"
+                    size={18}
+                    color={statusConfig.color}
+                  />
+                  <Text
+                    style={[
+                      styles.resolutionAction,
+                      { color: themeColors.text.primary },
+                    ]}
+                  >
                     Action: {report.resolution.action}
                   </Text>
                 </View>
                 {report.resolution.notes && (
-                  <Text style={[styles.resolutionNotes, { color: themeColors.text.secondary }]}>
+                  <Text
+                    style={[
+                      styles.resolutionNotes,
+                      { color: themeColors.text.secondary },
+                    ]}
+                  >
                     {report.resolution.notes}
                   </Text>
                 )}
-                <Text style={[styles.resolutionDate, { color: themeColors.text.tertiary }]}>
+                <Text
+                  style={[
+                    styles.resolutionDate,
+                    { color: themeColors.text.tertiary },
+                  ]}
+                >
                   Résolu le {formatDate(report.resolution.resolved_at)}
                 </Text>
               </View>

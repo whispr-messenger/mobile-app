@@ -36,6 +36,7 @@ import Toast from "../../components/Toast/Toast";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { messagingAPI } from "../../services/messaging/api";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
+import { getConversationDisplayName } from "../../utils";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
@@ -106,9 +107,7 @@ export const ConversationsListScreen: React.FC = () => {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((conv) => {
-        const name =
-          conv.display_name ||
-          (conv.type === "direct" ? "Contact" : conv.metadata?.name || "Group");
+        const name = getConversationDisplayName(conv);
         const lastMessage = conv.last_message?.content || "";
         return (
           name.toLowerCase().includes(query) ||
@@ -139,7 +138,7 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  const { connectionState } = useWebSocket({
+  const { connectionState, joinConversationChannel } = useWebSocket({
     userId,
     token,
     onNewMessage: (message: Message) => {
@@ -153,6 +152,30 @@ export const ConversationsListScreen: React.FC = () => {
       applyConversationSummaries(conversations);
     },
   });
+
+  // Subscribe to every visible conversation so we receive presence_diff /
+  // presence_state events for members. Without this, the list items show
+  // stale online indicators — presence events are only broadcast on
+  // conversation:{id} channels, never on user:{userId}.
+  const conversationIdsKey = conversations
+    .map((c) => c?.id)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    if (!token || connectionState !== "connected" || !conversationIdsKey) {
+      return;
+    }
+    const ids = conversationIdsKey.split(",");
+    const cleanups: Array<() => void> = [];
+    for (const id of ids) {
+      const { cleanup } = joinConversationChannel(id);
+      cleanups.push(cleanup);
+    }
+    return () => {
+      cleanups.forEach((c) => c());
+    };
+  }, [token, connectionState, conversationIdsKey, joinConversationChannel]);
 
   useEffect(() => {
     fetchConversations();

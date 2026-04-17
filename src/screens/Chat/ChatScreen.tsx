@@ -36,6 +36,7 @@ import {
   MessageWithRelations,
   MessageReaction,
   Conversation,
+  PinnedMessage,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
 import { contactsAPI } from "../../services/contacts/api";
@@ -122,7 +123,7 @@ export const ChatScreen: React.FC = () => {
     [],
   );
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
@@ -703,6 +704,12 @@ export const ChatScreen: React.FC = () => {
 
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
+
+      // Scroll to bottom so the newly sent text message is visible
+      // (FlatList is inverted, so offset 0 is the bottom)
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
 
       // If offline, queue the message for later delivery
       if (connectionState !== "connected") {
@@ -1320,7 +1327,7 @@ export const ChatScreen: React.FC = () => {
 
     try {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
@@ -1341,7 +1348,7 @@ export const ChatScreen: React.FC = () => {
       );
     } catch (error) {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       logger.error(
         "ChatScreen",
@@ -1753,7 +1760,9 @@ export const ChatScreen: React.FC = () => {
           visible={showActionsMenu}
           message={selectedMessage}
           isSent={selectedMessage?.sender_id === userId}
-          isPinned={pinnedMessages.some((m) => m.id === selectedMessage?.id)}
+          isPinned={pinnedMessages.some(
+            (m) => (m.messageId ?? m.message?.id) === selectedMessage?.id,
+          )}
           onClose={() => {
             setShowActionsMenu(false);
             setSelectedMessage(null);

@@ -51,20 +51,31 @@ export const AppealCard: React.FC<Props> = ({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.iconContainer, { backgroundColor: "rgba(103, 116, 189, 0.15)" }]}>
+      <View
+        style={[
+          styles.iconContainer,
+          { backgroundColor: "rgba(103, 116, 189, 0.15)" },
+        ]}
+      >
         <Ionicons name="hand-left" size={24} color={colors.secondary.main} />
       </View>
 
       <View style={styles.info}>
         <View style={styles.topRow}>
-          <Text style={[styles.userName, { color: textColor }]} numberOfLines={1}>
+          <Text
+            style={[styles.userName, { color: textColor }]}
+            numberOfLines={1}
+          >
             {appeal.userId.slice(0, 8)}...
           </Text>
           <Text style={[styles.timeAgo, { color: secondaryTextColor }]}>
             {formatTimeAgo(appeal.createdAt)}
           </Text>
         </View>
-        <Text style={[styles.detail, { color: secondaryTextColor }]} numberOfLines={1}>
+        <Text
+          style={[styles.detail, { color: secondaryTextColor }]}
+          numberOfLines={1}
+        >
           Appel du {formatDate(appeal.createdAt)}
         </Text>
         <View style={styles.badgeRow}>

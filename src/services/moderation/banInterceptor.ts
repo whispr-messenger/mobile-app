@@ -3,8 +3,8 @@
  * and provides data to redirect to SanctionNoticeScreen.
  */
 
-import { sanctionsAPI } from './moderationApi';
-import type { UserSanction } from '../../types/moderation';
+import { sanctionsAPI } from "./moderationApi";
+import type { UserSanction } from "../../types/moderation";
 
 export interface BanCheckResult {
   banned: boolean;
@@ -22,7 +22,7 @@ export const checkActiveBan = async (): Promise<BanCheckResult> => {
   try {
     const sanctions = await sanctionsAPI.getMySanctions();
     const activeBan = sanctions.find(
-      (s) => s.active && (s.type === 'temp_ban' || s.type === 'perm_ban'),
+      (s) => s.active && (s.type === "temp_ban" || s.type === "perm_ban"),
     );
     return { banned: !!activeBan, sanction: activeBan };
   } catch {
@@ -36,7 +36,7 @@ export const checkActiveBan = async (): Promise<BanCheckResult> => {
  * Returns true if the ban should no longer be enforced.
  */
 export const isBanExpired = (sanction: UserSanction): boolean => {
-  if (sanction.type === 'perm_ban') return false;
+  if (sanction.type === "perm_ban") return false;
   if (!sanction.expiresAt) return false;
   return new Date(sanction.expiresAt).getTime() < Date.now();
 };
@@ -47,7 +47,7 @@ export const isBanExpired = (sanction: UserSanction): boolean => {
  */
 export const formatBanRemaining = (expiresAt: string): string => {
   const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return 'Expired';
+  if (diff <= 0) return "Expired";
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -58,7 +58,7 @@ export const formatBanRemaining = (expiresAt: string): string => {
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0 && days === 0) parts.push(`${minutes}m`);
 
-  return parts.join(' ') || '< 1m';
+  return parts.join(" ") || "< 1m";
 };
 
 /**
@@ -71,16 +71,16 @@ export const formatBanRemaining = (expiresAt: string): string => {
  * }, []);
  * ```
  */
-export const onAppLaunchBanCheck = async (
-  navigation: { reset: (state: any) => void },
-): Promise<void> => {
+export const onAppLaunchBanCheck = async (navigation: {
+  reset: (state: any) => void;
+}): Promise<void> => {
   const result = await checkActiveBan();
   if (result.banned && result.sanction) {
     navigation.reset({
       index: 0,
       routes: [
         {
-          name: 'SanctionNotice',
+          name: "SanctionNotice",
           params: { sanctionId: result.sanction.id },
         },
       ],

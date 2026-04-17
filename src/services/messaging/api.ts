@@ -1,4 +1,4 @@
-import { Conversation, Message } from "../../types/messaging";
+import { Conversation, Message, PinnedMessage } from "../../types/messaging";
 import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
@@ -15,12 +15,13 @@ const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
  * presigned S3/MinIO URL).
  */
 export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
-  // Already in the expected shape — pass through
-  if (att?.metadata?.media_url && att?.media_type) return att;
-
   const fileType = att?.file_type || "";
   const mime = att?.mime_type || "";
-  let media_type: string = fileType || "file";
+  let media_type: "audio" | "video" | "image" | "file" = (
+    ["audio", "video", "image", "file"] as const
+  ).includes(fileType)
+    ? fileType
+    : "file";
   if (!fileType || fileType === "file") {
     if (mime.startsWith("image/")) media_type = "image";
     else if (mime.startsWith("video/")) media_type = "video";
@@ -36,13 +37,22 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
     : null;
 
-  const resolvedUrl =
-    mediaBlobUrl || meta.media_url || att?.file_url || att?.storage_url;
+  // Reject any URL that points at the internal cluster (presigned MinIO URL
+  // baked at upload time) — the browser cannot resolve it. Always prefer the
+  // media-service proxy when a mediaId is available.
+  const isPublicUrl = (u?: string | null) =>
+    typeof u === "string" && !u.includes(".svc.cluster.local");
+
+  const fallbackUrl = [meta.media_url, att?.file_url, att?.storage_url].find(
+    isPublicUrl,
+  );
+  const fallbackThumbnail = [att?.thumbnail_url, meta.thumbnail_url].find(
+    isPublicUrl,
+  );
+
+  const resolvedUrl = mediaBlobUrl || fallbackUrl;
   const resolvedThumbnail =
-    mediaThumbnailUrl ||
-    att?.thumbnail_url ||
-    meta.thumbnail_url ||
-    resolvedUrl;
+    mediaThumbnailUrl || fallbackThumbnail || resolvedUrl;
 
   return {
     id: att?.id,
@@ -110,6 +120,41 @@ const authenticatedFetch = async (
 function httpError(label: string, response: Response): Error {
   return new Error(`${label} (${response.status})`);
 }
+
+// --- User profile cache ------------------------------------------------------
+// Avoid re-fetching the same /user/v1/profile/{id} on every render cycle. A
+// simple in-memory map keyed by userId with a short TTL is enough to smooth
+// out the startup burst (conversations list enrichment, chat screen opens,
+// typing indicators) without overloading the backend rate limiter (429).
+type CachedUserInfo = {
+  id: string;
+  display_name: string;
+  username?: string;
+  avatar_url?: string;
+};
+
+const USER_INFO_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const userInfoCache = new Map<
+  string,
+  { value: CachedUserInfo | null; expiresAt: number }
+>();
+// Dedup concurrent requests for the same user — first caller triggers the
+// network call, subsequent callers get the same Promise.
+const userInfoInflight = new Map<string, Promise<CachedUserInfo | null>>();
+
+/**
+ * Invalidate a cached user profile (e.g. after the current user edits their
+ * own profile, or when we know an external profile changed).
+ */
+export const invalidateUserInfoCache = (userId?: string): void => {
+  if (userId) {
+    userInfoCache.delete(userId);
+    userInfoInflight.delete(userId);
+  } else {
+    userInfoCache.clear();
+    userInfoInflight.clear();
+  }
+};
 
 export const messagingAPI = {
   async getConversations(params?: {
@@ -342,7 +387,6 @@ export const messagingAPI = {
         return { reactions: [] };
       }
       throw httpError("Failed to fetch message reactions", response);
-      throw new Error("Failed to fetch message reactions");
     }
 
     return unwrap(response);
@@ -377,7 +421,7 @@ export const messagingAPI = {
     }
   },
 
-  async getPinnedMessages(conversationId: string): Promise<Message[]> {
+  async getPinnedMessages(conversationId: string): Promise<PinnedMessage[]> {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/pins`,
     );
@@ -388,11 +432,10 @@ export const messagingAPI = {
         return [];
       }
       throw httpError("Failed to fetch pinned messages", response);
-      throw new Error("Failed to fetch pinned messages");
     }
 
     const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data) ? (data as PinnedMessage[]) : [];
   },
 
   async getAttachments(messageId: string) {
@@ -406,64 +449,10 @@ export const messagingAPI = {
         return [];
       }
       throw httpError("Failed to fetch attachments", response);
-      throw new Error("Failed to fetch attachments");
     }
 
     const data = await unwrap(response);
     const raw = Array.isArray(data) ? data : [];
-
-    // The backend returns { file_url, file_name, file_size, mime_type, media_id, metadata, ... }
-    // but the app expects MessageAttachment shape with media_type + metadata.
-    return raw.map((att: any) => {
-      // If the attachment already has the expected shape, return as-is
-      if (att.metadata?.media_url && att.media_type) return att;
-
-      // Derive media_type from file_type or mime_type
-      const fileType = att.file_type || "";
-      const mime = att.mime_type || "";
-      let media_type: string = fileType || "file";
-      if (!fileType || fileType === "file") {
-        if (mime.startsWith("image/")) media_type = "image";
-        else if (mime.startsWith("video/")) media_type = "video";
-        else if (mime.startsWith("audio/")) media_type = "audio";
-      }
-
-      // Prefer media_id-based blob URL over stored file_url (which may be
-      // an expired presigned URL from S3/MinIO).
-      const meta = att.metadata || {};
-      const mediaId = att.media_id || meta.media_id;
-      const mediaBlobUrl = mediaId
-        ? `${getApiBaseUrl()}/media/v1/${mediaId}/blob`
-        : null;
-      const mediaThumbnailUrl = mediaId
-        ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
-        : null;
-
-      // Use the blob endpoint URL; fall back to stored URL only if no media_id
-      const resolvedUrl =
-        mediaBlobUrl || meta.media_url || att.file_url || att.storage_url;
-      const resolvedThumbnail =
-        mediaThumbnailUrl ||
-        att.thumbnail_url ||
-        meta.thumbnail_url ||
-        resolvedUrl;
-
-      return {
-        id: att.id,
-        message_id: att.message_id || messageId,
-        media_id: mediaId || att.id,
-        media_type,
-        metadata: {
-          filename: att.file_name || att.filename || meta.filename,
-          size: att.file_size || att.size || meta.size,
-          mime_type: att.mime_type || meta.mime_type,
-          media_url: resolvedUrl,
-          thumbnail_url: resolvedThumbnail,
-        },
-        created_at:
-          att.uploaded_at || att.created_at || new Date().toISOString(),
-      };
-    });
     return raw.map((att: any) => mapBackendAttachment(att, messageId));
   },
 
@@ -482,58 +471,88 @@ export const messagingAPI = {
     }
   },
 
-  async getUserInfo(userId: string): Promise<{
-    id: string;
-    display_name: string;
-    username?: string;
-    avatar_url?: string;
-  } | null> {
-    try {
-      const response = await authenticatedFetch(
-        `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
-      );
-
-      if (!response.ok) {
-        console.warn("[getUserInfo] HTTP", response.status, "for user", userId);
-        logger.warn(
-          "getUserInfo",
-          `HTTP ${response.status} for user ${userId}`,
-        );
-        return null;
-      }
-
-      const user = await response.json().catch(() => null);
-      if (!user) {
-        console.warn("[getUserInfo] Empty body for user", userId);
-        logger.warn("getUserInfo", `Empty body for user ${userId}`);
-        return null;
-      }
-
-      // Handle both camelCase (from user-service) and snake_case formats
-      const firstName = user.firstName || user.first_name || "";
-      const lastName = user.lastName || user.last_name || "";
-      const phoneNumber = user.phoneNumber || user.phone_number || "";
-      const fullName = `${firstName} ${lastName}`.trim();
-      const displayName =
-        fullName || user.username || phoneNumber || "Utilisateur";
-
-      const avatarUrl =
-        user.profilePictureUrl ||
-        user.profile_picture_url ||
-        user.avatar_url ||
-        undefined;
-
-      return {
-        id: user.id,
-        display_name: displayName,
-        username: user.username,
-        avatar_url: avatarUrl,
-      };
-    } catch (err) {
-      console.warn("[getUserInfo] Failed for user", userId, err);
-      logger.warn("getUserInfo", `Failed for user ${userId}`, err);
-      return null;
+  async getUserInfo(userId: string): Promise<CachedUserInfo | null> {
+    // 1. Fresh cache hit → return immediately, no network call.
+    const cached = userInfoCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
     }
+
+    // 2. A request for the same userId is already in flight → reuse it.
+    const inflight = userInfoInflight.get(userId);
+    if (inflight) {
+      return inflight;
+    }
+
+    // 3. Kick off a new fetch and remember the Promise so concurrent callers
+    //    (conversations list enrichment, typing indicator, chat screen open)
+    //    share a single network round-trip.
+    const promise = (async (): Promise<CachedUserInfo | null> => {
+      try {
+        const response = await authenticatedFetch(
+          `${getApiBaseUrl()}/user/v1/profile/${encodeURIComponent(userId)}`,
+        );
+
+        if (!response.ok) {
+          logger.warn(
+            "getUserInfo",
+            `HTTP ${response.status} for user ${userId}`,
+          );
+          // Cache negative result briefly to prevent a retry storm when the
+          // backend returns 429 — TTL keeps it from being permanently stuck.
+          userInfoCache.set(userId, {
+            value: null,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          return null;
+        }
+
+        const user = await response.json().catch(() => null);
+        if (!user) {
+          logger.warn("getUserInfo", `Empty body for user ${userId}`);
+          userInfoCache.set(userId, {
+            value: null,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          return null;
+        }
+
+        // Handle both camelCase (from user-service) and snake_case formats
+        const firstName = user.firstName || user.first_name || "";
+        const lastName = user.lastName || user.last_name || "";
+        const phoneNumber = user.phoneNumber || user.phone_number || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        const displayName =
+          fullName || user.username || phoneNumber || "Utilisateur";
+
+        const avatarUrl =
+          user.profilePictureUrl ||
+          user.profile_picture_url ||
+          user.avatar_url ||
+          undefined;
+
+        const info: CachedUserInfo = {
+          id: user.id,
+          display_name: displayName,
+          username: user.username,
+          avatar_url: avatarUrl,
+        };
+
+        userInfoCache.set(userId, {
+          value: info,
+          expiresAt: Date.now() + USER_INFO_TTL_MS,
+        });
+        return info;
+      } catch (err) {
+        logger.warn("getUserInfo", `Failed for user ${userId}`, err);
+        return null;
+      } finally {
+        userInfoInflight.delete(userId);
+      }
+    })();
+
+    userInfoInflight.set(userId, promise);
+    return promise;
   },
 
   async getConversationMembers(
