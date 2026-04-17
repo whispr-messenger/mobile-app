@@ -40,7 +40,10 @@ function resolveMediaUrl(url: string | undefined): string {
   }
   if (url.startsWith("http://") || url.startsWith("https://")) {
     // URLs pointing to the media service blob/thumbnail endpoints are always valid
-    if (url.includes("/media/v1/") && (url.includes("/blob") || url.includes("/thumbnail"))) {
+    if (
+      url.includes("/media/v1/") &&
+      (url.includes("/blob") || url.includes("/thumbnail"))
+    ) {
       return url;
     }
     // Other absolute URLs (e.g. expired presigned S3/MinIO URLs) are returned as-is;
@@ -106,25 +109,41 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     message.attachments && message.attachments.length > 0;
 
   const metadataAttachment = (() => {
-    if (hasExplicitAttachments || message.message_type !== "media" || !message.metadata) {
+    if (
+      hasExplicitAttachments ||
+      message.message_type !== "media" ||
+      !message.metadata
+    ) {
       return null;
     }
     const meta = message.metadata as any;
     if (!meta.media_url && !meta.media_id) return null;
 
-    // Prefer media-service blob/thumbnail endpoints when a media_id is available
+    // Prefer the public URL the server sent us — /media/v1/{id}/blob currently
+    // 403s for anyone other than the uploader, and /thumbnail 404s for everyone.
     const mediaId = meta.media_id;
     const apiBase = getApiBaseUrl();
-    const blobUrl = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : meta.media_url;
-    const thumbUrl = mediaId
+    const isPublicUrl = (u?: string) =>
+      typeof u === "string" &&
+      u.length > 0 &&
+      !u.includes(".svc.cluster.local");
+    const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
+    const thumbFallback = mediaId
       ? `${apiBase}/media/v1/${mediaId}/thumbnail`
-      : meta.thumbnail_url || meta.media_url;
+      : null;
+    const blobUrl = isPublicUrl(meta.media_url)
+      ? meta.media_url
+      : blobFallback || meta.media_url;
+    const thumbUrl = isPublicUrl(meta.thumbnail_url)
+      ? meta.thumbnail_url
+      : thumbFallback || blobUrl;
 
     return {
       id: `synth-${message.id}`,
       message_id: message.id,
       media_id: mediaId || message.id,
-      media_type: meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
+      media_type:
+        meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
       metadata: {
         filename: meta.filename,
         size: meta.size,
