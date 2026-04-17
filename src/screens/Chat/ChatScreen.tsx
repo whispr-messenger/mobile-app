@@ -1838,6 +1838,7 @@ export const ChatScreen: React.FC = () => {
           visible={showInfoModal && conversation?.type !== "group"}
           transparent
           animationType="slide"
+          statusBarTranslucent
           onRequestClose={() => {
             setShowInfoModal(false);
           }}
@@ -1983,7 +1984,6 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   modalGradient: {
-    flex: 1,
     paddingBottom: 20,
   },
   modalHeader: {
