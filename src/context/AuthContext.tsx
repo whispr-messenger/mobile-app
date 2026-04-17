@@ -1,11 +1,19 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthService } from '../services/AuthService';
-import { TokenService } from '../services/TokenService';
-import { destroySharedSocket } from '../services/messaging/websocket';
-import { useConversationsStore } from '../store/conversationsStore';
-import { usePresenceStore } from '../store/presenceStore';
-import { cacheService } from '../services/messaging/cache';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AuthService } from "../services/AuthService";
+import { TokenService } from "../services/TokenService";
+import { destroySharedSocket } from "../services/messaging/websocket";
+import { useConversationsStore } from "../store/conversationsStore";
+import { usePresenceStore } from "../store/presenceStore";
+import { cacheService } from "../services/messaging/cache";
+import { onSessionExpired } from "../services/sessionEvents";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -21,7 +29,9 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [state, setState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: true,
@@ -67,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useConversationsStore.getState().reset();
     usePresenceStore.getState().reset();
     await cacheService.clearCache();
-    await AsyncStorage.removeItem('@whispr/manually_unread_ids');
+    await AsyncStorage.removeItem("@whispr/manually_unread_ids");
 
     if (state.deviceId && state.userId) {
       await AuthService.logout(state.deviceId, state.userId);
@@ -82,6 +92,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, [state.deviceId, state.userId]);
 
+  // Listen for session-expired events emitted by service-layer 401/revocation
+  // handlers. Clears local state and navigates the user back to the login
+  // screen without relying on each screen to catch the error individually.
+  const signOutRef = useRef(signOut);
+  useEffect(() => {
+    signOutRef.current = signOut;
+  }, [signOut]);
+  useEffect(() => {
+    const sub = onSessionExpired((payload) => {
+      console.warn(
+        "[AuthContext] sessionExpired event received, signing out:",
+        payload,
+      );
+      signOutRef.current().catch(() => {
+        // Best-effort: ignore errors, signOut already clears local state.
+      });
+    });
+    return () => sub.remove();
+  }, []);
+
   return (
     <AuthContext.Provider value={{ ...state, signIn, signOut }}>
       {children}
@@ -91,6 +121,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = (): AuthContextType => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 };
