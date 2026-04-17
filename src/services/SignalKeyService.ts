@@ -13,14 +13,23 @@ nacl.setPRNG((x: Uint8Array, n: number) => {
 const NUM_ONE_TIME_PREKEYS = 100;
 
 // Generate keyIds that fit in 32-bit signed INT (< 2^31 ≈ 2.14e9).
-// Unix seconds (~1.77e9 now) fits; offset one-time prekeys by a safe margin
-// so they don't collide with the signed prekey id from the same login.
+// Random 30-bit base avoids same-second collisions when the user
+// reconnects multiple times, and leaves ~100 slots below 2^31 for the
+// one-time prekeys numbered `base + i` (i < 100).
 function generateSignedPrekeyId(): number {
-  return Math.floor(Date.now() / 1000);
+  return Math.floor(Math.random() * 0x40000000);
 }
 
 function generatePrekeyIdBase(signedPrekeyId: number): number {
-  return signedPrekeyId + 1_000_000;
+  // Pick a different random base for one-time prekeys so they never
+  // overlap the signed prekey id even if both are generated in the same
+  // second. The +/- spread within 2^30 keeps everything in INT32 range.
+  let base = Math.floor(Math.random() * 0x40000000);
+  if (Math.abs(base - signedPrekeyId) < 200) {
+    // In the unlikely collision, shift far enough away from signedPrekeyId.
+    base = (signedPrekeyId + 0x20000000) & 0x3fffffff;
+  }
+  return base;
 }
 
 function toBase64(bytes: Uint8Array): string {
