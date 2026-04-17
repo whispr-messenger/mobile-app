@@ -52,6 +52,9 @@ function useResolvedMediaUrl(uri: string | undefined): {
     }
 
     let cancelled = false;
+    // Clear while resolving — the raw /blob or /thumbnail URL needs an auth
+    // header that <Image> can't send, so leaving it would break the fallback.
+    setResolvedUri("");
     setLoading(true);
     setError(false);
 
@@ -76,13 +79,13 @@ function useResolvedMediaUrl(uri: string | undefined): {
             `[MediaMessage] Failed to resolve media URL: HTTP ${response.status}`,
           );
           setError(true);
-          setResolvedUri(uri);
+          setResolvedUri("");
         }
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
         setError(true);
-        setResolvedUri(uri);
+        setResolvedUri("");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -158,7 +161,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         try {
           // Load video first
           try {
-            const loadResult = await playerVideoRef.current.loadAsync({ uri: resolvedMainUri });
+            const loadResult = await playerVideoRef.current.loadAsync({
+              uri: resolvedMainUri,
+            });
             console.log(
               "[MediaMessage] Video preloaded",
               loadResult ? "with status" : "no status",
@@ -200,7 +205,16 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           style={styles.imageContainer}
         >
           {mainLoading ? (
-            <View style={[styles.image, { justifyContent: "center", alignItems: "center", backgroundColor: "rgba(26, 31, 58, 0.4)" }]}>
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(26, 31, 58, 0.4)",
+                },
+              ]}
+            >
               <ActivityIndicator size="small" color={colors.primary.main} />
             </View>
           ) : (

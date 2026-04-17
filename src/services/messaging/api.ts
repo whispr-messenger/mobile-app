@@ -50,9 +50,12 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     isPublicUrl,
   );
 
-  const resolvedUrl = mediaBlobUrl || fallbackUrl;
+  // Prefer any public URL the backend gave us — the media-service /blob
+  // endpoint currently 403s for anyone other than the uploader, so it only
+  // works for own messages. The stored presigned URL works for both sides.
+  const resolvedUrl = fallbackUrl || mediaBlobUrl;
   const resolvedThumbnail =
-    mediaThumbnailUrl || fallbackThumbnail || resolvedUrl;
+    fallbackThumbnail || mediaThumbnailUrl || resolvedUrl;
 
   return {
     id: att?.id,
@@ -245,7 +248,17 @@ export const messagingAPI = {
     }
 
     const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    const messages = Array.isArray(data) ? data : [];
+    return messages.map((msg: any) =>
+      Array.isArray(msg?.attachments) && msg.attachments.length > 0
+        ? {
+            ...msg,
+            attachments: msg.attachments.map((att: any) =>
+              mapBackendAttachment(att, msg.id),
+            ),
+          }
+        : msg,
+    );
   },
 
   async sendMessage(
