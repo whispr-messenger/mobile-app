@@ -30,6 +30,7 @@
     "expo-crypto": "^15.0.8",
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
+    "expo-file-system": "^55.0.16",
     "expo-gl": "~14.0.2",
     "expo-haptics": "~15.0.7",
     "expo-image-manipulator": "~13.0.6",

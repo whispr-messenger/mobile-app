@@ -13,6 +13,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,18 +46,23 @@ export const AppealReviewScreen: React.FC = () => {
   const { reviewAppeal } = useModerationStore();
 
   const appeal = route.params.appeal;
+  const isBlockedImage = appeal.type === "blocked_image";
   const [adminNotes, setAdminNotes] = useState("");
   const [processing, setProcessing] = useState(false);
   const [sanction, setSanction] = useState<UserSanction | null>(null);
-  const [loadingSanction, setLoadingSanction] = useState(true);
+  const [loadingSanction, setLoadingSanction] = useState(!isBlockedImage);
 
   useEffect(() => {
+    if (isBlockedImage || !appeal.sanctionId) {
+      setLoadingSanction(false);
+      return;
+    }
     sanctionsAPI
       .getSanction(appeal.sanctionId)
       .then(setSanction)
       .catch(() => {})
       .finally(() => setLoadingSanction(false));
-  }, [appeal.sanctionId]);
+  }, [appeal.sanctionId, isBlockedImage]);
 
   const handleAction = useCallback(
     (status: "accepted" | "rejected", actionLabel: string) => {
@@ -65,9 +71,15 @@ export const AppealReviewScreen: React.FC = () => {
           ? "La sanction sera levée et l'utilisateur sera rétabli."
           : "La sanction sera maintenue.";
 
+      const confirmMessage = isBlockedImage
+        ? status === "accepted"
+          ? "L'image sera renvoyée à l'utilisateur."
+          : "L'image restera bloquée."
+        : message;
+
       Alert.alert(
         `Confirmer : ${actionLabel}`,
-        `${message}\n\nNotes : ${adminNotes || "(aucune)"}`,
+        `${confirmMessage}\n\nNotes : ${adminNotes || "(aucune)"}`,
         [
           { text: "Annuler", style: "cancel" },
           {
@@ -78,7 +90,7 @@ export const AppealReviewScreen: React.FC = () => {
               try {
                 await reviewAppeal(appeal.id, status, adminNotes || undefined);
 
-                if (status === "accepted" && sanction) {
+                if (status === "accepted" && sanction && !isBlockedImage) {
                   try {
                     await sanctionsAPI.liftSanction(sanction.id);
                   } catch {
@@ -99,7 +111,7 @@ export const AppealReviewScreen: React.FC = () => {
         ],
       );
     },
-    [adminNotes, appeal, sanction, reviewAppeal, navigation],
+    [adminNotes, appeal, sanction, reviewAppeal, navigation, isBlockedImage],
   );
 
   return (
@@ -132,6 +144,46 @@ export const AppealReviewScreen: React.FC = () => {
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Blocked image preview */}
+            {isBlockedImage ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Image contestée</Text>
+                {appeal.evidence?.thumbnailBase64 ? (
+                  <Image
+                    source={{
+                      uri: `data:image/jpeg;base64,${appeal.evidence.thumbnailBase64}`,
+                    }}
+                    style={styles.blockedPreview}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text style={styles.noData}>Aucune miniature transmise</Text>
+                )}
+                {appeal.evidence?.blockReason ? (
+                  <View style={styles.reasonBox}>
+                    <Text style={styles.reasonLabel}>Raison du blocage</Text>
+                    <Text style={styles.reasonText}>
+                      {appeal.evidence.blockReason}
+                    </Text>
+                  </View>
+                ) : null}
+                {appeal.evidence?.scores &&
+                Object.keys(appeal.evidence.scores).length > 0 ? (
+                  <View style={styles.scoresBox}>
+                    <Text style={styles.reasonLabel}>Scores du classifier</Text>
+                    {Object.entries(appeal.evidence.scores).map(([k, v]) => (
+                      <View key={k} style={styles.scoreRow}>
+                        <Text style={styles.scoreKey}>{k}</Text>
+                        <Text style={styles.scoreVal}>
+                          {typeof v === "number" ? v.toFixed(3) : String(v)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Appeal Details */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Détails de l'appel</Text>
@@ -192,57 +244,62 @@ export const AppealReviewScreen: React.FC = () => {
             </View>
 
             {/* Original Sanction */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Sanction originale</Text>
-              {loadingSanction ? (
-                <ActivityIndicator size="small" color={colors.primary.main} />
-              ) : sanction ? (
-                <>
-                  <View style={styles.sanctionRow}>
-                    <SanctionBadge
-                      type={sanction.type}
-                      active={sanction.active}
-                      size="medium"
-                    />
-                    {sanction.active && (
-                      <View style={styles.activeDot}>
-                        <Text style={styles.activeLabel}>Active</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.sanctionDetails}>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Raison</Text>
-                      <Text style={styles.detailValue}>{sanction.reason}</Text>
+            {!isBlockedImage ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Sanction originale</Text>
+                {loadingSanction ? (
+                  <ActivityIndicator size="small" color={colors.primary.main} />
+                ) : sanction ? (
+                  <>
+                    <View style={styles.sanctionRow}>
+                      <SanctionBadge
+                        type={sanction.type}
+                        active={sanction.active}
+                        size="medium"
+                      />
+                      {sanction.active && (
+                        <View style={styles.activeDot}>
+                          <Text style={styles.activeLabel}>Active</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Date</Text>
-                      <Text style={styles.detailValue}>
-                        {formatDate(sanction.createdAt)}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Par</Text>
-                      <Text style={styles.detailValue}>
-                        {sanction.issuedBy.slice(0, 8)}...
-                      </Text>
-                    </View>
-                    {sanction.expiresAt && (
+                    <View style={styles.sanctionDetails}>
                       <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Expire</Text>
+                        <Text style={styles.detailLabel}>Raison</Text>
                         <Text style={styles.detailValue}>
-                          {formatDate(sanction.expiresAt)}
+                          {sanction.reason}
                         </Text>
                       </View>
-                    )}
-                  </View>
-                </>
-              ) : (
-                <Text style={styles.noData}>
-                  Sanction introuvable (ID: {appeal.sanctionId.slice(0, 8)}...)
-                </Text>
-              )}
-            </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Date</Text>
+                        <Text style={styles.detailValue}>
+                          {formatDate(sanction.createdAt)}
+                        </Text>
+                      </View>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Par</Text>
+                        <Text style={styles.detailValue}>
+                          {sanction.issuedBy.slice(0, 8)}...
+                        </Text>
+                      </View>
+                      {sanction.expiresAt && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Expire</Text>
+                          <Text style={styles.detailValue}>
+                            {formatDate(sanction.expiresAt)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </>
+                ) : (
+                  <Text style={styles.noData}>
+                    Sanction introuvable (ID:{" "}
+                    {appeal.sanctionId?.slice(0, 8) ?? "—"}...)
+                  </Text>
+                )}
+              </View>
+            ) : null}
 
             {/* Previous review */}
             {appeal.reviewerId && (
@@ -286,16 +343,34 @@ export const AppealReviewScreen: React.FC = () => {
                 <>
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.rejectBtn]}
-                    onPress={() => handleAction("rejected", "Rejeter l'appel")}
+                    onPress={() =>
+                      handleAction(
+                        "rejected",
+                        isBlockedImage
+                          ? "Refuser (garder bloquée)"
+                          : "Rejeter l'appel",
+                      )
+                    }
                     activeOpacity={0.7}
                   >
                     <Ionicons name="close-circle" size={20} color="#FFFFFF" />
-                    <Text style={styles.actionBtnText}>Rejeter l'appel</Text>
+                    <Text style={styles.actionBtnText}>
+                      {isBlockedImage
+                        ? "Refuser (garder bloquée)"
+                        : "Rejeter l'appel"}
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.acceptBtn]}
-                    onPress={() => handleAction("accepted", "Accepter l'appel")}
+                    onPress={() =>
+                      handleAction(
+                        "accepted",
+                        isBlockedImage
+                          ? "Approuver (envoyer l'image)"
+                          : "Accepter l'appel",
+                      )
+                    }
                     activeOpacity={0.7}
                   >
                     <Ionicons
@@ -303,7 +378,11 @@ export const AppealReviewScreen: React.FC = () => {
                       size={20}
                       color="#FFFFFF"
                     />
-                    <Text style={styles.actionBtnText}>Accepter l'appel</Text>
+                    <Text style={styles.actionBtnText}>
+                      {isBlockedImage
+                        ? "Approuver (envoyer l'image)"
+                        : "Accepter l'appel"}
+                    </Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -511,5 +590,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  blockedPreview: {
+    width: 200,
+    height: 200,
+    alignSelf: "center",
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    marginBottom: 12,
+  },
+  scoresBox: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  scoreRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 3,
+  },
+  scoreKey: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    fontFamily: "monospace",
+  },
+  scoreVal: {
+    fontSize: 12,
+    color: "#FFFFFF",
+    fontFamily: "monospace",
   },
 });

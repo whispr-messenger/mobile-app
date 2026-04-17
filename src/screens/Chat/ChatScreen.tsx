@@ -68,6 +68,9 @@ import { SchedulingService } from "../../services/SchedulingService";
 import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
+import { BlockedImageAppealModal } from "../../components/Chat/BlockedImageAppealModal";
+import { useModerationStore } from "../../store/moderationStore";
+import { getSharedSocket } from "../../services/messaging/websocket";
 import { offlineQueue, QueuedMessage } from "../../services/offlineQueue";
 import {
   validateReactionEmoji,
@@ -143,6 +146,18 @@ export const ChatScreen: React.FC = () => {
     null,
   );
   const [addingContact, setAddingContact] = useState(false);
+  const [appealModal, setAppealModal] = useState<{
+    visible: boolean;
+    imageUri: string;
+    blockReason?: string;
+    scores?: Record<string, number>;
+    messageTempId: string;
+  } | null>(null);
+  const pendingAppeals = useModerationStore((s) => s.pendingAppeals);
+  const handleAppealDecision = useModerationStore(
+    (s) => s.handleAppealDecision,
+  );
+  const cleanupAppeal = useModerationStore((s) => s.cleanupAppeal);
   const allConversations = useConversationsStore((s) => s.conversations);
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
   const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
@@ -474,6 +489,64 @@ export const ChatScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
 
+  // Listen for admin decisions on blocked-image appeals.
+  // On approve: re-submit the original image bypassing the gate.
+  // On reject: annotate the bubble so the user sees "Refusée par l'admin".
+  useEffect(() => {
+    if (!userId) return;
+    let socket: ReturnType<typeof getSharedSocket>;
+    try {
+      socket = getSharedSocket();
+    } catch {
+      return;
+    }
+    const channel = socket.channel(`user:${userId}`);
+    const onDecision = (data: any) => {
+      const messageTempId: string | undefined =
+        data?.messageTempId || data?.message_temp_id;
+      const decision: "approved" | "rejected" | undefined = data?.decision;
+      if (!messageTempId || !decision) return;
+
+      const current =
+        useModerationStore.getState().pendingAppeals[messageTempId];
+      handleAppealDecision({ messageTempId, decision });
+
+      if (decision === "approved" && current?.localUri) {
+        // Re-submit bypassing the gate, then cleanup.
+        handleSendMedia(current.localUri, "image", undefined, undefined, {
+          skipGate: true,
+        })
+          .catch((err) =>
+            logger.warn("ChatScreen", "re-submit after appeal failed", err),
+          )
+          .finally(() => {
+            cleanupAppeal(messageTempId).catch(() => {});
+          });
+      } else if (decision === "rejected") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageTempId
+              ? {
+                  ...m,
+                  metadata: {
+                    ...(m.metadata || {}),
+                    appealRejected: true,
+                  } as any,
+                  content: "Refusée par l'admin",
+                }
+              : m,
+          ),
+        );
+        cleanupAppeal(messageTempId).catch(() => {});
+      }
+    };
+    channel.on("blocked_image_decision", onDecision);
+    return () => {
+      channel.off("blocked_image_decision", onDecision);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
   // Check if the other user in a direct conversation is in our contacts
   useEffect(() => {
     if (!conversation || conversation.type !== "direct" || !userId) {
@@ -786,6 +859,7 @@ export const ChatScreen: React.FC = () => {
       type: "image" | "video" | "file" | "audio",
       replyToId?: string,
       caption?: string,
+      opts?: { skipGate?: boolean },
     ) => {
       // Stop typing indicator
       sendTyping(conversationId, false);
@@ -880,14 +954,13 @@ export const ChatScreen: React.FC = () => {
 
       try {
         // Gate check: block inappropriate images before upload
-        if (type === "image") {
+        if (type === "image" && !opts?.skipGate) {
           const gateResult = await gateChatImageBeforeSend(uri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";
-            // Show a user-visible alert so the sender is aware the image was blocked
-            showAlert("Envoi bloqué", blockedReason);
-            // Keep message in chat but mark as blocked
+            // Keep message in chat but mark as blocked, and annotate
+            // metadata so the bubble can offer a "Contester" action.
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempMessageId
@@ -895,10 +968,25 @@ export const ChatScreen: React.FC = () => {
                       ...m,
                       status: "failed" as const,
                       content: blockedReason,
+                      metadata: {
+                        ...(m.metadata || {}),
+                        blockedByModeration: true,
+                        blockReason: blockedReason,
+                        scores: gateResult.scores,
+                        localUri: uri,
+                      } as any,
                     }
                   : m,
               ),
             );
+            // Open the appeal modal so the user can contest immediately.
+            setAppealModal({
+              visible: true,
+              imageUri: uri,
+              blockReason: blockedReason,
+              scores: gateResult.scores,
+              messageTempId: tempMessageId,
+            });
             return;
           }
         }
@@ -1619,6 +1707,17 @@ export const ChatScreen: React.FC = () => {
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
+          pendingAppeal={pendingAppeals[message.id]}
+          onContest={(m) => {
+            const meta = (m.metadata || {}) as any;
+            setAppealModal({
+              visible: true,
+              imageUri: meta.localUri || "",
+              blockReason: meta.blockReason,
+              scores: meta.scores,
+              messageTempId: m.id,
+            });
+          }}
         />
       );
     },
@@ -1633,6 +1732,7 @@ export const ChatScreen: React.FC = () => {
       handleMessageLongPress,
       searchQuery,
       searchResults,
+      pendingAppeals,
     ],
   );
 
@@ -1813,6 +1913,31 @@ export const ChatScreen: React.FC = () => {
           resolveName={resolveReactorDisplayName}
           onClose={() => setReactionReactorsModal(null)}
         />
+        {appealModal ? (
+          <BlockedImageAppealModal
+            visible={appealModal.visible}
+            onClose={() =>
+              setAppealModal((prev) =>
+                prev ? { ...prev, visible: false } : prev,
+              )
+            }
+            imageUri={appealModal.imageUri}
+            blockReason={appealModal.blockReason}
+            scores={appealModal.scores}
+            messageTempId={appealModal.messageTempId}
+            conversationId={conversationId}
+            recipientId={
+              conversation?.type === "direct"
+                ? (
+                    conversation.member_user_ids ||
+                    conversation.members?.map(
+                      (m: { user_id: string }) => m.user_id,
+                    )
+                  )?.find((id: string) => id !== userId)
+                : undefined
+            }
+          />
+        ) : null}
         <MessageSearch
           visible={showSearch}
           onClose={() => {
