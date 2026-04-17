@@ -23,9 +23,13 @@ export async function gateChatImageBeforeSend(
       };
     return { ok: true };
   } catch (e) {
+    console.error(
+      "[moderation] TFJS image gate FAILED — allowing image as fallback:",
+      e,
+    );
     logger.warn(
       "moderation",
-      "TFJS image gate could not run (model failed to load or inference error). Allowing image as fallback.",
+      "TFJS image gate could not run. See console.error above for stack.",
       e,
     );
     return { ok: true };
