@@ -22,7 +22,11 @@ interface Props {
   size?: "small" | "medium";
 }
 
-export const SanctionBadge: React.FC<Props> = ({ type, active = true, size = "small" }) => {
+export const SanctionBadge: React.FC<Props> = ({
+  type,
+  active = true,
+  size = "small",
+}) => {
   const config = SANCTION_CONFIG[type] || SANCTION_CONFIG.warning;
   const color = active ? config.color : "#8E8E93";
   const iconSize = size === "medium" ? 16 : 14;
@@ -31,9 +35,7 @@ export const SanctionBadge: React.FC<Props> = ({ type, active = true, size = "sm
   return (
     <View style={[styles.badge, { backgroundColor: color + "20" }]}>
       <Ionicons name={config.icon} size={iconSize} color={color} />
-      <Text style={[styles.text, { color, fontSize }]}>
-        {config.label}
-      </Text>
+      <Text style={[styles.text, { color, fontSize }]}>{config.label}</Text>
     </View>
   );
 };

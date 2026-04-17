@@ -48,7 +48,12 @@ const TIMELINE_STEPS: TimelineStep[] = [
   },
 ];
 
-const STATUS_ORDER: AppealStatus[] = ["pending", "under_review", "accepted", "rejected"];
+const STATUS_ORDER: AppealStatus[] = [
+  "pending",
+  "under_review",
+  "accepted",
+  "rejected",
+];
 
 const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString("fr-FR", {
@@ -101,7 +106,12 @@ export const AppealStatusScreen: React.FC = () => {
         <SafeAreaView style={styles.container} edges={["top"]}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.main} />
-            <Text style={[styles.loadingText, { color: themeColors.text.secondary }]}>
+            <Text
+              style={[
+                styles.loadingText,
+                { color: themeColors.text.secondary },
+              ]}
+            >
               Chargement...
             </Text>
           </View>
@@ -120,10 +130,19 @@ export const AppealStatusScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={themeColors.text.primary} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={themeColors.text.primary}
+            />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>
+          <Text
+            style={[styles.headerTitle, { color: themeColors.text.primary }]}
+          >
             Suivi de la contestation
           </Text>
           <View style={styles.placeholder} />
@@ -133,34 +152,77 @@ export const AppealStatusScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.primary.main} />
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={onRefresh}
+              tintColor={colors.primary.main}
+            />
           }
         >
           {!appeal ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="help-circle-outline" size={64} color={themeColors.text.tertiary} />
-              <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
+              <Ionicons
+                name="help-circle-outline"
+                size={64}
+                color={themeColors.text.tertiary}
+              />
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
                 Contestation introuvable
               </Text>
             </View>
           ) : (
             <>
               {/* Appeal Summary */}
-              <View style={[styles.summaryCard, { backgroundColor: themeColors.background.secondary }]}>
-                <Text style={[styles.summaryLabel, { color: themeColors.text.tertiary }]}>
+              <View
+                style={[
+                  styles.summaryCard,
+                  { backgroundColor: themeColors.background.secondary },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.summaryLabel,
+                    { color: themeColors.text.tertiary },
+                  ]}
+                >
                   Votre motif
                 </Text>
-                <Text style={[styles.summaryText, { color: themeColors.text.primary }]}>
+                <Text
+                  style={[
+                    styles.summaryText,
+                    { color: themeColors.text.primary },
+                  ]}
+                >
                   {appeal.reason}
                 </Text>
-                <Text style={[styles.summaryDate, { color: themeColors.text.tertiary }]}>
+                <Text
+                  style={[
+                    styles.summaryDate,
+                    { color: themeColors.text.tertiary },
+                  ]}
+                >
                   Soumise le {formatDate(appeal.createdAt)}
                 </Text>
               </View>
 
               {/* Timeline */}
-              <View style={[styles.timelineCard, { backgroundColor: themeColors.background.secondary }]}>
-                <Text style={[styles.timelineTitle, { color: themeColors.text.primary }]}>
+              <View
+                style={[
+                  styles.timelineCard,
+                  { backgroundColor: themeColors.background.secondary },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.timelineTitle,
+                    { color: themeColors.text.primary },
+                  ]}
+                >
                   Progression
                 </Text>
 
@@ -168,7 +230,9 @@ export const AppealStatusScreen: React.FC = () => {
                   const stepIndex = STATUS_ORDER.indexOf(step.key);
                   const isReached = currentStepIndex >= stepIndex;
                   const isCurrent = currentStepIndex === stepIndex && !isFinal;
-                  const stepColor = isReached ? colors.primary.main : themeColors.text.tertiary + "40";
+                  const stepColor = isReached
+                    ? colors.primary.main
+                    : themeColors.text.tertiary + "40";
 
                   return (
                     <View key={step.key} style={styles.timelineStep}>
@@ -177,14 +241,23 @@ export const AppealStatusScreen: React.FC = () => {
                         <View
                           style={[
                             styles.connectorLine,
-                            { backgroundColor: isReached ? colors.primary.main : themeColors.text.tertiary + "20" },
+                            {
+                              backgroundColor: isReached
+                                ? colors.primary.main
+                                : themeColors.text.tertiary + "20",
+                            },
                           ]}
                         />
                       )}
 
                       <View style={styles.timelineStepContent}>
                         {/* Circle */}
-                        <View style={[styles.stepCircle, { backgroundColor: stepColor }]}>
+                        <View
+                          style={[
+                            styles.stepCircle,
+                            { backgroundColor: stepColor },
+                          ]}
+                        >
                           {isReached ? (
                             <Ionicons
                               name={isCurrent ? step.icon : "checkmark"}
@@ -201,7 +274,11 @@ export const AppealStatusScreen: React.FC = () => {
                           <Text
                             style={[
                               styles.stepLabel,
-                              { color: isReached ? themeColors.text.primary : themeColors.text.tertiary },
+                              {
+                                color: isReached
+                                  ? themeColors.text.primary
+                                  : themeColors.text.tertiary,
+                              },
                             ]}
                           >
                             {step.label}
@@ -209,21 +286,37 @@ export const AppealStatusScreen: React.FC = () => {
                           <Text
                             style={[
                               styles.stepDescription,
-                              { color: isReached ? themeColors.text.secondary : themeColors.text.tertiary },
+                              {
+                                color: isReached
+                                  ? themeColors.text.secondary
+                                  : themeColors.text.tertiary,
+                              },
                             ]}
                           >
                             {step.description}
                           </Text>
                           {isReached && step.key === "pending" && (
-                            <Text style={[styles.stepDate, { color: themeColors.text.tertiary }]}>
+                            <Text
+                              style={[
+                                styles.stepDate,
+                                { color: themeColors.text.tertiary },
+                              ]}
+                            >
                               {formatDate(appeal.createdAt)}
                             </Text>
                           )}
-                          {isReached && step.key === "under_review" && appeal.updatedAt !== appeal.createdAt && (
-                            <Text style={[styles.stepDate, { color: themeColors.text.tertiary }]}>
-                              {formatDate(appeal.updatedAt)}
-                            </Text>
-                          )}
+                          {isReached &&
+                            step.key === "under_review" &&
+                            appeal.updatedAt !== appeal.createdAt && (
+                              <Text
+                                style={[
+                                  styles.stepDate,
+                                  { color: themeColors.text.tertiary },
+                                ]}
+                              >
+                                {formatDate(appeal.updatedAt)}
+                              </Text>
+                            )}
                         </View>
                       </View>
                     </View>
@@ -243,11 +336,15 @@ export const AppealStatusScreen: React.FC = () => {
                       <View
                         style={[
                           styles.stepCircle,
-                          { backgroundColor: isAccepted ? "#4CD964" : "#FF3B30" },
+                          {
+                            backgroundColor: isAccepted ? "#4CD964" : "#FF3B30",
+                          },
                         ]}
                       >
                         <Ionicons
-                          name={isAccepted ? "checkmark-circle" : "close-circle"}
+                          name={
+                            isAccepted ? "checkmark-circle" : "close-circle"
+                          }
                           size={16}
                           color="#FFFFFF"
                         />
@@ -262,14 +359,22 @@ export const AppealStatusScreen: React.FC = () => {
                           {isAccepted ? "Acceptée" : "Rejetée"}
                         </Text>
                         <Text
-                          style={[styles.stepDescription, { color: themeColors.text.secondary }]}
+                          style={[
+                            styles.stepDescription,
+                            { color: themeColors.text.secondary },
+                          ]}
                         >
                           {isAccepted
                             ? "Votre sanction a été levée"
                             : "Votre contestation a été rejetée"}
                         </Text>
                         {appeal.resolvedAt && (
-                          <Text style={[styles.stepDate, { color: themeColors.text.tertiary }]}>
+                          <Text
+                            style={[
+                              styles.stepDate,
+                              { color: themeColors.text.tertiary },
+                            ]}
+                          >
                             {formatDate(appeal.resolvedAt)}
                           </Text>
                         )}
@@ -281,14 +386,33 @@ export const AppealStatusScreen: React.FC = () => {
 
               {/* Reviewer Notes (if rejected) */}
               {isRejected && appeal.reviewerNotes && (
-                <View style={[styles.notesCard, { backgroundColor: themeColors.background.secondary }]}>
+                <View
+                  style={[
+                    styles.notesCard,
+                    { backgroundColor: themeColors.background.secondary },
+                  ]}
+                >
                   <View style={styles.notesHeader}>
-                    <Ionicons name="chatbox-ellipses-outline" size={18} color={themeColors.text.tertiary} />
-                    <Text style={[styles.notesTitle, { color: themeColors.text.primary }]}>
+                    <Ionicons
+                      name="chatbox-ellipses-outline"
+                      size={18}
+                      color={themeColors.text.tertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.notesTitle,
+                        { color: themeColors.text.primary },
+                      ]}
+                    >
                       Notes du modérateur
                     </Text>
                   </View>
-                  <Text style={[styles.notesText, { color: themeColors.text.secondary }]}>
+                  <Text
+                    style={[
+                      styles.notesText,
+                      { color: themeColors.text.secondary },
+                    ]}
+                  >
                     {appeal.reviewerNotes}
                   </Text>
                 </View>
@@ -296,10 +420,16 @@ export const AppealStatusScreen: React.FC = () => {
 
               {/* Success Card (if accepted) */}
               {isAccepted && (
-                <View style={[styles.successCard, { backgroundColor: "rgba(76, 217, 100, 0.1)" }]}>
+                <View
+                  style={[
+                    styles.successCard,
+                    { backgroundColor: "rgba(76, 217, 100, 0.1)" },
+                  ]}
+                >
                   <Ionicons name="checkmark-circle" size={32} color="#4CD964" />
                   <Text style={styles.successText}>
-                    Votre sanction a été levée. Vous pouvez reprendre l'utilisation normale de l'application.
+                    Votre sanction a été levée. Vous pouvez reprendre
+                    l'utilisation normale de l'application.
                   </Text>
                 </View>
               )}

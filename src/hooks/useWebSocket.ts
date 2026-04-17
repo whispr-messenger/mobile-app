@@ -83,8 +83,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
   // re-renders triggered by reconnection state changes.
   const userHandlers = useMemo(
     () => ({
-      onMsg: (data: { message: Message }) => {
-        callbacksRef.current.onNewMessage?.(data.message);
+      // message_created: payload is the Message object directly (no wrapper).
+      onMsg: (data: any) => {
+        const msg = (data?.message ?? data) as Message;
+        if (msg?.id) callbacksRef.current.onNewMessage?.(msg);
       },
       onDelivery: (data: { message_id: string; status: string }) => {
         callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
@@ -119,16 +121,16 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     // Remove any prior listeners before registering new ones to prevent
     // duplicate subscriptions when the component re-renders during reconnect.
-    userChannel.off("new_message", userHandlers.onMsg);
+    userChannel.off("message_created", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
 
-    userChannel.on("new_message", userHandlers.onMsg);
+    userChannel.on("message_created", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
 
     return () => {
-      userChannel.off("new_message", userHandlers.onMsg);
+      userChannel.off("message_created", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     };
@@ -140,23 +142,30 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     const channel = socket.channel(`conversation:${conversationId}`);
     channel.join();
 
-    const onMsg = (data: { message: Message }) => {
-      callbacksRef.current.onNewMessage?.(data.message);
+    // message_created: payload is the Message object directly (not wrapped).
+    const onMsg = (data: any) => {
+      const msg = (data?.message ?? data) as Message;
+      if (msg?.id) callbacksRef.current.onNewMessage?.(msg);
     };
     const onTyping = (data: { user_id: string; typing: boolean }) => {
       callbacksRef.current.onTyping?.(data.user_id, data.typing);
     };
-    const onMsgUpdated = (data: { message: Message }) => {
-      callbacksRef.current.onMessageUpdated?.(data.message);
+    // message_updated: payload is the Message object directly.
+    const onMsgUpdated = (data: any) => {
+      const msg = (data?.message ?? data) as Message;
+      if (msg?.id) callbacksRef.current.onMessageUpdated?.(msg);
     };
+    // message_deleted: { id, conversation_id } — always "delete for everyone"
+    // since soft-deletes "for me" are not broadcast.
     const onMsgDeleted = (data: {
-      message_id: string;
-      delete_for_everyone: boolean;
+      id?: string;
+      message_id?: string;
+      conversation_id?: string;
     }) => {
-      callbacksRef.current.onMessageDeleted?.(
-        data.message_id,
-        data.delete_for_everyone,
-      );
+      const messageId = data.id ?? data.message_id;
+      if (messageId) {
+        callbacksRef.current.onMessageDeleted?.(messageId, true);
+      }
     };
     const onDelivery = (data: { message_id: string; status: string }) => {
       callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
@@ -183,35 +192,62 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       });
     };
 
-    const onReactionAdded = (data: Record<string, string>) => {
-      const message_id = data.message_id;
-      const user_id = data.user_id;
-      const reaction = data.reaction;
-      if (message_id && user_id && reaction) {
+    // reaction_added: { message_id, reaction: { id, message_id, user_id, reaction, created_at } }
+    // Unwrap the inner reaction object so the callback keeps the flat shape.
+    const onReactionAdded = (data: any) => {
+      const messageId = data?.message_id;
+      const inner = data?.reaction;
+      // Back-compat: old shape was { message_id, user_id, reaction } with
+      // reaction as a string. Detect and pass through.
+      if (typeof inner === "string" && data?.user_id) {
         callbacksRef.current.onReactionAdded?.({
-          message_id,
-          user_id,
-          reaction,
+          message_id: messageId,
+          user_id: data.user_id,
+          reaction: inner,
+        });
+        return;
+      }
+      if (messageId && inner?.user_id && inner?.reaction) {
+        callbacksRef.current.onReactionAdded?.({
+          message_id: messageId,
+          user_id: inner.user_id,
+          reaction: inner.reaction,
         });
       }
     };
 
-    const onReactionRemoved = (data: Record<string, string>) => {
-      const message_id = data.message_id;
-      const user_id = data.user_id;
-      const reaction = data.reaction;
-      if (message_id && user_id && reaction) {
+    // reaction_removed: { message_id, reaction_id }
+    // The client's callback signature still expects user_id + emoji, so we
+    // pass reaction_id in the `reaction` slot and an empty user_id. Consumers
+    // using reaction_id as an opaque identifier will still work; those
+    // filtering by emoji/user need to refetch. The dual shape below also
+    // accepts the legacy { message_id, user_id, reaction } payload.
+    const onReactionRemoved = (data: any) => {
+      const messageId = data?.message_id;
+      if (
+        data?.user_id &&
+        data?.reaction &&
+        typeof data.reaction === "string"
+      ) {
         callbacksRef.current.onReactionRemoved?.({
-          message_id,
-          user_id,
-          reaction,
+          message_id: messageId,
+          user_id: data.user_id,
+          reaction: data.reaction,
+        });
+        return;
+      }
+      if (messageId && data?.reaction_id) {
+        callbacksRef.current.onReactionRemoved?.({
+          message_id: messageId,
+          user_id: "",
+          reaction: data.reaction_id,
         });
       }
     };
 
-    channel.on("new_message", onMsg);
+    channel.on("message_created", onMsg);
     channel.on("user_typing", onTyping);
-    channel.on("message_edited", onMsgUpdated);
+    channel.on("message_updated", onMsgUpdated);
     channel.on("message_deleted", onMsgDeleted);
     channel.on("delivery_status", onDelivery);
     channel.on("presence_diff", onPresenceDiff);
@@ -220,9 +256,9 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     channel.on("reaction_removed", onReactionRemoved);
 
     const cleanup = () => {
-      channel.off("new_message", onMsg);
+      channel.off("message_created", onMsg);
       channel.off("user_typing", onTyping);
-      channel.off("message_edited", onMsgUpdated);
+      channel.off("message_updated", onMsgUpdated);
       channel.off("message_deleted", onMsgDeleted);
       channel.off("delivery_status", onDelivery);
       channel.off("presence_diff", onPresenceDiff);

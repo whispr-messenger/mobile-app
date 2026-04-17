@@ -175,7 +175,6 @@ export class SocketConnection {
       this.reconnectAttempt > 0 ? "reconnecting" : "connecting",
     );
     this.socket = new WebSocket(url);
-    console.log("[WS] Connecting to", url.replace(/token=[^&]+/, "token=***"));
     logger.info(
       "WS",
       `Connecting to ${url.replace(/token=[^&]+/, "token=***")}`,
@@ -185,7 +184,6 @@ export class SocketConnection {
       const socket = this.socket;
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
-      console.log("[WS] Connected");
       logger.info("WS", "Connected");
       this.reconnectAttempt = 0;
       this.setConnectionState("connected");
@@ -270,7 +268,6 @@ export class SocketConnection {
     };
 
     this.socket.onclose = (ev) => {
-      console.log("[WS] Closed, code:", ev.code, "reason:", ev.reason);
       logger.info("WS", `Closed code=${ev.code} reason=${ev.reason}`);
       this.stopHeartbeat();
       Object.values(this.channels).forEach((ch) => {
@@ -286,7 +283,6 @@ export class SocketConnection {
     };
 
     this.socket.onerror = (err) => {
-      console.error("[WS] Error:", err);
       logger.error("WS", "Socket error", err);
     };
   }
@@ -298,7 +294,6 @@ export class SocketConnection {
     const ch = this.channels[topic];
     if (ch) ch.joinRef = joinRef;
     const payload = encodeMessage(joinRef, ref, topic, "phx_join", {});
-    console.log("[WS] Joining", topic, "ref:", ref);
     logger.debug("WS", `Joining ${topic} ref=${ref}`);
     socket.send(payload);
   }
@@ -326,7 +321,6 @@ export class SocketConnection {
 
     // Stop reconnecting after max attempts (~10 minutes with exponential backoff)
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
-      console.warn("[WS] Max reconnect attempts reached, giving up");
       logger.warn("WS", "Max reconnect attempts reached, giving up");
       this.shouldReconnect = false;
       this.setConnectionState("disconnected");
@@ -363,7 +357,6 @@ export class SocketConnection {
             return;
           }
         } catch (err) {
-          console.warn("[WS] Token refresh failed, stopping reconnect", err);
           logger.warn("WS", "Token refresh failed, stopping reconnect", err);
           this.shouldReconnect = false;
           this.setConnectionState("disconnected");

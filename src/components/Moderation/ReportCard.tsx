@@ -62,23 +62,37 @@ export const ReportCard: React.FC<Props> = ({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.iconContainer, { backgroundColor: "rgba(254, 122, 92, 0.15)" }]}>
+      <View
+        style={[
+          styles.iconContainer,
+          { backgroundColor: "rgba(254, 122, 92, 0.15)" },
+        ]}
+      >
         <Ionicons name={categoryIcon} size={24} color={colors.primary.main} />
       </View>
 
       <View style={styles.info}>
         <View style={styles.topRow}>
-          <Text style={[styles.category, { color: textColor }]} numberOfLines={1}>
+          <Text
+            style={[styles.category, { color: textColor }]}
+            numberOfLines={1}
+          >
             {categoryLabel}
           </Text>
           <Text style={[styles.timeAgo, { color: secondaryTextColor }]}>
             {formatTimeAgo(report.created_at)}
           </Text>
         </View>
-        <Text style={[styles.detail, { color: secondaryTextColor }]} numberOfLines={1}>
+        <Text
+          style={[styles.detail, { color: secondaryTextColor }]}
+          numberOfLines={1}
+        >
           Signal\u00e9 : {report.reported_user_id.slice(0, 8)}...
         </Text>
-        <Text style={[styles.detail, { color: secondaryTextColor }]} numberOfLines={1}>
+        <Text
+          style={[styles.detail, { color: secondaryTextColor }]}
+          numberOfLines={1}
+        >
           Par : {report.reporter_id.slice(0, 8)}...
         </Text>
       </View>
