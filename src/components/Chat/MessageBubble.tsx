@@ -129,24 +129,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     const meta = message.metadata as any;
     if (!meta.media_url && !meta.media_id) return null;
 
-    // Prefer the public URL the server sent us — /media/v1/{id}/blob currently
-    // 403s for anyone other than the uploader, and /thumbnail 404s for everyone.
+    // Always prefer the media-service /blob proxy when we have a mediaId —
+    // stored URLs may carry the internal cluster hostname
+    // (minio.minio.svc.cluster.local) which the browser cannot resolve and
+    // would also trigger Mixed Content over https. Only fall back to the raw
+    // URL when no mediaId is available (legacy metadata).
     const mediaId = meta.media_id;
     const apiBase = getApiBaseUrl();
-    const isPublicUrl = (u?: string) =>
-      typeof u === "string" &&
-      u.length > 0 &&
-      !u.includes(".svc.cluster.local");
+    const isPublicUrl = (u?: string) => {
+      if (typeof u !== "string" || u.length === 0) return false;
+      if (u.includes(".svc.cluster.local")) return false;
+      if (u.includes("minio.minio")) return false;
+      if (/^http:\/\/(minio|[\d.]+:)/i.test(u)) return false;
+      return true;
+    };
     const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
     const thumbFallback = mediaId
       ? `${apiBase}/media/v1/${mediaId}/thumbnail`
       : null;
-    const blobUrl = isPublicUrl(meta.media_url)
-      ? meta.media_url
-      : blobFallback || meta.media_url;
-    const thumbUrl = isPublicUrl(meta.thumbnail_url)
-      ? meta.thumbnail_url
-      : thumbFallback || blobUrl;
+    const blobUrl =
+      blobFallback || (isPublicUrl(meta.media_url) ? meta.media_url : null);
+    const thumbUrl =
+      thumbFallback ||
+      (isPublicUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
 
     return {
       id: `synth-${message.id}`,
