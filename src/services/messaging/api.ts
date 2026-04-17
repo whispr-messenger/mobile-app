@@ -37,11 +37,17 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
     : null;
 
-  // Reject any URL that points at the internal cluster (presigned MinIO URL
-  // baked at upload time) — the browser cannot resolve it. Always prefer the
-  // media-service proxy when a mediaId is available.
-  const isPublicUrl = (u?: string | null) =>
-    typeof u === "string" && !u.includes(".svc.cluster.local");
+  // Reject any URL that points at the internal cluster or raw MinIO host —
+  // the browser cannot resolve those DNS names and http:// on an https page
+  // triggers Mixed Content. Always prefer the media-service /blob proxy when
+  // a mediaId is available, which stays on the public gateway origin.
+  const isPublicUrl = (u?: string | null) => {
+    if (typeof u !== "string" || u.length === 0) return false;
+    if (u.includes(".svc.cluster.local")) return false;
+    if (u.includes("minio.minio")) return false;
+    if (/^http:\/\/(minio|[\d.]+:)/i.test(u)) return false;
+    return true;
+  };
 
   const fallbackUrl = [meta.media_url, att?.file_url, att?.storage_url].find(
     isPublicUrl,
@@ -50,12 +56,12 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     isPublicUrl,
   );
 
-  // Prefer any public URL the backend gave us — the media-service /blob
-  // endpoint currently 403s for anyone other than the uploader, so it only
-  // works for own messages. The stored presigned URL works for both sides.
-  const resolvedUrl = fallbackUrl || mediaBlobUrl;
+  // Prefer the media-service /blob proxy when we have a mediaId — it stays on
+  // the public API gateway and never leaks internal MinIO URLs. Only fall back
+  // to a stored URL when no mediaId is known (legacy rows).
+  const resolvedUrl = mediaBlobUrl || fallbackUrl;
   const resolvedThumbnail =
-    fallbackThumbnail || mediaThumbnailUrl || resolvedUrl;
+    mediaThumbnailUrl || fallbackThumbnail || resolvedUrl;
 
   return {
     id: att?.id,
