@@ -37,8 +37,22 @@ function resolveApiBaseUrlFromConstants(): string | undefined {
   return undefined;
 }
 
+/**
+ * Sur web, servir le bundle et taper l'API sur la même origine évite
+ * totalement CORS (et rend le même build utilisable depuis n'importe
+ * quel vhost / localhost via port-forward, sans avoir à rebuild). Sur
+ * natif, `window` n'existe pas donc on tombe naturellement sur la
+ * config Expo / les valeurs par défaut.
+ */
+function resolveApiBaseUrlFromSameOrigin(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const origin = window.location?.origin;
+  return pickBaseUrl(origin);
+}
+
 export const getApiBaseUrl = (): string => {
   return (
+    resolveApiBaseUrlFromSameOrigin() ??
     resolveApiBaseUrlFromConstants() ??
     (__DEV__ ? APP_CONFIG_DEFAULT_API : PROD_API_URL)
   );
