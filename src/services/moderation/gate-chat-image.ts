@@ -14,9 +14,12 @@ export type GateChatImageResult =
  * On-device TFJS image check before sending a chat image; block send if it fails.
  * Works on both web and native (Android). Caller must skip video/file types.
  *
- * If the TFJS model cannot load (e.g. on web where native TF bindings are
- * unavailable), the gate falls back to { ok: true } so the image is still
- * sent — a warning is logged for observability.
+ * SECURITY: if the gate cannot run (model load failure, image decoding error,
+ * etc.) we now fail CLOSED with { ok: false } rather than silently allowing
+ * the image through. Previously the fallback returned { ok: true }, which
+ * meant that any decoding error on web (e.g. "SOI not found" from jpeg-js
+ * when manipulator returns PNG bytes) disabled the moderation gate entirely
+ * and bypassed the appeal/contestation flow. Fail-closed is the safer default.
  */
 export async function gateChatImageBeforeSend(
   uri: string,
@@ -33,14 +36,18 @@ export async function gateChatImageBeforeSend(
     return { ok: true };
   } catch (e) {
     console.error(
-      "[moderation] TFJS image gate FAILED — allowing image as fallback:",
+      "[moderation] TFJS image gate FAILED — blocking image (fail-closed):",
       e,
     );
     logger.warn(
       "moderation",
-      "TFJS image gate could not run. See console.error above for stack.",
+      "TFJS image gate could not run. Blocking image for safety.",
       e,
     );
-    return { ok: true };
+    return {
+      ok: false,
+      reason:
+        "La vérification de l'image n'a pas pu aboutir. Veuillez réessayer.",
+    };
   }
 }
