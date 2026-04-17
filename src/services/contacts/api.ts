@@ -49,7 +49,6 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
     const response = await fetch(
       `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
       {
-        cache: "no-store",
         headers: {
           ...(await getAuthHeaders()),
         },
@@ -101,7 +100,6 @@ export const contactsAPI = {
   ): Promise<{ contacts: Contact[]; total: number }> {
     const url = `${API_BASE_URL}/contacts`;
     const response = await fetch(url, {
-      cache: "no-store",
       headers: {
         ...(await getAuthHeaders()),
       },
@@ -416,7 +414,6 @@ export const contactsAPI = {
 
   async getContactRequests(): Promise<ContactRequest[]> {
     const response = await fetch(`${API_BASE_URL}/contact-requests`, {
-      cache: "no-store",
       headers: {
         ...(await getAuthHeaders()),
       },
@@ -548,7 +545,6 @@ export const contactsAPI = {
     _limit: number = 50,
   ): Promise<{ blocked: BlockedUser[]; total: number }> {
     const response = await fetch(`${API_BASE_URL}/blocked-users`, {
-      cache: "no-store",
       headers: {
         ...(await getAuthHeaders()),
       },
