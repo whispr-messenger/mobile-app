@@ -149,7 +149,23 @@ export const ChatScreen: React.FC = () => {
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const initialScrollDoneRef = useRef(false);
+  const isNearBottomRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  // `viewabilityConfig` and `onViewableItemsChanged` must be stable references —
+  // FlatList throws if they change between renders. Using refs keeps the
+  // underlying function identity constant while letting us read/write the
+  // latest `isNearBottomRef` value from inside the handler.
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+  const handleViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
+      // Inverted list: index 0 is the newest message (rendered at the bottom).
+      // If it is visible, the user is reading the latest section and we can
+      // safely auto-scroll when a new message arrives.
+      isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
+    },
+  ).current;
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -235,6 +251,24 @@ export const ChatScreen: React.FC = () => {
         });
         // Mark as read if chat is open
         markAsRead(conversationId, message.id);
+        // Auto-scroll to the new message only when the user was already
+        // reading the bottom of the list — don't yank them down if they
+        // were scrolled up browsing older messages.
+        if (isNearBottomRef.current) {
+          setTimeout(() => {
+            try {
+              flatListRef.current?.scrollToIndex({
+                index: 0,
+                animated: true,
+              });
+            } catch {
+              flatListRef.current?.scrollToOffset({
+                offset: 0,
+                animated: true,
+              });
+            }
+          }, 50);
+        }
       }
     },
     onDeliveryStatus: (messageId: string, status: string) => {
@@ -1741,6 +1775,8 @@ export const ChatScreen: React.FC = () => {
             maintainVisibleContentPosition={{
               minIndexForVisible: 0,
             }}
+            viewabilityConfig={viewabilityConfig}
+            onViewableItemsChanged={handleViewableItemsChanged}
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               !loading ? (
