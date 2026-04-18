@@ -252,11 +252,14 @@ export const useModerationStore = create<ModerationState>((set, get) => ({
         }
       }
 
+      // Shrink aggressively (150px @ q=0.3) so the base64 payload stays
+      // comfortably under the backend body-size limit even for complex
+      // scenes. Previous 200px @ q=0.5 could exceed 100KB → 413 at the edge.
       const manipulated = await ImageManipulator.manipulateAsync(
         imageUri,
-        [{ resize: { width: 200 } }],
+        [{ resize: { width: 150 } }],
         {
-          compress: 0.5,
+          compress: 0.3,
           format: ImageManipulator.SaveFormat.JPEG,
           base64: true,
         },
