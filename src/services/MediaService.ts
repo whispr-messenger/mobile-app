@@ -75,10 +75,15 @@ export interface UploadMediaResult {
 // The media-service upload response uses {mediaId, ...} but the rest of the
 // app (chat send path, attachment metadata) expects {id}. Normalise here so
 // callers don't have to know which key the server happened to return.
-const normaliseUpload = (raw: any): UploadMediaResult => ({
-  ...raw,
-  id: raw?.id ?? raw?.mediaId ?? raw?.media_id,
-});
+const normaliseUpload = (raw: any): UploadMediaResult => {
+  const id = raw?.mediaId ?? raw?.id ?? raw?.media_id;
+  return {
+    ...raw,
+    id,
+    url: raw?.url ?? (id ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob` : ''),
+    thumbnail_url: raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined,
+  };
+};
 
 export const MediaService = {
   /**
