@@ -67,10 +67,12 @@ export const BlockedImageAppealModal: React.FC<Props> = ({
         "Un administrateur va examiner ton image.",
       );
     } catch (e: any) {
-      Alert.alert(
-        "Erreur",
-        e?.message || "Impossible d'envoyer la contestation.",
-      );
+      const status = e?.response?.status ?? e?.status;
+      const message =
+        status === 413
+          ? "Image trop grosse, réessaye avec une autre image."
+          : e?.message || "Impossible d'envoyer la contestation.";
+      Alert.alert("Erreur", message);
     } finally {
       setLoading(false);
     }
