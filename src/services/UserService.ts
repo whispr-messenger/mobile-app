@@ -67,6 +67,7 @@ export class UserService {
   private async authFetch(
     path: string,
     options: RequestInit = {},
+    isRetry = false,
   ): Promise<Response> {
     const token = await TokenService.getAccessToken();
     if (!token) throw new Error("Non authentifié");
@@ -83,20 +84,12 @@ export class UserService {
       },
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 && !isRetry) {
       try {
         await AuthService.refreshTokens();
-        const newToken = await TokenService.getAccessToken();
-        if (!newToken) throw new Error("Non authentifié");
-        return fetch(url, {
-          ...options,
-          headers: {
-            ...(options.headers as Record<string, string>),
-            Authorization: `Bearer ${newToken}`,
-          },
-        });
+        return this.authFetch(path, options, true);
       } catch {
-        // refresh failed — return the 401 response
+        // refresh failed – return the original 401 response
       }
     }
 
