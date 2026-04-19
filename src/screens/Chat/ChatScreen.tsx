@@ -1766,6 +1766,7 @@ export const ChatScreen: React.FC = () => {
         navigation.navigate("GroupDetails", {
           groupId,
           conversationId: conversation.id,
+          conversationName: getConversationDisplayName(conversation),
         });
       }, 0);
     } else {
@@ -1892,7 +1893,9 @@ export const ChatScreen: React.FC = () => {
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
           conversationName={
-            conversation ? getConversationDisplayName(conversation) : "Contact"
+            conversation
+              ? getConversationDisplayName(conversation)
+              : "Conversation"
           }
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || "direct"}
@@ -2019,7 +2022,9 @@ export const ChatScreen: React.FC = () => {
           message={reportSheetMessage}
           conversationId={conversationId}
           conversationTitle={
-            conversation ? getConversationDisplayName(conversation) : "Contact"
+            conversation
+              ? getConversationDisplayName(conversation)
+              : "Conversation"
           }
           onClose={() => {
             setShowReportSheet(false);
