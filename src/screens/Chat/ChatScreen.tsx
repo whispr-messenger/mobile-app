@@ -130,7 +130,12 @@ export const ChatScreen: React.FC = () => {
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
-    Array<{ id: string; display_name: string; username?: string }>
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+    }>
   >([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [showForwardModal, setShowForwardModal] = useState(false);
@@ -1770,8 +1775,10 @@ export const ChatScreen: React.FC = () => {
   const renderItem = useCallback(
     ({
       item,
+      index,
     }: {
       item: MessageWithRelations | { type: "date"; date: Date; id: string };
+      index: number;
     }) => {
       // Check if it's a date separator
       if ((item as any).type === "date") {
@@ -1790,12 +1797,32 @@ export const ChatScreen: React.FC = () => {
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
 
-      // Resolve sender name for group conversations
-      const senderName =
-        !isSent && conversation?.type === "group"
+      const isGroup = conversation?.type === "group";
+      // Resolve sender info for group conversations.
+      const sender =
+        !isSent && isGroup
           ? conversationMembers.find((m) => m.id === message.sender_id)
-              ?.display_name
           : undefined;
+      const senderName = sender?.display_name || sender?.username;
+      const senderAvatarUrl = sender?.avatar_url;
+
+      // Inverted FlatList: newer messages have lower indices. The item that
+      // visually appears above the current one is messagesWithSeparators[index + 1].
+      // Consider the message "consecutive" when the previous (older, visually
+      // above) item is from the same sender — in that case we hide the avatar
+      // to keep bursts compact.
+      let isConsecutive = false;
+      if (!isSent && isGroup) {
+        const prev = messagesWithSeparators[index + 1];
+        if (
+          prev &&
+          (prev as any).type !== "date" &&
+          (prev as MessageWithRelations).sender_id === message.sender_id &&
+          (prev as MessageWithRelations).message_type !== "system"
+        ) {
+          isConsecutive = true;
+        }
+      }
 
       return (
         <MessageBubble
@@ -1803,6 +1830,9 @@ export const ChatScreen: React.FC = () => {
           isSent={isSent}
           currentUserId={userId}
           senderName={senderName}
+          senderAvatarUrl={senderAvatarUrl}
+          showSenderAvatar={!isSent && isGroup}
+          isConsecutive={isConsecutive}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
           resolveReactorName={resolveReactorDisplayName}
@@ -1836,6 +1866,7 @@ export const ChatScreen: React.FC = () => {
       searchQuery,
       searchResults,
       pendingAppeals,
+      messagesWithSeparators,
     ],
   );
 
