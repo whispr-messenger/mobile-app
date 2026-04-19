@@ -237,12 +237,35 @@ export const ChatScreen: React.FC = () => {
                 : m,
             );
           }
-          // Replace optimistic message if it matches client_random
-          const optimisticMessageIndex = prev.findIndex(
+          const optimisticByClientRandom = prev.findIndex(
             (m) =>
               m.id.startsWith("temp-") &&
-              m.client_random === message.client_random,
+              String(m.client_random ?? "") ===
+                String(message.client_random ?? ""),
           );
+          const optimisticByHeuristic =
+            optimisticByClientRandom === -1 && message.sender_id === userId
+              ? prev.findIndex((m) => {
+                  if (!m.id.startsWith("temp-")) return false;
+                  if ((m as any).status !== "sending") return false;
+                  if ((m as any).message_type !== (message as any).message_type)
+                    return false;
+                  if ((m as any).content !== (message as any).content)
+                    return false;
+                  const a = new Date((m as any).sent_at).getTime();
+                  const b = new Date((message as any).sent_at).getTime();
+                  return (
+                    Number.isFinite(a) &&
+                    Number.isFinite(b) &&
+                    Math.abs(a - b) < 15000
+                  );
+                })
+              : -1;
+          const optimisticMessageIndex =
+            optimisticByClientRandom !== -1
+              ? optimisticByClientRandom
+              : optimisticByHeuristic;
+
           if (optimisticMessageIndex !== -1) {
             const existing = prev[
               optimisticMessageIndex
