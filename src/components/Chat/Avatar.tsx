@@ -35,20 +35,20 @@ export const Avatar: React.FC<AvatarProps> = ({
     if (/^https?:\/\//i.test(uri)) return uri;
     if (uri.startsWith("/")) return `${getApiBaseUrl()}${uri}`;
     const directPublic = uri.match(
-      /\/media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (directPublic?.[1]) return `${MEDIA_API_URL}/public/${directPublic[1]}`;
     const directPublicLegacy = uri.match(
-      /\/media\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)media\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (directPublicLegacy?.[1])
       return `${MEDIA_API_URL}/public/${directPublicLegacy[1]}`;
     const match = uri.match(
-      /\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (match?.[2]) return `${MEDIA_API_URL}/public/${match[2]}`;
     const minioMatch = uri.match(
-      /\/whispr-media\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)whispr-media\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (minioMatch?.[2]) return `${MEDIA_API_URL}/public/${minioMatch[2]}`;
     return uri;

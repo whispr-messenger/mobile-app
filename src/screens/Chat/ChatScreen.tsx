@@ -1899,6 +1899,17 @@ export const ChatScreen: React.FC = () => {
           }
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || "direct"}
+          groupAvatars={
+            conversation?.type === "group"
+              ? conversationMembers
+                  .filter((m) => m.id && m.id !== userId)
+                  .slice(0, 2)
+                  .map((m) => ({
+                    uri: m.avatar_url,
+                    name: m.display_name || m.username || "Utilisateur",
+                  }))
+              : undefined
+          }
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
           onSearchPress={() => setShowSearch(true)}
