@@ -27,7 +27,7 @@ import type { AuthStackParamList } from '../../navigation/AuthNavigator';
 type NavigationProp = StackNavigationProp<AuthStackParamList, 'ProfileSetup'>;
 
 function getUserApiBase(): string {
-  return `${getApiBaseUrl()}/user`;
+  return `${getApiBaseUrl()}/user/v1`;
 }
 
 export const ProfileSetupScreen: React.FC = () => {
@@ -110,7 +110,7 @@ export const ProfileSetupScreen: React.FC = () => {
         body: JSON.stringify(body),
       });
 
-      if (!response.ok && response.status !== 404) {
+      if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 

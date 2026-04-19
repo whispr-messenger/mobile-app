@@ -6,10 +6,20 @@
  * are joined/left per-screen via joinConversationChannel.
  */
 
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { getSharedSocket, ConnectionState } from '../services/messaging/websocket';
-import { Conversation, Message } from '../types/messaging';
-import { usePresenceStore } from '../store/presenceStore';
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import {
+  getSharedSocket,
+  ConnectionState,
+} from "../services/messaging/websocket";
+import { Conversation, Message } from "../types/messaging";
+import { usePresenceStore } from "../store/presenceStore";
+
+/** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
+export interface ReactionRealtimePayload {
+  message_id: string;
+  user_id: string;
+  reaction: string;
+}
 
 interface UseWebSocketOptions {
   userId: string;
@@ -18,14 +28,26 @@ interface UseWebSocketOptions {
   onMessageUpdated?: (message: Message) => void;
   onMessageDeleted?: (messageId: string, deleteForEveryone: boolean) => void;
   onConversationUpdate?: (conversation: Conversation) => void;
+  onConversationSummaries?: (conversations: Conversation[]) => void;
   onTyping?: (userId: string, typing: boolean) => void;
   onDeliveryStatus?: (messageId: string, status: string) => void;
   onContactRequest?: (request: any) => void;
   onPresenceUpdate?: (userId: string, isOnline: boolean) => void;
+  onReactionAdded?: (payload: ReactionRealtimePayload) => void;
+  onReactionRemoved?: (payload: ReactionRealtimePayload) => void;
 }
 
 export const useWebSocket = (options: UseWebSocketOptions) => {
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [connectionState, setConnectionState] = useState<ConnectionState>(
+    () => {
+      // Initialize with the current shared socket state to avoid a brief flash of 'disconnected'
+      try {
+        return getSharedSocket().connectionState;
+      } catch {
+        return "connecting";
+      }
+    },
+  );
 
   // Keep callbacks in a ref so channel listeners always call the latest version
   const callbacksRef = useRef(options);
@@ -38,7 +60,8 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     if (!options.userId || !options.token) return;
 
     const socket = getSharedSocket();
-    const removeListener = socket.addConnectionStateListener(setConnectionState);
+    const removeListener =
+      socket.addConnectionStateListener(setConnectionState);
     setConnectionState(socket.connectionState);
 
     // connect() is a no-op if already connected
@@ -50,26 +73,43 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     const userChannel = socket.channel(`user:${options.userId}`);
     userChannel.join();
 
-    return () => { removeListener(); };
+    return () => {
+      removeListener();
+    };
   }, [options.userId, options.token]);
 
   // Stable handler references for the user channel so that off() reliably
   // removes the exact same function that on() registered, even across
   // re-renders triggered by reconnection state changes.
-  const userHandlers = useMemo(() => ({
-    onMsg: (data: { message: Message }) => {
-      callbacksRef.current.onNewMessage?.(data.message);
-    },
-    onDelivery: (data: { message_id: string; status: string }) => {
-      callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
-    },
-    onConvUpdate: (data: { conversation: Conversation }) => {
-      callbacksRef.current.onConversationUpdate?.(data.conversation);
-    },
-    onContactReq: (data: { request: any }) => {
-      callbacksRef.current.onContactRequest?.(data.request);
-    },
-  }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const userHandlers = useMemo(
+    () => ({
+      // message_created: payload is the Message object directly (no wrapper).
+      onMsg: (data: any) => {
+        const msg = (data?.message ?? data) as Message;
+        if (msg?.id) callbacksRef.current.onNewMessage?.(msg);
+      },
+      onDelivery: (data: { message_id: string; status: string }) => {
+        callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
+      },
+      onConvUpdate: (data: { conversation: Conversation }) => {
+        callbacksRef.current.onConversationUpdate?.(data.conversation);
+      },
+      onConvSummaries: (data: any) => {
+        // Handle { conversations: [...] }, { summaries: [...] }, and bare array formats.
+        // The backend sends "summaries" as the key; after snakecaseKeys it stays "summaries".
+        const conversations = Array.isArray(data)
+          ? data
+          : (data?.conversations ?? data?.summaries);
+        if (conversations && Array.isArray(conversations)) {
+          callbacksRef.current.onConversationSummaries?.(conversations);
+        }
+      },
+      onContactReq: (data: { request: any }) => {
+        callbacksRef.current.onContactRequest?.(data.request);
+      },
+    }),
+    [],
+  );
 
   // Register per-instance callbacks on the user channel.
   // Each screen gets its own set; cleaned up on unmount via off().
@@ -81,90 +121,154 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     // Remove any prior listeners before registering new ones to prevent
     // duplicate subscriptions when the component re-renders during reconnect.
-    userChannel.off("new_message", userHandlers.onMsg);
+    userChannel.off("message_created", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
-    userChannel.off("conversation_updated", userHandlers.onConvUpdate);
-    userChannel.off("contact_request_created", userHandlers.onContactReq);
-    userChannel.off("contact_request_updated", userHandlers.onContactReq);
+    userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
 
-    userChannel.on("new_message", userHandlers.onMsg);
+    userChannel.on("message_created", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
-    userChannel.on("conversation_updated", userHandlers.onConvUpdate);
-    userChannel.on("contact_request_created", userHandlers.onContactReq);
-    userChannel.on("contact_request_updated", userHandlers.onContactReq);
+    userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
 
     return () => {
-      userChannel.off("new_message", userHandlers.onMsg);
+      userChannel.off("message_created", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
-      userChannel.off("conversation_updated", userHandlers.onConvUpdate);
-      userChannel.off("contact_request_created", userHandlers.onContactReq);
-      userChannel.off("contact_request_updated", userHandlers.onContactReq);
+      userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     };
   }, [options.userId, options.token, userHandlers]);
 
-  const joinConversationChannel = useCallback(
-    (conversationId: string) => {
-      const socket = getSharedSocket();
+  const joinConversationChannel = useCallback((conversationId: string) => {
+    const socket = getSharedSocket();
 
-      const channel = socket.channel(`conversation:${conversationId}`);
-      channel.join();
+    const channel = socket.channel(`conversation:${conversationId}`);
+    channel.join();
 
-      const onMsg = (data: { message: Message }) => {
-        callbacksRef.current.onNewMessage?.(data.message);
-      };
-      const onTyping = (data: { user_id: string; typing: boolean }) => {
-        callbacksRef.current.onTyping?.(data.user_id, data.typing);
-      };
-      const onMsgUpdated = (data: { message: Message }) => {
-        callbacksRef.current.onMessageUpdated?.(data.message);
-      };
-      const onMsgDeleted = (data: { message_id: string; delete_for_everyone: boolean }) => {
-        callbacksRef.current.onMessageDeleted?.(data.message_id, data.delete_for_everyone);
-      };
-      const onDelivery = (data: { message_id: string; status: string }) => {
-        callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
-      };
-      const onPresenceDiff = (data: { joins?: Record<string, any>; leaves?: Record<string, any> }) => {
-        const joins = data.joins ? Object.keys(data.joins) : [];
-        const leaves = data.leaves ? Object.keys(data.leaves) : [];
-        usePresenceStore.getState().applyPresenceDiff(joins, leaves);
-        joins.forEach((uid) => {
-          callbacksRef.current.onPresenceUpdate?.(uid, true);
+    // message_created: payload is the Message object directly (not wrapped).
+    const onMsg = (data: any) => {
+      const msg = (data?.message ?? data) as Message;
+      if (msg?.id) callbacksRef.current.onNewMessage?.(msg);
+    };
+    const onTyping = (data: { user_id: string; typing: boolean }) => {
+      callbacksRef.current.onTyping?.(data.user_id, data.typing);
+    };
+    // message_updated: payload is the Message object directly.
+    const onMsgUpdated = (data: any) => {
+      const msg = (data?.message ?? data) as Message;
+      if (msg?.id) callbacksRef.current.onMessageUpdated?.(msg);
+    };
+    // message_deleted: { id, conversation_id } — always "delete for everyone"
+    // since soft-deletes "for me" are not broadcast.
+    const onMsgDeleted = (data: {
+      id?: string;
+      message_id?: string;
+      conversation_id?: string;
+    }) => {
+      const messageId = data.id ?? data.message_id;
+      if (messageId) {
+        callbacksRef.current.onMessageDeleted?.(messageId, true);
+      }
+    };
+    const onDelivery = (data: { message_id: string; status: string }) => {
+      callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
+    };
+    const onPresenceDiff = (data: {
+      joins?: Record<string, any>;
+      leaves?: Record<string, any>;
+    }) => {
+      const joins = data.joins ? Object.keys(data.joins) : [];
+      const leaves = data.leaves ? Object.keys(data.leaves) : [];
+      usePresenceStore.getState().applyPresenceDiff(joins, leaves);
+      joins.forEach((uid) => {
+        callbacksRef.current.onPresenceUpdate?.(uid, true);
+      });
+      leaves.forEach((uid) => {
+        callbacksRef.current.onPresenceUpdate?.(uid, false);
+      });
+    };
+    const onPresenceState = (data: Record<string, any>) => {
+      const userIds = Object.keys(data);
+      usePresenceStore.getState().setPresenceState(userIds);
+      userIds.forEach((uid) => {
+        callbacksRef.current.onPresenceUpdate?.(uid, true);
+      });
+    };
+
+    // reaction_added: { message_id, reaction: { id, message_id, user_id, reaction, created_at } }
+    // Unwrap the inner reaction object so the callback keeps the flat shape.
+    const onReactionAdded = (data: any) => {
+      const messageId = data?.message_id;
+      const inner = data?.reaction;
+      // Back-compat: old shape was { message_id, user_id, reaction } with
+      // reaction as a string. Detect and pass through.
+      if (typeof inner === "string" && data?.user_id) {
+        callbacksRef.current.onReactionAdded?.({
+          message_id: messageId,
+          user_id: data.user_id,
+          reaction: inner,
         });
-        leaves.forEach((uid) => {
-          callbacksRef.current.onPresenceUpdate?.(uid, false);
+        return;
+      }
+      if (messageId && inner?.user_id && inner?.reaction) {
+        callbacksRef.current.onReactionAdded?.({
+          message_id: messageId,
+          user_id: inner.user_id,
+          reaction: inner.reaction,
         });
-      };
-      const onPresenceState = (data: Record<string, any>) => {
-        const userIds = Object.keys(data);
-        usePresenceStore.getState().setPresenceState(userIds);
-        userIds.forEach((uid) => {
-          callbacksRef.current.onPresenceUpdate?.(uid, true);
+      }
+    };
+
+    // reaction_removed: { message_id, reaction_id }
+    // The client's callback signature still expects user_id + emoji, so we
+    // pass reaction_id in the `reaction` slot and an empty user_id. Consumers
+    // using reaction_id as an opaque identifier will still work; those
+    // filtering by emoji/user need to refetch. The dual shape below also
+    // accepts the legacy { message_id, user_id, reaction } payload.
+    const onReactionRemoved = (data: any) => {
+      const messageId = data?.message_id;
+      if (
+        data?.user_id &&
+        data?.reaction &&
+        typeof data.reaction === "string"
+      ) {
+        callbacksRef.current.onReactionRemoved?.({
+          message_id: messageId,
+          user_id: data.user_id,
+          reaction: data.reaction,
         });
-      };
+        return;
+      }
+      if (messageId && data?.reaction_id) {
+        callbacksRef.current.onReactionRemoved?.({
+          message_id: messageId,
+          user_id: "",
+          reaction: data.reaction_id,
+        });
+      }
+    };
 
-      channel.on("new_message", onMsg);
-      channel.on("user_typing", onTyping);
-      channel.on("message_updated", onMsgUpdated);
-      channel.on("message_deleted", onMsgDeleted);
-      channel.on("delivery_status", onDelivery);
-      channel.on("presence_diff", onPresenceDiff);
-      channel.on("presence_state", onPresenceState);
+    channel.on("message_created", onMsg);
+    channel.on("user_typing", onTyping);
+    channel.on("message_updated", onMsgUpdated);
+    channel.on("message_deleted", onMsgDeleted);
+    channel.on("delivery_status", onDelivery);
+    channel.on("presence_diff", onPresenceDiff);
+    channel.on("presence_state", onPresenceState);
+    channel.on("reaction_added", onReactionAdded);
+    channel.on("reaction_removed", onReactionRemoved);
 
-      const cleanup = () => {
-        channel.off("new_message", onMsg);
-        channel.off("user_typing", onTyping);
-        channel.off("message_updated", onMsgUpdated);
-        channel.off("message_deleted", onMsgDeleted);
-        channel.off("delivery_status", onDelivery);
-        channel.off("presence_diff", onPresenceDiff);
-        channel.off("presence_state", onPresenceState);
-      };
+    const cleanup = () => {
+      channel.off("message_created", onMsg);
+      channel.off("user_typing", onTyping);
+      channel.off("message_updated", onMsgUpdated);
+      channel.off("message_deleted", onMsgDeleted);
+      channel.off("delivery_status", onDelivery);
+      channel.off("presence_diff", onPresenceDiff);
+      channel.off("presence_state", onPresenceState);
+      channel.off("reaction_added", onReactionAdded);
+      channel.off("reaction_removed", onReactionRemoved);
+    };
 
-      return { channel, cleanup };
-    },
-    [],
-  );
+    return { channel, cleanup };
+  }, []);
 
   const sendMessage = useCallback(
     (

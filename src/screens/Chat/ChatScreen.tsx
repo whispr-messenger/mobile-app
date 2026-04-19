@@ -28,17 +28,18 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import { StackScreenProps, StackNavigationProp } from "@react-navigation/stack";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "../../context/ThemeContext";
-import { gateChatImageBeforeSend } from "../../services/moderation";
 import { useAuth } from "../../context/AuthContext";
 import {
   Message,
+  MessageAttachment,
   MessageWithStatus,
   MessageWithRelations,
-  MessageAttachment,
   MessageReaction,
   Conversation,
+  PinnedMessage,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
+import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageBubble } from "../../components/Chat/MessageBubble";
@@ -46,9 +47,11 @@ import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
 import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
+import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
+import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
 import { SystemMessage } from "../../components/Chat/SystemMessage";
 import { MessageSearch } from "../../components/Chat/MessageSearch";
@@ -62,7 +65,24 @@ import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
+import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
+import { OfflineBanner } from "../../components/Chat/OfflineBanner";
+import { offlineQueue, QueuedMessage } from "../../services/offlineQueue";
+import {
+  validateReactionEmoji,
+  checkReactionLimits,
+  userHasReaction,
+} from "../../utils/reactionEmoji";
+
+/** Cross-platform alert: falls back to window.alert on web where RN Alert is a no-op */
+function showAlert(title: string, message: string): void {
+  if (Platform.OS === "web") {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
@@ -93,13 +113,17 @@ export const ChatScreen: React.FC = () => {
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<
     string | null
   >(null);
+  const [reactionReactorsModal, setReactionReactorsModal] = useState<{
+    messageId: string;
+    emoji: string;
+  } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<MessageWithRelations[]>(
     [],
   );
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
@@ -110,8 +134,15 @@ export const ChatScreen: React.FC = () => {
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageWithRelations | null>(null);
   const [forwardSending, setForwardSending] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportSheetMessage, setReportSheetMessage] =
+    useState<MessageWithRelations | null>(null);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleMessageText, setScheduleMessageText] = useState("");
+  const [isOtherUserContact, setIsOtherUserContact] = useState<boolean | null>(
+    null,
+  );
+  const [addingContact, setAddingContact] = useState(false);
   const allConversations = useConversationsStore((s) => s.conversations);
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
   const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
@@ -135,6 +166,7 @@ export const ChatScreen: React.FC = () => {
 
   // WebSocket connection
   const {
+    connectionState,
     joinConversationChannel,
     sendMessage: wsSendMessage,
     markAsRead,
@@ -162,6 +194,12 @@ export const ChatScreen: React.FC = () => {
               m.id === message.id
                 ? {
                     ...message,
+                    // Preserve attachments from the optimistic message when the
+                    // WebSocket echo doesn't carry them (server Message has no
+                    // attachments array).
+                    attachments:
+                      (message as any).attachments ||
+                      (m as MessageWithRelations).attachments,
                     status: (message as any).status || ("sent" as const),
                   }
                 : m,
@@ -174,9 +212,14 @@ export const ChatScreen: React.FC = () => {
               m.client_random === message.client_random,
           );
           if (optimisticMessageIndex !== -1) {
+            const existing = prev[
+              optimisticMessageIndex
+            ] as MessageWithRelations;
             const newMessages = [...prev];
             newMessages[optimisticMessageIndex] = {
               ...message,
+              // Preserve attachments from the optimistic message
+              attachments: (message as any).attachments || existing.attachments,
               status: (message as any).status || ("sent" as const),
             };
             return newMessages;
@@ -233,6 +276,7 @@ export const ChatScreen: React.FC = () => {
       } else {
         setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       }
+      loadPinnedMessages();
     },
     onTyping: (typingUserId: string, typing: boolean) => {
       if (typingUserId !== userId) {
@@ -271,7 +315,82 @@ export const ChatScreen: React.FC = () => {
         });
       }
     },
+    onReactionAdded: ({ message_id, user_id, reaction: reactionEmoji }) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== message_id) return msg;
+          const list = msg.reactions ?? [];
+          if (
+            list.some(
+              (r) => r.user_id === user_id && r.reaction === reactionEmoji,
+            )
+          ) {
+            return msg;
+          }
+          const row: MessageReaction = {
+            id: `rt-${message_id}-${user_id}-${reactionEmoji}`,
+            message_id,
+            user_id,
+            reaction: reactionEmoji,
+            created_at: new Date().toISOString(),
+          };
+          return { ...msg, reactions: [...list, row] };
+        }),
+      );
+    },
+    onReactionRemoved: ({ message_id, user_id, reaction: reactionEmoji }) => {
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== message_id) return msg;
+          const list = (msg.reactions ?? []).filter(
+            (r) => !(r.user_id === user_id && r.reaction === reactionEmoji),
+          );
+          return { ...msg, reactions: list };
+        }),
+      );
+    },
   });
+
+  // Drain offline queue when connection is restored
+  const prevConnectionStateRef = useRef<string>("disconnected");
+  useEffect(() => {
+    const wasOffline =
+      prevConnectionStateRef.current === "disconnected" ||
+      prevConnectionStateRef.current === "reconnecting";
+    const isNowConnected = connectionState === "connected";
+
+    if (wasOffline && isNowConnected) {
+      // Reload messages to pick up any sent while we were disconnected
+      loadMessages();
+
+      offlineQueue.getForConversation(conversationId).then(async (pending) => {
+        for (const queued of pending) {
+          try {
+            const sent = await messagingAPI.sendMessage(conversationId, {
+              content: queued.content,
+              message_type: queued.message_type,
+              client_random: queued.client_random,
+              metadata: {},
+              reply_to_id: queued.reply_to_id,
+            });
+            // Replace queued message with sent one
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.client_random === queued.client_random
+                  ? { ...(sent as any), status: "sent" }
+                  : m,
+              ),
+            );
+            await offlineQueue.remove(queued.client_random);
+          } catch (err) {
+            logger.error("ChatScreen", "Failed to drain queued message", err);
+          }
+        }
+      });
+    }
+
+    prevConnectionStateRef.current = connectionState;
+  }, [connectionState, conversationId]);
 
   const loadPinnedMessages = useCallback(async () => {
     try {
@@ -322,6 +441,18 @@ export const ChatScreen: React.FC = () => {
     }
   }, [conversationId, userId]);
 
+  // Mark messages as read when opening conversation and when new messages arrive
+  useEffect(() => {
+    if (!conversationId || !messages.length) return;
+    const lastMsg = messages[0]; // messages are sorted newest first
+    // Always reset the unread badge when the conversation is open
+    useConversationsStore.getState().resetUnreadCount(conversationId);
+    // Send read receipt to backend only if the last message is from someone else
+    if (lastMsg?.id && lastMsg?.sender_id !== userId) {
+      markAsRead(conversationId, lastMsg.id);
+    }
+  }, [conversationId, messages.length, userId, markAsRead]);
+
   useEffect(() => {
     // Load data
     loadConversation();
@@ -342,6 +473,53 @@ export const ChatScreen: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
+
+  // Check if the other user in a direct conversation is in our contacts
+  useEffect(() => {
+    if (!conversation || conversation.type !== "direct" || !userId) {
+      setIsOtherUserContact(null);
+      return;
+    }
+    const memberIds =
+      conversation.member_user_ids ||
+      conversation.members?.map((m: { user_id: string }) => m.user_id);
+    const otherUserId = memberIds?.find((id: string) => id !== userId);
+    if (!otherUserId) {
+      setIsOtherUserContact(null);
+      return;
+    }
+    contactsAPI
+      .getContacts(undefined, userId)
+      .then(({ contacts }) => {
+        const isContact = contacts.some((c) => c.contact_id === otherUserId);
+        setIsOtherUserContact(isContact);
+      })
+      .catch(() => {
+        setIsOtherUserContact(null);
+      });
+  }, [conversation, userId]);
+
+  const handleAddContactFromChat = useCallback(async () => {
+    if (!conversation || conversation.type !== "direct" || !userId) return;
+    const memberIds =
+      conversation.member_user_ids ||
+      conversation.members?.map((m: { user_id: string }) => m.user_id);
+    const otherUserId = memberIds?.find((id: string) => id !== userId);
+    if (!otherUserId) return;
+    try {
+      setAddingContact(true);
+      await contactsAPI.sendContactRequest(otherUserId);
+      showAlert("Demande envoyée", "Votre demande de contact a été envoyée.");
+      setIsOtherUserContact(null); // Hide banner after sending
+    } catch (error: any) {
+      showAlert(
+        "Erreur",
+        error.message || "Impossible d'envoyer la demande de contact",
+      );
+    } finally {
+      setAddingContact(false);
+    }
+  }, [conversation, userId]);
 
   const loadMessages = useCallback(
     async (before?: string) => {
@@ -369,7 +547,20 @@ export const ChatScreen: React.FC = () => {
                   msg.message_type === "system"),
             ) // Include all message types
             .map(async (msg) => {
-              const status = (msg as any)?.status || ("sent" as const);
+              // Derive delivery status: prefer explicit status, then check delivery_statuses array
+              let status: "sending" | "sent" | "delivered" | "read" | "failed" =
+                (msg as any)?.status || ("sent" as const);
+              if (
+                status === "sent" &&
+                (msg as any)?.delivery_statuses?.length
+              ) {
+                const ds = (msg as any).delivery_statuses;
+                if (ds.some((d: any) => d.read_at)) {
+                  status = "read";
+                } else if (ds.some((d: any) => d.delivered_at)) {
+                  status = "delivered";
+                }
+              }
 
               // Load reactions for this message
               let reactions: MessageReaction[] = [];
@@ -377,7 +568,9 @@ export const ChatScreen: React.FC = () => {
                 const reactionData = await messagingAPI.getMessageReactions(
                   msg.id,
                 );
-                reactions = reactionData.reactions || [];
+                reactions = Array.isArray(reactionData)
+                  ? reactionData
+                  : reactionData?.reactions || [];
               } catch (error) {
                 // Ignore errors for reactions
               }
@@ -408,13 +601,17 @@ export const ChatScreen: React.FC = () => {
         );
 
         if (before) {
-          // Loading older messages - append to end (oldest last for inverted FlatList)
+          // Loading older messages — merge, deduplicate and re-sort desc
+          // so the inverted FlatList always renders newest at bottom.
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
             const deduped = messagesWithRelations.filter(
               (m) => !existingIds.has(m.id),
             );
-            return [...prev, ...deduped];
+            return [...prev, ...deduped].sort(
+              (a, b) =>
+                new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+            );
           });
           setHasMore(messagesWithRelations.length === 50);
         } else {
@@ -508,11 +705,38 @@ export const ChatScreen: React.FC = () => {
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
+      // Scroll to bottom so the newly sent text message is visible
+      // (FlatList is inverted, so offset 0 is the bottom)
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+
+      // If offline, queue the message for later delivery
+      if (connectionState !== "connected") {
+        const queued: QueuedMessage = {
+          id: tempMessage.id,
+          conversation_id: conversationId,
+          content,
+          message_type: "text",
+          client_random: tempMessage.client_random as number,
+          reply_to_id: replyToId,
+          queued_at: new Date().toISOString(),
+        };
+        await offlineQueue.enqueue(queued);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempMessage.id ? { ...m, status: "queued" as any } : m,
+          ),
+        );
+        return;
+      }
+
       try {
         const sent = await messagingAPI.sendMessage(conversationId, {
           content,
           message_type: "text",
-          client_random: Number(tempMessage.client_random),
+          client_random: tempMessage.client_random as number,
+
           metadata: {},
           reply_to_id: replyToId,
         });
@@ -546,7 +770,14 @@ export const ChatScreen: React.FC = () => {
         });
       }
     },
-    [conversationId, userId, sendTyping, editingMessage, replyingTo],
+    [
+      conversationId,
+      userId,
+      sendTyping,
+      editingMessage,
+      replyingTo,
+      connectionState,
+    ],
   );
 
   const handleSendMedia = useCallback(
@@ -603,18 +834,6 @@ export const ChatScreen: React.FC = () => {
               ? "audio/mp4"
               : "application/octet-stream");
 
-      // Only gate images, not videos/audio/files
-      if (type === "image") {
-        const gateResult = await gateChatImageBeforeSend(uri);
-        if (!gateResult.ok && gateResult.reason === "blocked") {
-          Alert.alert(
-            "Image bloquee",
-            "Cette image ne peut pas etre envoyee car elle enfreint les regles de moderation.",
-          );
-          return;
-        }
-      }
-
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
       const tempMessage: MessageWithRelations = {
@@ -654,7 +873,36 @@ export const ChatScreen: React.FC = () => {
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
+      // Scroll to bottom so the newly sent media message is visible
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+
       try {
+        // Gate check: block inappropriate images before upload
+        if (type === "image") {
+          const gateResult = await gateChatImageBeforeSend(uri);
+          if (!gateResult.ok) {
+            const blockedReason =
+              gateResult.reason || "Contenu bloqué par la modération";
+            // Show a user-visible alert so the sender is aware the image was blocked
+            showAlert("Envoi bloqué", blockedReason);
+            // Keep message in chat but mark as blocked
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempMessageId
+                  ? {
+                      ...m,
+                      status: "failed" as const,
+                      content: blockedReason,
+                    }
+                  : m,
+              ),
+            );
+            return;
+          }
+        }
+
         // 1. Upload file to media-service
         console.log("[ChatScreen] Uploading media to media-service:", filename);
         const uploadResult = await MediaService.uploadMedia(
@@ -706,23 +954,31 @@ export const ChatScreen: React.FC = () => {
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: messageContent,
           message_type: "media",
-          client_random: Number(tempMessage.client_random),
+          client_random: tempMessage.client_random as number,
+
           metadata: mediaMetadata,
           reply_to_id: replyToId,
         });
 
-        // 3. Attach media record to the message
-        await messagingAPI.addAttachment(sentMessage.id, {
-          media_id: uploadResult.id,
-          media_type: type,
-          metadata: {
-            filename: uploadResult.filename || filename,
-            size: uploadResult.size,
-            mime_type: uploadResult.mime_type || mimeType,
-            media_url: uploadResult.url,
-            thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
-          },
-        });
+        // 3. Attach media record to the message (non-blocking — message already has metadata)
+        messagingAPI
+          .addAttachment(sentMessage.id, {
+            media_id: uploadResult.id,
+            media_type: type,
+            metadata: {
+              filename: uploadResult.filename || filename,
+              size: uploadResult.size,
+              mime_type: uploadResult.mime_type || mimeType,
+              media_url: uploadResult.url,
+              thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
+            },
+          })
+          .catch((err) =>
+            console.warn(
+              "[ChatScreen] addAttachment failed (non-blocking):",
+              err,
+            ),
+          );
 
         // 4. Update optimistic message with the real server ID
         setMessages((prev) =>
@@ -738,11 +994,15 @@ export const ChatScreen: React.FC = () => {
         );
       } catch (error) {
         console.error("[ChatScreen] Error sending media:", error);
-        // Update message status to failed
+        // Keep message in chat with failed status and error indication
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempMessageId
-              ? { ...msg, status: "failed" as const }
+              ? {
+                  ...msg,
+                  status: "failed" as const,
+                  content: "Échec de l'envoi — appuyez pour réessayer",
+                }
               : msg,
           ),
         );
@@ -789,51 +1049,115 @@ export const ChatScreen: React.FC = () => {
     navigation.navigate("ScheduledMessages", { conversationId });
   }, [navigation, conversationId]);
 
+  const resolveReactorDisplayName = useCallback(
+    (uid: string) => {
+      if (uid === userId) return "Vous";
+      const m = conversationMembers.find((x) => x.id === uid);
+      if (m?.display_name) return m.display_name;
+      return "Utilisateur";
+    },
+    [userId, conversationMembers],
+  );
+
+  const reactionModalList = useMemo(() => {
+    if (!reactionReactorsModal) return [];
+    const msg = messages.find((m) => m.id === reactionReactorsModal.messageId);
+    return (msg?.reactions ?? []).filter(
+      (r) => r.reaction === reactionReactorsModal.emoji,
+    );
+  }, [reactionReactorsModal, messages]);
+
   const handleReactionPress = useCallback(
     async (messageId: string, emoji: string) => {
-      try {
-        await messagingAPI.addReaction(messageId, userId, emoji);
+      const validated = validateReactionEmoji(emoji);
+      if (!validated.ok) {
+        showAlert("Emoji non supporté", validated.reason);
+        return;
+      }
 
-        // Reload reactions and update local state
+      const msg = messages.find((m) => m.id === messageId);
+      const reactions = msg?.reactions ?? [];
+      const already = userHasReaction(reactions, userId, emoji);
+
+      try {
+        if (already) {
+          await messagingAPI.removeReaction(messageId, userId, emoji);
+        } else {
+          const limits = checkReactionLimits(reactions, userId, emoji);
+          if (!limits.ok) {
+            showAlert("Réaction impossible", limits.reason);
+            return;
+          }
+          await messagingAPI.addReaction(messageId, userId, emoji);
+        }
+
         const reactionData = await messagingAPI.getMessageReactions(messageId);
         setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === messageId
-              ? { ...msg, reactions: reactionData.reactions || [] }
-              : msg,
+          prev.map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  reactions: Array.isArray(reactionData)
+                    ? reactionData
+                    : reactionData?.reactions || [],
+                }
+              : m,
           ),
         );
-      } catch (error) {
-        logger.error("ChatScreen", "Error adding reaction", error);
+      } catch (error: unknown) {
+        const e = error as { message?: string };
+        showAlert(
+          "Réaction",
+          e.message || "Impossible de mettre à jour la réaction.",
+        );
+        logger.error("ChatScreen", "Error toggling reaction", error);
       }
     },
-    [userId],
+    [userId, messages],
+  );
+
+  const handleReactionDetailsPress = useCallback(
+    (messageId: string, emoji: string) => {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      setReactionReactorsModal({ messageId, emoji });
+    },
+    [],
   );
 
   // Group messages by date and add date separators
   const messagesWithSeparators = useMemo(() => {
     if (messages.length === 0) return [];
 
+    // messages is sorted newest-first (desc) for the inverted FlatList.
+    // In an inverted list, index 0 renders at the bottom, so we need
+    // date separators to appear AFTER (higher index = visually above)
+    // the last message of each date group.
     const result: Array<
       MessageWithRelations | { type: "date"; date: Date; id: string }
     > = [];
-    let lastDate: string | null = null;
 
-    messages.forEach((message) => {
+    messages.forEach((message, index) => {
       const messageDate = new Date(message.sent_at);
       const dateKey = messageDate.toDateString();
 
-      // Add date separator if date changed
-      if (lastDate !== dateKey) {
+      result.push(message);
+
+      // Look ahead: insert separator AFTER this message if the next
+      // message belongs to a different date (or this is the last message).
+      const nextMessage = messages[index + 1];
+      const nextDateKey = nextMessage
+        ? new Date(nextMessage.sent_at).toDateString()
+        : null;
+
+      if (nextDateKey !== dateKey) {
         result.push({
           type: "date",
           date: messageDate,
           id: `date-${dateKey}`,
         } as any);
-        lastDate = dateKey;
       }
-
-      result.push(message);
     });
 
     return result;
@@ -886,6 +1210,13 @@ export const ChatScreen: React.FC = () => {
     [],
   );
 
+  const handleOpenReportSheet = useCallback(() => {
+    if (selectedMessage) {
+      setReportSheetMessage(selectedMessage);
+      setShowReportSheet(true);
+    }
+  }, [selectedMessage]);
+
   const handleForwardMessage = useCallback(() => {
     if (selectedMessage) {
       setForwardingMessage(selectedMessage);
@@ -913,13 +1244,20 @@ export const ChatScreen: React.FC = () => {
         });
         setShowForwardModal(false);
         setForwardingMessage(null);
+        setForwardSending(false);
+
+        // Navigate to the target conversation so the user sees the forwarded
+        // message immediately. Using `push` creates a new stack entry so the
+        // back button returns to the original conversation.
+        navigation.push("Chat", {
+          conversationId: targetConversationId,
+        });
       } catch (error) {
         logger.error("ChatScreen", "Error forwarding message", error);
-      } finally {
         setForwardSending(false);
       }
     },
-    [forwardingMessage],
+    [forwardingMessage, navigation],
   );
 
   const handleEditMessage = useCallback(() => {
@@ -960,12 +1298,13 @@ export const ChatScreen: React.FC = () => {
             prev.filter((msg) => msg.id !== selectedMessage.id),
           );
         }
+        await loadPinnedMessages();
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
         Alert.alert("Erreur", "Impossible de supprimer le message");
       }
     },
-    [selectedMessage, conversationId],
+    [selectedMessage, conversationId, loadPinnedMessages],
   );
 
   const handleStartReply = useCallback(() => {
@@ -988,7 +1327,7 @@ export const ChatScreen: React.FC = () => {
 
     try {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
@@ -1009,7 +1348,7 @@ export const ChatScreen: React.FC = () => {
       );
     } catch (error) {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       logger.error(
         "ChatScreen",
@@ -1274,6 +1613,8 @@ export const ChatScreen: React.FC = () => {
           currentUserId={userId}
           senderName={senderName}
           onReactionPress={handleReactionPress}
+          onReactionDetailsPress={handleReactionDetailsPress}
+          resolveReactorName={resolveReactorDisplayName}
           onReplyPress={handleReplyPress}
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
@@ -1286,6 +1627,8 @@ export const ChatScreen: React.FC = () => {
       conversation,
       conversationMembers,
       handleReactionPress,
+      handleReactionDetailsPress,
+      resolveReactorDisplayName,
       handleReplyPress,
       handleMessageLongPress,
       searchQuery,
@@ -1311,6 +1654,7 @@ export const ChatScreen: React.FC = () => {
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <OfflineBanner connectionState={connectionState} />
         <ChatHeader
           conversationName={conversation?.display_name || "Contact"}
           avatarUrl={conversation?.avatar_url}
@@ -1321,6 +1665,30 @@ export const ChatScreen: React.FC = () => {
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}
         />
+        {isOtherUserContact === false && (
+          <View style={styles.notContactBanner}>
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color={colors.text.light}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.notContactBannerText} numberOfLines={1}>
+              Cette personne n'est pas dans vos contacts
+            </Text>
+            <TouchableOpacity
+              onPress={handleAddContactFromChat}
+              disabled={addingContact}
+              style={styles.notContactBannerButton}
+            >
+              {addingContact ? (
+                <ActivityIndicator size="small" color={colors.text.light} />
+              ) : (
+                <Text style={styles.notContactBannerButtonText}>Ajouter</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
         {showPinnedBar && pinnedMessages.length > 0 && (
           <PinnedMessagesBar
             pinnedMessages={pinnedMessages}
@@ -1392,7 +1760,9 @@ export const ChatScreen: React.FC = () => {
           visible={showActionsMenu}
           message={selectedMessage}
           isSent={selectedMessage?.sender_id === userId}
-          isPinned={pinnedMessages.some((m) => m.id === selectedMessage?.id)}
+          isPinned={pinnedMessages.some(
+            (m) => (m.messageId ?? m.message?.id) === selectedMessage?.id,
+          )}
           onClose={() => {
             setShowActionsMenu(false);
             setSelectedMessage(null);
@@ -1403,6 +1773,17 @@ export const ChatScreen: React.FC = () => {
           onReact={handleStartReaction}
           onPin={handlePinMessage}
           onForward={handleForwardMessage}
+          onReport={handleOpenReportSheet}
+        />
+        <ReportMessageSheet
+          visible={showReportSheet}
+          message={reportSheetMessage}
+          conversationId={conversationId}
+          conversationTitle={conversation?.display_name || "Contact"}
+          onClose={() => {
+            setShowReportSheet(false);
+            setReportSheetMessage(null);
+          }}
         />
         <ForwardMessageModal
           visible={showForwardModal}
@@ -1425,6 +1806,13 @@ export const ChatScreen: React.FC = () => {
             onReactionSelect={handleReactionSelectFromPicker}
           />
         )}
+        <ReactionReactorsModal
+          visible={reactionReactorsModal !== null}
+          emoji={reactionReactorsModal?.emoji ?? ""}
+          reactors={reactionModalList}
+          resolveName={resolveReactorDisplayName}
+          onClose={() => setReactionReactorsModal(null)}
+        />
         <MessageSearch
           visible={showSearch}
           onClose={() => {
@@ -1533,6 +1921,33 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  notContactBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 12,
+    marginTop: 4,
+    borderRadius: 8,
+  },
+  notContactBannerText: {
+    flex: 1,
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 13,
+  },
+  notContactBannerButton: {
+    backgroundColor: colors.primary.main,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  notContactBannerButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
   },
   listContent: {
     paddingVertical: 16,

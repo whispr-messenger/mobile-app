@@ -1,30 +1,44 @@
 import { TokenService } from "./TokenService";
+import { AuthService } from "./AuthService";
 import { getApiBaseUrl } from "./apiBase";
-
-const AUTH_API_URL = `${getApiBaseUrl()}/auth`;
 import type {
   TwoFactorStatusResponse,
   TwoFactorSetupResponse,
   TwoFactorBackupCodesResponse,
 } from "../types/auth";
 
+function getAuthBaseUrl(): string {
+  return `${getApiBaseUrl()}/auth/v1`;
+}
+
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
+  isRetry = false,
 ): Promise<T> {
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "x-device-type": "mobile",
     ...(options.headers as Record<string, string>),
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${AUTH_API_URL}${path}`, {
+  const response = await fetch(`${getAuthBaseUrl()}${path}`, {
     ...options,
     headers,
   });
+
+  if (response.status === 401 && !isRetry) {
+    try {
+      await AuthService.refreshTokens();
+      return apiFetch<T>(path, options, true);
+    } catch {
+      // fall through
+    }
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -43,31 +57,31 @@ async function apiFetch<T>(
 
 export const TwoFactorService = {
   async getStatus(): Promise<TwoFactorStatusResponse> {
-    return apiFetch<TwoFactorStatusResponse>("/v1/2fa/status");
+    return apiFetch<TwoFactorStatusResponse>("/2fa/status");
   },
 
   async setup(): Promise<TwoFactorSetupResponse> {
-    return apiFetch<TwoFactorSetupResponse>("/v1/2fa/setup", {
+    return apiFetch<TwoFactorSetupResponse>("/2fa/setup", {
       method: "POST",
     });
   },
 
   async enable(token: string): Promise<TwoFactorBackupCodesResponse> {
-    return apiFetch<TwoFactorBackupCodesResponse>("/v1/2fa/enable", {
+    return apiFetch<TwoFactorBackupCodesResponse>("/2fa/enable", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
   },
 
   async disable(token: string): Promise<void> {
-    return apiFetch<void>("/v1/2fa/disable", {
+    return apiFetch<void>("/2fa/disable", {
       method: "POST",
       body: JSON.stringify({ token }),
     });
   },
 
   async getBackupCodes(token: string): Promise<TwoFactorBackupCodesResponse> {
-    return apiFetch<TwoFactorBackupCodesResponse>("/v1/2fa/backup-codes", {
+    return apiFetch<TwoFactorBackupCodesResponse>("/2fa/backup-codes", {
       method: "POST",
       body: JSON.stringify({ token }),
     });

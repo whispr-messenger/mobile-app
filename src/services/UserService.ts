@@ -3,8 +3,9 @@
  * Handles all user-related API calls
  */
 
-import { TokenService } from './TokenService';
-import { getApiBaseUrl } from './apiBase';
+import { TokenService } from "./TokenService";
+import { AuthService } from "./AuthService";
+import { getApiBaseUrl } from "./apiBase";
 
 // Types
 export interface UserProfile {
@@ -27,6 +28,7 @@ export interface UpdateProfileRequest {
   username?: string;
   biography?: string;
   profilePicture?: string;
+  profilePictureUrl?: string;
 }
 
 export interface UpdateProfileResponse {
@@ -36,12 +38,12 @@ export interface UpdateProfileResponse {
 }
 
 export interface PrivacySettings {
-  profilePictureVisibility: 'everyone' | 'contacts' | 'nobody';
-  firstNameVisibility: 'everyone' | 'contacts' | 'nobody';
-  lastNameVisibility: 'everyone' | 'contacts' | 'nobody';
-  biographyVisibility: 'everyone' | 'contacts' | 'nobody';
+  profilePictureVisibility: "everyone" | "contacts" | "nobody";
+  firstNameVisibility: "everyone" | "contacts" | "nobody";
+  lastNameVisibility: "everyone" | "contacts" | "nobody";
+  biographyVisibility: "everyone" | "contacts" | "nobody";
   searchVisibility: boolean;
-  phoneNumberSearch: 'everyone' | 'contacts' | 'nobody';
+  phoneNumberSearch: "everyone" | "contacts" | "nobody";
 }
 
 export class UserService {
@@ -49,7 +51,7 @@ export class UserService {
   private baseUrl: string;
 
   private constructor() {
-    this.baseUrl = `${getApiBaseUrl()}/user`;
+    this.baseUrl = `${getApiBaseUrl()}/user/v1`;
   }
 
   public static getInstance(): UserService {
@@ -60,55 +62,124 @@ export class UserService {
   }
 
   /**
+   * Authenticated fetch with automatic token refresh on 401.
+   */
+  private async authFetch(
+    path: string,
+    options: RequestInit = {},
+  ): Promise<Response> {
+    const token = await TokenService.getAccessToken();
+    if (!token) throw new Error("Non authentifié");
+
+    const payload = TokenService.decodeAccessToken(token);
+    if (!payload?.sub) throw new Error("Token invalide");
+
+    const url = `${this.baseUrl}${path.replace("{userId}", payload.sub)}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers as Record<string, string>),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      try {
+        await AuthService.refreshTokens();
+        const newToken = await TokenService.getAccessToken();
+        if (!newToken) throw new Error("Non authentifié");
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...(options.headers as Record<string, string>),
+            Authorization: `Bearer ${newToken}`,
+          },
+        });
+      } catch {
+        // refresh failed — return the 401 response
+      }
+    }
+
+    return response;
+  }
+
+  /**
+   * POST /user/v1/account/bootstrap
+   * Initialize user-service side state (privacy settings, role, etc.) after first login.
+   * Idempotent — safe to call on every login.
+   */
+  async bootstrapAccount(
+    userId: string,
+    phoneNumber: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await this.authFetch("/account/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, phoneNumber }),
+      });
+      if (!response.ok) {
+        return { success: false, message: `HTTP ${response.status}` };
+      }
+      return { success: true };
+    } catch (error) {
+      console.warn("[UserService] bootstrapAccount failed:", error);
+      return { success: false, message: "bootstrap failed" };
+    }
+  }
+
+  /**
    * Get current user profile
    */
-  async getProfile(): Promise<{ success: boolean; profile?: UserProfile; message?: string }> {
+  async getProfile(): Promise<{
+    success: boolean;
+    profile?: UserProfile;
+    message?: string;
+  }> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await this.authFetch("/profile/{userId}");
 
       if (!response.ok) {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
       const data = await response.json().catch(() => null);
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
       return { success: true, profile: data };
     } catch (error) {
-      console.error('Erreur récupération profil:', error);
-      return { success: false, message: 'Impossible de récupérer le profil' };
+      console.error("Erreur récupération profil:", error);
+      return { success: false, message: "Impossible de récupérer le profil" };
     }
   }
 
   /**
    * Update user profile
    */
-  async updateProfile(profileData: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+  async updateProfile(
+    profileData: UpdateProfileRequest,
+  ): Promise<UpdateProfileResponse> {
     try {
       const validation = this.validateProfileData(profileData);
       if (!validation.isValid) {
         return { success: false, message: validation.error };
       }
 
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
+      // Map profilePicture to profilePictureUrl for the backend API
+      const { profilePicture, ...restData } = profileData;
+      const apiData = {
+        ...restData,
+        profilePictureUrl: profileData.profilePictureUrl || profilePicture,
+      };
+      if (apiData.profilePictureUrl === undefined) {
+        delete apiData.profilePictureUrl;
+      }
 
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(profileData),
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
@@ -116,10 +187,21 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
-      return { success: true, message: 'Profil mis à jour avec succès', profile: data };
+      // Map profilePictureUrl from backend to profilePicture for frontend
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
+      return {
+        success: true,
+        message: "Profil mis à jour avec succès",
+        profile: data,
+      };
     } catch (error) {
-      console.error('Erreur mise à jour profil:', error);
-      return { success: false, message: 'Impossible de mettre à jour le profil' };
+      console.error("Erreur mise à jour profil:", error);
+      return {
+        success: false,
+        message: "Impossible de mettre à jour le profil",
+      };
     }
   }
 
@@ -128,19 +210,10 @@ export class UserService {
    */
   async updateProfilePicture(imageUri: string): Promise<UpdateProfileResponse> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ profilePicture: imageUri }),
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profilePictureUrl: imageUri }),
       });
 
       if (!response.ok) {
@@ -148,12 +221,20 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
-      return { success: true, message: 'Photo de profil mise à jour avec succès', profile: data };
+      // Map profilePictureUrl from backend to profilePicture for frontend
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
+      return {
+        success: true,
+        message: "Photo de profil mise à jour avec succès",
+        profile: data,
+      };
     } catch (error) {
-      console.error('Erreur mise à jour photo:', error);
+      console.error("Erreur mise à jour photo:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour la photo de profil',
+        message: "Impossible de mettre à jour la photo de profil",
       };
     }
   }
@@ -168,18 +249,9 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
       });
 
@@ -188,12 +260,16 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
-      return { success: true, message: 'Nom d\'utilisateur mis à jour avec succès', profile: data };
+      return {
+        success: true,
+        message: "Nom d'utilisateur mis à jour avec succès",
+        profile: data,
+      };
     } catch (error) {
-      console.error('Erreur mise à jour username:', error);
+      console.error("Erreur mise à jour username:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour le nom d\'utilisateur',
+        message: "Impossible de mettre à jour le nom d'utilisateur",
       };
     }
   }
@@ -201,48 +277,63 @@ export class UserService {
   /**
    * Get privacy settings
    */
-  async getPrivacySettings(): Promise<{ success: boolean; settings?: PrivacySettings; message?: string }> {
+  async getPrivacySettings(): Promise<{
+    success: boolean;
+    settings?: PrivacySettings;
+    message?: string;
+  }> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/privacy/${payload.sub}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await this.authFetch("/privacy/{userId}");
 
       if (!response.ok) {
         return { success: false, message: `Erreur ${response.status}` };
       }
 
-      const data = await response.json().catch(() => null);
+      const raw = await response.json().catch(() => null);
+      const data: PrivacySettings = {
+        profilePictureVisibility:
+          raw?.profilePicturePrivacy ??
+          raw?.profilePictureVisibility ??
+          "everyone",
+        firstNameVisibility:
+          raw?.firstNamePrivacy ?? raw?.firstNameVisibility ?? "everyone",
+        lastNameVisibility:
+          raw?.lastNamePrivacy ?? raw?.lastNameVisibility ?? "everyone",
+        biographyVisibility:
+          raw?.biographyPrivacy ?? raw?.biographyVisibility ?? "everyone",
+        searchVisibility:
+          raw?.searchByUsername ?? raw?.searchVisibility ?? true,
+        phoneNumberSearch:
+          raw?.searchByPhone ?? raw?.phoneNumberSearch ?? "everyone",
+      };
       return { success: true, settings: data };
     } catch (error) {
-      console.error('Erreur récupération paramètres confidentialité:', error);
-      return { success: false, message: 'Impossible de récupérer les paramètres de confidentialité' };
+      console.error("Erreur récupération paramètres confidentialité:", error);
+      return {
+        success: false,
+        message: "Impossible de récupérer les paramètres de confidentialité",
+      };
     }
   }
 
   /**
    * Update privacy settings
    */
-  async updatePrivacySettings(settings: PrivacySettings): Promise<UpdateProfileResponse> {
+  async updatePrivacySettings(
+    settings: PrivacySettings,
+  ): Promise<UpdateProfileResponse> {
     try {
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/privacy/${payload.sub}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings),
+      const response = await this.authFetch("/privacy/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profilePicturePrivacy: settings.profilePictureVisibility,
+          firstNamePrivacy: settings.firstNameVisibility,
+          lastNamePrivacy: settings.lastNameVisibility,
+          biographyPrivacy: settings.biographyVisibility,
+          searchByPhone: settings.phoneNumberSearch,
+          searchByUsername: settings.searchVisibility,
+        }),
       });
 
       if (!response.ok) {
@@ -251,13 +342,14 @@ export class UserService {
 
       return {
         success: true,
-        message: 'Paramètres de confidentialité mis à jour avec succès',
+        message: "Paramètres de confidentialité mis à jour avec succès",
       };
     } catch (error) {
-      console.error('Erreur mise à jour confidentialité:', error);
+      console.error("Erreur mise à jour confidentialité:", error);
       return {
         success: false,
-        message: 'Impossible de mettre à jour les paramètres de confidentialité',
+        message:
+          "Impossible de mettre à jour les paramètres de confidentialité",
       };
     }
   }
@@ -265,25 +357,18 @@ export class UserService {
   /**
    * Change phone number
    */
-  async changePhoneNumber(newPhoneNumber: string): Promise<UpdateProfileResponse> {
+  async changePhoneNumber(
+    newPhoneNumber: string,
+  ): Promise<UpdateProfileResponse> {
     try {
       const validation = this.validatePhoneNumber(newPhoneNumber);
       if (!validation.isValid) {
         return { success: false, message: validation.error };
       }
 
-      const token = await TokenService.getAccessToken();
-      if (!token) return { success: false, message: 'Non authentifié' };
-
-      const payload = TokenService.decodeAccessToken(token);
-      if (!payload?.sub) return { success: false, message: 'Token invalide' };
-
-      const response = await fetch(`${this.baseUrl}/profile/${payload.sub}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber: newPhoneNumber }),
       });
 
@@ -292,12 +377,16 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
-      return { success: true, message: 'Numéro de téléphone mis à jour avec succès', profile: data };
+      return {
+        success: true,
+        message: "Numéro de téléphone mis à jour avec succès",
+        profile: data,
+      };
     } catch (error) {
-      console.error('Erreur changement numéro:', error);
+      console.error("Erreur changement numéro:", error);
       return {
         success: false,
-        message: 'Impossible de changer le numéro de téléphone',
+        message: "Impossible de changer le numéro de téléphone",
       };
     }
   }
@@ -305,25 +394,28 @@ export class UserService {
   /**
    * Validate profile data
    */
-  private validateProfileData(data: UpdateProfileRequest): { isValid: boolean; error?: string } {
+  private validateProfileData(data: UpdateProfileRequest): {
+    isValid: boolean;
+    error?: string;
+  } {
     if (data.firstName && data.firstName.trim().length < 2) {
       return {
         isValid: false,
-        error: 'Le prénom doit contenir au moins 2 caractères',
+        error: "Le prénom doit contenir au moins 2 caractères",
       };
     }
 
     if (data.lastName && data.lastName.trim().length < 2) {
       return {
         isValid: false,
-        error: 'Le nom doit contenir au moins 2 caractères',
+        error: "Le nom doit contenir au moins 2 caractères",
       };
     }
 
     if (data.biography && data.biography.length > 500) {
       return {
         isValid: false,
-        error: 'La biographie ne peut pas dépasser 500 caractères',
+        error: "La biographie ne peut pas dépasser 500 caractères",
       };
     }
 
@@ -333,25 +425,29 @@ export class UserService {
   /**
    * Validate username
    */
-  private validateUsername(username: string): { isValid: boolean; error?: string } {
+  private validateUsername(username: string): {
+    isValid: boolean;
+    error?: string;
+  } {
     if (!username || username.trim().length < 3) {
       return {
         isValid: false,
-        error: 'Le nom d\'utilisateur doit contenir au moins 3 caractères',
+        error: "Le nom d'utilisateur doit contenir au moins 3 caractères",
       };
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       return {
         isValid: false,
-        error: 'Le nom d\'utilisateur ne peut contenir que des lettres, chiffres et underscores',
+        error:
+          "Le nom d'utilisateur ne peut contenir que des lettres, chiffres et underscores",
       };
     }
 
     if (username.length > 20) {
       return {
         isValid: false,
-        error: 'Le nom d\'utilisateur ne peut pas dépasser 20 caractères',
+        error: "Le nom d'utilisateur ne peut pas dépasser 20 caractères",
       };
     }
 
@@ -361,29 +457,26 @@ export class UserService {
   /**
    * Validate phone number
    */
-  private validatePhoneNumber(phoneNumber: string): { isValid: boolean; error?: string } {
+  private validatePhoneNumber(phoneNumber: string): {
+    isValid: boolean;
+    error?: string;
+  } {
     if (!phoneNumber || phoneNumber.trim().length < 10) {
       return {
         isValid: false,
-        error: 'Le numéro de téléphone doit contenir au moins 10 chiffres',
+        error: "Le numéro de téléphone doit contenir au moins 10 chiffres",
       };
     }
 
     // Validation basique du format français
-    const cleanNumber = phoneNumber.replace(/\s/g, '');
+    const cleanNumber = phoneNumber.replace(/\s/g, "");
     if (!cleanNumber.match(/^(\+33|0)[1-9]\d{8}$/)) {
       return {
         isValid: false,
-        error: 'Format de numéro de téléphone invalide',
+        error: "Format de numéro de téléphone invalide",
       };
     }
 
     return { isValid: true };
   }
 }
-
-
-
-
-
-

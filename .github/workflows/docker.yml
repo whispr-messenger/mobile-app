@@ -65,6 +65,19 @@ jobs:
             org.opencontainers.image.vendor=Whispr
             org.opencontainers.image.revision=${{ github.sha }}
 
+      - name: Determine API base URL
+        id: api-url
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          REF="${INPUT_REF:-$GITHUB_REF}"
+          if [[ "$REF" == *"deploy/preprod"* ]]; then
+            echo "url=https://preprod-whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
@@ -77,7 +90,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            API_BASE_URL=https://whispr-api.roadmvn.com
+            API_BASE_URL=${{ steps.api-url.outputs.url }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

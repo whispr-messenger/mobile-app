@@ -1,27 +1,37 @@
-import { Platform } from "react-native";
-import { tfliteService } from "./tflite.service";
+import { tfjsService } from "./tfjs.service";
 import { logger } from "../../utils/logger";
 
-export type GateChatImageResult = { ok: true } | { ok: false; reason: "blocked" | "error" };
+export type GateChatImageResult = { ok: true } | { ok: false; reason: string };
 
 /**
- * On-device TFLite check before sending a chat image; block send if it fails.
- * Skipped on web (no native TFLite); caller must skip video/file types.
+ * On-device TFJS image check before sending a chat image; block send if it fails.
+ * Works on both web and native (Android). Caller must skip video/file types.
+ *
+ * If the TFJS model cannot load (e.g. on web where native TF bindings are
+ * unavailable), the gate falls back to { ok: true } so the image is still
+ * sent — a warning is logged for observability.
  */
-export async function gateChatImageBeforeSend(uri: string): Promise<GateChatImageResult> {
-  if (Platform.OS === "web") {
-    logger.warn("moderation", "Skipping TFLite gate on web");
-    return { ok: true };
-  }
-
+export async function gateChatImageBeforeSend(
+  uri: string,
+): Promise<GateChatImageResult> {
   try {
-    const r = await tfliteService.gate({ uri });
-    if (!r.allowed) {
-      return { ok: false, reason: "blocked" };
-    }
+    const r = await tfjsService.gate({ uri });
+    if (!r.allowed)
+      return {
+        ok: false,
+        reason: "Cette image a été détectée comme contenu non autorisé.",
+      };
     return { ok: true };
   } catch (e) {
-    logger.error("moderation", "Image gate inference failed", e);
-    return { ok: false, reason: "error" };
+    console.error(
+      "[moderation] TFJS image gate FAILED — allowing image as fallback:",
+      e,
+    );
+    logger.warn(
+      "moderation",
+      "TFJS image gate could not run. See console.error above for stack.",
+      e,
+    );
+    return { ok: true };
   }
 }

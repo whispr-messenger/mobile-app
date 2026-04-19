@@ -12,23 +12,34 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
-  Modal,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { useModerationStore } from "../../store/moderationStore";
 import { UserService, PrivacySettings } from "../../services/UserService";
 import {
   NotificationService,
   NotificationSettings,
 } from "../../services/NotificationService";
+import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+
+const PRIVACY_ALERT_TITLE: Record<string, string> = {
+  profilePhoto: "Profile photo",
+  firstName: "First name",
+  lastName: "Last name",
+  biography: "Biography",
+};
 
 export const SettingsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
   const {
     settings,
     updateSettings,
@@ -38,6 +49,8 @@ export const SettingsScreen: React.FC = () => {
   } = useTheme();
   const themeColors = getThemeColors();
   const { signOut, userId } = useAuth();
+  const { isModerator, isAdmin, fetchMyRole } = useModerationStore();
+  const insets = useSafeAreaInsets();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -133,7 +146,8 @@ export const SettingsScreen: React.FC = () => {
    * Map API privacy format back to local format
    */
   const apiToPrivacy = useCallback((api: PrivacySettings) => {
-    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    const capitalize = (s: string) =>
+      s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
     return {
       profilePhoto: capitalize(api.profilePictureVisibility),
       firstName: capitalize(api.firstNameVisibility),
@@ -257,8 +271,9 @@ export const SettingsScreen: React.FC = () => {
               JSON.stringify(localNotif),
             );
           } catch (notifError) {
-            console.error(
-              "Error fetching notification settings from backend:",
+            // warn : échec réseau / API non alignée — évite l’overlay rouge LogBox en dev
+            console.warn(
+              "Notification settings: backend unavailable or rejected request",
               notifError,
             );
           }
@@ -269,6 +284,7 @@ export const SettingsScreen: React.FC = () => {
     };
 
     loadSettings();
+    fetchMyRole();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (category: string, key: string, value: boolean) => {
@@ -384,40 +400,13 @@ export const SettingsScreen: React.FC = () => {
 
   const handleDeleteAccount = () => {
     if (Platform.OS === "web") {
-      const confirmed = window.confirm(
-        "This action is irreversible. All your data, messages, and contacts will be permanently deleted. Are you sure you want to delete your account?",
-      );
-      if (confirmed) {
-        // TODO: Replace signOut() with a real DELETE /user/account endpoint
-        // that permanently removes the user's data from the backend
-        signOut().then(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Welcome" as never }],
-          });
-        });
-      }
+      window.alert("Fonctionnalité à venir");
       return;
     }
     Alert.alert(
       getLocalizedText("settings.deleteAccount"),
-      "This action is irreversible. All your data, messages, and contacts will be permanently deleted. Are you sure you want to delete your account?",
-      [
-        { text: getLocalizedText("common.cancel"), style: "cancel" },
-        {
-          text: getLocalizedText("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            // TODO: Replace signOut() with a real DELETE /user/account endpoint
-            // that permanently removes the user's data from the backend
-            await signOut();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Welcome" as never }],
-            });
-          },
-        },
-      ],
+      "Fonctionnalité à venir",
+      [{ text: "OK" }],
     );
   };
 
@@ -540,140 +529,6 @@ export const SettingsScreen: React.FC = () => {
     </View>
   );
 
-  const SelectionModal = ({
-    visible,
-    onClose,
-    title,
-    subtitle,
-    options,
-    selectedValue,
-    onSelect,
-  }: {
-    visible: boolean;
-    onClose: () => void;
-    title: string;
-    subtitle?: string;
-    options: { label: string; value: string }[];
-    selectedValue: string;
-    onSelect: (value: string) => void;
-  }) => {
-    const handleSelect = (value: string) => {
-      if (selectedValue !== value) {
-        onSelect(value);
-      }
-    };
-
-    return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="slide"
-        onRequestClose={onClose}
-        statusBarTranslucent
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={onClose}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View
-              style={[
-                styles.modalContent,
-                { backgroundColor: themeColors.background.primary },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modalTitle,
-                  {
-                    color: themeColors.text.primary,
-                    fontSize: getFontSize("xl"),
-                  },
-                ]}
-              >
-                {title}
-              </Text>
-              {subtitle && (
-                <Text
-                  style={[
-                    styles.modalSubtitle,
-                    {
-                      color: themeColors.text.secondary,
-                      fontSize: getFontSize("base"),
-                    },
-                  ]}
-                >
-                  {subtitle}
-                </Text>
-              )}
-              <ScrollView style={styles.modalScrollView}>
-                {options.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.modalOption,
-                      {
-                        backgroundColor:
-                          selectedValue === option.value
-                            ? themeColors.primary + "20"
-                            : "transparent",
-                      },
-                    ]}
-                    onPress={() => handleSelect(option.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.modalOptionText,
-                        {
-                          color:
-                            selectedValue === option.value
-                              ? themeColors.primary
-                              : themeColors.text.primary,
-                          fontSize: getFontSize("base"),
-                        },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    {selectedValue === option.value && (
-                      <Ionicons
-                        name="checkmark"
-                        size={20}
-                        color={themeColors.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={[
-                  styles.modalCloseButton,
-                  { backgroundColor: themeColors.primary },
-                ]}
-                onPress={onClose}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    styles.modalCloseButtonText,
-                    { color: "#FFFFFF", fontSize: getFontSize("base") },
-                  ]}
-                >
-                  {getLocalizedText("common.cancel")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    );
-  };
-
   return (
     <LinearGradient
       colors={themeColors.background.gradient}
@@ -683,8 +538,11 @@ export const SettingsScreen: React.FC = () => {
     >
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 40 + insets.bottom },
+        ]}
+        showsVerticalScrollIndicator={__DEV__}
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews={false}
       >
@@ -960,7 +818,7 @@ export const SettingsScreen: React.FC = () => {
                 ? getLocalizedText("settings.theme.light")
                 : settings.theme === "dark"
                   ? getLocalizedText("settings.theme.dark")
-                  : "Automatic"
+                  : getLocalizedText("settings.theme.auto")
             }
             onPress={() => setShowThemeModal(true)}
           />
@@ -983,6 +841,18 @@ export const SettingsScreen: React.FC = () => {
                   : getLocalizedText("settings.fontSize.large")
             }
             onPress={() => setShowFontSizeModal(true)}
+          />
+        </SettingSection>
+
+        <SettingSection
+          title={getLocalizedText("settings.aboutSection")}
+          icon="document-text-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.aboutWhispr")}
+            subtitle={getLocalizedText("settings.aboutWhisprSubtitle")}
+            onPress={() => navigation.navigate("AboutContent")}
+            icon="information-circle-outline"
           />
         </SettingSection>
 
@@ -1044,6 +914,47 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </SettingSection>
 
+        {/* Moderation Section */}
+        <SettingSection
+          title={getLocalizedText("settings.moderation") || "Moderation"}
+          icon="flag-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.myReports") || "My Reports"}
+            subtitle={
+              getLocalizedText("settings.myReportsSubtitle") ||
+              "History of your reports"
+            }
+            onPress={() => navigation.navigate("ReportHistory" as never)}
+            icon="document-text-outline"
+          />
+          <SettingItem
+            label={getLocalizedText("settings.mySanctions") || "My Sanctions"}
+            subtitle={
+              getLocalizedText("settings.mySanctionsSubtitle") ||
+              "View your sanctions"
+            }
+            onPress={() => navigation.navigate("ReportHistory" as never)}
+            icon="alert-circle-outline"
+          />
+          {(isAdmin || isModerator) && (
+            <SettingItem
+              label={
+                getLocalizedText("settings.moderationDashboard") ||
+                "Moderation Dashboard"
+              }
+              subtitle={
+                getLocalizedText("settings.moderationDashboardSubtitle") ||
+                "Moderation management"
+              }
+              onPress={() =>
+                navigation.navigate("ModerationDashboard" as never)
+              }
+              icon="shield-outline"
+            />
+          )}
+        </SettingSection>
+
         {/* Account Settings */}
         <SettingSection
           title={getLocalizedText("settings.account")}
@@ -1052,7 +963,7 @@ export const SettingsScreen: React.FC = () => {
           <SettingItem
             label={getLocalizedText("settings.myProfile")}
             subtitle={getLocalizedText("settings.myProfileSubtitle")}
-            onPress={() => (navigation as any).navigate("Profile", {})}
+            onPress={() => navigation.navigate("Profile", {})}
             icon="person-circle-outline"
             rightComponent={
               <Ionicons
@@ -1076,7 +987,7 @@ export const SettingsScreen: React.FC = () => {
           />
           <SettingItem
             label={getLocalizedText("settings.deleteAccount")}
-            subtitle="Permanently delete your account"
+            subtitle="Fonctionnalité à venir"
             onPress={handleDeleteAccount}
             rightComponent={
               <Ionicons
@@ -1087,24 +998,44 @@ export const SettingsScreen: React.FC = () => {
             }
           />
         </SettingSection>
+
+        {/* Developer / Debug — stripped from production bundles */}
+        {__DEV__ && (
+          <SettingSection title="Debug" icon="bug-outline">
+            <SettingItem
+              label="Moderation Test"
+              subtitle="Run the on-device TFJS image gate"
+              onPress={() => navigation.navigate("ModerationTest" as never)}
+              icon="image-outline"
+              rightComponent={
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={themeColors.text.tertiary}
+                />
+              }
+            />
+          </SettingSection>
+        )}
       </ScrollView>
 
-      {/* Modals */}
-      <SelectionModal
+      {/* Modals — alerte centrée style iOS (Application + Privacy) */}
+      <SettingsChoiceAlert
         visible={showThemeModal}
         onClose={() => setShowThemeModal(false)}
         title={getLocalizedText("settings.theme")}
-        subtitle="Choose your theme"
         options={[
-          { label: "Automatic", value: "auto" },
+          { label: getLocalizedText("settings.theme.auto"), value: "auto" },
           { label: getLocalizedText("settings.theme.light"), value: "light" },
           { label: getLocalizedText("settings.theme.dark"), value: "dark" },
         ]}
         selectedValue={settings.theme}
         onSelect={(value) => handleSelect("theme", value)}
+        cancelLabel={getLocalizedText("common.cancel")}
+        layout="vertical"
       />
 
-      <SelectionModal
+      <SettingsChoiceAlert
         visible={showLanguageModal}
         onClose={() => setShowLanguageModal(false)}
         title={getLocalizedText("settings.language")}
@@ -1114,9 +1045,11 @@ export const SettingsScreen: React.FC = () => {
         ]}
         selectedValue={settings.language}
         onSelect={(value) => handleSelect("language", value)}
+        cancelLabel={getLocalizedText("common.cancel")}
+        layout="auto"
       />
 
-      <SelectionModal
+      <SettingsChoiceAlert
         visible={showFontSizeModal}
         onClose={() => setShowFontSizeModal(false)}
         title={getLocalizedText("settings.fontSize")}
@@ -1136,16 +1069,20 @@ export const SettingsScreen: React.FC = () => {
         ]}
         selectedValue={settings.fontSize}
         onSelect={(value) => handleSelect("fontSize", value)}
+        cancelLabel={getLocalizedText("common.cancel")}
+        layout="vertical"
       />
 
       {selectedPrivacyItem && (
-        <SelectionModal
+        <SettingsChoiceAlert
           visible={showPrivacyModal}
           onClose={() => {
             setShowPrivacyModal(false);
             setSelectedPrivacyItem(null);
           }}
-          title={selectedPrivacyItem}
+          title={
+            PRIVACY_ALERT_TITLE[selectedPrivacyItem] ?? selectedPrivacyItem
+          }
           options={[
             { label: "Everyone", value: "Everyone" },
             { label: "Contacts", value: "Contacts" },
@@ -1157,6 +1094,8 @@ export const SettingsScreen: React.FC = () => {
             ] as string
           }
           onSelect={(value) => handleSelect("privacy", value)}
+          cancelLabel={getLocalizedText("common.cancel")}
+          layout="vertical"
         />
       )}
     </LinearGradient>
@@ -1233,50 +1172,6 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     marginTop: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: "80%",
-  },
-  modalTitle: {
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  modalScrollView: {
-    maxHeight: 400,
-  },
-  modalOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  modalOptionText: {
-    fontWeight: "500",
-  },
-  modalCloseButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  modalCloseButtonText: {
-    fontWeight: "600",
   },
 });
 
