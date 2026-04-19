@@ -503,7 +503,7 @@ export const GroupDetailsScreen: React.FC = () => {
               (navigation as any).navigate("Profile", {
                 userId:
                   member.user_id === CURRENT_USER_ID
-                    ? undefined
+                    ? CURRENT_USER_ID
                     : member.user_id,
               });
             }}

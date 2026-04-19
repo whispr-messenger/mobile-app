@@ -75,6 +75,113 @@ export interface GroupDetails {
   conversation_id: string;
 }
 
+interface RawConversationMember {
+  userId?: string;
+  user_id?: string;
+  role?: string;
+  joinedAt?: string;
+  joined_at?: string;
+  isActive?: boolean;
+  is_active?: boolean;
+}
+
+interface ResolvedMemberMeta {
+  role: "admin" | "moderator" | "member";
+  joinedAt?: string;
+  isActive?: boolean;
+}
+
+interface ConversationMembersResult {
+  memberUserIds: string[];
+  roleByUserId: Map<string, ResolvedMemberMeta>;
+  rawMembers: RawConversationMember[];
+}
+
+interface ConversationPayload {
+  memberUserIds?: string[];
+  member_user_ids?: string[];
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+  messageCount?: number;
+  message_count?: number;
+}
+
+/**
+ * Fetch the canonical member list for a conversation (group).
+ *
+ * Source of truth: GET /messaging/api/v1/conversations/:id/members.
+ * The messaging backend only populates `memberUserIds` on the conversation
+ * payload for direct chats, so for groups we must derive member IDs from
+ * this dedicated endpoint.
+ */
+async function fetchConversationMembers(
+  groupId: string,
+  headers: Record<string, string>,
+): Promise<ConversationMembersResult> {
+  const membersResponse = await fetch(
+    `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
+    { headers },
+  ).catch(() => null);
+
+  const membersJson =
+    membersResponse && membersResponse.ok
+      ? await membersResponse.json().catch(() => null)
+      : null;
+  const rawMembers: RawConversationMember[] = Array.isArray(membersJson)
+    ? membersJson
+    : Array.isArray(membersJson?.data)
+      ? membersJson.data
+      : [];
+
+  const roleByUserId = new Map<string, ResolvedMemberMeta>();
+  const memberUserIds: string[] = [];
+  for (const m of rawMembers) {
+    const uid = m.userId ?? m.user_id;
+    if (!uid) continue;
+    const rawRole = (m.role ?? "member").toLowerCase();
+    const role: "admin" | "moderator" | "member" =
+      rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+    roleByUserId.set(uid, {
+      role,
+      joinedAt: m.joinedAt ?? m.joined_at,
+      isActive: m.isActive ?? m.is_active,
+    });
+    memberUserIds.push(uid);
+  }
+
+  return { memberUserIds, roleByUserId, rawMembers };
+}
+
+/**
+ * Ultimate fallback when /conversations/:id/members is unavailable: try to
+ * read memberUserIds from the conversation payload. The backend only fills
+ * this field for direct conversations today, so for groups it is almost
+ * always empty — we keep it only so the UI stays functional in edge cases.
+ */
+async function fetchConversationMemberIdsFallback(
+  groupId: string,
+  headers: Record<string, string>,
+): Promise<{ ids: string[]; conv: ConversationPayload | null }> {
+  const convResponse = await fetch(
+    `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
+    { headers },
+  );
+  if (!convResponse.ok) {
+    return { ids: [], conv: null };
+  }
+  const convJson = await convResponse.json().catch(() => null);
+  const conv: ConversationPayload | null =
+    convJson?.data !== undefined ? convJson.data : convJson;
+  const ids: string[] = Array.isArray(conv?.memberUserIds)
+    ? conv.memberUserIds
+    : Array.isArray(conv?.member_user_ids)
+      ? conv.member_user_ids
+      : [];
+  return { ids, conv };
+}
+
 export const groupsAPI = {
   /**
    * GET /api/groups/{groupId}
@@ -131,70 +238,29 @@ export const groupsAPI = {
     const ownerId = await getOwnerId();
     const headers = await getAuthHeaders();
 
-    // Fetch conversation to get memberUserIds (backend returns camelCase)
-    const convResponse = await fetch(
-      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
-      { headers },
+    // Canonical source: /conversations/:id/members. For groups the
+    // conversation payload's memberUserIds is empty (backend only fills it
+    // for direct chats), so we resolve membership from this endpoint.
+    const { memberUserIds, roleByUserId } = await fetchConversationMembers(
+      groupId,
+      headers,
     );
-    if (!convResponse.ok) {
-      throw new Error("Failed to fetch conversation for group members");
-    }
-    const convJson = await convResponse.json().catch(() => null);
-    const conv = convJson?.data !== undefined ? convJson.data : convJson;
-    const memberUserIds: string[] = Array.isArray(conv?.memberUserIds)
-      ? conv.memberUserIds
-      : Array.isArray(conv?.member_user_ids)
-        ? conv.member_user_ids
-        : [];
 
-    // Fetch real roles from /conversations/:id/members (backend returns
-    // { userId, role, joinedAt, isActive } per entry) so we can show the
-    // correct admin/moderator/member role instead of inferring from ownerId.
-    const membersResponse = await fetch(
-      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
-      { headers },
-    ).catch(() => null);
-    const membersJson =
-      membersResponse && membersResponse.ok
-        ? await membersResponse.json().catch(() => null)
-        : null;
-    const rawMembers: Array<{
-      userId?: string;
-      user_id?: string;
-      role?: string;
-      joinedAt?: string;
-      joined_at?: string;
-      isActive?: boolean;
-      is_active?: boolean;
-    }> = Array.isArray(membersJson)
-      ? membersJson
-      : Array.isArray(membersJson?.data)
-        ? membersJson.data
-        : [];
-    const roleByUserId = new Map<
-      string,
-      {
-        role: "admin" | "moderator" | "member";
-        joinedAt?: string;
-        isActive?: boolean;
-      }
-    >();
-    for (const m of rawMembers) {
-      const uid = m.userId ?? m.user_id;
-      if (!uid) continue;
-      const rawRole = (m.role ?? "member").toLowerCase();
-      const role: "admin" | "moderator" | "member" =
-        rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
-      roleByUserId.set(uid, {
-        role,
-        joinedAt: m.joinedAt ?? m.joined_at,
-        isActive: m.isActive ?? m.is_active,
-      });
+    // Ultimate fallback for the edge case where the members endpoint is
+    // unavailable but the conversation payload happens to expose IDs.
+    let fallbackConv: ConversationPayload | null = null;
+    let resolvedMemberIds = memberUserIds;
+    if (resolvedMemberIds.length === 0) {
+      const fallback = await fetchConversationMemberIdsFallback(
+        groupId,
+        headers,
+      );
+      resolvedMemberIds = fallback.ids;
+      fallbackConv = fallback.conv;
     }
 
-    // Resolve each member's profile
     const members: GroupMember[] = await Promise.all(
-      memberUserIds.map(async (userId: string) => {
+      resolvedMemberIds.map(async (userId: string) => {
         const profileResponse = await fetch(
           `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
           { headers },
@@ -223,8 +289,8 @@ export const groupsAPI = {
           role,
           joined_at:
             memberMeta?.joinedAt ??
-            conv?.createdAt ??
-            conv?.created_at ??
+            fallbackConv?.createdAt ??
+            fallbackConv?.created_at ??
             new Date().toISOString(),
           is_active: memberMeta?.isActive ?? true,
         };
@@ -241,6 +307,14 @@ export const groupsAPI = {
   async getGroupStats(groupId: string): Promise<GroupStats> {
     const headers = await getAuthHeaders();
 
+    // Canonical member list from /conversations/:id/members (memberUserIds
+    // on the conversation payload is empty for groups).
+    const { memberUserIds, rawMembers } = await fetchConversationMembers(
+      groupId,
+      headers,
+    );
+
+    // We still need the conversation for message count and timestamps.
     const convResponse = await fetch(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
       { headers },
@@ -249,35 +323,26 @@ export const groupsAPI = {
       throw new Error("Failed to fetch conversation for group stats");
     }
     const convJson = await convResponse.json().catch(() => null);
-    const conv = convJson?.data !== undefined ? convJson.data : convJson;
+    const conv: ConversationPayload | null =
+      convJson?.data !== undefined ? convJson.data : convJson;
 
-    const memberUserIds: string[] = Array.isArray(conv?.memberUserIds)
-      ? conv.memberUserIds
-      : Array.isArray(conv?.member_user_ids)
-        ? conv.member_user_ids
-        : [];
+    // If the members endpoint failed, fall back to the conversation payload.
+    const resolvedMemberIds =
+      memberUserIds.length > 0
+        ? memberUserIds
+        : Array.isArray(conv?.memberUserIds)
+          ? conv.memberUserIds
+          : Array.isArray(conv?.member_user_ids)
+            ? conv.member_user_ids
+            : [];
 
-    // Derive admin count from real member roles when available.
-    let adminCount = 1;
-    const membersResponse = await fetch(
-      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
-      { headers },
-    ).catch(() => null);
-    if (membersResponse && membersResponse.ok) {
-      const membersJson = await membersResponse.json().catch(() => null);
-      const rawMembers: Array<{ role?: string }> = Array.isArray(membersJson)
-        ? membersJson
-        : Array.isArray(membersJson?.data)
-          ? membersJson.data
-          : [];
-      const admins = rawMembers.filter(
-        (m) => (m.role ?? "").toLowerCase() === "admin",
-      ).length;
-      if (admins > 0) adminCount = admins;
-    }
+    const adminsFromMembers = rawMembers.filter(
+      (m) => (m.role ?? "").toLowerCase() === "admin",
+    ).length;
+    const adminCount = adminsFromMembers > 0 ? adminsFromMembers : 1;
 
     return {
-      memberCount: memberUserIds.length,
+      memberCount: resolvedMemberIds.length,
       adminCount,
       messageCount: conv?.messageCount ?? conv?.message_count ?? 0,
       createdAt:
