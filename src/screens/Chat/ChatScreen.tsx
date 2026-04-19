@@ -1074,7 +1074,23 @@ export const ChatScreen: React.FC = () => {
           ),
         );
 
-        // 2. Send message via messaging-service with remote media URLs
+        // 2. Share media with all conversation participants so they can access it
+        const memberIds = (
+          conversation?.member_user_ids ||
+          conversation?.members?.map((m: { user_id: string }) => m.user_id) ||
+          []
+        ).filter((id: string) => id !== userId);
+        if (memberIds.length > 0) {
+          await MediaService.shareMedia(uploadResult.id, memberIds).catch(
+            (err) =>
+              console.warn(
+                "[ChatScreen] shareMedia failed (non-blocking):",
+                err,
+              ),
+          );
+        }
+
+        // 3. Send message via messaging-service with remote media URLs
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: messageContent,
           message_type: "media",
@@ -1084,7 +1100,7 @@ export const ChatScreen: React.FC = () => {
           reply_to_id: replyToId,
         });
 
-        // 3. Attach media record to the message (non-blocking — message already has metadata)
+        // 4. Attach media record to the message (non-blocking — message already has metadata)
         messagingAPI
           .addAttachment(sentMessage.id, {
             media_id: uploadResult.id,
@@ -1104,7 +1120,7 @@ export const ChatScreen: React.FC = () => {
             ),
           );
 
-        // 4. Update optimistic message with the real server ID
+        // 5. Update optimistic message with the real server ID
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempMessageId

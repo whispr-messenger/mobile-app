@@ -80,7 +80,9 @@ const normaliseUpload = (raw: any): UploadMediaResult => {
   return {
     ...raw,
     id,
-    url: raw?.url ?? (id ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob` : ''),
+    url:
+      raw?.url ??
+      (id ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob` : ""),
     thumbnail_url: raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined,
   };
 };
@@ -229,6 +231,22 @@ export const MediaService = {
    */
   async deleteMedia(id: string): Promise<void> {
     await apiFetch<void>(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  /**
+   * PATCH /media/:id/share
+   * Grant read access to the given user IDs for a media file.
+   */
+  async shareMedia(id: string, userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    await apiFetch<{ sharedWith: string[] }>(
+      `/${encodeURIComponent(id)}/share`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds }),
+      },
+    );
   },
 };
 
