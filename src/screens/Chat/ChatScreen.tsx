@@ -1075,11 +1075,18 @@ export const ChatScreen: React.FC = () => {
         );
 
         // 2. Share media with all conversation participants so they can access it
-        const memberIds = (
-          conversation?.member_user_ids ||
-          conversation?.members?.map((m: { user_id: string }) => m.user_id) ||
-          []
-        ).filter((id: string) => id !== userId);
+        const rawMemberIds: string[] = [
+          ...(conversation?.member_user_ids ?? []),
+          ...(allConversations.find((c) => c.id === conversationId)
+            ?.member_user_ids ?? []),
+          ...(conversation?.members?.map(
+            (m: { user_id: string }) => m.user_id,
+          ) ?? []),
+          ...conversationMembers.map((m) => m.id),
+        ];
+        const memberIds = [...new Set(rawMemberIds)]
+          .filter(Boolean)
+          .filter((id) => id !== userId);
         if (memberIds.length > 0) {
           await MediaService.shareMedia(uploadResult.id, memberIds).catch(
             (err) =>
