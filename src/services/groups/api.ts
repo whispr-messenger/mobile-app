@@ -214,8 +214,11 @@ export const groupsAPI = {
   },
 
   /**
-   * No backend endpoint exists for group activity logs.
-   * Returns an empty array until a logging service is implemented.
+   * TODO(WHISPR-961): backend endpoint not yet implemented in user-service.
+   * Needs GET /user/v1/groups/:groupId/logs returning paginated group audit
+   * events (member add/remove, role change, settings update, admin transfer).
+   * Until then we return an empty list so the UI renders the empty state
+   * instead of throwing.
    */
   async getGroupLogs(
     groupId: string,
@@ -227,8 +230,10 @@ export const groupsAPI = {
   },
 
   /**
-   * No dedicated backend endpoint for group settings.
-   * Returns sensible defaults until a settings service is implemented.
+   * TODO(WHISPR-961): backend endpoint not yet implemented in user-service.
+   * Needs GET/PATCH /user/v1/groups/:groupId/settings backed by a
+   * group_settings table (permissions, moderation level, join approval).
+   * Until then we return the app defaults so the settings screen is usable.
    */
   async getGroupSettings(groupId: string): Promise<GroupSettings> {
     void groupId;
