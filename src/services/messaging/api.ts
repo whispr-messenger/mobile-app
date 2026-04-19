@@ -574,9 +574,17 @@ export const messagingAPI = {
     return promise;
   },
 
-  async getConversationMembers(
-    conversationId: string,
-  ): Promise<Array<{ id: string; display_name: string; username?: string }>> {
+  async getConversationMembers(conversationId: string): Promise<
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+      role: "admin" | "moderator" | "member";
+      joined_at?: string;
+      is_active?: boolean;
+    }>
+  > {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
     );
@@ -590,11 +598,85 @@ export const messagingAPI = {
       return [];
     }
 
-    return data.map((member: any) => ({
-      id: member.id,
-      display_name: member.display_name || member.username || "Utilisateur",
-      username: member.username,
-    }));
+    type BackendMember = {
+      userId?: string;
+      user_id?: string;
+      id?: string;
+      role?: string;
+      joinedAt?: string;
+      joined_at?: string;
+      isActive?: boolean;
+      is_active?: boolean;
+      username?: string;
+      display_name?: string;
+    };
+
+    const rawMembers = data as BackendMember[];
+
+    // Resolve display name and avatar for each member via /user/v1/profile/:userId
+    // in parallel to avoid sequential N+1.
+    const userApiBase = `${getApiBaseUrl()}/user/v1`;
+    const token = await TokenService.getAccessToken();
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    return Promise.all(
+      rawMembers.map(async (member) => {
+        const userId = member.userId ?? member.user_id ?? member.id ?? "";
+        const rawRole = (member.role ?? "member").toLowerCase();
+        const role: "admin" | "moderator" | "member" =
+          rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+
+        let displayName = member.display_name || member.username || "";
+        let avatarUrl: string | undefined;
+        let username: string | undefined = member.username;
+
+        if (userId) {
+          try {
+            const profileResponse = await fetch(
+              `${userApiBase}/profile/${encodeURIComponent(userId)}`,
+              { headers: authHeaders },
+            );
+            if (profileResponse.ok) {
+              const profile = await profileResponse.json().catch(() => null);
+              if (profile) {
+                const firstName = profile.firstName || profile.first_name || "";
+                const lastName = profile.lastName || profile.last_name || "";
+                const fullName = `${firstName} ${lastName}`.trim();
+                displayName =
+                  fullName || profile.username || displayName || "Utilisateur";
+                username = profile.username ?? username;
+                avatarUrl =
+                  profile.profilePictureUrl ??
+                  profile.profile_picture_url ??
+                  profile.avatarUrl ??
+                  profile.avatar_url ??
+                  undefined;
+              }
+            }
+          } catch (err) {
+            logger.warn(
+              "getConversationMembers",
+              `Failed to resolve profile for ${userId}`,
+              err,
+            );
+          }
+        }
+
+        if (!displayName) displayName = "Utilisateur";
+
+        return {
+          id: userId,
+          display_name: displayName,
+          username,
+          avatar_url: avatarUrl,
+          role,
+          joined_at: member.joinedAt ?? member.joined_at,
+          is_active: member.isActive ?? member.is_active,
+        };
+      }),
+    );
   },
 
   async createDirectConversation(otherUserId: string): Promise<Conversation> {
