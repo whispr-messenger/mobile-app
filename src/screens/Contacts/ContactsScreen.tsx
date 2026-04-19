@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
@@ -80,57 +80,27 @@ export const ContactsScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  useWebSocket({
-    userId,
-    token,
-    onContactRequest: (request: ContactRequest) => {
-      setContactRequests((prev) => {
-        const exists = prev.some((r) => r.id === request.id);
-        if (exists) {
-          return prev.map((r) => (r.id === request.id ? request : r));
-        }
-        return [request, ...prev];
-      });
-    },
-  });
-
-  // Debounce search query updates
   const handleSearchChange = useCallback((text: string) => {
     setSearchQuery(text);
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(text);
-    }, 300);
   }, []);
 
-  // Load contacts
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
-      const params: ContactSearchParams = {
-        search: debouncedSearchQuery || undefined,
-        sort: sortBy,
-        favorites: showFavoritesOnly || undefined,
-      };
       const [result, favIds] = await Promise.all([
-        contactsAPI.getContacts(params, userId),
+        contactsAPI.getContacts(),
         getFavoriteIds(),
       ]);
       setFavoriteIds(favIds);
-      // Merge local favorite state into contacts
-      const enriched = result.contacts.map((c) => ({
-        ...c,
-        is_favorite: favIds.has(c.id),
-      }));
-      setContacts(enriched);
+      setContacts(
+        result.contacts.map((c) => ({ ...c, is_favorite: favIds.has(c.id) })),
+      );
     } catch (error) {
       console.error("[ContactsScreen] Error loading contacts:", error);
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchQuery, sortBy, showFavoritesOnly]);
+  }, []);
 
   const loadContactRequests = useCallback(async () => {
     try {
@@ -144,18 +114,46 @@ export const ContactsScreen: React.FC = () => {
     }
   }, []);
 
-  // Initial load
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadContacts(), loadContactRequests()]);
+  }, [loadContacts, loadContactRequests]);
+
+  useWebSocket({
+    userId,
+    token,
+    onContactRequest: (request: ContactRequest) => {
+      setContactRequests((prev) => {
+        const exists = prev.some((r) => r.id === request.id);
+        if (exists) {
+          return prev.map((r) => (r.id === request.id ? request : r));
+        }
+        return [request, ...prev];
+      });
+      void loadContacts();
+    },
+  });
+
   useEffect(() => {
     loadContacts();
     loadContactRequests();
   }, [loadContacts, loadContactRequests]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId || !token) return undefined;
+      void refreshAll();
+      const interval = setInterval(() => {
+        void refreshAll();
+      }, 10000);
+      return () => clearInterval(interval);
+    }, [userId, token, refreshAll]),
+  );
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadContacts(), loadContactRequests()]);
+    await refreshAll();
     setRefreshing(false);
-  }, [loadContacts, loadContactRequests]);
+  }, [refreshAll]);
 
   const handleAcceptRequest = useCallback(
     async (request: ContactRequest) => {
@@ -244,52 +242,64 @@ export const ContactsScreen: React.FC = () => {
 
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
-    let result = contacts;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((c) => {
-        const user = c.contact_user;
-        const name = c.nickname || user?.first_name || user?.username || "";
-        return name.toLowerCase().includes(q);
+    const query = searchQuery.trim().toLowerCase();
+    let list = [...contacts];
+
+    if (showFavoritesOnly) {
+      list = list.filter((contact) => contact.is_favorite);
+    }
+
+    if (query) {
+      list = list.filter((contact) => {
+        const fields = [
+          contact.nickname,
+          contact.contact_user?.username,
+          contact.contact_user?.first_name,
+          contact.contact_user?.last_name,
+          contact.contact_user?.phone_number,
+        ]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+        return fields.some((v) => v.includes(query));
       });
     }
-    if (showFavoritesOnly) {
-      result = result.filter((c) => c.is_favorite);
+
+    const byName = (a: Contact, b: Contact) => {
+      const left = (a.nickname ?? a.contact_user?.username ?? "").toLowerCase();
+      const right = (
+        b.nickname ??
+        b.contact_user?.username ??
+        ""
+      ).toLowerCase();
+      return left.localeCompare(right, "fr");
+    };
+
+    if (sortBy === "added_at") {
+      list.sort(
+        (a, b) =>
+          new Date(b.added_at).getTime() - new Date(a.added_at).getTime(),
+      );
+      return list;
     }
 
-    // Sort
-    result = [...result].sort((a, b) => {
-      if (sortBy === "name") {
-        const nameA = (
-          a.nickname ||
-          a.contact_user?.first_name ||
-          a.contact_user?.username ||
-          ""
-        ).toLowerCase();
-        const nameB = (
-          b.nickname ||
-          b.contact_user?.first_name ||
-          b.contact_user?.username ||
-          ""
-        ).toLowerCase();
-        return nameA.localeCompare(nameB, "fr");
-      }
-      if (sortBy === "added_at") {
-        return new Date(b.added_at).getTime() - new Date(a.added_at).getTime();
-      }
-      if (sortBy === "last_seen") {
-        const seenA = a.contact_user?.last_seen
-          ? new Date(a.contact_user.last_seen).getTime()
-          : 0;
-        const seenB = b.contact_user?.last_seen
-          ? new Date(b.contact_user.last_seen).getTime()
-          : 0;
-        return seenB - seenA;
-      }
-      return 0;
-    });
+    if (sortBy === "last_seen") {
+      list.sort(
+        (a, b) =>
+          new Date(b.contact_user?.last_seen ?? 0).getTime() -
+          new Date(a.contact_user?.last_seen ?? 0).getTime(),
+      );
+      return list;
+    }
 
-    return result;
+    if (sortBy === "favorites") {
+      list.sort(
+        (a, b) => Number(b.is_favorite) - Number(a.is_favorite) || byName(a, b),
+      );
+      return list;
+    }
+
+    list.sort(byName);
+    return list;
   }, [contacts, searchQuery, showFavoritesOnly, sortBy]);
 
   const pendingRequests = useMemo(() => {
@@ -376,7 +386,7 @@ export const ContactsScreen: React.FC = () => {
             />
             <TextInput
               style={[styles.searchInput, { color: colors.text.light }]}
-              placeholder="Rechercher un contact..."
+              placeholder="Rechercher un contact"
               placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={searchQuery}
               onChangeText={handleSearchChange}
