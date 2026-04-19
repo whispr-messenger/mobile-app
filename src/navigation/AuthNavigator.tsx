@@ -79,7 +79,11 @@ export type AuthStackParamList = {
   MyQRCode: undefined;
   QRCodeScanner: undefined;
   BlockedUsers: undefined;
-  GroupDetails: { groupId: string; conversationId: string };
+  GroupDetails: {
+    groupId: string;
+    conversationId: string;
+    conversationName?: string;
+  };
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
   Calls: undefined;

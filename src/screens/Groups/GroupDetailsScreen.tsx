@@ -16,6 +16,8 @@ import {
   RefreshControl,
   Alert,
   Modal,
+  TextInput,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -46,6 +48,9 @@ import {
   GroupLog,
   GroupSettings,
 } from "../../services/groups/api";
+import { messagingAPI } from "../../services/messaging/api";
+import { contactsAPI } from "../../services/contacts/api";
+import { Contact } from "../../types/contact";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 
 const AnimatedTouchableOpacity =
@@ -62,7 +67,7 @@ export const GroupDetailsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { userId } = useAuth();
   const CURRENT_USER_ID = userId ?? "";
-  const { groupId, conversationId } = route.params;
+  const { groupId, conversationId, conversationName } = route.params;
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -79,6 +84,15 @@ export const GroupDetailsScreen: React.FC = () => {
   const [showTransferAdminModal, setShowTransferAdminModal] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [memberActionFor, setMemberActionFor] = useState<GroupMember | null>(
+    null,
+  );
+  const [memberActionLoading, setMemberActionLoading] = useState(false);
 
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -216,6 +230,183 @@ export const GroupDetailsScreen: React.FC = () => {
     [groupId, navigation],
   );
 
+  const loadContactsForPicker = useCallback(async () => {
+    try {
+      setLoadingContacts(true);
+      const result = await contactsAPI.getContacts();
+      setContacts(result.contacts);
+    } catch (error) {
+      logger.error("GroupDetailsScreen", "Error loading contacts", error);
+      Alert.alert("Erreur", "Impossible de charger les contacts");
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, []);
+
+  const openAddMemberModal = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setContactSearch("");
+    setShowAddMemberModal(true);
+    if (contacts.length === 0) {
+      loadContactsForPicker();
+    }
+  }, [contacts.length, loadContactsForPicker]);
+
+  const existingMemberIds = React.useMemo(
+    () => new Set(members.map((m) => m.user_id)),
+    [members],
+  );
+
+  const pickerContacts = React.useMemo(() => {
+    const q = contactSearch.trim().toLowerCase();
+    return contacts.filter((c) => {
+      const userId = c.contact_user?.id ?? c.contact_id;
+      if (!userId || existingMemberIds.has(userId)) return false;
+      if (!q) return true;
+      const nick = c.nickname?.toLowerCase() || "";
+      const uname = c.contact_user?.username?.toLowerCase() || "";
+      const fn = c.contact_user?.first_name?.toLowerCase() || "";
+      const ln = c.contact_user?.last_name?.toLowerCase() || "";
+      return (
+        nick.includes(q) ||
+        uname.includes(q) ||
+        fn.includes(q) ||
+        ln.includes(q)
+      );
+    });
+  }, [contacts, contactSearch, existingMemberIds]);
+
+  const handlePickContact = useCallback(
+    async (contact: Contact) => {
+      const userId = contact.contact_user?.id ?? contact.contact_id;
+      if (!userId) return;
+      try {
+        setAddingMember(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        await messagingAPI.addGroupMembers(conversationId, [userId]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert("Membre ajouté", "Le membre a été ajouté au groupe.");
+        setShowAddMemberModal(false);
+        loadGroupData();
+      } catch (error: any) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        if (error?.status === 403) {
+          Alert.alert(
+            "Non autorisé",
+            "Seul un administrateur peut ajouter un membre.",
+          );
+        } else {
+          Alert.alert(
+            "Erreur",
+            error?.message || "Impossible d'ajouter ce membre",
+          );
+        }
+      } finally {
+        setAddingMember(false);
+      }
+    },
+    [conversationId, loadGroupData],
+  );
+
+  const handleRemoveMember = useCallback(
+    (member: GroupMember) => {
+      Alert.alert(
+        "Retirer du groupe",
+        `Retirer ${member.display_name} du groupe ?`,
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Retirer",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                setMemberActionLoading(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                await messagingAPI.removeGroupMember(
+                  conversationId,
+                  member.user_id,
+                );
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+                setMemberActionFor(null);
+                loadGroupData();
+              } catch (error: any) {
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Error,
+                );
+                if (error?.status === 403) {
+                  Alert.alert(
+                    "Non autorisé",
+                    "Seul un administrateur peut retirer un membre.",
+                  );
+                } else {
+                  Alert.alert(
+                    "Erreur",
+                    error?.message || "Impossible de retirer ce membre",
+                  );
+                }
+              } finally {
+                setMemberActionLoading(false);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [conversationId, loadGroupData],
+  );
+
+  const handleChangeRole = useCallback(
+    async (member: GroupMember, role: "admin" | "member") => {
+      // Anti-self-lock: sole admin trying to demote self
+      if (
+        role === "member" &&
+        member.user_id === CURRENT_USER_ID &&
+        isLastAdmin
+      ) {
+        Alert.alert(
+          "Action impossible",
+          "Tu es le seul admin. Promeus quelqu'un d'autre avant de te rétrograder, ou quitte le groupe (un membre sera auto-promu).",
+        );
+        return;
+      }
+      try {
+        setMemberActionLoading(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        await messagingAPI.updateGroupMemberRole(
+          conversationId,
+          member.user_id,
+          role,
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setMemberActionFor(null);
+        loadGroupData();
+      } catch (error: any) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        if (error?.status === 403) {
+          Alert.alert(
+            "Non autorisé",
+            "Seul un administrateur peut modifier les rôles.",
+          );
+        } else if (error?.status === 404 || error?.status === 405) {
+          Alert.alert(
+            "Fonctionnalité indisponible",
+            "Le changement de rôle n'est pas encore disponible côté serveur.",
+          );
+        } else {
+          Alert.alert(
+            "Erreur",
+            error?.message || "Impossible de changer le rôle",
+          );
+        }
+      } finally {
+        setMemberActionLoading(false);
+      }
+    },
+    [CURRENT_USER_ID, conversationId, isLastAdmin, loadGroupData],
+  );
+
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     opacity: headerOpacity.value,
   }));
@@ -239,8 +430,11 @@ export const GroupDetailsScreen: React.FC = () => {
       >
         <Ionicons name="arrow-back" size={24} color={colors.text.light} />
       </TouchableOpacity>
-      <Text style={[styles.headerTitle, { color: colors.text.light }]}>
-        Détails du groupe
+      <Text
+        style={[styles.headerTitle, { color: colors.text.light }]}
+        numberOfLines={1}
+      >
+        {groupDetails?.name?.trim() || conversationName || "Détails du groupe"}
       </Text>
       <TouchableOpacity
         onPress={handleManageGroup}
@@ -290,7 +484,7 @@ export const GroupDetailsScreen: React.FC = () => {
         )}
       </View>
       <Text style={[styles.groupName, { color: colors.text.light }]}>
-        {groupDetails?.name || "Groupe"}
+        {groupDetails?.name?.trim() || conversationName || "Groupe"}
       </Text>
       {groupDetails?.description && (
         <Text
@@ -490,6 +684,35 @@ export const GroupDetailsScreen: React.FC = () => {
             {stats && stats.adminCount > 1 ? "s" : ""}
           </Text>
         </View>
+        {isAdmin && (
+          <TouchableOpacity
+            style={[
+              styles.addMemberButton,
+              { backgroundColor: withOpacity(colors.primary.main, 0.15) },
+            ]}
+            onPress={openAddMemberModal}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Ajouter un membre"
+          >
+            <View
+              style={[
+                styles.addMemberIcon,
+                { backgroundColor: colors.primary.main },
+              ]}
+            >
+              <Ionicons name="person-add" size={18} color={colors.text.light} />
+            </View>
+            <Text style={[styles.addMemberText, { color: colors.text.light }]}>
+              Ajouter un membre
+            </Text>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={withOpacity(colors.text.light, 0.5)}
+            />
+          </TouchableOpacity>
+        )}
         {members.map((member, index) => (
           <AnimatedTouchableOpacity
             key={member.id}
@@ -590,6 +813,25 @@ export const GroupDetailsScreen: React.FC = () => {
                 })}
               </Text>
             </View>
+            {isAdmin && member.user_id !== CURRENT_USER_ID && (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setMemberActionFor(member);
+                }}
+                style={styles.memberActionButton}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Actions pour ${member.display_name}`}
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={20}
+                  color={withOpacity(colors.text.light, 0.7)}
+                />
+              </TouchableOpacity>
+            )}
           </AnimatedTouchableOpacity>
         ))}
       </View>
@@ -1318,6 +1560,261 @@ export const GroupDetailsScreen: React.FC = () => {
     );
   };
 
+  const renderAddMemberModal = () => (
+    <Modal
+      visible={showAddMemberModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowAddMemberModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <AnimatedView
+          style={styles.modalContainerLarge}
+          entering={FadeInDown.duration(300).springify()}
+        >
+          <LinearGradient
+            colors={colors.background.gradient.app}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.modalGradient}
+          >
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.secondary.main]}
+                  style={styles.modalIconGradient}
+                >
+                  <Ionicons
+                    name="person-add"
+                    size={28}
+                    color={colors.text.light}
+                  />
+                </LinearGradient>
+              </View>
+              <Text style={styles.modalTitle}>Ajouter un membre</Text>
+              <Text style={styles.modalDescription}>
+                Sélectionnez un contact à ajouter au groupe.
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.pickerSearchContainer,
+                {
+                  backgroundColor: withOpacity(colors.background.darkCard, 0.8),
+                },
+              ]}
+            >
+              <Ionicons
+                name="search"
+                size={18}
+                color={withOpacity(colors.text.light, 0.6)}
+              />
+              <TextInput
+                style={[styles.pickerSearchInput, { color: colors.text.light }]}
+                placeholder="Rechercher un contact"
+                placeholderTextColor={withOpacity(colors.text.light, 0.4)}
+                value={contactSearch}
+                onChangeText={setContactSearch}
+              />
+            </View>
+            {loadingContacts ? (
+              <View style={styles.pickerLoading}>
+                <ActivityIndicator size="large" color={colors.primary.main} />
+              </View>
+            ) : (
+              <FlatList
+                data={pickerContacts}
+                keyExtractor={(item) => item.id}
+                style={styles.pickerList}
+                ListEmptyComponent={
+                  <Text style={styles.pickerEmptyText}>
+                    Aucun contact disponible
+                  </Text>
+                }
+                renderItem={({ item }) => {
+                  const user = item.contact_user;
+                  const displayName =
+                    item.nickname ||
+                    user?.first_name ||
+                    user?.username ||
+                    "Contact";
+                  return (
+                    <TouchableOpacity
+                      style={styles.pickerItem}
+                      onPress={() => handlePickContact(item)}
+                      disabled={addingMember}
+                      activeOpacity={0.7}
+                    >
+                      <Avatar
+                        uri={user?.avatar_url}
+                        name={displayName}
+                        size={44}
+                        showOnlineBadge={false}
+                      />
+                      <View style={styles.pickerItemInfo}>
+                        <Text style={styles.pickerItemName}>{displayName}</Text>
+                        {user?.username && (
+                          <Text style={styles.pickerItemUsername}>
+                            {formatUsername(user.username)}
+                          </Text>
+                        )}
+                      </View>
+                      {addingMember ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.primary.main}
+                        />
+                      ) : (
+                        <Ionicons
+                          name="add-circle"
+                          size={26}
+                          color={colors.primary.main}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalButtonCancel}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowAddMemberModal(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalButtonCancelText}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </AnimatedView>
+      </View>
+    </Modal>
+  );
+
+  const renderMemberActionsModal = () => {
+    const member = memberActionFor;
+    if (!member) return null;
+    const isSelf = member.user_id === CURRENT_USER_ID;
+
+    return (
+      <Modal
+        visible={!!memberActionFor}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMemberActionFor(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <AnimatedView
+            style={styles.modalContainer}
+            entering={FadeInDown.duration(250).springify()}
+          >
+            <LinearGradient
+              colors={colors.background.gradient.app}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modalGradient}
+            >
+              <View style={styles.modalHeader}>
+                <Avatar
+                  uri={member.avatar_url}
+                  name={member.display_name}
+                  size={56}
+                  showOnlineBadge={false}
+                />
+                <Text style={[styles.modalTitle, { marginTop: 12 }]}>
+                  {member.display_name}
+                </Text>
+                <Text style={styles.modalDescription}>
+                  {member.role === "admin" ? "Administrateur" : "Membre"}
+                </Text>
+              </View>
+
+              {memberActionLoading && (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.primary.main}
+                  style={{ marginBottom: 12 }}
+                />
+              )}
+
+              {member.role === "member" && (
+                <TouchableOpacity
+                  style={styles.memberActionRow}
+                  onPress={() => handleChangeRole(member, "admin")}
+                  disabled={memberActionLoading}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="shield-checkmark"
+                    size={20}
+                    color={colors.primary.main}
+                  />
+                  <Text style={styles.memberActionRowText}>
+                    Promouvoir en admin
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {member.role === "admin" && !isSelf && (
+                <TouchableOpacity
+                  style={styles.memberActionRow}
+                  onPress={() => handleChangeRole(member, "member")}
+                  disabled={memberActionLoading}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="arrow-down-circle"
+                    size={20}
+                    color={colors.secondary.main}
+                  />
+                  <Text style={styles.memberActionRowText}>
+                    Rétrograder en membre
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {!isSelf && (
+                <TouchableOpacity
+                  style={styles.memberActionRow}
+                  onPress={() => handleRemoveMember(member)}
+                  disabled={memberActionLoading}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="person-remove"
+                    size={20}
+                    color={colors.ui.error}
+                  />
+                  <Text
+                    style={[
+                      styles.memberActionRowText,
+                      { color: colors.ui.error },
+                    ]}
+                  >
+                    Retirer du groupe
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalButtonCancel}
+                  onPress={() => setMemberActionFor(null)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalButtonCancelText}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </AnimatedView>
+        </View>
+      </Modal>
+    );
+  };
+
   if (loading) {
     return (
       <LinearGradient
@@ -1364,6 +1861,8 @@ export const GroupDetailsScreen: React.FC = () => {
         {renderLeaveModal()}
         {renderDeleteModal()}
         {renderTransferAdminModal()}
+        {renderAddMemberModal()}
+        {renderMemberActionsModal()}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -1892,5 +2391,96 @@ const styles = StyleSheet.create({
     color: withOpacity(colors.text.light, 0.5),
     marginTop: 16,
     fontWeight: typography.fontWeight.medium,
+  },
+  addMemberButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  addMemberIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addMemberText: {
+    flex: 1,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
+  },
+  memberActionButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginLeft: 4,
+  },
+  pickerSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  pickerSearchInput: {
+    flex: 1,
+    fontSize: typography.fontSize.base,
+    padding: 0,
+  },
+  pickerList: {
+    maxHeight: 320,
+    marginBottom: 12,
+  },
+  pickerLoading: {
+    paddingVertical: 32,
+    alignItems: "center",
+  },
+  pickerEmptyText: {
+    textAlign: "center",
+    paddingVertical: 24,
+    color: withOpacity(colors.text.light, 0.6),
+    fontSize: typography.fontSize.sm,
+  },
+  pickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: withOpacity(colors.background.dark, 0.3),
+  },
+  pickerItemInfo: {
+    flex: 1,
+  },
+  pickerItemName: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
+  },
+  pickerItemUsername: {
+    fontSize: typography.fontSize.sm,
+    color: withOpacity(colors.text.light, 0.6),
+    marginTop: 2,
+  },
+  memberActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: withOpacity(colors.background.dark, 0.3),
+    marginBottom: 8,
+  },
+  memberActionRowText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semiBold,
+    color: colors.text.light,
   },
 });
