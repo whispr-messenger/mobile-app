@@ -58,6 +58,7 @@ import { MessageSearch } from "../../components/Chat/MessageSearch";
 import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
 import { EmptyChatState } from "../../components/Chat/EmptyChatState";
 import { ChatHeader } from "./ChatHeader";
+import { getConversationDisplayName } from "../../utils";
 import { usePresenceStore } from "../../store/presenceStore";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
@@ -1890,7 +1891,9 @@ export const ChatScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
-          conversationName={conversation?.display_name || "Contact"}
+          conversationName={
+            conversation ? getConversationDisplayName(conversation) : "Contact"
+          }
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || "direct"}
           isOnline={isOtherOnline}
@@ -2015,7 +2018,9 @@ export const ChatScreen: React.FC = () => {
           visible={showReportSheet}
           message={reportSheetMessage}
           conversationId={conversationId}
-          conversationTitle={conversation?.display_name || "Contact"}
+          conversationTitle={
+            conversation ? getConversationDisplayName(conversation) : "Contact"
+          }
           onClose={() => {
             setShowReportSheet(false);
             setReportSheetMessage(null);
@@ -2139,12 +2144,18 @@ export const ChatScreen: React.FC = () => {
                     <Avatar
                       size={80}
                       uri={conversation?.avatar_url}
-                      name={conversation?.display_name || "Contact"}
+                      name={
+                        conversation
+                          ? getConversationDisplayName(conversation)
+                          : "Contact"
+                      }
                       showOnlineBadge={conversation?.type === "direct"}
                       isOnline={false}
                     />
                     <Text style={styles.infoName}>
-                      {conversation?.display_name || "Contact"}
+                      {conversation
+                        ? getConversationDisplayName(conversation)
+                        : "Contact"}
                     </Text>
                     {conversation?.type === "direct" && (
                       <Text style={styles.infoStatus}>Hors ligne</Text>
