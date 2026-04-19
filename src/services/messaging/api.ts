@@ -679,6 +679,84 @@ export const messagingAPI = {
     );
   },
 
+  async addGroupMembers(
+    conversationId: string,
+    userIds: string[],
+  ): Promise<void> {
+    for (const userId of userIds) {
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+        },
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const msg =
+          (body as { message?: string; error?: string })?.message ||
+          (body as { error?: string })?.error ||
+          `HTTP ${response.status}`;
+        const err = new Error(msg) as Error & { status: number };
+        err.status = response.status;
+        throw err;
+      }
+    }
+  },
+
+  async removeGroupMember(
+    conversationId: string,
+    userId: string,
+  ): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    );
+
+    if (!response.ok && response.status !== 204) {
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number };
+      err.status = response.status;
+      throw err;
+    }
+  },
+
+  async updateGroupMemberRole(
+    conversationId: string,
+    userId: string,
+    role: "admin" | "member" | "moderator",
+  ): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/members/${encodeURIComponent(userId)}/role`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number };
+      err.status = response.status;
+      throw err;
+    }
+  },
+
   async createDirectConversation(otherUserId: string): Promise<Conversation> {
     const token = await TokenService.getAccessToken();
     let currentUserId = "";
