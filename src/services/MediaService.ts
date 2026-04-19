@@ -77,13 +77,17 @@ export interface UploadMediaResult {
 // callers don't have to know which key the server happened to return.
 const normaliseUpload = (raw: any): UploadMediaResult => {
   const id = raw?.mediaId ?? raw?.id ?? raw?.media_id;
+  // Always use the media-service API endpoint so recipients fetch via auth header.
+  // Presigned MinIO URLs stored in messages would be inaccessible to non-owners.
   return {
     ...raw,
     id,
-    url:
-      raw?.url ??
-      (id ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob` : ""),
-    thumbnail_url: raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined,
+    url: id
+      ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`
+      : (raw?.url ?? ""),
+    thumbnail_url: id
+      ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/thumbnail`
+      : (raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined),
   };
 };
 
