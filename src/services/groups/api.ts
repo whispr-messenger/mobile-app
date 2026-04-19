@@ -131,7 +131,7 @@ export const groupsAPI = {
     const ownerId = await getOwnerId();
     const headers = await getAuthHeaders();
 
-    // Fetch conversation to get member_user_ids
+    // Fetch conversation to get memberUserIds (backend returns camelCase)
     const convResponse = await fetch(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
       { headers },
@@ -141,9 +141,56 @@ export const groupsAPI = {
     }
     const convJson = await convResponse.json().catch(() => null);
     const conv = convJson?.data !== undefined ? convJson.data : convJson;
-    const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
-      ? conv.member_user_ids
-      : [];
+    const memberUserIds: string[] = Array.isArray(conv?.memberUserIds)
+      ? conv.memberUserIds
+      : Array.isArray(conv?.member_user_ids)
+        ? conv.member_user_ids
+        : [];
+
+    // Fetch real roles from /conversations/:id/members (backend returns
+    // { userId, role, joinedAt, isActive } per entry) so we can show the
+    // correct admin/moderator/member role instead of inferring from ownerId.
+    const membersResponse = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
+      { headers },
+    ).catch(() => null);
+    const membersJson =
+      membersResponse && membersResponse.ok
+        ? await membersResponse.json().catch(() => null)
+        : null;
+    const rawMembers: Array<{
+      userId?: string;
+      user_id?: string;
+      role?: string;
+      joinedAt?: string;
+      joined_at?: string;
+      isActive?: boolean;
+      is_active?: boolean;
+    }> = Array.isArray(membersJson)
+      ? membersJson
+      : Array.isArray(membersJson?.data)
+        ? membersJson.data
+        : [];
+    const roleByUserId = new Map<
+      string,
+      {
+        role: "admin" | "moderator" | "member";
+        joinedAt?: string;
+        isActive?: boolean;
+      }
+    >();
+    for (const m of rawMembers) {
+      const uid = m.userId ?? m.user_id;
+      if (!uid) continue;
+      const rawRole = (m.role ?? "member").toLowerCase();
+      const role: "admin" | "moderator" | "member" =
+        rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+      roleByUserId.set(uid, {
+        role,
+        joinedAt: m.joinedAt ?? m.joined_at,
+        isActive: m.isActive ?? m.is_active,
+      });
+    }
 
     // Resolve each member's profile
     const members: GroupMember[] = await Promise.all(
@@ -163,18 +210,23 @@ export const groupsAPI = {
         const fullName = `${firstName} ${lastName}`.trim();
         const displayName = fullName || profile?.username || "Utilisateur";
 
+        const memberMeta = roleByUserId.get(userId);
+        const role: "admin" | "moderator" | "member" =
+          memberMeta?.role ?? (userId === ownerId ? "admin" : "member");
+
         return {
           id: userId,
           user_id: userId,
           display_name: displayName,
           username: profile?.username ?? undefined,
           avatar_url: profile?.profilePictureUrl ?? undefined,
-          role: (userId === ownerId ? "admin" : "member") as
-            | "admin"
-            | "moderator"
-            | "member",
-          joined_at: conv?.created_at ?? new Date().toISOString(),
-          is_active: true,
+          role,
+          joined_at:
+            memberMeta?.joinedAt ??
+            conv?.createdAt ??
+            conv?.created_at ??
+            new Date().toISOString(),
+          is_active: memberMeta?.isActive ?? true,
         };
       }),
     );
@@ -199,17 +251,43 @@ export const groupsAPI = {
     const convJson = await convResponse.json().catch(() => null);
     const conv = convJson?.data !== undefined ? convJson.data : convJson;
 
-    const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
-      ? conv.member_user_ids
-      : [];
+    const memberUserIds: string[] = Array.isArray(conv?.memberUserIds)
+      ? conv.memberUserIds
+      : Array.isArray(conv?.member_user_ids)
+        ? conv.member_user_ids
+        : [];
+
+    // Derive admin count from real member roles when available.
+    let adminCount = 1;
+    const membersResponse = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
+      { headers },
+    ).catch(() => null);
+    if (membersResponse && membersResponse.ok) {
+      const membersJson = await membersResponse.json().catch(() => null);
+      const rawMembers: Array<{ role?: string }> = Array.isArray(membersJson)
+        ? membersJson
+        : Array.isArray(membersJson?.data)
+          ? membersJson.data
+          : [];
+      const admins = rawMembers.filter(
+        (m) => (m.role ?? "").toLowerCase() === "admin",
+      ).length;
+      if (admins > 0) adminCount = admins;
+    }
 
     return {
       memberCount: memberUserIds.length,
-      adminCount: 1, // Only the creator is admin; no dedicated endpoint to resolve this
-      messageCount: conv?.message_count ?? 0,
-      createdAt: conv?.created_at ?? new Date().toISOString(),
+      adminCount,
+      messageCount: conv?.messageCount ?? conv?.message_count ?? 0,
+      createdAt:
+        conv?.createdAt ?? conv?.created_at ?? new Date().toISOString(),
       lastActivity:
-        conv?.updated_at ?? conv?.created_at ?? new Date().toISOString(),
+        conv?.updatedAt ??
+        conv?.updated_at ??
+        conv?.createdAt ??
+        conv?.created_at ??
+        new Date().toISOString(),
     };
   },
 
