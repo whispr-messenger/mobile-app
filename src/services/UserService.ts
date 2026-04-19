@@ -141,20 +141,20 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      // Map profilePicture to profilePictureUrl for the backend API
-      const { profilePicture, ...restData } = profileData;
-      const apiData = {
-        ...restData,
-        profilePictureUrl: profileData.profilePictureUrl || profilePicture,
-      };
-      if (apiData.profilePictureUrl === undefined) {
-        delete apiData.profilePictureUrl;
+      // Remove profilePictureUrl if present — backend expects profilePicture
+      const { profilePictureUrl, ...apiData } = profileData;
+      if (profilePictureUrl && !apiData.profilePicture) {
+        apiData.profilePicture = profilePictureUrl;
       }
+      // Don't send undefined fields
+      const cleanData = Object.fromEntries(
+        Object.entries(apiData).filter(([_, v]) => v !== undefined),
+      );
 
       const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(apiData),
+        body: JSON.stringify(cleanData),
       });
 
       if (!response.ok) {
@@ -188,7 +188,7 @@ export class UserService {
       const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profilePictureUrl: imageUri }),
+        body: JSON.stringify({ profilePicture: imageUri }),
       });
 
       if (!response.ok) {
