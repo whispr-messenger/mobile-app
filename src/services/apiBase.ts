@@ -59,11 +59,15 @@ function resolveApiBaseUrlFromSameOrigin(): string | undefined {
 }
 
 export const getApiBaseUrl = (): string => {
+  const envOverride = pickBaseUrl(
+    (process.env as any)?.EXPO_PUBLIC_API_BASE_URL,
+  );
   return (
+    envOverride ??
     resolveApiBaseUrlFromSameOrigin() ??
     resolveApiBaseUrlFromConstants() ??
     (__DEV__ ? APP_CONFIG_DEFAULT_API : PROD_API_URL)
-  );
+  ).replace(/\/+$/, "");
 };
 
 export const getWsBaseUrl = (): string => {
