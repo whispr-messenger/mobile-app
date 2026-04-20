@@ -10,8 +10,27 @@ nacl.setPRNG((x: Uint8Array, n: number) => {
   for (let i = 0; i < n; i++) x[i] = bytes[i];
 });
 
-const SIGNED_PREKEY_ID = 1;
 const NUM_ONE_TIME_PREKEYS = 100;
+
+// Generate keyIds that fit in 32-bit signed INT (< 2^31 ≈ 2.14e9).
+// Random 30-bit base avoids same-second collisions when the user
+// reconnects multiple times, and leaves ~100 slots below 2^31 for the
+// one-time prekeys numbered `base + i` (i < 100).
+function generateSignedPrekeyId(): number {
+  return Math.floor(Math.random() * 0x40000000);
+}
+
+function generatePrekeyIdBase(signedPrekeyId: number): number {
+  // Pick a different random base for one-time prekeys so they never
+  // overlap the signed prekey id even if both are generated in the same
+  // second. The +/- spread within 2^30 keeps everything in INT32 range.
+  let base = Math.floor(Math.random() * 0x40000000);
+  if (Math.abs(base - signedPrekeyId) < 200) {
+    // In the unlikely collision, shift far enough away from signedPrekeyId.
+    base = (signedPrekeyId + 0x20000000) & 0x3fffffff;
+  }
+  return base;
+}
 
 function toBase64(bytes: Uint8Array): string {
   return encodeBase64(bytes);
@@ -36,11 +55,17 @@ export const SignalKeyService = {
       signingKeyPair.secretKey,
     );
 
+    // Use timestamp-based ids to avoid collisions with previously
+    // uploaded keys on the same device (backend has a unique
+    // (deviceId, keyId) constraint).
+    const signedPrekeyId = generateSignedPrekeyId();
+    const prekeyBase = generatePrekeyIdBase(signedPrekeyId);
+
     // One-time pre-keys
     const preKeys = Array.from({ length: NUM_ONE_TIME_PREKEYS }, (_, i) => {
       const kp = nacl.box.keyPair();
       return {
-        keyId: i + 1,
+        keyId: prekeyBase + i,
         publicKey: toBase64(kp.publicKey),
       };
     });
@@ -53,7 +78,7 @@ export const SignalKeyService = {
     return {
       identityKey: toBase64(identityKeyPair.publicKey),
       signedPreKey: {
-        keyId: SIGNED_PREKEY_ID,
+        keyId: signedPrekeyId,
         publicKey: toBase64(signedPreKeyPair.publicKey),
         signature: toBase64(signature),
       },

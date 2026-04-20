@@ -1,7 +1,7 @@
-import { AuthService } from './AuthService';
-import { TokenService } from './TokenService';
-import { DeviceService } from './DeviceService';
-import { getApiBaseUrl } from './apiBase';
+import { AuthService } from "./AuthService";
+import { TokenService } from "./TokenService";
+import { DeviceService } from "./DeviceService";
+import { getApiBaseUrl } from "./apiBase";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
@@ -12,15 +12,16 @@ function getAuthBaseUrl(): string {
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  isRetry = false
+  isRetry = false,
 ): Promise<T> {
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "x-device-type": "mobile",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const response = await fetch(`${getAuthBaseUrl()}${path}`, {
     ...options,
@@ -39,7 +40,7 @@ async function apiFetch<T>(
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const error = new Error(
-      (body as { message?: string })?.message ?? `HTTP ${response.status}`
+      (body as { message?: string })?.message ?? `HTTP ${response.status}`,
     ) as ApiError;
     error.status = response.status;
     error.body = body;
@@ -69,7 +70,7 @@ export const TwoFactorAuthService = {
    * Initialize 2FA — returns TOTP secret + QR code URL.
    */
   async setup(): Promise<TwoFASetupResult> {
-    return apiFetch<TwoFASetupResult>('/2fa/setup', { method: 'POST' });
+    return apiFetch<TwoFASetupResult>("/2fa/setup", { method: "POST" });
   },
 
   /**
@@ -77,8 +78,8 @@ export const TwoFactorAuthService = {
    * Confirm and enable 2FA with the first TOTP code.
    */
   async enable(code: string): Promise<void> {
-    await apiFetch<void>('/2fa/enable', {
-      method: 'POST',
+    await apiFetch<void>("/2fa/enable", {
+      method: "POST",
       body: JSON.stringify({ code }),
     });
   },
@@ -87,9 +88,11 @@ export const TwoFactorAuthService = {
    * POST /auth/2fa/verify
    * Verify a TOTP code (used during login when 2FA is active).
    */
-  async verify(code: string): Promise<{ access_token: string; refresh_token: string }> {
-    return apiFetch('/2fa/verify', {
-      method: 'POST',
+  async verify(
+    code: string,
+  ): Promise<{ access_token: string; refresh_token: string }> {
+    return apiFetch("/2fa/verify", {
+      method: "POST",
       body: JSON.stringify({ code }),
     });
   },
@@ -99,8 +102,8 @@ export const TwoFactorAuthService = {
    * Disable 2FA (requires current TOTP code or backup code).
    */
   async disable(code: string): Promise<void> {
-    await apiFetch<void>('/2fa/disable', {
-      method: 'POST',
+    await apiFetch<void>("/2fa/disable", {
+      method: "POST",
       body: JSON.stringify({ code }),
     });
   },
@@ -110,7 +113,7 @@ export const TwoFactorAuthService = {
    * Regenerate backup codes.
    */
   async generateBackupCodes(): Promise<{ backup_codes: string[] }> {
-    return apiFetch('/2fa/backup-codes', { method: 'POST' });
+    return apiFetch("/2fa/backup-codes", { method: "POST" });
   },
 
   /**
@@ -118,7 +121,7 @@ export const TwoFactorAuthService = {
    * Get 2FA status for the current user.
    */
   async getStatus(): Promise<TwoFAStatus> {
-    return apiFetch<TwoFAStatus>('/2fa/status');
+    return apiFetch<TwoFAStatus>("/2fa/status");
   },
 };
 
@@ -138,7 +141,7 @@ export const DeviceManagerService = {
    * List all registered devices for the current user.
    */
   async listDevices(): Promise<DeviceInfo[]> {
-    const data = await apiFetch<DeviceInfo | DeviceInfo[]>('/device');
+    const data = await apiFetch<DeviceInfo | DeviceInfo[]>("/device");
     return Array.isArray(data) ? data : [data];
   },
 
@@ -147,7 +150,9 @@ export const DeviceManagerService = {
    * Revoke a device (log it out remotely).
    */
   async revokeDevice(deviceId: string): Promise<void> {
-    await apiFetch<void>(`/device/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+    await apiFetch<void>(`/device/${encodeURIComponent(deviceId)}`, {
+      method: "DELETE",
+    });
   },
 };
 
@@ -177,9 +182,12 @@ export const SignalKeysService = {
    * GET /auth/signal/keys/:userId/devices/:deviceId
    * Fetch the key bundle for a specific user+device (for E2E session init).
    */
-  async getKeyBundle(userId: string, deviceId: string): Promise<SignalKeyBundle> {
+  async getKeyBundle(
+    userId: string,
+    deviceId: string,
+  ): Promise<SignalKeyBundle> {
     return apiFetch<SignalKeyBundle>(
-      `/signal/keys/${encodeURIComponent(userId)}/devices/${encodeURIComponent(deviceId)}`
+      `/signal/keys/${encodeURIComponent(userId)}/devices/${encodeURIComponent(deviceId)}`,
     );
   },
 
@@ -192,9 +200,13 @@ export const SignalKeysService = {
     public_key: string;
     signature: string;
   }): Promise<void> {
-    await apiFetch<void>('/signal/keys/signed-prekey', {
-      method: 'POST',
-      body: JSON.stringify({ signed_prekey: signedPrekey }),
+    await apiFetch<void>("/signal/keys/signed-prekey", {
+      method: "POST",
+      body: JSON.stringify({
+        keyId: signedPrekey.key_id,
+        publicKey: signedPrekey.public_key,
+        signature: signedPrekey.signature,
+      }),
     });
   },
 
@@ -203,11 +215,16 @@ export const SignalKeysService = {
    * Upload a batch of one-time prekeys.
    */
   async uploadPrekeys(
-    prekeys: Array<{ key_id: number; public_key: string }>
+    prekeys: Array<{ key_id: number; public_key: string }>,
   ): Promise<void> {
-    await apiFetch<void>('/signal/keys/prekeys', {
-      method: 'POST',
-      body: JSON.stringify({ prekeys }),
+    await apiFetch<void>("/signal/keys/prekeys", {
+      method: "POST",
+      body: JSON.stringify({
+        preKeys: prekeys.map((pk) => ({
+          keyId: pk.key_id,
+          publicKey: pk.public_key,
+        })),
+      }),
     });
   },
 
@@ -216,6 +233,6 @@ export const SignalKeysService = {
    * Check key health (how many prekeys remain, rotation needed, etc.).
    */
   async getHealth(): Promise<SignalHealthStatus> {
-    return apiFetch<SignalHealthStatus>('/signal/health');
+    return apiFetch<SignalHealthStatus>("/signal/health");
   },
 };

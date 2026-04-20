@@ -128,6 +128,19 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         }
       } catch (error: any) {
         console.error("[AddContactModal] Error adding contact:", error);
+        const status = (error?.status as number) ?? 0;
+        if (
+          status === 409 ||
+          `${error?.message ?? ""}`.toLowerCase().includes("already exists")
+        ) {
+          Alert.alert(
+            "Info",
+            "Ce contact est déjà dans ta liste (ou une demande est en attente).",
+          );
+          onContactAdded();
+          handleClose();
+          return;
+        }
         Alert.alert(
           "Erreur",
           error.message || "Impossible d'ajouter ce contact",

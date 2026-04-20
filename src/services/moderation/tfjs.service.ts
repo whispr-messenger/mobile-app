@@ -59,20 +59,29 @@ function yieldThread(): Promise<void> {
 
 /**
  * Custom IOHandler: reads model.json from a bundled require() and
- * fetches weight shards from expo-asset local URIs.
+ * fetches weight shards from expo-asset URIs. Uses Asset.fromModule so
+ * it works on both React Native (local file URI) and web (HTTP asset URL).
  */
-function nativeBundleIO(): tf.io.IOHandler {
+function bundledAssetIO(): tf.io.IOHandler {
   return {
     async load(): Promise<tf.io.ModelArtifacts> {
       const modelTopology = modelJsonAsset.modelTopology;
       const weightsManifest = modelJsonAsset.weightsManifest;
 
-      const resolved = await Asset.loadAsync(weightAssets);
       const weightBuffers: ArrayBuffer[] = [];
-
-      for (const asset of resolved) {
+      for (const mod of weightAssets) {
+        const asset = Asset.fromModule(mod);
+        await asset.downloadAsync();
         const uri = asset.localUri || asset.uri;
+        if (!uri) {
+          throw new Error("[tfjs] Asset has no URI after download");
+        }
         const response = await fetch(uri);
+        if (!response.ok) {
+          throw new Error(
+            `[tfjs] Failed to fetch weight shard ${uri}: HTTP ${response.status}`,
+          );
+        }
         const buf = await response.arrayBuffer();
         weightBuffers.push(buf);
       }
@@ -104,15 +113,23 @@ async function ensureModel(): Promise<void> {
   if (loading) return loading;
 
   loading = (async () => {
-    if (!tfReady) {
-      await tf.setBackend("cpu");
-      await tf.ready();
-      tfReady = true;
-      console.log("[tfjs] Backend:", tf.getBackend());
+    try {
+      if (!tfReady) {
+        await tf.setBackend("cpu");
+        await tf.ready();
+        tfReady = true;
+        console.log("[tfjs] Backend:", tf.getBackend());
+      }
+      await yieldThread();
+      model = await tf.loadGraphModel(bundledAssetIO());
+      console.log("[tfjs] Model loaded successfully");
+    } catch (err) {
+      // Surface the real failure reason so gate-chat-image can log it
+      // explicitly instead of the generic catch-all message.
+      console.error("[tfjs] ensureModel failed:", err);
+      loading = null;
+      throw err;
     }
-    await yieldThread();
-    model = await tf.loadGraphModel(nativeBundleIO());
-    console.log("[tfjs] Model loaded successfully");
   })();
 
   return loading;

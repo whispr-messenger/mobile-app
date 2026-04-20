@@ -21,6 +21,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { MediaService } from "../../services/MediaService";
 import { UserService } from "../../services";
+import { normalizeUsername } from "../../utils";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
@@ -110,7 +111,7 @@ export const ProfileSetupScreen: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!firstName.trim() || !lastName.trim() || !username.trim()) {
+    if (!firstName.trim() || !lastName.trim()) {
       Alert.alert(
         getLocalizedText("notif.error"),
         "Veuillez remplir tous les champs obligatoires.",
@@ -123,8 +124,11 @@ export const ProfileSetupScreen: React.FC = () => {
       const profileData: Record<string, string> = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        username: username.trim(),
       };
+      const normalizedUsername = normalizeUsername(username);
+      if (normalizedUsername.length >= 3) {
+        profileData.username = normalizedUsername;
+      }
 
       // Upload avatar image if one was selected
       if (avatarUri) {
@@ -133,12 +137,16 @@ export const ProfileSetupScreen: React.FC = () => {
           const fileType = fileName.endsWith(".png")
             ? "image/png"
             : "image/jpeg";
-          const uploadResult = await MediaService.uploadMedia({
-            uri: avatarUri,
-            name: fileName,
-            type: fileType,
-          });
-          profileData.profilePicture = uploadResult.url;
+          const uploadResult = await MediaService.uploadMedia(
+            {
+              uri: avatarUri,
+              name: fileName,
+              type: fileType,
+            },
+            undefined,
+            { context: "avatar", ownerId: userId ?? undefined },
+          );
+          profileData.avatarMediaId = uploadResult.id;
         } catch (uploadError) {
           console.warn("[ProfileSetup] Avatar upload failed:", uploadError);
           // Continue without avatar rather than blocking profile creation
@@ -153,10 +161,10 @@ export const ProfileSetupScreen: React.FC = () => {
       }
 
       navigation.reset({ index: 0, routes: [{ name: "ConversationsList" }] });
-    } catch {
+    } catch (error: any) {
       Alert.alert(
         getLocalizedText("notif.error"),
-        getLocalizedText("auth.errorConnection"),
+        error.message || getLocalizedText("auth.errorConnection"),
       );
     } finally {
       setLoading(false);
@@ -290,9 +298,15 @@ export const ProfileSetupScreen: React.FC = () => {
               <Input
                 placeholder="@username"
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(t) => setUsername(normalizeUsername(t))}
                 autoCapitalize="none"
                 containerStyle={styles.inputContainer}
+                error={
+                  username.trim().length > 0 && username.trim().length < 3
+                    ? "Minimum 3 caractères"
+                    : undefined
+                }
+                helperText="Seuls minuscules, chiffres et _ (auto-corrigé)"
               />
             </View>
 
@@ -323,7 +337,6 @@ export const ProfileSetupScreen: React.FC = () => {
                 !profileReady ||
                 !firstName.trim() ||
                 !lastName.trim() ||
-                !username.trim() ||
                 loading
               }
               onPress={handleSave}
