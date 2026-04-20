@@ -115,11 +115,27 @@ export const contactsAPI = {
       },
     });
     if (!response.ok) {
-      if (response.status === 404) {
-        // No contacts yet, not an error
+      const errorText = await response.text();
+      let errorBody: any = null;
+      try {
+        errorBody = JSON.parse(errorText);
+      } catch {
+        errorBody = null;
+      }
+
+      const errorMessage =
+        errorBody?.data?.message ?? errorBody?.message ?? errorText;
+
+      if (
+        response.status === 404 &&
+        errorMessage?.toLowerCase().includes("no contacts")
+      ) {
         return { contacts: [], total: 0 };
       }
-      throw new Error("Failed to fetch contacts");
+
+      throw new Error(
+        `Failed to fetch contacts (${response.status}): ${errorMessage}`,
+      );
     }
 
     const raw = await response.json();
