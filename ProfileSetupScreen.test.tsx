@@ -51,7 +51,7 @@ jest.mock('./src/services/TokenService', () => ({
   TokenService: { getAccessToken: jest.fn().mockResolvedValue('tok') },
 }));
 jest.mock('./src/services/MediaService', () => ({
-  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ url: 'https://cdn.test/img.jpg' }) },
+  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ id: 'media-1', url: 'https://cdn.test/img.jpg' }) },
 }));
 jest.mock('./src/services/apiBase', () => ({
   getApiBaseUrl: () => 'https://api.test.com',

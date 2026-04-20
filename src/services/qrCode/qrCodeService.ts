@@ -57,9 +57,14 @@ export class QRCodeService {
     try {
       if (trimmed.startsWith("whispr://contact/add")) {
         const q = trimmed.includes("?") ? trimmed.split("?")[1] : "";
-        const userId = new URLSearchParams(q).get("userId");
+        const params = new URLSearchParams(q);
+        const userId = params.get("userId");
         if (userId) {
-          return { type: "contact", userId };
+          return { type: "contact", userId: decodeURIComponent(userId) };
+        }
+        const m = trimmed.match(/[?&]userId=([^&]+)/);
+        if (m?.[1]) {
+          return { type: "contact", userId: decodeURIComponent(m[1]) };
         }
       }
 

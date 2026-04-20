@@ -928,7 +928,7 @@ export const GroupManagementScreen: React.FC = () => {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Rechercher un contact..."
+            placeholder="Rechercher un contact"
             placeholderTextColor={withOpacity(colors.text.light, 0.5)}
             value={searchQuery}
             onChangeText={setSearchQuery}
