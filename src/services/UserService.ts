@@ -35,8 +35,7 @@ export interface UpdateProfileRequest {
   lastName?: string;
   username?: string;
   biography?: string;
-  profilePicture?: string;
-  profilePictureUrl?: string;
+  avatarMediaId?: string;
 }
 
 export interface UpdateProfileResponse {
@@ -206,22 +205,10 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      // Map profilePicture to avatarMediaId for the backend API
-      const { profilePicture, profilePictureUrl, ...restData } = profileData;
-      const apiData: any = {
-        ...restData,
-      };
-
-      const avatarId = profilePictureUrl || profilePicture;
-      if (avatarId && !avatarId.startsWith("http")) {
-        // Assume it's a UUID (media ID) since it doesn't start with http
-        apiData.avatarMediaId = avatarId;
-      }
-
       const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(apiData),
+        body: JSON.stringify(profileData),
       });
 
       if (!response.ok) {
