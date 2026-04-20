@@ -10,6 +10,7 @@ const mockGoBack = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
   useRoute: () => ({ params: {} }),
+  useFocusEffect: (cb: () => void | (() => void)) => { const React = require('react'); React.useEffect(() => cb(), []); },
 }));
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: any) => children,
@@ -102,8 +103,8 @@ describe('ContactsScreen', () => {
   });
 
   it('renders contacts header', async () => {
-    const { getByText } = render(<ContactsScreen />);
-    expect(getByText('Contacts')).toBeTruthy();
+    const { getAllByText } = render(<ContactsScreen />);
+    expect(getAllByText('Contacts').length).toBeGreaterThan(0);
   });
 
   it('shows empty state when no contacts', async () => {

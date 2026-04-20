@@ -37,11 +37,17 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     ? `${getApiBaseUrl()}/media/v1/${mediaId}/thumbnail`
     : null;
 
-  // Reject any URL that points at the internal cluster (presigned MinIO URL
-  // baked at upload time) — the browser cannot resolve it. Always prefer the
-  // media-service proxy when a mediaId is available.
-  const isPublicUrl = (u?: string | null) =>
-    typeof u === "string" && !u.includes(".svc.cluster.local");
+  // Reject any URL that points at the internal cluster or raw MinIO host —
+  // the browser cannot resolve those DNS names and http:// on an https page
+  // triggers Mixed Content. Always prefer the media-service /blob proxy when
+  // a mediaId is available, which stays on the public gateway origin.
+  const isPublicUrl = (u?: string | null) => {
+    if (typeof u !== "string" || u.length === 0) return false;
+    if (u.includes(".svc.cluster.local")) return false;
+    if (u.includes("minio.minio")) return false;
+    if (/^http:\/\/(minio|[\d.]+:)/i.test(u)) return false;
+    return true;
+  };
 
   const fallbackUrl = [meta.media_url, att?.file_url, att?.storage_url].find(
     isPublicUrl,
@@ -50,6 +56,9 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
     isPublicUrl,
   );
 
+  // Prefer the media-service /blob proxy when we have a mediaId — it stays on
+  // the public API gateway and never leaks internal MinIO URLs. Only fall back
+  // to a stored URL when no mediaId is known (legacy rows).
   const resolvedUrl = mediaBlobUrl || fallbackUrl;
   const resolvedThumbnail =
     mediaThumbnailUrl || fallbackThumbnail || resolvedUrl;
@@ -120,6 +129,27 @@ const authenticatedFetch = async (
 function httpError(label: string, response: Response): Error {
   return new Error(`${label} (${response.status})`);
 }
+
+/**
+ * Run an async mapper over items in bounded-size batches to cap the number of
+ * concurrent requests. Avoids DoS-ing the client and backend when a group has
+ * hundreds of members and each one requires a profile fetch.
+ */
+async function batchedMap<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
 
 // --- User profile cache ------------------------------------------------------
 // Avoid re-fetching the same /user/v1/profile/{id} on every render cycle. A
@@ -245,7 +275,17 @@ export const messagingAPI = {
     }
 
     const data = await unwrap(response);
-    return Array.isArray(data) ? data : [];
+    const messages = Array.isArray(data) ? data : [];
+    return messages.map((msg: any) =>
+      Array.isArray(msg?.attachments) && msg.attachments.length > 0
+        ? {
+            ...msg,
+            attachments: msg.attachments.map((att: any) =>
+              mapBackendAttachment(att, msg.id),
+            ),
+          }
+        : msg,
+    );
   },
 
   async sendMessage(
@@ -555,9 +595,17 @@ export const messagingAPI = {
     return promise;
   },
 
-  async getConversationMembers(
-    conversationId: string,
-  ): Promise<Array<{ id: string; display_name: string; username?: string }>> {
+  async getConversationMembers(conversationId: string): Promise<
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+      role: "admin" | "moderator" | "member";
+      joined_at?: string;
+      is_active?: boolean;
+    }>
+  > {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
     );
@@ -571,11 +619,165 @@ export const messagingAPI = {
       return [];
     }
 
-    return data.map((member: any) => ({
-      id: member.id,
-      display_name: member.display_name || member.username || "Utilisateur",
-      username: member.username,
-    }));
+    type BackendMember = {
+      userId?: string;
+      user_id?: string;
+      id?: string;
+      role?: string;
+      joinedAt?: string;
+      joined_at?: string;
+      isActive?: boolean;
+      is_active?: boolean;
+      username?: string;
+      display_name?: string;
+    };
+
+    const rawMembers = data as BackendMember[];
+
+    // Resolve display name and avatar for each member via /user/v1/profile/:userId
+    // in parallel to avoid sequential N+1.
+    const userApiBase = `${getApiBaseUrl()}/user/v1`;
+    const token = await TokenService.getAccessToken();
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
+    return batchedMap(
+      rawMembers,
+      MEMBER_PROFILE_FETCH_CONCURRENCY,
+      async (member) => {
+        const userId = member.userId ?? member.user_id ?? member.id ?? "";
+        const rawRole = (member.role ?? "member").toLowerCase();
+        const role: "admin" | "moderator" | "member" =
+          rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+
+        let displayName = member.display_name || member.username || "";
+        let avatarUrl: string | undefined;
+        let username: string | undefined = member.username;
+
+        if (userId) {
+          try {
+            const profileResponse = await fetch(
+              `${userApiBase}/profile/${encodeURIComponent(userId)}`,
+              { headers: authHeaders },
+            );
+            if (profileResponse.ok) {
+              const profile = await profileResponse.json().catch(() => null);
+              if (profile) {
+                const firstName = profile.firstName || profile.first_name || "";
+                const lastName = profile.lastName || profile.last_name || "";
+                const fullName = `${firstName} ${lastName}`.trim();
+                displayName =
+                  fullName || profile.username || displayName || "Utilisateur";
+                username = profile.username ?? username;
+                avatarUrl =
+                  profile.profilePictureUrl ??
+                  profile.profile_picture_url ??
+                  profile.avatarUrl ??
+                  profile.avatar_url ??
+                  undefined;
+              }
+            }
+          } catch (err) {
+            logger.warn(
+              "getConversationMembers",
+              `Failed to resolve profile for ${userId}`,
+              err,
+            );
+          }
+        }
+
+        if (!displayName) displayName = "Utilisateur";
+
+        return {
+          id: userId,
+          display_name: displayName,
+          username,
+          avatar_url: avatarUrl,
+          role,
+          joined_at: member.joinedAt ?? member.joined_at,
+          is_active: member.isActive ?? member.is_active,
+        };
+      },
+    );
+  },
+
+  async addGroupMembers(
+    conversationId: string,
+    userIds: string[],
+  ): Promise<void> {
+    for (const userId of userIds) {
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+        },
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const msg =
+          (body as { message?: string; error?: string })?.message ||
+          (body as { error?: string })?.error ||
+          `HTTP ${response.status}`;
+        const err = new Error(msg) as Error & { status: number };
+        err.status = response.status;
+        throw err;
+      }
+    }
+  },
+
+  async removeGroupMember(
+    conversationId: string,
+    userId: string,
+  ): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    );
+
+    if (!response.ok && response.status !== 204) {
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number };
+      err.status = response.status;
+      throw err;
+    }
+  },
+
+  async updateGroupMemberRole(
+    conversationId: string,
+    userId: string,
+    role: "admin" | "member" | "moderator",
+  ): Promise<void> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/members/${encodeURIComponent(userId)}/role`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const msg =
+        (body as { message?: string; error?: string })?.message ||
+        (body as { error?: string })?.error ||
+        `HTTP ${response.status}`;
+      const err = new Error(msg) as Error & { status: number };
+      err.status = response.status;
+      throw err;
+    }
   },
 
   async createDirectConversation(otherUserId: string): Promise<Conversation> {

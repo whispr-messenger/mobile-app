@@ -23,8 +23,10 @@ import { TokenService } from "../../services/TokenService";
 
 /**
  * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
- * The blob/thumbnail endpoints return a 302 redirect; we follow it manually
- * so we get a presigned URL that <Image> can use without auth headers.
+ * The blob/thumbnail endpoints now return 200 JSON `{ url, expiresAt }`
+ * (previously a 302 redirect). We fetch with Bearer, extract `url`, and
+ * reject any URL pointing at internal cluster hostnames — the browser
+ * cannot resolve those and they trigger Mixed Content on https pages.
  */
 function useResolvedMediaUrl(uri: string | undefined): {
   resolvedUri: string;
@@ -52,6 +54,9 @@ function useResolvedMediaUrl(uri: string | undefined): {
     }
 
     let cancelled = false;
+    // Clear while resolving — the raw /blob or /thumbnail URL needs an auth
+    // header that <Image> can't send, so leaving it would break the fallback.
+    setResolvedUri("");
     setLoading(true);
     setError(false);
 
@@ -68,21 +73,60 @@ function useResolvedMediaUrl(uri: string | undefined): {
 
         if (cancelled) return;
 
-        if (response.ok || response.url !== uri) {
-          // fetch followed the 302 redirect — response.url is the presigned URL
-          setResolvedUri(response.url);
-        } else {
+        if (!response.ok) {
           console.warn(
             `[MediaMessage] Failed to resolve media URL: HTTP ${response.status}`,
           );
           setError(true);
-          setResolvedUri(uri);
+          setResolvedUri("");
+          return;
+        }
+
+        // New contract (media-service deploy/preprod ≥ cedf7f9b):
+        // `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON, not a
+        // 302 redirect. Parse JSON first; fall back to response.url for the
+        // legacy 302 redirect contract.
+        let presigned: string | null = null;
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          try {
+            const body = (await response.json()) as { url?: string | null };
+            presigned = body?.url ?? null;
+          } catch {
+            presigned = null;
+          }
+        } else if (response.url && response.url !== uri) {
+          // Legacy: fetch followed a 302 — response.url is the presigned URL
+          presigned = response.url;
+        }
+
+        // Reject internal cluster URLs — the browser cannot resolve
+        // minio.minio.svc.cluster.local and http:// on https pages breaks
+        // under Mixed Content. Better to surface an error than a broken img.
+        const isReachable =
+          typeof presigned === "string" &&
+          presigned.length > 0 &&
+          !presigned.includes(".svc.cluster.local") &&
+          !presigned.includes("minio.minio") &&
+          !/^http:\/\/(minio|[\d.]+:)/i.test(presigned);
+
+        if (isReachable) {
+          setResolvedUri(presigned as string);
+        } else {
+          if (presigned) {
+            console.warn(
+              "[MediaMessage] Rejected unreachable media URL (cluster-internal):",
+              presigned,
+            );
+          }
+          setError(true);
+          setResolvedUri("");
         }
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
         setError(true);
-        setResolvedUri(uri);
+        setResolvedUri("");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -158,7 +202,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         try {
           // Load video first
           try {
-            const loadResult = await playerVideoRef.current.loadAsync({ uri: resolvedMainUri });
+            const loadResult = await playerVideoRef.current.loadAsync({
+              uri: resolvedMainUri,
+            });
             console.log(
               "[MediaMessage] Video preloaded",
               loadResult ? "with status" : "no status",
@@ -200,7 +246,16 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           style={styles.imageContainer}
         >
           {mainLoading ? (
-            <View style={[styles.image, { justifyContent: "center", alignItems: "center", backgroundColor: "rgba(26, 31, 58, 0.4)" }]}>
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(26, 31, 58, 0.4)",
+                },
+              ]}
+            >
               <ActivityIndicator size="small" color={colors.primary.main} />
             </View>
           ) : (

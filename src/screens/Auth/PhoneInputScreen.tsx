@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Keyboard,
@@ -11,23 +11,23 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import type { RouteProp } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
-import { Button } from '../../components';
-import { useTheme } from '../../context/ThemeContext';
-import { countries, searchCountries, type Country } from '../../data/countries';
-import { AuthService } from '../../services/AuthService';
-import { colors, spacing, typography } from '../../theme';
-import type { AuthStackParamList } from '../../navigation/AuthNavigator';
-import { normalizePhoneToE164 } from '../../utils/phoneUtils';
-import { AuthLanguageSwitcher } from './AuthLanguageSwitcher';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import { Button } from "../../components";
+import { useTheme } from "../../context/ThemeContext";
+import { countries, searchCountries, type Country } from "../../data/countries";
+import { AuthService } from "../../services/AuthService";
+import { colors, spacing, typography } from "../../theme";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { normalizePhoneToE164 } from "../../utils/phoneUtils";
+import { AuthLanguageSwitcher } from "./AuthLanguageSwitcher";
 
-type NavigationProp = StackNavigationProp<AuthStackParamList, 'PhoneInput'>;
-type PhoneInputRouteProp = RouteProp<AuthStackParamList, 'PhoneInput'>;
+type NavigationProp = StackNavigationProp<AuthStackParamList, "PhoneInput">;
+type PhoneInputRouteProp = RouteProp<AuthStackParamList, "PhoneInput">;
 
 const MIN_DIGITS = 7;
 const LOGO_SIZE_DEFAULT = 100;
@@ -43,13 +43,13 @@ export const PhoneInputScreen: React.FC = () => {
   const themeColors = getThemeColors();
 
   const [selectedCountry, setSelectedCountry] = useState<Country>(
-    countries.find((c) => c.id === 'fr')!
+    countries.find((c) => c.id === "fr")!,
   );
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countrySearch, setCountrySearch] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [countrySearch, setCountrySearch] = useState("");
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showRegister, setShowRegister] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -62,11 +62,20 @@ export const PhoneInputScreen: React.FC = () => {
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: false }),
-      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 7, useNativeDriver: false }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: false,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: false,
+      }),
     ]).start();
 
-    const showSub = Keyboard.addListener('keyboardWillShow', () => {
+    const showSub = Keyboard.addListener("keyboardWillShow", () => {
       setKeyboardVisible(true);
       Animated.spring(logoSize, {
         toValue: LOGO_SIZE_FOCUSED,
@@ -75,7 +84,7 @@ export const PhoneInputScreen: React.FC = () => {
         useNativeDriver: false,
       }).start();
     });
-    const hideSub = Keyboard.addListener('keyboardWillHide', () => {
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
       setKeyboardVisible(false);
       Animated.spring(logoSize, {
         toValue: LOGO_SIZE_DEFAULT,
@@ -93,10 +102,26 @@ export const PhoneInputScreen: React.FC = () => {
 
   const shake = () => {
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: false }),
-      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: false }),
-      Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: false }),
-      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: false }),
+      Animated.timing(shakeAnim, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 6,
+        duration: 50,
+        useNativeDriver: false,
+      }),
+      Animated.timing(shakeAnim, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver: false,
+      }),
     ]).start();
   };
 
@@ -104,15 +129,15 @@ export const PhoneInputScreen: React.FC = () => {
     ? searchCountries(countrySearch.trim())
     : countries;
 
-  const digits = phoneNumber.replace(/\D/g, '');
+  const digits = phoneNumber.replace(/\D/g, "");
   const isPhoneValid = digits.length >= MIN_DIGITS;
 
   const handleContinue = async () => {
     Keyboard.dismiss();
-    setError('');
+    setError("");
 
     if (!isPhoneValid) {
-      setError(getLocalizedText('auth.enterPhone'));
+      setError(getLocalizedText("auth.enterPhone"));
       shake();
       return;
     }
@@ -122,7 +147,7 @@ export const PhoneInputScreen: React.FC = () => {
 
     try {
       const result = await AuthService.requestVerification(e164, mode);
-      navigation.navigate('Otp', {
+      navigation.navigate("Otp", {
         phoneNumber: e164,
         verificationId: result.verificationId,
         purpose: mode,
@@ -130,14 +155,14 @@ export const PhoneInputScreen: React.FC = () => {
       });
     } catch (err: unknown) {
       const apiError = err as { status?: number };
-      if (mode === 'login' && apiError.status === 400) {
-        setError(getLocalizedText('auth.noAccountFound'));
+      if (mode === "login" && apiError.status === 400) {
+        setError(getLocalizedText("auth.noAccountFound"));
         setShowRegister(true);
-      } else if (mode === 'register' && apiError.status === 409) {
-        setError(getLocalizedText('auth.accountAlreadyExists'));
+      } else if (mode === "register" && apiError.status === 409) {
+        setError(getLocalizedText("auth.accountAlreadyExists"));
         setShowLogin(true);
       } else {
-        setError(getLocalizedText('auth.errorSendCode'));
+        setError(getLocalizedText("auth.errorSendCode"));
       }
       shake();
     } finally {
@@ -146,9 +171,9 @@ export const PhoneInputScreen: React.FC = () => {
   };
 
   const title =
-    mode === 'login'
-      ? getLocalizedText('auth.seConnecter')
-      : getLocalizedText('auth.creerCompte');
+    mode === "login"
+      ? getLocalizedText("auth.seConnecter")
+      : getLocalizedText("auth.creerCompte");
 
   return (
     <LinearGradient
@@ -159,11 +184,14 @@ export const PhoneInputScreen: React.FC = () => {
     >
       {/* Safe area top — protège du Dynamic Island */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
         keyboardVerticalOffset={0}
       >
-        <TouchableWithoutFeedback onPress={Platform.OS !== 'web' ? Keyboard.dismiss : undefined} accessible={false}>
+        <TouchableWithoutFeedback
+          onPress={Platform.OS !== "web" ? Keyboard.dismiss : undefined}
+          accessible={false}
+        >
           <Animated.View
             style={[
               styles.content,
@@ -176,8 +204,13 @@ export const PhoneInputScreen: React.FC = () => {
             ]}
           >
             <View style={styles.topRow}>
-              <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                <Text style={[styles.backText, { color: themeColors.primary }]}>←</Text>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Text style={[styles.backText, { color: themeColors.primary }]}>
+                  ←
+                </Text>
               </TouchableOpacity>
               <AuthLanguageSwitcher />
             </View>
@@ -185,26 +218,41 @@ export const PhoneInputScreen: React.FC = () => {
             {/* Logo animé — réduit au focus clavier */}
             <View style={styles.logoContainer}>
               <Animated.Image
-                source={require('../../../assets/images/logo-icon.png')}
+                source={require("../../../assets/images/logo-icon.png")}
                 style={{ width: logoSize, height: logoSize }}
                 resizeMode="contain"
               />
             </View>
 
-            <View style={[styles.titleContainer, keyboardVisible && styles.titleContainerCompact]}>
-              <Text style={[styles.title, { fontSize: getFontSize('xxxl') }]}>
+            <View
+              style={[
+                styles.titleContainer,
+                keyboardVisible && styles.titleContainerCompact,
+              ]}
+            >
+              <Text style={[styles.title, { fontSize: getFontSize("xxxl") }]}>
                 {title}
               </Text>
               {!keyboardVisible && (
-                <Text style={[styles.subtitle, { color: themeColors.text.secondary, fontSize: getFontSize('base') }]}>
-                  {getLocalizedText('auth.smsCode')}
+                <Text
+                  style={[
+                    styles.subtitle,
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("base"),
+                    },
+                  ]}
+                >
+                  {getLocalizedText("auth.smsCode")}
                 </Text>
               )}
             </View>
 
-            <Animated.View style={[styles.form, { transform: [{ translateX: shakeAnim }] }]}>
-              <Text style={[styles.label, { fontSize: getFontSize('base') }]}>
-                {getLocalizedText('auth.phone')}
+            <Animated.View
+              style={[styles.form, { transform: [{ translateX: shakeAnim }] }]}
+            >
+              <Text style={[styles.label, { fontSize: getFontSize("base") }]}>
+                {getLocalizedText("auth.phone")}
               </Text>
 
               <View
@@ -218,13 +266,18 @@ export const PhoneInputScreen: React.FC = () => {
                   onPress={() => {
                     Keyboard.dismiss();
                     if (showCountryPicker) {
-                      setCountrySearch('');
+                      setCountrySearch("");
                     }
                     setShowCountryPicker(!showCountryPicker);
                   }}
                 >
                   <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
-                  <Text style={[styles.countryCode, { color: themeColors.text.primary }]}>
+                  <Text
+                    style={[
+                      styles.countryCode,
+                      { color: themeColors.text.primary },
+                    ]}
+                  >
                     {selectedCountry.code}
                   </Text>
                 </TouchableOpacity>
@@ -238,9 +291,9 @@ export const PhoneInputScreen: React.FC = () => {
                     keyboardType="phone-pad"
                     value={phoneNumber}
                     onChangeText={(t) => {
-                      const cleaned = t.replace(/[^0-9\s]/g, '');
+                      const cleaned = t.replace(/[^0-9\s]/g, "");
                       setPhoneNumber(cleaned);
-                      setError('');
+                      setError("");
                       setShowRegister(false);
                       setShowLogin(false);
                     }}
@@ -258,7 +311,7 @@ export const PhoneInputScreen: React.FC = () => {
                   <View style={styles.searchBarOuter}>
                     <TextInput
                       style={styles.searchField}
-                      placeholder={getLocalizedText('auth.searchCountry')}
+                      placeholder={getLocalizedText("auth.searchCountry")}
                       placeholderTextColor="rgba(0, 0, 0, 0.45)"
                       value={countrySearch}
                       onChangeText={setCountrySearch}
@@ -277,7 +330,7 @@ export const PhoneInputScreen: React.FC = () => {
                         style={styles.countryOption}
                         onPress={() => {
                           setSelectedCountry(item);
-                          setCountrySearch('');
+                          setCountrySearch("");
                           Keyboard.dismiss();
                           setShowCountryPicker(false);
                         }}
@@ -285,7 +338,10 @@ export const PhoneInputScreen: React.FC = () => {
                         <Text
                           style={[
                             styles.countryOptionText,
-                            { color: themeColors.text.primary, fontSize: getFontSize('base') },
+                            {
+                              color: themeColors.text.primary,
+                              fontSize: getFontSize("base"),
+                            },
                           ]}
                         >
                           {item.flag} {item.name} {item.code}
@@ -296,18 +352,23 @@ export const PhoneInputScreen: React.FC = () => {
                       <Text
                         style={[
                           styles.noResultsText,
-                          { color: themeColors.text.secondary, fontSize: getFontSize('sm') },
+                          {
+                            color: themeColors.text.secondary,
+                            fontSize: getFontSize("sm"),
+                          },
                         ]}
                       >
-                        {getLocalizedText('auth.noCountryFound')}
+                        {getLocalizedText("auth.noCountryFound")}
                       </Text>
                     )}
                   </ScrollView>
                 </View>
               )}
 
-              {error !== '' && (
-                <Text style={[styles.errorText, { fontSize: getFontSize('sm') }]}>
+              {error !== "" && (
+                <Text
+                  style={[styles.errorText, { fontSize: getFontSize("sm") }]}
+                >
                   {error}
                 </Text>
               )}
@@ -317,27 +378,27 @@ export const PhoneInputScreen: React.FC = () => {
             <View style={styles.buttons}>
               {showRegister ? (
                 <Button
-                  title={getLocalizedText('auth.creerCompte')}
+                  title={getLocalizedText("auth.creerCompte")}
                   variant="primary"
                   size="large"
                   fullWidth
                   onPress={() => {
-                    navigation.replace('PhoneInput', { mode: 'register' });
+                    navigation.replace("PhoneInput", { mode: "register" });
                   }}
                 />
               ) : showLogin ? (
                 <Button
-                  title={getLocalizedText('auth.seConnecter')}
+                  title={getLocalizedText("auth.seConnecter")}
                   variant="primary"
                   size="large"
                   fullWidth
                   onPress={() => {
-                    navigation.replace('PhoneInput', { mode: 'login' });
+                    navigation.replace("PhoneInput", { mode: "login" });
                   }}
                 />
               ) : (
                 <Button
-                  title={getLocalizedText('auth.continue')}
+                  title={getLocalizedText("auth.continue")}
                   variant="primary"
                   size="large"
                   fullWidth
@@ -363,32 +424,32 @@ const styles = StyleSheet.create({
     // paddingTop / paddingBottom injectés dynamiquement via insets
   },
   topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: spacing.md,
   },
   backButton: {
     minWidth: 44,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   backText: {
     fontSize: 28,
-    fontWeight: '300',
+    fontWeight: "300",
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing.lg,
   },
   titleContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing.xxxl,
   },
   titleContainerCompact: {
     marginBottom: spacing.lg,
   },
   title: {
-    fontWeight: '800',
+    fontWeight: "800",
     color: colors.text.light,
     marginBottom: spacing.xs,
   },
@@ -396,39 +457,39 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.text.light,
     opacity: 0.75,
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
     marginBottom: spacing.lg,
   },
   label: {
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text.light,
     marginBottom: spacing.sm,
   },
   phoneInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: "rgba(255, 255, 255, 0.2)",
     borderRadius: 12,
     padding: spacing.sm,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
   },
   phoneInputContainerError: {
     borderColor: colors.ui.error,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
   },
   countryCodeButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     paddingHorizontal: spacing.base,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     minWidth: 88,
     minHeight: 44,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing.xs,
   },
   countryFlag: {
@@ -436,20 +497,20 @@ const styles = StyleSheet.create({
   },
   countryCode: {
     fontSize: typography.fontSize.md,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   phoneFieldWrap: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 10,
     minHeight: 44,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   phoneField: {
     paddingHorizontal: spacing.md,
-    paddingVertical: Platform.OS === 'ios' ? spacing.sm : spacing.xs,
+    paddingVertical: Platform.OS === "ios" ? spacing.sm : spacing.xs,
     fontSize: typography.fontSize.md,
-    fontWeight: '500',
+    fontWeight: "500",
     color: colors.text.primary,
   },
   countryPicker: {
@@ -457,17 +518,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     padding: spacing.md,
     maxHeight: 240,
-    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    backgroundColor: "rgba(0, 0, 0, 0.82)",
   },
   searchBarOuter: {
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
+    borderColor: "rgba(0, 0, 0, 0.06)",
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   searchField: {
     fontSize: typography.fontSize.base,
@@ -485,17 +546,17 @@ const styles = StyleSheet.create({
   },
   countryOptionText: {
     fontSize: typography.fontSize.sm,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   noResultsText: {
-    textAlign: 'center',
+    textAlign: "center",
     paddingVertical: spacing.md,
     opacity: 0.75,
   },
   errorText: {
     color: colors.ui.error,
     marginTop: spacing.sm,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   buttons: {
     // Toujours présent dans le layout, disabled géré par le prop Button

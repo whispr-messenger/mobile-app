@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Avatar } from "./Avatar";
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -40,7 +41,10 @@ function resolveMediaUrl(url: string | undefined): string {
   }
   if (url.startsWith("http://") || url.startsWith("https://")) {
     // URLs pointing to the media service blob/thumbnail endpoints are always valid
-    if (url.includes("/media/v1/") && (url.includes("/blob") || url.includes("/thumbnail"))) {
+    if (
+      url.includes("/media/v1/") &&
+      (url.includes("/blob") || url.includes("/thumbnail"))
+    ) {
       return url;
     }
     // Other absolute URLs (e.g. expired presigned S3/MinIO URLs) are returned as-is;
@@ -56,6 +60,12 @@ interface MessageBubbleProps {
   isSent: boolean;
   currentUserId: string;
   senderName?: string;
+  /** Avatar URL of the sender — displayed only for received group messages */
+  senderAvatarUrl?: string | null;
+  /** True when this message is from the same sender as the previous one (avatar is hidden but space is kept) */
+  isConsecutive?: boolean;
+  /** When true, the conversation is a group and avatars should be shown for received messages */
+  showSenderAvatar?: boolean;
   onReactionPress?: (messageId: string, emoji: string) => void;
   /** Appui long sur une pastille de réaction : afficher les réacteurs */
   onReactionDetailsPress?: (messageId: string, emoji: string) => void;
@@ -65,6 +75,14 @@ interface MessageBubbleProps {
   onLongPress?: () => void;
   isHighlighted?: boolean;
   searchQuery?: string;
+  /** Blocked-image appeal state for this message (keyed by temp id) */
+  pendingAppeal?: {
+    appealId: string;
+    status: "pending" | "approved" | "rejected";
+    localUri: string;
+  };
+  /** Called when the user taps "Contester" on a locally blocked image */
+  onContest?: (message: MessageWithRelations) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -72,6 +90,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   isSent,
   currentUserId,
   senderName,
+  senderAvatarUrl,
+  isConsecutive = false,
+  showSenderAvatar = false,
   onReactionPress,
   onReactionDetailsPress,
   resolveReactorName,
@@ -79,6 +100,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onLongPress,
   isHighlighted = false,
   searchQuery,
+  pendingAppeal,
+  onContest,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -106,25 +129,46 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     message.attachments && message.attachments.length > 0;
 
   const metadataAttachment = (() => {
-    if (hasExplicitAttachments || message.message_type !== "media" || !message.metadata) {
+    if (
+      hasExplicitAttachments ||
+      message.message_type !== "media" ||
+      !message.metadata
+    ) {
       return null;
     }
     const meta = message.metadata as any;
     if (!meta.media_url && !meta.media_id) return null;
 
-    // Prefer media-service blob/thumbnail endpoints when a media_id is available
+    // Always prefer the media-service /blob proxy when we have a mediaId —
+    // stored URLs may carry the internal cluster hostname
+    // (minio.minio.svc.cluster.local) which the browser cannot resolve and
+    // would also trigger Mixed Content over https. Only fall back to the raw
+    // URL when no mediaId is available (legacy metadata).
     const mediaId = meta.media_id;
     const apiBase = getApiBaseUrl();
-    const blobUrl = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : meta.media_url;
-    const thumbUrl = mediaId
+    const isPublicUrl = (u?: string) => {
+      if (typeof u !== "string" || u.length === 0) return false;
+      if (u.includes(".svc.cluster.local")) return false;
+      if (u.includes("minio.minio")) return false;
+      if (/^http:\/\/(minio|[\d.]+:)/i.test(u)) return false;
+      return true;
+    };
+    const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
+    const thumbFallback = mediaId
       ? `${apiBase}/media/v1/${mediaId}/thumbnail`
-      : meta.thumbnail_url || meta.media_url;
+      : null;
+    const blobUrl =
+      blobFallback || (isPublicUrl(meta.media_url) ? meta.media_url : null);
+    const thumbUrl =
+      thumbFallback ||
+      (isPublicUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
 
     return {
       id: `synth-${message.id}`,
       message_id: message.id,
       media_id: mediaId || message.id,
-      media_type: meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
+      media_type:
+        meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
       metadata: {
         filename: meta.filename,
         size: meta.size,
@@ -207,6 +251,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isForwarded = message.metadata?.forwarded === true;
   const isFailed = message.status === "failed";
 
+  // Only display the sender avatar for received messages in a group conversation.
+  const shouldRenderAvatarSlot = !isSent && showSenderAvatar;
+  // Filter internal cluster URLs that the device cannot resolve.
+  const safeAvatarUri =
+    typeof senderAvatarUrl === "string" &&
+    senderAvatarUrl.length > 0 &&
+    !senderAvatarUrl.includes(".svc.cluster.local") &&
+    !senderAvatarUrl.includes("minio.minio")
+      ? senderAvatarUrl
+      : undefined;
+
   const renderBubbleContent = () => {
     // Failed message: show error overlay with reason
     if (isFailed && isSent) {
@@ -257,6 +312,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </Text>
             <DeliveryStatus status="failed" />
           </View>
+          {(message.metadata as any)?.blockedByModeration === true ? (
+            <View style={styles.appealRow}>
+              {!pendingAppeal && !(message.metadata as any)?.appealRejected ? (
+                <TouchableOpacity
+                  style={styles.contestBtn}
+                  onPress={() => onContest?.(message)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.contestBtnText}>Contester</Text>
+                </TouchableOpacity>
+              ) : null}
+              {pendingAppeal?.status === "pending" ? (
+                <View style={[styles.appealBadge, styles.appealBadgePending]}>
+                  <Text style={styles.appealBadgeText}>
+                    Contestation envoyée
+                  </Text>
+                </View>
+              ) : null}
+              {pendingAppeal?.status === "rejected" ||
+              (message.metadata as any)?.appealRejected ? (
+                <View style={[styles.appealBadge, styles.appealBadgeRejected]}>
+                  <Text style={styles.appealBadgeText}>
+                    Refusée par l'admin
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       );
     }
@@ -462,7 +545,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             animatedStyle,
           ]}
         >
-          {renderBubbleContent()}
+          {shouldRenderAvatarSlot ? (
+            <View style={styles.receivedRow}>
+              <View style={styles.avatarSlot}>
+                {!isConsecutive ? (
+                  <Avatar uri={safeAvatarUri} name={senderName} size={32} />
+                ) : null}
+              </View>
+              <View style={styles.receivedBubbleWrapper}>
+                {renderBubbleContent()}
+              </View>
+            </View>
+          ) : (
+            renderBubbleContent()
+          )}
           {message.reactions && message.reactions.length > 0 ? (
             <ReactionBar
               reactions={message.reactions}
@@ -510,6 +606,18 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginVertical: 4,
     marginHorizontal: 16,
+  },
+  receivedRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
+  avatarSlot: {
+    width: 32,
+    height: 32,
+    marginRight: 8,
+  },
+  receivedBubbleWrapper: {
+    flexShrink: 1,
   },
   receivedBubble: {
     maxWidth: "75%",
@@ -559,6 +667,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 2,
   },
+  appealRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 8,
+  },
+  contestBtn: {
+    backgroundColor: "rgba(240, 72, 72, 0.25)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(240, 72, 72, 0.5)",
+  },
+  contestBtnText: {
+    color: "#F04848",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  appealBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  appealBadgePending: {
+    backgroundColor: "rgba(255, 176, 123, 0.2)",
+  },
+  appealBadgeRejected: {
+    backgroundColor: "rgba(120, 120, 120, 0.3)",
+  },
+  appealBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
 });
 
 export default memo(MessageBubble, (prevProps, nextProps) => {
@@ -569,7 +712,13 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
     prevProps.senderName === nextProps.senderName &&
+    prevProps.senderAvatarUrl === nextProps.senderAvatarUrl &&
+    prevProps.isConsecutive === nextProps.isConsecutive &&
+    prevProps.showSenderAvatar === nextProps.showSenderAvatar &&
     prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
+    prevProps.pendingAppeal?.status === nextProps.pendingAppeal?.status &&
+    JSON.stringify(prevProps.message.metadata) ===
+      JSON.stringify(nextProps.message.metadata) &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );

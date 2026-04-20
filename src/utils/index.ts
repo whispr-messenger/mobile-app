@@ -16,6 +16,16 @@ export const formatUsername = (username: string | undefined | null): string => {
   return `@${clean}`;
 };
 
+export const normalizeUsername = (
+  username: string | undefined | null,
+): string => {
+  const raw = (username ?? "").trim().replace(/^@+/, "").toLowerCase();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^a-z0-9_]/g, "_").slice(0, 20);
+  if (!/[a-z0-9]/.test(normalized)) return "";
+  return normalized;
+};
+
 interface ConversationLike {
   type: "direct" | "group";
   display_name?: string;
