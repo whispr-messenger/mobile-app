@@ -105,7 +105,7 @@ jest.mock('./src/services/contacts/api', () => ({
   },
 }));
 jest.mock('./src/services/MediaService', () => ({
-  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ url: 'https://cdn.test/img.jpg' }) },
+  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ id: 'media-1', url: 'https://cdn.test/img.jpg' }) },
 }));
 jest.mock('./src/theme/colors', () => ({
   colors: {
