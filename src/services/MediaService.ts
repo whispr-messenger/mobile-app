@@ -1,24 +1,25 @@
-import { AuthService } from './AuthService';
-import { TokenService } from './TokenService';
-import { getApiBaseUrl } from './apiBase';
+import { AuthService } from "./AuthService";
+import { TokenService } from "./TokenService";
+import { getApiBaseUrl } from "./apiBase";
+import { Platform } from "react-native";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
 function getMediaBaseUrl(): string {
-  return `${getApiBaseUrl()}/media`;
+  return `${getApiBaseUrl()}/media/v1`;
 }
 
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  isRetry = false
+  isRetry = false,
 ): Promise<T> {
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
-    Accept: 'application/json',
+    Accept: "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const response = await fetch(`${getMediaBaseUrl()}${path}`, {
     ...options,
@@ -37,7 +38,7 @@ async function apiFetch<T>(
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const error = new Error(
-      (body as { message?: string })?.message ?? `HTTP ${response.status}`
+      (body as { message?: string })?.message ?? `HTTP ${response.status}`,
     ) as ApiError;
     error.status = response.status;
     error.body = body;
@@ -71,6 +72,27 @@ export interface UploadMediaResult {
   size: number;
 }
 
+export type UploadMediaContext = "message" | "avatar" | "group_icon";
+
+// The media-service upload response uses {mediaId, ...} but the rest of the
+// app (chat send path, attachment metadata) expects {id}. Normalise here so
+// callers don't have to know which key the server happened to return.
+const normaliseUpload = (raw: any): UploadMediaResult => {
+  const id = raw?.mediaId ?? raw?.id ?? raw?.media_id;
+  // Always use the media-service API endpoint so recipients fetch via auth header.
+  // Presigned MinIO URLs stored in messages would be inaccessible to non-owners.
+  return {
+    ...raw,
+    id,
+    url: id
+      ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`
+      : (raw?.url ?? ""),
+    thumbnail_url: id
+      ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/thumbnail`
+      : (raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined),
+  };
+};
+
 export const MediaService = {
   /**
    * POST /media/upload
@@ -78,38 +100,65 @@ export const MediaService = {
    */
   async uploadMedia(
     file: { uri: string; name: string; type: string },
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
+    meta?: { context?: UploadMediaContext; ownerId?: string },
   ): Promise<UploadMediaResult> {
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const formData = new FormData();
-    formData.append('file', { uri: file.uri, name: file.name, type: file.type } as any);
+    if (meta?.context) formData.append("context", meta.context);
+    if (meta?.ownerId) formData.append("ownerId", meta.ownerId);
+
+    // On web, FormData needs a real Blob; on native, the {uri,name,type} object works
+    if (Platform.OS === "web") {
+      try {
+        const response = await fetch(file.uri);
+        const blob = await response.blob();
+        formData.append("file", blob, file.name);
+      } catch {
+        // Fallback: try the data URI directly as a blob
+        const byteString = atob(file.uri.split(",")[1] || "");
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++)
+          ia[i] = byteString.charCodeAt(i);
+        const blob = new Blob([ab], { type: file.type });
+        formData.append("file", blob, file.name);
+      }
+    } else {
+      formData.append("file", {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+    }
 
     // Native fetch doesn't support upload progress; use XMLHttpRequest when progress is needed
     if (onProgress) {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${getMediaBaseUrl()}/upload`);
+        xhr.open("POST", `${getMediaBaseUrl()}/upload`);
         Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+          if (e.lengthComputable)
+            onProgress(Math.round((e.loaded / e.total) * 100));
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(JSON.parse(xhr.responseText));
+            resolve(normaliseUpload(JSON.parse(xhr.responseText)));
           } else {
             reject(new Error(`Upload failed: HTTP ${xhr.status}`));
           }
         };
-        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.onerror = () => reject(new Error("Network error during upload"));
         xhr.send(formData);
       });
     }
 
     const response = await fetch(`${getMediaBaseUrl()}/upload`, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: formData,
     });
@@ -117,13 +166,14 @@ export const MediaService = {
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       const error = new Error(
-        (body as { message?: string })?.message ?? `Upload failed: HTTP ${response.status}`
+        (body as { message?: string })?.message ??
+          `Upload failed: HTTP ${response.status}`,
       ) as ApiError;
       error.status = response.status;
       throw error;
     }
 
-    return response.json();
+    return normaliseUpload(await response.json());
   },
 
   /**
@@ -141,11 +191,14 @@ export const MediaService = {
   async downloadMedia(id: string): Promise<{ url: string; blob?: Blob }> {
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const response = await fetch(`${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`, {
-      headers,
-    });
+    const response = await fetch(
+      `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`,
+      {
+        headers,
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to download media: HTTP ${response.status}`);
@@ -167,11 +220,11 @@ export const MediaService = {
   async downloadThumbnail(id: string): Promise<string> {
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const response = await fetch(
       `${getMediaBaseUrl()}/${encodeURIComponent(id)}/thumbnail`,
-      { headers }
+      { headers },
     );
 
     if (!response.ok) {
@@ -186,7 +239,23 @@ export const MediaService = {
    * Delete a media file.
    */
   async deleteMedia(id: string): Promise<void> {
-    await apiFetch<void>(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await apiFetch<void>(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  /**
+   * PATCH /media/:id/share
+   * Grant read access to the given user IDs for a media file.
+   */
+  async shareMedia(id: string, userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    await apiFetch<{ sharedWith: string[] }>(
+      `/${encodeURIComponent(id)}/share`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds }),
+      },
+    );
   },
 };
 

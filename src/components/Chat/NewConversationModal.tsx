@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -76,8 +77,13 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const [groupDescription, setGroupDescription] = useState("");
   const [groupPhoto, setGroupPhoto] = useState<string | null>(null);
   const [groupSearchQuery, setGroupSearchQuery] = useState("");
+  const [groupUserSearchResults, setGroupUserSearchResults] = useState<
+    UserSearchResult[]
+  >([]);
+  const [loadingGroupSearch, setLoadingGroupSearch] = useState(false);
   const [creating, setCreating] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const groupSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -135,9 +141,9 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   useEffect(
     () => () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (groupSearchTimeoutRef.current)
+        clearTimeout(groupSearchTimeoutRef.current);
     },
     [],
   );
@@ -242,14 +248,16 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const handleMemberToggle = (contact: Contact) => {
     const userId = contact.contact_user?.id ?? contact.contact_id;
     if (!userId) return;
+    toggleGroupMember(userId);
+  };
 
+  const toggleGroupMember = (userId: string) => {
     setSelectedMembers((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(userId)) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         newSet.delete(userId);
       } else {
-        // Limit to 49 members (50 total with creator included automatically as per spec)
         if (newSet.size >= 49) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert(
@@ -264,6 +272,38 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       return newSet;
     });
   };
+
+  const handleGroupSearchChange = useCallback(
+    (query: string) => {
+      setGroupSearchQuery(query);
+      if (groupSearchTimeoutRef.current)
+        clearTimeout(groupSearchTimeoutRef.current);
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setGroupUserSearchResults([]);
+        return;
+      }
+      groupSearchTimeoutRef.current = setTimeout(async () => {
+        try {
+          setLoadingGroupSearch(true);
+          const results = await contactsAPI.searchUsers({ username: trimmed });
+          const contactUserIds = new Set(
+            contacts
+              .map((c) => c.contact_user?.id ?? c.contact_id)
+              .filter(Boolean),
+          );
+          setGroupUserSearchResults(
+            results.filter((r) => !contactUserIds.has(r.user.id)),
+          );
+        } catch {
+          setGroupUserSearchResults([]);
+        } finally {
+          setLoadingGroupSearch(false);
+        }
+      }, 400);
+    },
+    [contacts],
+  );
 
   // Handle group photo selection with haptics
   const handleSelectPhoto = async () => {
@@ -452,6 +492,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       setSearchQuery("");
       setGroupSearchQuery("");
       setUserSearchResults([]);
+      setGroupUserSearchResults([]);
       slideAnim.value = 0;
       fadeAnim.value = 1;
       onClose();
@@ -661,7 +702,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
               fontWeight: typography.fontWeight.regular,
             },
           ]}
-          placeholder="Rechercher un contact"
+          placeholder="Rechercher un utilisateur"
           placeholderTextColor={colors.text.tertiary}
           value={searchQuery}
           onChangeText={handleSearchChange}
@@ -737,7 +778,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                           },
                         ]}
                       >
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
@@ -809,7 +850,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                         },
                       ]}
                     >
-                      @{user.username}
+                      {formatUsername(user.username)}
                     </Text>
                   )}
                 </View>
@@ -1132,10 +1173,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                       fontWeight: typography.fontWeight.regular,
                     },
                   ]}
-                  placeholder="Rechercher des contacts..."
+                  placeholder="Rechercher par nom, @pseudo ou numéro..."
                   placeholderTextColor={colors.text.tertiary}
                   value={groupSearchQuery}
-                  onChangeText={setGroupSearchQuery}
+                  onChangeText={handleGroupSearchChange}
                 />
               </View>
             </View>
@@ -1255,7 +1296,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                               },
                             ]}
                           >
-                            @{user.username}
+                            {formatUsername(user.username)}
                           </Text>
                         )}
                       </View>
@@ -1279,18 +1320,118 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   );
                 }}
                 ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Text
-                      style={[
-                        styles.emptyText,
-                        { color: colors.text.secondary },
-                      ]}
-                    >
-                      Aucun contact trouvé
-                    </Text>
-                  </View>
+                  groupUserSearchResults.length === 0 && !loadingGroupSearch ? (
+                    <View style={styles.emptyContainer}>
+                      <Text
+                        style={[
+                          styles.emptyText,
+                          { color: colors.text.secondary },
+                        ]}
+                      >
+                        Aucun contact trouvé
+                      </Text>
+                    </View>
+                  ) : null
                 }
               />
+            )}
+
+            {/* Non-contact search results (by phone/username) */}
+            {loadingGroupSearch && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.primary.main} />
+              </View>
+            )}
+            {!loadingGroupSearch && groupUserSearchResults.length > 0 && (
+              <>
+                <Text
+                  style={[
+                    styles.inputLabel,
+                    {
+                      color: colors.text.secondary,
+                      fontSize: typography.fontSize.sm,
+                      marginTop: 12,
+                      marginBottom: 4,
+                    },
+                  ]}
+                >
+                  Autres utilisateurs
+                </Text>
+                {groupUserSearchResults.map((result) => {
+                  const user = result.user;
+                  const isSelected = selectedMembers.has(user.id);
+                  const displayName =
+                    user.first_name || user.username || user.id;
+                  return (
+                    <AnimatedTouchableOpacity
+                      key={`search-${user.id}`}
+                      style={[
+                        styles.contactItem,
+                        { backgroundColor: colors.background.darkCard },
+                        isSelected && {
+                          backgroundColor: withOpacity(
+                            colors.primary.main,
+                            0.2,
+                          ),
+                        },
+                      ]}
+                      onPress={() => toggleGroupMember(user.id)}
+                      activeOpacity={0.7}
+                      entering={FadeIn.duration(200)}
+                    >
+                      <Avatar
+                        uri={user.avatar_url}
+                        name={displayName}
+                        size={48}
+                        showOnlineBadge={false}
+                      />
+                      <View style={styles.contactInfo}>
+                        <Text
+                          style={[
+                            styles.contactName,
+                            {
+                              color: colors.text.light,
+                              fontSize: typography.fontSize.base,
+                              fontWeight: typography.fontWeight.semiBold,
+                            },
+                          ]}
+                        >
+                          {displayName}
+                        </Text>
+                        {user.username && (
+                          <Text
+                            style={[
+                              styles.contactUsername,
+                              {
+                                color: colors.text.secondary,
+                                fontSize: typography.fontSize.sm,
+                              },
+                            ]}
+                          >
+                            {formatUsername(user.username)}
+                          </Text>
+                        )}
+                      </View>
+                      {isSelected ? (
+                        <Animated.View entering={FadeIn.springify()}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={24}
+                            color={colors.primary.main}
+                          />
+                        </Animated.View>
+                      ) : (
+                        <View
+                          style={[
+                            styles.checkbox,
+                            { borderColor: colors.text.tertiary },
+                          ]}
+                        />
+                      )}
+                    </AnimatedTouchableOpacity>
+                  );
+                })}
+              </>
             )}
           </Animated.View>
         </ScrollView>

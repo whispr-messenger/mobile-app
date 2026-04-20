@@ -1,8 +1,8 @@
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const API_BASE_URL = `${getApiBaseUrl()}/user`;
-const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api`;
+const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
+const MESSAGING_API_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
@@ -75,6 +75,134 @@ export interface GroupDetails {
   conversation_id: string;
 }
 
+interface RawConversationMember {
+  userId?: string;
+  user_id?: string;
+  role?: string;
+  joinedAt?: string;
+  joined_at?: string;
+  isActive?: boolean;
+  is_active?: boolean;
+}
+
+interface ResolvedMemberMeta {
+  role: "admin" | "moderator" | "member";
+  joinedAt?: string;
+  isActive?: boolean;
+}
+
+interface ConversationMembersResult {
+  memberUserIds: string[];
+  roleByUserId: Map<string, ResolvedMemberMeta>;
+  rawMembers: RawConversationMember[];
+}
+
+/**
+ * Run an async mapper over items in bounded-size batches to cap the number of
+ * concurrent requests. Avoids DoS-ing the client and backend when a group has
+ * hundreds of members and each one requires a profile fetch.
+ */
+async function batchedMap<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
+
+interface ConversationPayload {
+  memberUserIds?: string[];
+  member_user_ids?: string[];
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+  messageCount?: number;
+  message_count?: number;
+}
+
+/**
+ * Fetch the canonical member list for a conversation (group).
+ *
+ * Source of truth: GET /messaging/api/v1/conversations/:id/members.
+ * The messaging backend only populates `memberUserIds` on the conversation
+ * payload for direct chats, so for groups we must derive member IDs from
+ * this dedicated endpoint.
+ */
+async function fetchConversationMembers(
+  groupId: string,
+  headers: Record<string, string>,
+): Promise<ConversationMembersResult> {
+  const membersResponse = await fetch(
+    `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}/members`,
+    { headers },
+  ).catch(() => null);
+
+  const membersJson =
+    membersResponse && membersResponse.ok
+      ? await membersResponse.json().catch(() => null)
+      : null;
+  const rawMembers: RawConversationMember[] = Array.isArray(membersJson)
+    ? membersJson
+    : Array.isArray(membersJson?.data)
+      ? membersJson.data
+      : [];
+
+  const roleByUserId = new Map<string, ResolvedMemberMeta>();
+  const memberUserIds: string[] = [];
+  for (const m of rawMembers) {
+    const uid = m.userId ?? m.user_id;
+    if (!uid) continue;
+    const rawRole = (m.role ?? "member").toLowerCase();
+    const role: "admin" | "moderator" | "member" =
+      rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+    roleByUserId.set(uid, {
+      role,
+      joinedAt: m.joinedAt ?? m.joined_at,
+      isActive: m.isActive ?? m.is_active,
+    });
+    memberUserIds.push(uid);
+  }
+
+  return { memberUserIds, roleByUserId, rawMembers };
+}
+
+/**
+ * Ultimate fallback when /conversations/:id/members is unavailable: try to
+ * read memberUserIds from the conversation payload. The backend only fills
+ * this field for direct conversations today, so for groups it is almost
+ * always empty — we keep it only so the UI stays functional in edge cases.
+ */
+async function fetchConversationMemberIdsFallback(
+  groupId: string,
+  headers: Record<string, string>,
+): Promise<{ ids: string[]; conv: ConversationPayload | null }> {
+  const convResponse = await fetch(
+    `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
+    { headers },
+  );
+  if (!convResponse.ok) {
+    return { ids: [], conv: null };
+  }
+  const convJson = await convResponse.json().catch(() => null);
+  const conv: ConversationPayload | null =
+    convJson?.data !== undefined ? convJson.data : convJson;
+  const ids: string[] = Array.isArray(conv?.memberUserIds)
+    ? conv.memberUserIds
+    : Array.isArray(conv?.member_user_ids)
+      ? conv.member_user_ids
+      : [];
+  return { ids, conv };
+}
+
 export const groupsAPI = {
   /**
    * GET /api/groups/{groupId}
@@ -131,23 +259,31 @@ export const groupsAPI = {
     const ownerId = await getOwnerId();
     const headers = await getAuthHeaders();
 
-    // Fetch conversation to get member_user_ids
-    const convResponse = await fetch(
-      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
-      { headers },
+    // Canonical source: /conversations/:id/members. For groups the
+    // conversation payload's memberUserIds is empty (backend only fills it
+    // for direct chats), so we resolve membership from this endpoint.
+    const { memberUserIds, roleByUserId } = await fetchConversationMembers(
+      groupId,
+      headers,
     );
-    if (!convResponse.ok) {
-      throw new Error("Failed to fetch conversation for group members");
-    }
-    const convJson = await convResponse.json().catch(() => null);
-    const conv = convJson?.data !== undefined ? convJson.data : convJson;
-    const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
-      ? conv.member_user_ids
-      : [];
 
-    // Resolve each member's profile
-    const members: GroupMember[] = await Promise.all(
-      memberUserIds.map(async (userId: string) => {
+    // Ultimate fallback for the edge case where the members endpoint is
+    // unavailable but the conversation payload happens to expose IDs.
+    let fallbackConv: ConversationPayload | null = null;
+    let resolvedMemberIds = memberUserIds;
+    if (resolvedMemberIds.length === 0) {
+      const fallback = await fetchConversationMemberIdsFallback(
+        groupId,
+        headers,
+      );
+      resolvedMemberIds = fallback.ids;
+      fallbackConv = fallback.conv;
+    }
+
+    const members: GroupMember[] = await batchedMap(
+      resolvedMemberIds,
+      MEMBER_PROFILE_FETCH_CONCURRENCY,
+      async (userId: string) => {
         const profileResponse = await fetch(
           `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
           { headers },
@@ -158,8 +294,14 @@ export const groupsAPI = {
             ? await profileResponse.json().catch(() => null)
             : null;
 
-        const displayName =
-          profile?.firstName || profile?.username || "Utilisateur";
+        const firstName = profile?.firstName || profile?.first_name || "";
+        const lastName = profile?.lastName || profile?.last_name || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        const displayName = fullName || profile?.username || "Utilisateur";
+
+        const memberMeta = roleByUserId.get(userId);
+        const role: "admin" | "moderator" | "member" =
+          memberMeta?.role ?? (userId === ownerId ? "admin" : "member");
 
         return {
           id: userId,
@@ -167,14 +309,15 @@ export const groupsAPI = {
           display_name: displayName,
           username: profile?.username ?? undefined,
           avatar_url: profile?.profilePictureUrl ?? undefined,
-          role: (userId === ownerId ? "admin" : "member") as
-            | "admin"
-            | "moderator"
-            | "member",
-          joined_at: conv?.created_at ?? new Date().toISOString(),
-          is_active: true,
+          role,
+          joined_at:
+            memberMeta?.joinedAt ??
+            fallbackConv?.createdAt ??
+            fallbackConv?.created_at ??
+            new Date().toISOString(),
+          is_active: memberMeta?.isActive ?? true,
         };
-      }),
+      },
     );
 
     return { members, total: members.length };
@@ -187,6 +330,14 @@ export const groupsAPI = {
   async getGroupStats(groupId: string): Promise<GroupStats> {
     const headers = await getAuthHeaders();
 
+    // Canonical member list from /conversations/:id/members (memberUserIds
+    // on the conversation payload is empty for groups).
+    const { memberUserIds, rawMembers } = await fetchConversationMembers(
+      groupId,
+      headers,
+    );
+
+    // We still need the conversation for message count and timestamps.
     const convResponse = await fetch(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(groupId)}`,
       { headers },
@@ -195,24 +346,45 @@ export const groupsAPI = {
       throw new Error("Failed to fetch conversation for group stats");
     }
     const convJson = await convResponse.json().catch(() => null);
-    const conv = convJson?.data !== undefined ? convJson.data : convJson;
+    const conv: ConversationPayload | null =
+      convJson?.data !== undefined ? convJson.data : convJson;
 
-    const memberUserIds: string[] = Array.isArray(conv?.member_user_ids)
-      ? conv.member_user_ids
-      : [];
+    // If the members endpoint failed, fall back to the conversation payload.
+    const resolvedMemberIds =
+      memberUserIds.length > 0
+        ? memberUserIds
+        : Array.isArray(conv?.memberUserIds)
+          ? conv.memberUserIds
+          : Array.isArray(conv?.member_user_ids)
+            ? conv.member_user_ids
+            : [];
+
+    const adminsFromMembers = rawMembers.filter(
+      (m) => (m.role ?? "").toLowerCase() === "admin",
+    ).length;
+    const adminCount = adminsFromMembers > 0 ? adminsFromMembers : 1;
 
     return {
-      memberCount: memberUserIds.length,
-      adminCount: 1, // Only the creator is admin; no dedicated endpoint to resolve this
-      messageCount: conv?.message_count ?? 0,
-      createdAt: conv?.created_at ?? new Date().toISOString(),
-      lastActivity: conv?.updated_at ?? conv?.created_at ?? new Date().toISOString(),
+      memberCount: resolvedMemberIds.length,
+      adminCount,
+      messageCount: conv?.messageCount ?? conv?.message_count ?? 0,
+      createdAt:
+        conv?.createdAt ?? conv?.created_at ?? new Date().toISOString(),
+      lastActivity:
+        conv?.updatedAt ??
+        conv?.updated_at ??
+        conv?.createdAt ??
+        conv?.created_at ??
+        new Date().toISOString(),
     };
   },
 
   /**
-   * No backend endpoint exists for group activity logs.
-   * Returns an empty array until a logging service is implemented.
+   * TODO(WHISPR-961): backend endpoint not yet implemented in user-service.
+   * Needs GET /user/v1/groups/:groupId/logs returning paginated group audit
+   * events (member add/remove, role change, settings update, admin transfer).
+   * Until then we return an empty list so the UI renders the empty state
+   * instead of throwing.
    */
   async getGroupLogs(
     groupId: string,
@@ -224,8 +396,10 @@ export const groupsAPI = {
   },
 
   /**
-   * No dedicated backend endpoint for group settings.
-   * Returns sensible defaults until a settings service is implemented.
+   * TODO(WHISPR-961): backend endpoint not yet implemented in user-service.
+   * Needs GET/PATCH /user/v1/groups/:groupId/settings backed by a
+   * group_settings table (permissions, moderation level, join approval).
+   * Until then we return the app defaults so the settings screen is usable.
    */
   async getGroupSettings(groupId: string): Promise<GroupSettings> {
     void groupId;
@@ -286,8 +460,10 @@ export const groupsAPI = {
           ? await profileResponse.json().catch(() => null)
           : null;
 
-      const displayName =
-        profile?.firstName || profile?.username || "Utilisateur";
+      const firstName = profile?.firstName || profile?.first_name || "";
+      const lastName = profile?.lastName || profile?.last_name || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+      const displayName = fullName || profile?.username || "Utilisateur";
 
       results.push({
         id: userId,

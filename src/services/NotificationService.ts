@@ -1,6 +1,6 @@
-import { AuthService } from './AuthService';
-import { TokenService } from './TokenService';
-import { getApiBaseUrl } from './apiBase';
+import { AuthService } from "./AuthService";
+import { TokenService } from "./TokenService";
+import { getApiBaseUrl } from "./apiBase";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
@@ -11,15 +11,15 @@ function getNotificationBaseUrl(): string {
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  isRetry = false
+  isRetry = false,
 ): Promise<T> {
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
+    "Content-Type": "application/json",
+    Accept: "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const response = await fetch(`${getNotificationBaseUrl()}${path}`, {
     ...options,
@@ -38,7 +38,7 @@ async function apiFetch<T>(
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const error = new Error(
-      (body as { message?: string })?.message ?? `HTTP ${response.status}`
+      (body as { message?: string })?.message ?? `HTTP ${response.status}`,
     ) as ApiError;
     error.status = response.status;
     error.body = body;
@@ -57,7 +57,7 @@ export interface NotificationSettings {
   show_sender_name: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start?: string; // HH:mm
-  quiet_hours_end?: string;   // HH:mm
+  quiet_hours_end?: string; // HH:mm
 }
 
 export interface MuteSettings {
@@ -71,21 +71,26 @@ export const NotificationService = {
    * Get notification settings for a user.
    */
   async getSettings(userId: string): Promise<NotificationSettings> {
-    return apiFetch<NotificationSettings>(`/api/settings/${encodeURIComponent(userId)}`);
+    return apiFetch<NotificationSettings>(
+      `/api/settings/${encodeURIComponent(userId)}`,
+    );
   },
 
   /**
-   * POST /notification/api/settings/:id
+   * PUT /notification/api/settings/:id
    * Update notification settings for a user.
    */
   async updateSettings(
     userId: string,
-    settings: Partial<NotificationSettings>
+    settings: Partial<NotificationSettings>,
   ): Promise<NotificationSettings> {
-    return apiFetch<NotificationSettings>(`/api/settings/${encodeURIComponent(userId)}`, {
-      method: 'POST',
-      body: JSON.stringify(settings),
-    });
+    return apiFetch<NotificationSettings>(
+      `/api/settings/${encodeURIComponent(userId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(settings),
+      },
+    );
   },
 
   /**
@@ -93,16 +98,19 @@ export const NotificationService = {
    * Mute notifications for a conversation.
    * @param duration  Duration in seconds. Omit to mute indefinitely.
    */
-  async muteConversation(conversationId: string, duration?: number): Promise<void> {
+  async muteConversation(
+    conversationId: string,
+    duration?: number,
+  ): Promise<void> {
     const body: Record<string, unknown> = {};
-    if (duration !== undefined) body['duration'] = duration;
+    if (duration !== undefined) body["duration"] = duration;
 
     await apiFetch<void>(
       `/api/conversations/${encodeURIComponent(conversationId)}/mute`,
       {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify(body),
-      }
+      },
     );
   },
 
@@ -113,7 +121,7 @@ export const NotificationService = {
   async unmuteConversation(conversationId: string): Promise<void> {
     await apiFetch<void>(
       `/api/conversations/${encodeURIComponent(conversationId)}/mute`,
-      { method: 'DELETE' }
+      { method: "DELETE" },
     );
   },
 };

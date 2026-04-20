@@ -3,7 +3,8 @@
  * WHISPR-132: Implement ProfileScreen with user profile management
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { formatUsername, normalizeUsername } from "../../utils";
 import {
   View,
   Text,
@@ -12,7 +13,6 @@ import {
   ScrollView,
   Alert,
   Animated,
-  Image,
   TextInput,
   Modal,
   KeyboardAvoidingView,
@@ -20,11 +20,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { Logo, Button } from "../../components";
+import { Avatar } from "../../components/Chat/Avatar";
 import {
   colors,
   spacing,
@@ -34,6 +39,7 @@ import {
 } from "../../theme";
 import { UserService } from "../../services";
 import { MediaService } from "../../services/MediaService";
+import { useAuth } from "../../context/AuthContext";
 
 // Types
 interface UserProfile {
@@ -70,6 +76,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   userId,
   token,
 }) => {
+  const { userId: currentUserId } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const params = (route as any)?.params as RouteParams | undefined;
@@ -77,7 +84,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // States
   const [profile, setProfile] = useState<UserProfile>({
-    id: params?.userId || userId || "",
+    id: params?.userId || userId || currentUserId || "",
     firstName: params?.firstName || "",
     lastName: params?.lastName || "",
     username: params?.username || "",
@@ -90,7 +97,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   });
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    biography?: string;
+  }>({});
+  const [pendingAvatar, setPendingAvatar] = useState<{
+    localUri: string;
+    mediaId?: string;
+    remoteUrl?: string;
+  } | null>(null);
+  const saveAbortRef = useRef<AbortController | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -110,31 +131,56 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-    // Load from API unless navigation params already provided full data
-    const loadProfile = async () => {
-      if (params?.firstName && params?.lastName) return;
-      try {
-        const service = UserService.getInstance();
-        const res = await service.getProfile();
-        if (res.success && res.profile) {
-          setProfile((prev) => ({
-            ...prev,
-            firstName: res.profile!.firstName,
-            lastName: res.profile!.lastName,
-            username: res.profile!.username,
-            phoneNumber: res.profile!.phoneNumber,
-            biography: res.profile!.biography,
-            profilePicture: res.profile!.profilePicture,
-            createdAt: res.profile!.createdAt || prev.createdAt,
-          }));
-        }
-      } catch (e) {
-        console.error("[ProfileScreen] Failed to load profile:", e);
+
+    // Cleanup: cancel any pending save on unmount
+    return () => {
+      if (saveAbortRef.current) {
+        saveAbortRef.current.abort();
+        saveAbortRef.current = null;
       }
     };
-
-    loadProfile();
   }, []);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      setProfileLoadError(null);
+      const service = UserService.getInstance();
+      const res = await service.getProfile();
+      if (res.success && res.profile) {
+        const p = res.profile;
+        setProfile((prev) => ({
+          ...prev,
+          id: p.id || prev.id,
+          firstName: p.firstName || prev.firstName || "",
+          lastName: p.lastName || prev.lastName || "",
+          username: p.username || prev.username || "",
+          phoneNumber: p.phoneNumber || prev.phoneNumber || "",
+          biography: p.biography || prev.biography || "",
+          profilePicture:
+            pendingAvatar?.localUri || p.profilePicture || prev.profilePicture,
+          createdAt: p.createdAt || prev.createdAt,
+        }));
+        setProfileLoaded(true);
+        return;
+      }
+      setProfileLoadError(res.message || "Impossible de récupérer le profil");
+      setProfileLoaded(true);
+    } catch (e: any) {
+      setProfileLoadError(e?.message || "Impossible de récupérer le profil");
+      setProfileLoaded(true);
+    }
+  }, [pendingAvatar?.localUri]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  // Re-fetch profile from API every time the screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile]),
+  );
 
   // Handle profile picture change
   const handleImagePicker = async () => {
@@ -157,12 +203,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
         setProfile((prev) => ({
           ...prev,
-          profilePicture: result.assets[0].uri,
+          profilePicture: uri,
         }));
+        setPendingAvatar({ localUri: uri });
         setShowImagePicker(false);
-        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
       console.error("Erreur sélection image:", error);
@@ -189,12 +236,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
         setProfile((prev) => ({
           ...prev,
-          profilePicture: result.assets[0].uri,
+          profilePicture: uri,
         }));
+        setPendingAvatar({ localUri: uri });
         setShowImagePicker(false);
-        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
       console.error("Erreur capture caméra:", error);
@@ -202,30 +250,68 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
+  // Cancel any pending save operation
+  const cancelSave = useCallback(() => {
+    if (saveAbortRef.current) {
+      saveAbortRef.current.abort();
+      saveAbortRef.current = null;
+    }
+    setLoading(false);
+  }, []);
+
+  const isMediaNotFound = (message?: string) =>
+    typeof message === "string" && /media not found/i.test(message);
+
+  const waitForMediaAvailable = async (
+    mediaId: string,
+    abortSignal: AbortSignal,
+  ): Promise<void> => {
+    const delaysMs = [250, 400, 650, 1000, 1500];
+    let lastErr: unknown;
+    for (let i = 0; i < delaysMs.length; i++) {
+      if (abortSignal.aborted) return;
+      try {
+        await MediaService.getMediaMetadata(mediaId);
+        return;
+      } catch (e: any) {
+        lastErr = e;
+        const msg = typeof e?.message === "string" ? e.message : "";
+        const status = typeof e?.status === "number" ? e.status : undefined;
+        const isRetryable =
+          status === 404 || isMediaNotFound(msg) || msg.includes("HTTP 404");
+        if (!isRetryable) throw e;
+        await new Promise((r) => setTimeout(r, delaysMs[i]));
+      }
+    }
+    throw lastErr ?? new Error("Media not found");
+  };
+
   // Handle profile update
   const handleSaveProfile = async () => {
-    // Validation globale avant sauvegarde
-    const errors: string[] = [];
-
     const firstNameError = validateField("firstName", profile.firstName);
-    if (firstNameError) errors.push(`Prénom: ${firstNameError}`);
-
     const lastNameError = validateField("lastName", profile.lastName);
-    if (lastNameError) errors.push(`Nom: ${lastNameError}`);
+    const normalizedUsername = normalizeUsername(profile.username);
+    const usernameError = normalizedUsername
+      ? validateField("username", normalizedUsername)
+      : null;
 
-    const usernameError = validateField("username", profile.username);
-    if (usernameError) errors.push(`Nom d'utilisateur: ${usernameError}`);
-
-    const phoneError = validateField("phoneNumber", profile.phoneNumber);
-    if (phoneError) errors.push(`Téléphone: ${phoneError}`);
+    // phoneNumber is read-only from registration — skip validation on save
 
     const bioError = validateField("biography", profile.biography);
-    if (bioError) errors.push(`Biographie: ${bioError}`);
+    const nextErrors = {
+      firstName: firstNameError ?? undefined,
+      lastName: lastNameError ?? undefined,
+      username: usernameError ?? undefined,
+      biography: bioError ?? undefined,
+    };
+    setFieldErrors(nextErrors);
+    if (firstNameError || lastNameError || bioError) return;
 
-    if (errors.length > 0) {
-      Alert.alert("Erreurs de validation", errors.join("\n\n"));
-      return;
-    }
+    // Abort any previous pending save
+    cancelSave();
+
+    const abortController = new AbortController();
+    saveAbortRef.current = abortController;
 
     setLoading(true);
 
@@ -244,94 +330,171 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     ]).start();
 
     try {
-      // Upload avatar if it's a local URI (not already a remote URL)
-      let profilePictureUrl = profile.profilePicture;
-      const previousProfilePicture = profile.profilePicture;
-      if (
-        profilePictureUrl &&
-        (profilePictureUrl.startsWith("file://") ||
-          profilePictureUrl.startsWith("content://") ||
-          profilePictureUrl.startsWith("ph://"))
-      ) {
+      let avatarMediaId = pendingAvatar?.mediaId;
+      let avatarRemoteUrl = pendingAvatar?.remoteUrl;
+
+      if (pendingAvatar?.localUri && !avatarMediaId) {
+        const localUri = pendingAvatar.localUri;
+        const fileName = localUri.split("/").pop() || "avatar.jpg";
+        const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
+
+        const uploadPromise = MediaService.uploadMedia(
+          { uri: localUri, name: fileName, type: fileType },
+          undefined,
+          {
+            context: "avatar",
+            ownerId: currentUserId || profile.id || undefined,
+          },
+        );
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Upload timeout")), 15000),
+        );
+        const uploadResult = await Promise.race([
+          uploadPromise,
+          timeoutPromise,
+        ]);
+
+        if (abortController.signal.aborted) return;
+
         try {
-          const fileName = profilePictureUrl.split("/").pop() || "avatar.jpg";
-          const fileType = fileName.endsWith(".png")
-            ? "image/png"
-            : "image/jpeg";
-          const uploadResult = await MediaService.uploadMedia({
-            uri: profilePictureUrl,
-            name: fileName,
-            type: fileType,
-          });
-          profilePictureUrl = uploadResult.url;
-          setProfile((prev) => ({
-            ...prev,
-            profilePicture: uploadResult.url,
-          }));
-        } catch (uploadError) {
-          console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
-          // Revert to previous profile picture to avoid broken state
-          setProfile((prev) => ({
-            ...prev,
-            profilePicture: previousProfilePicture,
-          }));
-          Alert.alert("Erreur", "Impossible de télécharger la photo de profil");
+          await waitForMediaAvailable(uploadResult.id, abortController.signal);
+        } catch {
+          Alert.alert(
+            "Erreur",
+            "La photo n'est pas encore disponible côté serveur. Réessayez dans quelques secondes.",
+          );
           setLoading(false);
           return;
         }
+
+        avatarMediaId = uploadResult.id;
+        avatarRemoteUrl = uploadResult.url;
+        setPendingAvatar({
+          localUri,
+          mediaId: avatarMediaId,
+          remoteUrl: avatarRemoteUrl,
+        });
       }
 
+      // Check if save was cancelled
+      if (abortController.signal.aborted) return;
+
       const service = UserService.getInstance();
-      const res = await service.updateProfile({
+      const updateData: any = {
         firstName: profile.firstName,
         lastName: profile.lastName,
-        username: profile.username,
         biography: profile.biography,
-        profilePicture: profilePictureUrl,
-      });
+      };
+      if (avatarMediaId) {
+        updateData.profilePicture = avatarMediaId;
+      }
+      if (!usernameError && normalizedUsername.length >= 3) {
+        updateData.username = normalizedUsername;
+      }
+      const tryUpdate = () => service.updateProfile(updateData);
+      let res = await tryUpdate();
+      if (!res.success && avatarMediaId && isMediaNotFound(res.message)) {
+        try {
+          await waitForMediaAvailable(avatarMediaId, abortController.signal);
+        } catch {
+          // ignore, we'll still retry once below
+        }
+        await new Promise((r) => setTimeout(r, 650));
+        res = await tryUpdate();
+      }
+
+      // Check if save was cancelled while updating profile
+      if (abortController.signal.aborted) return;
 
       if (!res.success) {
-        Alert.alert("Erreur", res.message || "Impossible de mettre à jour le profil");
+        if (avatarMediaId && isMediaNotFound(res.message)) {
+          const withoutAvatar = { ...updateData };
+          delete withoutAvatar.profilePicture;
+          const partialRes = await service.updateProfile(withoutAvatar);
+          if (partialRes.success) {
+            if (partialRes.profile) {
+              setProfile((prev) => ({ ...prev, ...partialRes.profile }));
+            }
+            setIsEditing(false);
+            setFieldErrors({});
+            Alert.alert(
+              "Profil enregistré",
+              "Les informations du profil ont été sauvegardées. La photo est encore en cours de disponibilité serveur.",
+            );
+            return;
+          }
+          Alert.alert(
+            "Erreur",
+            partialRes.message || "Impossible de mettre à jour le profil",
+          );
+          return;
+        }
+        Alert.alert(
+          "Erreur",
+          res.message || "Impossible de mettre à jour le profil",
+        );
         return;
       }
 
       if (res.profile) {
         setProfile((prev) => ({ ...prev, ...res.profile }));
+        if (avatarMediaId) setPendingAvatar(null);
+      } else if (!usernameError && normalizedUsername !== profile.username) {
+        setProfile((prev) => ({ ...prev, username: normalizedUsername }));
+        if (avatarRemoteUrl) {
+          setProfile((prev) => ({ ...prev, profilePicture: avatarRemoteUrl }));
+          if (avatarMediaId) setPendingAvatar(null);
+        }
+      } else if (avatarRemoteUrl) {
+        setProfile((prev) => ({ ...prev, profilePicture: avatarRemoteUrl }));
+        if (avatarMediaId) setPendingAvatar(null);
       }
 
       setIsEditing(false);
-      Alert.alert("Succès", "Profil mis à jour avec succès");
+      setFieldErrors({});
+      Alert.alert("Succès", "Profil mis à jour avec succès", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de mettre à jour le profil");
+      // If save was cancelled, exit silently
+      if (abortController.signal.aborted) return;
+      Alert.alert(
+        "Erreur",
+        "Impossible de mettre à jour le profil. Vérifiez votre connexion et réessayez.",
+      );
     } finally {
       setLoading(false);
+      if (saveAbortRef.current === abortController) {
+        saveAbortRef.current = null;
+      }
     }
   };
 
   // Validation functions
   const validateField = (
     field: keyof UserProfile,
-    value: string,
+    value: string | null | undefined,
   ): string | null => {
+    const v = value || "";
     switch (field) {
       case "firstName":
       case "lastName":
-        if (!value.trim()) return "Ce champ est obligatoire";
-        if (value.trim().length < 2) return "Minimum 2 caractères";
-        if (value.trim().length > 50) return "Maximum 50 caractères";
+        if (!v.trim()) return "Ce champ est obligatoire";
+        if (v.trim().length < 2) return "Minimum 2 caractères";
+        if (v.trim().length > 50) return "Maximum 50 caractères";
         return null;
 
       case "username":
-        if (!value.trim()) return "Le nom d'utilisateur est obligatoire";
-        if (value.trim().length < 3) return "Minimum 3 caractères";
-        if (value.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-zA-Z0-9_]+$/.test(value.trim()))
-          return "Seuls lettres, chiffres et _ autorisés";
+        if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
+        if (v.trim().length < 3) return "Minimum 3 caractères";
+        if (v.trim().length > 20) return "Maximum 20 caractères";
+        if (!/^[a-z0-9_]+$/.test(v.trim()))
+          return "Seuls minuscules, chiffres et _ autorisés";
         return null;
 
       case "phoneNumber":
-        if (!value.trim()) return "Le numéro de téléphone est obligatoire";
-        const cleanNumber = value.replace(/\s/g, "");
+        if (!v.trim()) return "Le numéro de téléphone est obligatoire";
+        const cleanNumber = v.replace(/\s/g, "");
         // Validation format international E.164: +[code pays][numéro]
         // Exemples: +33123456789, +1234567890, +86123456789
         if (!/^\+[1-9]\d{1,14}$/.test(cleanNumber))
@@ -341,7 +504,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         return null;
 
       case "biography":
-        if (value.length > 500) return "Maximum 500 caractères";
+        if (v.length > 500) return "Maximum 500 caractères";
         return null;
 
       default:
@@ -349,20 +512,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Handle field change with validation
+  // Handle field change (validation is done on save only)
   const handleFieldChange = (field: keyof UserProfile, value: string) => {
-    const error = validateField(field, value);
-
-    // Update profile
+    setFieldErrors((prev) => {
+      if (!prev[field as keyof typeof prev]) return prev;
+      return { ...prev, [field]: undefined };
+    });
     setProfile((prev) => ({
       ...prev,
       [field]: value,
     }));
-
-    // Show validation error if any
-    if (error) {
-      Alert.alert("Erreur de validation", error);
-    }
   };
 
   // Handle settings navigation
@@ -377,13 +536,37 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Handle back navigation
   const handleBackPress = () => {
-    if (isEditing) {
+    if (loading) {
+      // Cancel any in-progress save and allow navigation
+      Alert.alert(
+        "Sauvegarde en cours",
+        "Voulez-vous annuler la sauvegarde et quitter ?",
+        [
+          { text: "Attendre", style: "cancel" },
+          {
+            text: "Quitter",
+            style: "destructive",
+            onPress: () => {
+              cancelSave();
+              setIsEditing(false);
+              navigation.goBack();
+            },
+          },
+        ],
+      );
+    } else if (isEditing) {
       Alert.alert(
         "Modifications non sauvegardées",
         "Voulez-vous vraiment quitter sans sauvegarder ?",
         [
           { text: "Annuler", style: "cancel" },
-          { text: "Quitter", onPress: () => setIsEditing(false) },
+          {
+            text: "Quitter",
+            onPress: () => {
+              setIsEditing(false);
+              navigation.goBack();
+            },
+          },
         ],
       );
     } else {
@@ -443,7 +626,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
             ) : (
               <TouchableOpacity
-                onPress={() => setIsEditing(false)}
+                onPress={() => {
+                  cancelSave();
+                  setIsEditing(false);
+                }}
                 style={styles.cancelButton}
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
@@ -467,19 +653,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 style={styles.profilePictureContainer}
                 disabled={!isEditing}
               >
-                {profile.profilePicture ? (
-                  <Image
-                    source={{ uri: profile.profilePicture }}
-                    style={styles.profilePicture}
-                  />
-                ) : (
-                  <View style={styles.profilePicturePlaceholder}>
-                    <Text style={styles.profilePicturePlaceholderText}>
-                      {profile.firstName.charAt(0)}
-                      {profile.lastName.charAt(0)}
-                    </Text>
-                  </View>
-                )}
+                <Avatar
+                  uri={profile.profilePicture}
+                  name={`${profile.firstName} ${profile.lastName}`.trim()}
+                  size={120}
+                />
 
                 {isEditing && (
                   <View style={styles.editOverlay}>
@@ -495,6 +673,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
             {/* Profile Information */}
             <View style={styles.profileInfo}>
+              {!profileLoaded ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.loadingText}>Chargement du profil…</Text>
+                </View>
+              ) : profileLoadError ? (
+                <Text style={styles.loadErrorText}>{profileLoadError}</Text>
+              ) : null}
               {/* Name Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Nom complet</Text>
@@ -521,7 +707,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   </View>
                 ) : (
                   <Text style={styles.sectionValue}>
-                    {profile.firstName} {profile.lastName}
+                    {profile.firstName || profile.lastName
+                      ? `${profile.firstName} ${profile.lastName}`.trim()
+                      : "—"}
                   </Text>
                 )}
               </View>
@@ -530,16 +718,32 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Nom d'utilisateur</Text>
                 {isEditing ? (
-                  <TextInput
-                    style={styles.input}
-                    value={profile.username}
-                    onChangeText={(text) => handleFieldChange("username", text)}
-                    placeholder="@nomdutilisateur"
-                    placeholderTextColor={colors.text.placeholder}
-                    autoCapitalize="none"
-                  />
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      value={profile.username}
+                      onChangeText={(text) =>
+                        handleFieldChange("username", normalizeUsername(text))
+                      }
+                      placeholder="@nomdutilisateur"
+                      placeholderTextColor={colors.text.placeholder}
+                      autoCapitalize="none"
+                    />
+                    {!!fieldErrors.username && (
+                      <Text style={styles.fieldErrorText}>
+                        {fieldErrors.username}
+                      </Text>
+                    )}
+                    {!fieldErrors.username && (
+                      <Text style={styles.fieldHelperText}>
+                        Seuls minuscules, chiffres et _ (auto-corrigé)
+                      </Text>
+                    )}
+                  </>
                 ) : (
-                  <Text style={styles.sectionValue}>@{profile.username}</Text>
+                  <Text style={styles.sectionValue}>
+                    {profile.username ? formatUsername(profile.username) : "—"}
+                  </Text>
                 )}
               </View>
 
@@ -550,15 +754,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <TextInput
                     style={styles.input}
                     value={profile.phoneNumber}
-                    onChangeText={(text) =>
-                      handleFieldChange("phoneNumber", text)
-                    }
                     placeholder="+33 07 12 34 56 78"
                     placeholderTextColor={colors.text.placeholder}
                     keyboardType="phone-pad"
+                    editable={false}
                   />
                 ) : (
-                  <Text style={styles.sectionValue}>{profile.phoneNumber}</Text>
+                  <Text style={styles.sectionValue}>
+                    {profile.phoneNumber || "—"}
+                  </Text>
                 )}
               </View>
 
@@ -581,11 +785,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       maxLength={500}
                     />
                     <Text style={styles.characterCount}>
-                      {profile.biography.length}/500 caractères
+                      {(profile.biography || "").length}/500 caractères
                     </Text>
                   </>
                 ) : (
-                  <Text style={styles.sectionValue}>{profile.biography}</Text>
+                  <Text style={styles.sectionValue}>
+                    {profile.biography || "—"}
+                  </Text>
                 )}
               </View>
 
@@ -793,19 +999,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.25)",
   },
-  profilePicturePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.primary.main,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profilePicturePlaceholderText: {
-    fontSize: typography.fontSize.xxxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.light,
-  },
   editOverlay: {
     position: "absolute",
     bottom: 0,
@@ -830,6 +1023,21 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     paddingBottom: spacing.xxxl,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  loadingText: {
+    fontSize: typography.fontSize.sm,
+    color: "rgba(255,255,255,0.85)",
+  },
+  loadErrorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.ui.error,
+    marginBottom: spacing.lg,
   },
   section: {
     marginBottom: spacing.xl,
@@ -868,6 +1076,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  fieldErrorText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.ui.error,
+    marginTop: spacing.xs,
+  },
+  fieldHelperText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+    opacity: 0.7,
   },
   nameInput: {
     flex: 1,

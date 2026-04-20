@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   StyleSheet,
@@ -17,7 +18,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { StackNavigationProp } from "@react-navigation/stack";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Contact,
@@ -31,15 +34,22 @@ import { ContactItem } from "../../components/Contacts/ContactItem";
 import { AddContactModal } from "../../components/Contacts/AddContactModal";
 import { EditContactModal } from "../../components/Contacts/EditContactModal";
 import { SyncContactsModal } from "../../components/Contacts/SyncContactsModal";
+import { DeleteContactModal } from "../../components/Contacts/DeleteContactModal";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
+import {
+  getFavoriteIds,
+  toggleFavorite,
+} from "../../services/contacts/favorites";
 
 declare module "@expo/vector-icons";
 
 export const ContactsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,6 +61,8 @@ export const ContactsScreen: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const { getThemeColors } = useTheme();
@@ -68,48 +80,27 @@ export const ContactsScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  useWebSocket({
-    userId,
-    token,
-    onContactRequest: (request: ContactRequest) => {
-      setContactRequests((prev) => {
-        const exists = prev.some((r) => r.id === request.id);
-        if (exists) {
-          return prev.map((r) => (r.id === request.id ? request : r));
-        }
-        return [request, ...prev];
-      });
-    },
-  });
-
-  // Debounce search query updates
   const handleSearchChange = useCallback((text: string) => {
     setSearchQuery(text);
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(text);
-    }, 300);
   }, []);
 
-  // Load contacts
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
-      const params: ContactSearchParams = {
-        search: debouncedSearchQuery || undefined,
-        sort: sortBy,
-        favorites: showFavoritesOnly || undefined,
-      };
-      const result = await contactsAPI.getContacts(params, userId);
-      setContacts(result.contacts);
+      const [result, favIds] = await Promise.all([
+        contactsAPI.getContacts(),
+        getFavoriteIds(),
+      ]);
+      setFavoriteIds(favIds);
+      setContacts(
+        result.contacts.map((c) => ({ ...c, is_favorite: favIds.has(c.id) })),
+      );
     } catch (error) {
       console.error("[ContactsScreen] Error loading contacts:", error);
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchQuery, sortBy, showFavoritesOnly]);
+  }, []);
 
   const loadContactRequests = useCallback(async () => {
     try {
@@ -123,18 +114,46 @@ export const ContactsScreen: React.FC = () => {
     }
   }, []);
 
-  // Initial load
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadContacts(), loadContactRequests()]);
+  }, [loadContacts, loadContactRequests]);
+
+  useWebSocket({
+    userId,
+    token,
+    onContactRequest: (request: ContactRequest) => {
+      setContactRequests((prev) => {
+        const exists = prev.some((r) => r.id === request.id);
+        if (exists) {
+          return prev.map((r) => (r.id === request.id ? request : r));
+        }
+        return [request, ...prev];
+      });
+      void loadContacts();
+    },
+  });
+
   useEffect(() => {
     loadContacts();
     loadContactRequests();
   }, [loadContacts, loadContactRequests]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!userId || !token) return undefined;
+      void refreshAll();
+      const interval = setInterval(() => {
+        void refreshAll();
+      }, 10000);
+      return () => clearInterval(interval);
+    }, [userId, token, refreshAll]),
+  );
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadContacts(), loadContactRequests()]);
+    await refreshAll();
     setRefreshing(false);
-  }, [loadContacts, loadContactRequests]);
+  }, [refreshAll]);
 
   const handleAcceptRequest = useCallback(
     async (request: ContactRequest) => {
@@ -196,22 +215,92 @@ export const ContactsScreen: React.FC = () => {
     setEditingContact(contact);
   }, []);
 
+  // Handle contact delete request
+  const handleContactDelete = useCallback((contact: Contact) => {
+    setDeletingContact(contact);
+  }, []);
+
+  // Handle favorite toggle (client-side via AsyncStorage)
+  const handleToggleFavorite = useCallback(async (contact: Contact) => {
+    const newFavorite = await toggleFavorite(contact.id);
+    // Update local state immediately for responsiveness
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (newFavorite) {
+        next.add(contact.id);
+      } else {
+        next.delete(contact.id);
+      }
+      return next;
+    });
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === contact.id ? { ...c, is_favorite: newFavorite } : c,
+      ),
+    );
+  }, []);
+
   // Filtered and sorted contacts
   const filteredContacts = useMemo(() => {
-    let result = contacts;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((c) => {
-        const user = c.contact_user;
-        const name = c.nickname || user?.first_name || user?.username || "";
-        return name.toLowerCase().includes(q);
+    const query = searchQuery.trim().toLowerCase();
+    let list = [...contacts];
+
+    if (showFavoritesOnly) {
+      list = list.filter((contact) => contact.is_favorite);
+    }
+
+    if (query) {
+      list = list.filter((contact) => {
+        const fields = [
+          contact.nickname,
+          contact.contact_user?.username,
+          contact.contact_user?.first_name,
+          contact.contact_user?.last_name,
+          contact.contact_user?.phone_number,
+        ]
+          .filter(Boolean)
+          .map((v) => String(v).toLowerCase());
+        return fields.some((v) => v.includes(query));
       });
     }
-    if (showFavoritesOnly) {
-      result = result.filter((c) => c.is_favorite);
+
+    const byName = (a: Contact, b: Contact) => {
+      const left = (a.nickname ?? a.contact_user?.username ?? "").toLowerCase();
+      const right = (
+        b.nickname ??
+        b.contact_user?.username ??
+        ""
+      ).toLowerCase();
+      return left.localeCompare(right, "fr");
+    };
+
+    if (sortBy === "added_at") {
+      list.sort(
+        (a, b) =>
+          new Date(b.added_at).getTime() - new Date(a.added_at).getTime(),
+      );
+      return list;
     }
-    return result;
-  }, [contacts, searchQuery, showFavoritesOnly]);
+
+    if (sortBy === "last_seen") {
+      list.sort(
+        (a, b) =>
+          new Date(b.contact_user?.last_seen ?? 0).getTime() -
+          new Date(a.contact_user?.last_seen ?? 0).getTime(),
+      );
+      return list;
+    }
+
+    if (sortBy === "favorites") {
+      list.sort(
+        (a, b) => Number(b.is_favorite) - Number(a.is_favorite) || byName(a, b),
+      );
+      return list;
+    }
+
+    list.sort(byName);
+    return list;
+  }, [contacts, searchQuery, showFavoritesOnly, sortBy]);
 
   const pendingRequests = useMemo(() => {
     if (!userId) {
@@ -220,8 +309,7 @@ export const ContactsScreen: React.FC = () => {
 
     return contactRequests.filter(
       (request) =>
-        request.status === "pending" &&
-        (request.requester_id === userId || request.recipient_id === userId),
+        request.status === "pending" && request.recipient_id === userId,
     );
   }, [contactRequests, userId]);
 
@@ -231,9 +319,16 @@ export const ContactsScreen: React.FC = () => {
         contact={item}
         onPress={handleContactPress}
         onLongPress={handleContactLongPress}
+        onDelete={handleContactDelete}
+        onToggleFavorite={handleToggleFavorite}
       />
     ),
-    [handleContactPress, handleContactLongPress],
+    [
+      handleContactPress,
+      handleContactLongPress,
+      handleContactDelete,
+      handleToggleFavorite,
+    ],
   );
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
@@ -248,27 +343,31 @@ export const ContactsScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
           <Text
             style={[styles.headerTitle, { color: themeColors.text.primary }]}
           >
             Contacts
           </Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Ionicons name="add" size={24} color={themeColors.text.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => navigation.navigate("MyQRCode")}
+              accessibilityLabel="Mon QR code"
+            >
+              <Ionicons
+                name="qr-code-outline"
+                size={24}
+                color={themeColors.text.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerIconButton}
+              onPress={() => setShowAddModal(true)}
+              accessibilityLabel="Ajouter un contact"
+            >
+              <Ionicons name="add" size={24} color={themeColors.text.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -287,7 +386,7 @@ export const ContactsScreen: React.FC = () => {
             />
             <TextInput
               style={[styles.searchInput, { color: colors.text.light }]}
-              placeholder="Rechercher un contact..."
+              placeholder="Rechercher un contact"
               placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={searchQuery}
               onChangeText={handleSearchChange}
@@ -307,16 +406,115 @@ export const ContactsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Filters */}
+        {/* Sort + Filters */}
         <View style={styles.filtersContainer}>
           <TouchableOpacity
             style={[
               styles.filterButton,
-              showFavoritesOnly && styles.filterButtonActive,
-              {
-                backgroundColor: showFavoritesOnly
-                  ? colors.primary.main
-                  : "rgba(255, 255, 255, 0.1)",
+              sortBy === "name" && { backgroundColor: colors.primary.main },
+              sortBy !== "name" && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            ]}
+            onPress={() => setSortBy("name")}
+          >
+            <Ionicons
+              name="text-outline"
+              size={16}
+              color={
+                sortBy === "name"
+                  ? colors.text.light
+                  : themeColors.text.secondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color:
+                    sortBy === "name"
+                      ? colors.text.light
+                      : themeColors.text.secondary,
+                },
+              ]}
+            >
+              A-Z
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortBy === "added_at" && { backgroundColor: colors.primary.main },
+              sortBy !== "added_at" && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            ]}
+            onPress={() => setSortBy("added_at")}
+          >
+            <Ionicons
+              name="time-outline"
+              size={16}
+              color={
+                sortBy === "added_at"
+                  ? colors.text.light
+                  : themeColors.text.secondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color:
+                    sortBy === "added_at"
+                      ? colors.text.light
+                      : themeColors.text.secondary,
+                },
+              ]}
+            >
+              Récent
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              sortBy === "last_seen" && {
+                backgroundColor: colors.primary.main,
+              },
+              sortBy !== "last_seen" && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+              },
+            ]}
+            onPress={() => setSortBy("last_seen")}
+          >
+            <Ionicons
+              name="pulse-outline"
+              size={16}
+              color={
+                sortBy === "last_seen"
+                  ? colors.text.light
+                  : themeColors.text.secondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterText,
+                {
+                  color:
+                    sortBy === "last_seen"
+                      ? colors.text.light
+                      : themeColors.text.secondary,
+                },
+              ]}
+            >
+              Actif
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              showFavoritesOnly && { backgroundColor: colors.primary.main },
+              !showFavoritesOnly && {
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
               },
             ]}
             onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -330,19 +528,11 @@ export const ContactsScreen: React.FC = () => {
                   : themeColors.text.secondary
               }
             />
-            <Text
-              style={[
-                styles.filterText,
-                {
-                  color: showFavoritesOnly
-                    ? colors.text.light
-                    : themeColors.text.secondary,
-                },
-              ]}
-            >
-              Favoris
-            </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.filtersContainer}>
           <TouchableOpacity
             style={[
               styles.filterButton,
@@ -367,7 +557,7 @@ export const ContactsScreen: React.FC = () => {
               { backgroundColor: "rgba(255, 255, 255, 0.1)" },
             ]}
             onPress={() => {
-              // @ts-ignore - navigation type will be fixed later
+              // @ts-ignore
               navigation.navigate("BlockedUsers");
             }}
           >
@@ -437,7 +627,7 @@ export const ContactsScreen: React.FC = () => {
                         ]}
                         numberOfLines={1}
                       >
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
@@ -533,6 +723,11 @@ export const ContactsScreen: React.FC = () => {
             loadContacts();
             loadContactRequests();
           }}
+          onMessageUser={(conversationId) => {
+            setShowAddModal(false);
+            // @ts-ignore - navigation type will be fixed later
+            navigation.navigate("Chat", { conversationId });
+          }}
         />
 
         {/* Edit Contact Modal */}
@@ -543,6 +738,14 @@ export const ContactsScreen: React.FC = () => {
           onContactUpdated={loadContacts}
         />
 
+        {/* Delete Contact Modal */}
+        <DeleteContactModal
+          visible={!!deletingContact}
+          contact={deletingContact}
+          onClose={() => setDeletingContact(null)}
+          onContactDeleted={loadContacts}
+        />
+
         {/* Sync Contacts Modal */}
         <SyncContactsModal
           visible={showSyncModal}
@@ -550,6 +753,7 @@ export const ContactsScreen: React.FC = () => {
           onContactsSynced={loadContacts}
         />
       </SafeAreaView>
+      <BottomTabBar />
     </LinearGradient>
   );
 };
@@ -577,7 +781,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "600",
   },
-  addButton: {
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerIconButton: {
     padding: 4,
   },
   searchContainer: {

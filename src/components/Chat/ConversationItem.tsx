@@ -2,7 +2,7 @@
  * ConversationItem - Individual conversation list item
  */
 
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import {
   useSharedValue,
@@ -19,6 +19,13 @@ import { Avatar } from "./Avatar";
 import { Ionicons } from "@expo/vector-icons";
 import { usePresenceStore } from "../../store/presenceStore";
 import { useAuth } from "../../context/AuthContext";
+import { getConversationDisplayName } from "../../utils";
+import { messagingAPI } from "../../services/messaging/api";
+
+const groupAvatarCache = new Map<
+  string,
+  Array<{ uri?: string; name: string }>
+>();
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -46,6 +53,34 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       ? conversation.member_user_ids?.find((id: string) => id !== currentUserId)
       : undefined;
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
+
+  const [groupAvatars, setGroupAvatars] = useState<
+    Array<{ uri?: string; name: string }>
+  >(() => groupAvatarCache.get(conversation.id) ?? []);
+
+  React.useEffect(() => {
+    if (conversation.type !== "group") return;
+    if (groupAvatarCache.has(conversation.id)) return;
+    let cancelled = false;
+    messagingAPI
+      .getConversationMembers(conversation.id)
+      .then((members) => {
+        if (cancelled) return;
+        const avatars = members
+          .filter((m) => m.id && m.id !== currentUserId)
+          .slice(0, 2)
+          .map((m) => ({
+            uri: m.avatar_url,
+            name: m.display_name || m.username || "Utilisateur",
+          }));
+        groupAvatarCache.set(conversation.id, avatars);
+        setGroupAvatars(avatars);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation.id, conversation.type, currentUserId]);
 
   const translateX = useSharedValue(50);
   const opacity = useSharedValue(0);
@@ -126,15 +161,32 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const getLastMessagePreview = () => {
     const msg = conversation.last_message;
     if (!msg) return "";
-    if (msg.content === "Photo") return "Photo";
-    if (msg.content === "Vidéo") return "Vidéo";
-    if (msg.content === "Message vocal") return "Message vocal";
-    if (msg.content === "Fichier") return "Fichier";
-    if (msg.message_type === "media") return "Media";
+    if (
+      msg.content === "Photo" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Photo"))
+    )
+      return "Photo";
+    if (
+      msg.content === "Vidéo" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Vidéo"))
+    )
+      return "Vidéo";
+    if (
+      msg.content === "Message vocal" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Message vocal"))
+    )
+      return "Message vocal";
+    if (
+      msg.content === "Fichier" ||
+      (msg.message_type === "media" && msg.content?.startsWith("Fichier"))
+    )
+      return "Fichier";
+
     return msg.content || "";
   };
 
   const lastMessageContent = getLastMessagePreview();
+  const displayName = getConversationDisplayName(conversation);
 
   const isEditMode = editMode === true;
   const isItemSelected = isSelected === true;
@@ -183,18 +235,31 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             </View>
           )}
           <View style={styles.avatarContainer}>
-            <Avatar
-              size={48}
-              uri={conversation.avatar_url}
-              name={
-                conversation.display_name ||
-                (conversation.type === "direct"
-                  ? "Contact"
-                  : conversation.metadata?.name || "Group")
-              }
-              showOnlineBadge={conversation.type === "direct"}
-              isOnline={isOtherOnline}
-            />
+            {conversation.type === "group" &&
+            !conversation.avatar_url &&
+            groupAvatars.length > 0 ? (
+              <View style={styles.groupAvatarStack}>
+                {groupAvatars.map((a, idx) => (
+                  <View
+                    key={`${a.uri ?? a.name}-${idx}`}
+                    style={[
+                      styles.groupAvatarItem,
+                      idx === 1 ? styles.groupAvatarItemTop : null,
+                    ]}
+                  >
+                    <Avatar size={30} uri={a.uri} name={a.name} />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Avatar
+                size={48}
+                uri={conversation.avatar_url}
+                name={displayName}
+                showOnlineBadge={conversation.type === "direct"}
+                isOnline={isOtherOnline}
+              />
+            )}
           </View>
           <View style={styles.textContainer}>
             <View style={styles.nameRow}>
@@ -210,10 +275,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 style={[styles.name, { color: "#FFFFFF" }]}
                 numberOfLines={1}
               >
-                {conversation.display_name ||
-                  (conversation.type === "direct"
-                    ? "Contact"
-                    : conversation.metadata?.name || "Group")}
+                {displayName}
               </Text>
               {conversation.is_muted && (
                 <Ionicons
@@ -318,6 +380,19 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginRight: 12,
   },
+  groupAvatarStack: {
+    width: 48,
+    height: 48,
+  },
+  groupAvatarItem: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+  groupAvatarItemTop: {
+    left: 16,
+    top: 16,
+  },
   textContainer: {
     flex: 1,
     marginRight: 8,
@@ -383,6 +458,9 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
       nextProps.conversation.unread_count &&
     prevProps.conversation.is_pinned === nextProps.conversation.is_pinned &&
     prevProps.conversation.is_muted === nextProps.conversation.is_muted &&
+    prevProps.conversation.display_name ===
+      nextProps.conversation.display_name &&
+    prevProps.conversation.avatar_url === nextProps.conversation.avatar_url &&
     prevEditMode === nextEditMode &&
     prevIsSelected === nextIsSelected
   );

@@ -8,7 +8,7 @@ import type {
 } from "../types/auth";
 
 function getAuthBaseUrl(): string {
-  return `${getApiBaseUrl()}/auth`;
+  return `${getApiBaseUrl()}/auth/v1`;
 }
 
 async function apiFetch<T>(
@@ -19,6 +19,7 @@ async function apiFetch<T>(
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "x-device-type": "mobile",
     ...(options.headers as Record<string, string>),
   };
   if (token) {

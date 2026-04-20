@@ -1,39 +1,35 @@
+import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-type SecureStoreModule = typeof import("expo-secure-store");
-
-const getSecureStore = (): SecureStoreModule | null => {
-  if (Platform.OS === "web") return null;
-  try {
-    return require("expo-secure-store") as SecureStoreModule;
-  } catch {
-    return null;
-  }
-};
 
 export const storage = {
   async getItem(key: string): Promise<string | null> {
-    const secureStore = getSecureStore();
-    if (secureStore) return secureStore.getItemAsync(key);
-    return AsyncStorage.getItem(key);
+    if (Platform.OS === "web") {
+      try {
+        return window.localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    }
+    return SecureStore.getItemAsync(key);
   },
 
   async setItem(key: string, value: string): Promise<void> {
-    const secureStore = getSecureStore();
-    if (secureStore) {
-      await secureStore.setItemAsync(key, value);
+    if (Platform.OS === "web") {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch {}
       return;
     }
-    await AsyncStorage.setItem(key, value);
+    await SecureStore.setItemAsync(key, value);
   },
 
   async deleteItem(key: string): Promise<void> {
-    const secureStore = getSecureStore();
-    if (secureStore) {
-      await secureStore.deleteItemAsync(key);
+    if (Platform.OS === "web") {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {}
       return;
     }
-    await AsyncStorage.removeItem(key);
+    await SecureStore.deleteItemAsync(key);
   },
 };

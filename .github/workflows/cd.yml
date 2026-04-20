@@ -29,13 +29,13 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: generate_token
-        uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ secrets.ACTIONS_CD }}
-          private_key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
+          app-id: ${{ secrets.ACTIONS_CD }}
+          private-key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
 
       - name: Checkout mobile-app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: mobile-app
           ref: ${{ github.event.workflow_run.head_branch || 'main' }}
@@ -72,6 +72,8 @@ jobs:
                 echo "❌ Error: Invalid commit SHA format."
                 exit 1
               fi
+
+              git fetch --all --quiet
 
               if ! git rev-parse --verify "${COMMIT_SHA}^{commit}" >/dev/null 2>&1; then
                 echo "❌ Error: Commit SHA '${COMMIT_SHA}' does not exist."
@@ -111,11 +113,11 @@ jobs:
           echo "✅ Image found in registry"
 
       - name: Checkout infrastructure repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: whispr-messenger/infrastructure
           path: infrastructure
-          ref: main
+          ref: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
           token: ${{ steps.generate_token.outputs.token }}
           fetch-depth: 0
 
@@ -151,6 +153,7 @@ jobs:
           COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+          INFRA_BRANCH: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -175,7 +178,7 @@ jobs:
           for attempt in $(seq 1 "$MAX_RETRIES"); do
             echo "Attempt ${attempt}/${MAX_RETRIES}..."
 
-            if ! git pull origin main --rebase; then
+            if ! git pull origin "${INFRA_BRANCH}" --rebase; then
               git rebase --abort 2>/dev/null || true
               git reset --soft HEAD~1
               git commit -m "${COMMIT_MSG}"
@@ -183,7 +186,7 @@ jobs:
               continue
             fi
 
-            if git push "https://x-access-token:${GH_TOKEN}@github.com/whispr-messenger/infrastructure.git" main; then
+            if git push "https://x-access-token:${GH_TOKEN}@github.com/whispr-messenger/infrastructure.git" "${INFRA_BRANCH}"; then
               echo "✅ Push successful"
               exit 0
             fi

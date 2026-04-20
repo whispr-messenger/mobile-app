@@ -2,6 +2,7 @@ import { TokenService } from "./TokenService";
 import { DeviceService } from "./DeviceService";
 import { SignalKeyService } from "./SignalKeyService";
 import { getApiBaseUrl } from "./apiBase";
+import { emitSessionExpired } from "./sessionEvents";
 import type {
   AuthPurpose,
   TokenPair,
@@ -16,13 +17,19 @@ async function apiFetch<T>(
   const { token, ...fetchOptions } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // The auth-service hashes (userAgent + ip + deviceType) into a device
+    // fingerprint. Browsers' UA does not contain "mobile", so the backend
+    // auto-detects "desktop" while login body sends "mobile" → fingerprint
+    // mismatch on /tokens/refresh. Force the header so both endpoints see
+    // the same deviceType.
+    "x-device-type": "mobile",
     ...(fetchOptions.headers as Record<string, string>),
   };
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/auth${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/v1${path}`, {
     ...fetchOptions,
     headers,
   });
@@ -47,19 +54,20 @@ async function apiFetch<T>(
 }
 
 let refreshPromise: Promise<void> | null = null;
+// Once the session has been declared dead (tokens cleared + event emitted),
+// further refresh attempts must fail fast instead of re-entering the dead
+// refresh loop. Reset on every successful login/register.
+let sessionDead = false;
 
 export const AuthService = {
   async requestVerification(
     phoneNumber: string,
     purpose: AuthPurpose,
   ): Promise<VerificationRequestResponse> {
-    return apiFetch<VerificationRequestResponse>(
-      `/verify/${purpose}/request`,
-      {
-        method: "POST",
-        body: JSON.stringify({ phoneNumber }),
-      },
-    );
+    return apiFetch<VerificationRequestResponse>(`/verify/${purpose}/request`, {
+      method: "POST",
+      body: JSON.stringify({ phoneNumber }),
+    });
   },
 
   async confirmVerification(
@@ -67,13 +75,10 @@ export const AuthService = {
     code: string,
     purpose: AuthPurpose,
   ): Promise<VerificationConfirmResponse> {
-    return apiFetch<VerificationConfirmResponse>(
-      `/verify/${purpose}/confirm`,
-      {
-        method: "POST",
-        body: JSON.stringify({ verificationId, code }),
-      },
-    );
+    return apiFetch<VerificationConfirmResponse>(`/verify/${purpose}/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ verificationId, code }),
+    });
   },
 
   async register(verificationId: string): Promise<TokenPair> {
@@ -92,6 +97,7 @@ export const AuthService = {
     });
 
     await TokenService.saveTokens(tokens);
+    sessionDead = false;
     return tokens;
   },
 
@@ -111,23 +117,54 @@ export const AuthService = {
     });
 
     await TokenService.saveTokens(tokens);
+    sessionDead = false;
     return tokens;
   },
 
   async refreshTokens(): Promise<void> {
+    // Fast-fail once the session has been declared dead. Without this,
+    // every concurrent 401 triggers yet another refresh → another logout
+    // event → every screen that is still mounted fetches again → loop.
+    if (sessionDead) {
+      throw new Error("SESSION_EXPIRED");
+    }
     if (refreshPromise) return refreshPromise;
 
     refreshPromise = (async () => {
       try {
         const refreshToken = await TokenService.getRefreshToken();
-        if (!refreshToken) throw new Error("No refresh token");
+        if (!refreshToken) {
+          sessionDead = true;
+          emitSessionExpired("no_refresh_token");
+          throw new Error("SESSION_EXPIRED");
+        }
 
-        const tokens = await apiFetch<TokenPair>("/tokens/refresh", {
-          method: "POST",
-          body: JSON.stringify({ refreshToken }),
-        });
-
-        await TokenService.saveTokens(tokens);
+        try {
+          const tokens = await apiFetch<TokenPair>("/tokens/refresh", {
+            method: "POST",
+            body: JSON.stringify({ refreshToken }),
+          });
+          await TokenService.saveTokens(tokens);
+        } catch (err) {
+          // Refresh failed (401 / token revoked / fingerprint mismatch).
+          // Clear local tokens once, emit sessionExpired once, and mark the
+          // session dead so subsequent callers short-circuit above.
+          const status = (err as { status?: number })?.status;
+          console.error(
+            "[AuthService] refreshTokens failed, status=",
+            status,
+            err,
+          );
+          if (status === 401 || status === 403) {
+            sessionDead = true;
+            await TokenService.clearTokens();
+            emitSessionExpired("refresh_failed");
+            console.warn(
+              "[AuthService] tokens cleared, sessionExpired event emitted",
+            );
+          }
+          throw err;
+        }
       } finally {
         refreshPromise = null;
       }
@@ -170,8 +207,11 @@ export const AuthService = {
 
     // Validate with a network call (GET /auth/device)
     try {
-      const response = await fetch(`${getApiBaseUrl()}/auth/device`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await fetch(`${getApiBaseUrl()}/auth/v1/device`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-device-type": "mobile",
+        },
       });
 
       if (response.status === 401 || response.status === 403) {

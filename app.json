@@ -2,7 +2,19 @@
   "expo": {
     "name": "Whispr_Frontend",
     "slug": "Whispr_Frontend",
+    "scheme": "whispr",
     "version": "1.0.0",
+    "extra": {
+      "apiBaseUrl": "https://preprod-whispr-api.roadmvn.com",
+      "devAuthApiUrl": "http://10.0.2.2:3010",
+      "devUserApiUrl": "http://10.0.2.2:3011",
+      "legalPrivacyUrl": "https://whispr.example/privacy",
+      "legalTermsUrl": "https://whispr.example/terms",
+      "appVersion": "1.0.0",
+      "eas": {
+        "projectId": "203ca2cd-9035-489b-9c0d-ca4a1bfb2d36"
+      }
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -33,13 +45,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
-    ],
-    "extra": {
-      "apiBaseUrl": "https://whispr-api.roadmvn.com",
-      "devAuthApiUrl": "http://10.0.2.2:3010",
-      "devUserApiUrl": "http://10.0.2.2:3011",
-      "appVersion": "1.0.0"
-    }
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Whispr utilise la caméra pour scanner les QR codes et ajouter des contacts."
+        }
+      ]
+    ]
   }
 }

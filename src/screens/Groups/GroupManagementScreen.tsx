@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { formatUsername } from "../../utils";
 import {
   View,
   Text,
@@ -474,6 +475,7 @@ export const GroupManagementScreen: React.FC = () => {
           displayName:
             contact?.nickname ||
             contact?.contact_user?.first_name ||
+            contact?.contact_user?.username ||
             `User ${userId}`,
           username: contact?.contact_user?.username,
           avatarUrl: contact?.contact_user?.avatar_url,
@@ -926,7 +928,7 @@ export const GroupManagementScreen: React.FC = () => {
           />
           <TextInput
             style={styles.searchInput}
-            placeholder="Rechercher un contact..."
+            placeholder="Rechercher un contact"
             placeholderTextColor={withOpacity(colors.text.light, 0.5)}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -958,7 +960,7 @@ export const GroupManagementScreen: React.FC = () => {
                     <Text style={styles.contactName}>{displayName}</Text>
                     {user?.username && (
                       <Text style={styles.contactUsername}>
-                        @{user.username}
+                        {formatUsername(user.username)}
                       </Text>
                     )}
                   </View>
