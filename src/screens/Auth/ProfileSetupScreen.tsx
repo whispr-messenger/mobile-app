@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Image,
@@ -18,18 +19,13 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import { Button, Input } from "../../components";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
-import { TokenService } from "../../services/TokenService";
 import { MediaService } from "../../services/MediaService";
-import { getApiBaseUrl } from "../../services/apiBase";
+import { UserService } from "../../services";
 import { normalizeUsername } from "../../utils";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "ProfileSetup">;
-
-function getUserApiBase(): string {
-  return `${getApiBaseUrl()}/user/v1`;
-}
 
 export const ProfileSetupScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -42,9 +38,41 @@ export const ProfileSetupScreen: React.FC = () => {
   const [username, setUsername] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
+
+  // Poll until the user profile exists on the user service
+  React.useEffect(() => {
+    let cancelled = false;
+    const MAX_ATTEMPTS = 10;
+    const INTERVAL_MS = 1500;
+
+    const poll = async () => {
+      const service = UserService.getInstance();
+      for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        if (cancelled) return;
+        try {
+          const res = await service.getProfile();
+          if (res.success) {
+            if (!cancelled) setProfileReady(true);
+            return;
+          }
+        } catch {
+          // not ready yet
+        }
+        await new Promise((r) => setTimeout(r, INTERVAL_MS));
+      }
+      // After max attempts, let the user try anyway
+      if (!cancelled) setProfileReady(true);
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     Animated.parallel([
@@ -93,14 +121,13 @@ export const ProfileSetupScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      const token = await TokenService.getAccessToken();
-      const body: Record<string, string> = {
+      const profileData: Record<string, string> = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       };
       const normalizedUsername = normalizeUsername(username);
       if (normalizedUsername.length >= 3) {
-        body.username = normalizedUsername;
+        profileData.username = normalizedUsername;
       }
 
       // Upload avatar image if one was selected
@@ -119,37 +146,18 @@ export const ProfileSetupScreen: React.FC = () => {
             undefined,
             { context: "avatar", ownerId: userId ?? undefined },
           );
-          body.avatarMediaId = uploadResult.id;
+          profileData.avatarMediaId = uploadResult.id;
         } catch (uploadError) {
           console.warn("[ProfileSetup] Avatar upload failed:", uploadError);
           // Continue without avatar rather than blocking profile creation
         }
       }
 
-      const response = await fetch(`${getUserApiBase()}/profile/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      });
+      const service = UserService.getInstance();
+      const res = await service.updateProfile(profileData);
 
-      if (!response.ok) {
-        let errorMessage = `Erreur HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.message) {
-            errorMessage = Array.isArray(errorData.message)
-              ? errorData.message.join(", ")
-              : errorData.message;
-          } else if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch (e) {
-          // ignore json parse error
-        }
-        throw new Error(errorMessage);
+      if (!res.success) {
+        throw new Error(res.message || "Profile update failed");
       }
 
       navigation.reset({ index: 0, routes: [{ name: "ConversationsList" }] });
@@ -302,13 +310,35 @@ export const ProfileSetupScreen: React.FC = () => {
               />
             </View>
 
+            {!profileReady && (
+              <View style={styles.readyBanner}>
+                <ActivityIndicator size="small" color={colors.primary.main} />
+                <Text
+                  style={[
+                    styles.readyText,
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
+                  ]}
+                >
+                  Préparation de votre compte...
+                </Text>
+              </View>
+            )}
+
             <Button
               title={getLocalizedText("common.save")}
               variant="primary"
               size="large"
               fullWidth
               loading={loading}
-              disabled={!firstName.trim() || !lastName.trim() || loading}
+              disabled={
+                !profileReady ||
+                !firstName.trim() ||
+                !lastName.trim() ||
+                loading
+              }
               onPress={handleSave}
             />
 
@@ -406,5 +436,16 @@ const styles = StyleSheet.create({
   },
   skipText: {
     opacity: 0.6,
+  },
+  readyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  readyText: {
+    color: colors.text.light,
+    opacity: 0.7,
   },
 });
