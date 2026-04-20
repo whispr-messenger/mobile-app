@@ -13,13 +13,26 @@ import { AuthProvider } from "./src/context/AuthContext";
 enableScreens(false);
 
 export default function App() {
+  // Fix: constrain the app to the viewport height on web so the bottom
+  // tab bar stays visible without the page itself becoming scrollable.
   useEffect(() => {
     if (Platform.OS === "web") {
-      document.body.style.overflow = "auto";
+      const html = document.documentElement;
+      const body = document.body;
+      html.style.height = "100%";
+      body.style.height = "100%";
+      body.style.overflow = "hidden";
     }
   }, []);
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView
+      style={{
+        flex: 1,
+        ...(Platform.OS === "web"
+          ? { height: "100dvh", overflow: "hidden" }
+          : {}),
+      }}
+    >
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
