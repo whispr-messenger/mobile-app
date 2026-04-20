@@ -109,28 +109,94 @@ export const GroupDetailsScreen: React.FC = () => {
   const loadGroupData = useCallback(async () => {
     try {
       setLoading(true);
-      const [details, membersData, statsData, logsData, settingsData] =
-        await Promise.all([
-          groupsAPI.getGroupDetails(groupId),
-          groupsAPI.getGroupMembers(groupId),
-          groupsAPI.getGroupStats(groupId),
-          groupsAPI.getGroupLogs(groupId),
-          groupsAPI.getGroupSettings(groupId),
-        ]);
+      const results = await Promise.allSettled([
+        groupsAPI.getGroupDetails(groupId),
+        groupsAPI.getGroupMembers(groupId),
+        groupsAPI.getGroupStats(groupId),
+        groupsAPI.getGroupLogs(groupId),
+        groupsAPI.getGroupSettings(groupId),
+      ]);
 
-      setGroupDetails(details);
-      setMembers(membersData.members);
-      setStats(statsData);
-      setLogs(logsData.logs);
-      setSettings(settingsData);
-    } catch (error) {
-      logger.error("GroupDetailsScreen", "Error loading group data", error);
-      Alert.alert("Erreur", "Impossible de charger les informations du groupe");
+      const [detailsR, membersR, statsR, logsR, settingsR] = results;
+
+      if (detailsR.status === "fulfilled") {
+        setGroupDetails(detailsR.value);
+      } else {
+        logger.warn(
+          "GroupDetailsScreen",
+          "getGroupDetails failed, falling back to route params",
+          detailsR.reason,
+        );
+        // Fallback so the header can still render the group name when the
+        // backend endpoint is unavailable (e.g. legacy /user/v1/groups/:id 404).
+        setGroupDetails((prev) => {
+          if (prev) return prev;
+          const fallbackName = conversationName ?? "";
+          return {
+            id: groupId,
+            name: fallbackName,
+            created_by: "",
+            created_at: "",
+            updated_at: "",
+            is_active: true,
+            conversation_id: conversationId,
+          } as GroupDetails;
+        });
+      }
+
+      if (membersR.status === "fulfilled") {
+        setMembers(membersR.value.members);
+      } else {
+        logger.warn(
+          "GroupDetailsScreen",
+          "getGroupMembers failed",
+          membersR.reason,
+        );
+      }
+
+      if (statsR.status === "fulfilled") {
+        setStats(statsR.value);
+      } else {
+        logger.warn(
+          "GroupDetailsScreen",
+          "getGroupStats failed",
+          statsR.reason,
+        );
+      }
+
+      if (logsR.status === "fulfilled") {
+        setLogs(logsR.value.logs);
+      } else {
+        logger.warn("GroupDetailsScreen", "getGroupLogs failed", logsR.reason);
+      }
+
+      if (settingsR.status === "fulfilled") {
+        setSettings(settingsR.value);
+      } else {
+        logger.warn(
+          "GroupDetailsScreen",
+          "getGroupSettings failed",
+          settingsR.reason,
+        );
+      }
+
+      // If every call failed, surface a single user-facing error.
+      if (results.every((r) => r.status === "rejected")) {
+        logger.error(
+          "GroupDetailsScreen",
+          "All group data requests failed",
+          results,
+        );
+        Alert.alert(
+          "Erreur",
+          "Impossible de charger les informations du groupe",
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [groupId, conversationId]);
+  }, [groupId, conversationId, conversationName]);
 
   useEffect(() => {
     loadGroupData();
