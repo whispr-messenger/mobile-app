@@ -58,6 +58,19 @@ jobs:
       - name: Run tests
         run: npm test -- --watchAll=false --passWithNoTests
 
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.cdx.json
+          retention-days: 30
+
   # ================================
   # Docker Build
   # ================================
