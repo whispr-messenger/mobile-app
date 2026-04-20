@@ -4,6 +4,7 @@ import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 import { snakecaseKeys } from "../../utils/caseTransform";
 import { logger } from "../../utils/logger";
+import { isReachableUrl } from "../../utils";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
@@ -41,19 +42,11 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
   // the browser cannot resolve those DNS names and http:// on an https page
   // triggers Mixed Content. Always prefer the media-service /blob proxy when
   // a mediaId is available, which stays on the public gateway origin.
-  const isPublicUrl = (u?: string | null) => {
-    if (typeof u !== "string" || u.length === 0) return false;
-    if (u.includes(".svc.cluster.local")) return false;
-    if (u.includes("minio.minio")) return false;
-    if (/^http:\/\/(minio|[\d.]+:)/i.test(u)) return false;
-    return true;
-  };
-
   const fallbackUrl = [meta.media_url, att?.file_url, att?.storage_url].find(
-    isPublicUrl,
+    isReachableUrl,
   );
   const fallbackThumbnail = [att?.thumbnail_url, meta.thumbnail_url].find(
-    isPublicUrl,
+    isReachableUrl,
   );
 
   // Prefer the media-service /blob proxy when we have a mediaId — it stays on
