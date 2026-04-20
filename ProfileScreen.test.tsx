@@ -37,7 +37,7 @@ jest.mock('./src/services', () => ({
   },
 }));
 jest.mock('./src/services/MediaService', () => ({
-  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ url: 'https://cdn.test/img.jpg' }) },
+  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ id: 'media-1', url: 'https://cdn.test/img.jpg' }) },
 }));
 // ProfileScreen uses colors.background.gradient.app from theme/colors (not theme)
 jest.mock('./src/theme/colors', () => ({

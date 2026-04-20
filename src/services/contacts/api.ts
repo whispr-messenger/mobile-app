@@ -63,7 +63,12 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
       phone_number: u.phoneNumber ?? u.phone_number,
       first_name: u.firstName ?? u.first_name,
       last_name: u.lastName ?? u.last_name,
-      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      avatar_url:
+        u.profilePictureUrl ??
+        u.profile_picture_url ??
+        u.profilePicture ??
+        u.profile_picture ??
+        u.avatar_url,
       last_seen: u.lastSeen ?? u.last_seen,
       is_active: u.isActive ?? u.is_active ?? true,
     };
@@ -84,7 +89,12 @@ const buildSearchResult = (
       phone_number: u.phoneNumber ?? u.phone_number,
       first_name: u.firstName ?? u.first_name,
       last_name: u.lastName ?? u.last_name,
-      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      avatar_url:
+        u.profilePictureUrl ??
+        u.profile_picture_url ??
+        u.profilePicture ??
+        u.profile_picture ??
+        u.avatar_url,
       last_seen: u.lastSeen ?? u.last_seen,
       is_active: u.isActive ?? u.is_active ?? true,
     },
@@ -438,7 +448,12 @@ export const contactsAPI = {
             phone_number: r.requester.phoneNumber ?? r.requester.phone_number,
             first_name: r.requester.firstName ?? r.requester.first_name,
             last_name: r.requester.lastName ?? r.requester.last_name,
-            avatar_url: r.requester.profilePictureUrl ?? r.requester.avatar_url,
+            avatar_url:
+              r.requester.profilePictureUrl ??
+              r.requester.profile_picture_url ??
+              r.requester.profilePicture ??
+              r.requester.profile_picture ??
+              r.requester.avatar_url,
             last_seen: r.requester.lastSeen ?? r.requester.last_seen,
             is_active: r.requester.isActive ?? r.requester.is_active ?? true,
           }
@@ -450,7 +465,12 @@ export const contactsAPI = {
             phone_number: r.recipient.phoneNumber ?? r.recipient.phone_number,
             first_name: r.recipient.firstName ?? r.recipient.first_name,
             last_name: r.recipient.lastName ?? r.recipient.last_name,
-            avatar_url: r.recipient.profilePictureUrl ?? r.recipient.avatar_url,
+            avatar_url:
+              r.recipient.profilePictureUrl ??
+              r.recipient.profile_picture_url ??
+              r.recipient.profilePicture ??
+              r.recipient.profile_picture ??
+              r.recipient.avatar_url,
             last_seen: r.recipient.lastSeen ?? r.recipient.last_seen,
             is_active: r.recipient.isActive ?? r.recipient.is_active ?? true,
           }

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { formatUsername } from "../../utils";
+import { formatUsername, normalizeUsername } from "../../utils";
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   ScrollView,
   Alert,
   Animated,
-  Image,
   TextInput,
   Modal,
   KeyboardAvoidingView,
@@ -30,6 +29,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { Logo, Button } from "../../components";
+import { Avatar } from "../../components/Chat/Avatar";
 import {
   colors,
   spacing,
@@ -39,6 +39,7 @@ import {
 } from "../../theme";
 import { UserService } from "../../services";
 import { MediaService } from "../../services/MediaService";
+import { useAuth } from "../../context/AuthContext";
 
 // Types
 interface UserProfile {
@@ -75,6 +76,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   userId,
   token,
 }) => {
+  const { userId: currentUserId } = useAuth();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const params = (route as any)?.params as RouteParams | undefined;
@@ -82,7 +84,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // States
   const [profile, setProfile] = useState<UserProfile>({
-    id: params?.userId || userId || "",
+    id: params?.userId || userId || currentUserId || "",
     firstName: params?.firstName || "",
     lastName: params?.lastName || "",
     username: params?.username || "",
@@ -95,7 +97,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   });
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    biography?: string;
+  }>({});
+  const [pendingAvatar, setPendingAvatar] = useState<{
+    localUri: string;
+    mediaId?: string;
+    remoteUrl?: string;
+  } | null>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -126,32 +141,45 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     };
   }, []);
 
+  const loadProfile = useCallback(async () => {
+    try {
+      setProfileLoadError(null);
+      const service = UserService.getInstance();
+      const res = await service.getProfile();
+      if (res.success && res.profile) {
+        const p = res.profile;
+        setProfile((prev) => ({
+          ...prev,
+          id: p.id || prev.id,
+          firstName: p.firstName || prev.firstName || "",
+          lastName: p.lastName || prev.lastName || "",
+          username: p.username || prev.username || "",
+          phoneNumber: p.phoneNumber || prev.phoneNumber || "",
+          biography: p.biography || prev.biography || "",
+          profilePicture:
+            pendingAvatar?.localUri || p.profilePicture || prev.profilePicture,
+          createdAt: p.createdAt || prev.createdAt,
+        }));
+        setProfileLoaded(true);
+        return;
+      }
+      setProfileLoadError(res.message || "Impossible de récupérer le profil");
+      setProfileLoaded(true);
+    } catch (e: any) {
+      setProfileLoadError(e?.message || "Impossible de récupérer le profil");
+      setProfileLoaded(true);
+    }
+  }, [pendingAvatar?.localUri]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
   // Re-fetch profile from API every time the screen gains focus
   useFocusEffect(
     useCallback(() => {
-      const loadProfile = async () => {
-        try {
-          const service = UserService.getInstance();
-          const res = await service.getProfile();
-          if (res.success && res.profile) {
-            setProfile((prev) => ({
-              ...prev,
-              firstName: res.profile!.firstName || prev.firstName || "",
-              lastName: res.profile!.lastName || prev.lastName || "",
-              username: res.profile!.username || prev.username || "",
-              phoneNumber: res.profile!.phoneNumber || prev.phoneNumber || "",
-              biography: res.profile!.biography || prev.biography || "",
-              profilePicture: res.profile!.profilePicture,
-              createdAt: res.profile!.createdAt || prev.createdAt,
-            }));
-          }
-        } catch (e) {
-          console.error("[ProfileScreen] Failed to load profile:", e);
-        }
-      };
-
       loadProfile();
-    }, []),
+    }, [loadProfile]),
   );
 
   // Handle profile picture change
@@ -175,12 +203,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
         setProfile((prev) => ({
           ...prev,
-          profilePicture: result.assets[0].uri,
+          profilePicture: uri,
         }));
+        setPendingAvatar({ localUri: uri });
         setShowImagePicker(false);
-        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
       console.error("Erreur sélection image:", error);
@@ -207,12 +236,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       });
 
       if (!result.canceled && result.assets[0]) {
+        const uri = result.assets[0].uri;
         setProfile((prev) => ({
           ...prev,
-          profilePicture: result.assets[0].uri,
+          profilePicture: uri,
         }));
+        setPendingAvatar({ localUri: uri });
         setShowImagePicker(false);
-        Alert.alert("Succès", "Photo de profil mise à jour");
       }
     } catch (error) {
       console.error("Erreur capture caméra:", error);
@@ -229,33 +259,53 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setLoading(false);
   }, []);
 
+  const isMediaNotFound = (message?: string) =>
+    typeof message === "string" && /media not found/i.test(message);
+
+  const waitForMediaAvailable = async (
+    mediaId: string,
+    abortSignal: AbortSignal,
+  ): Promise<void> => {
+    const delaysMs = [250, 400, 650, 1000, 1500];
+    let lastErr: unknown;
+    for (let i = 0; i < delaysMs.length; i++) {
+      if (abortSignal.aborted) return;
+      try {
+        await MediaService.getMediaMetadata(mediaId);
+        return;
+      } catch (e: any) {
+        lastErr = e;
+        const msg = typeof e?.message === "string" ? e.message : "";
+        const status = typeof e?.status === "number" ? e.status : undefined;
+        const isRetryable =
+          status === 404 || isMediaNotFound(msg) || msg.includes("HTTP 404");
+        if (!isRetryable) throw e;
+        await new Promise((r) => setTimeout(r, delaysMs[i]));
+      }
+    }
+    throw lastErr ?? new Error("Media not found");
+  };
+
   // Handle profile update
   const handleSaveProfile = async () => {
-    // Validation globale avant sauvegarde
-    const errors: string[] = [];
-
     const firstNameError = validateField("firstName", profile.firstName);
-    if (firstNameError) errors.push(`Prénom: ${firstNameError}`);
-
     const lastNameError = validateField("lastName", profile.lastName);
-    if (lastNameError) errors.push(`Nom: ${lastNameError}`);
-
-    const normalizedUsername = (profile.username || "")
-      .trim()
-      .replace(/^@+/, "")
-      .toLowerCase();
-    const usernameError = validateField("username", normalizedUsername);
-    if (usernameError) errors.push(`Nom d'utilisateur: ${usernameError}`);
+    const normalizedUsername = normalizeUsername(profile.username);
+    const usernameError = normalizedUsername
+      ? validateField("username", normalizedUsername)
+      : null;
 
     // phoneNumber is read-only from registration — skip validation on save
 
     const bioError = validateField("biography", profile.biography);
-    if (bioError) errors.push(`Biographie: ${bioError}`);
-
-    if (errors.length > 0) {
-      Alert.alert("Erreurs de validation", errors.join("\n\n"));
-      return;
-    }
+    const nextErrors = {
+      firstName: firstNameError ?? undefined,
+      lastName: lastNameError ?? undefined,
+      username: usernameError ?? undefined,
+      biography: bioError ?? undefined,
+    };
+    setFieldErrors(nextErrors);
+    if (firstNameError || lastNameError || bioError) return;
 
     // Abort any previous pending save
     cancelSave();
@@ -280,80 +330,105 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     ]).start();
 
     try {
-      // Upload avatar if it's a local URI (not already a remote URL)
-      let profilePictureUrl = profile.profilePicture;
-      const previousProfilePicture = profile.profilePicture;
-      if (
-        profilePictureUrl &&
-        (profilePictureUrl.startsWith("file://") ||
-          profilePictureUrl.startsWith("content://") ||
-          profilePictureUrl.startsWith("ph://"))
-      ) {
+      let avatarMediaId = pendingAvatar?.mediaId;
+      let avatarRemoteUrl = pendingAvatar?.remoteUrl;
+
+      if (pendingAvatar?.localUri && !avatarMediaId) {
+        const localUri = pendingAvatar.localUri;
+        const fileName = localUri.split("/").pop() || "avatar.jpg";
+        const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
+
+        const uploadPromise = MediaService.uploadMedia(
+          { uri: localUri, name: fileName, type: fileType },
+          undefined,
+          {
+            context: "avatar",
+            ownerId: currentUserId || profile.id || undefined,
+          },
+        );
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Upload timeout")), 15000),
+        );
+        const uploadResult = await Promise.race([
+          uploadPromise,
+          timeoutPromise,
+        ]);
+
+        if (abortController.signal.aborted) return;
+
         try {
-          const fileName = profilePictureUrl.split("/").pop() || "avatar.jpg";
-          const fileType = fileName.endsWith(".png")
-            ? "image/png"
-            : "image/jpeg";
-
-          // Race the upload against a 15-second timeout
-          const uploadPromise = MediaService.uploadMedia({
-            uri: profilePictureUrl,
-            name: fileName,
-            type: fileType,
-          });
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Upload timeout")), 15000),
+          await waitForMediaAvailable(uploadResult.id, abortController.signal);
+        } catch {
+          Alert.alert(
+            "Erreur",
+            "La photo n'est pas encore disponible côté serveur. Réessayez dans quelques secondes.",
           );
-          const uploadResult = await Promise.race([
-            uploadPromise,
-            timeoutPromise,
-          ]);
-
-          // Check if save was cancelled while uploading
-          if (abortController.signal.aborted) return;
-
-          profilePictureUrl = uploadResult.url;
-          setProfile((prev) => ({
-            ...prev,
-            profilePicture: uploadResult.url,
-          }));
-        } catch (uploadError) {
-          // If save was cancelled, exit silently
-          if (abortController.signal.aborted) return;
-
-          console.warn("[ProfileScreen] Avatar upload failed:", uploadError);
-          // Revert to previous profile picture to avoid broken state
-          setProfile((prev) => ({
-            ...prev,
-            profilePicture: previousProfilePicture,
-          }));
-          const errorMsg =
-            uploadError instanceof Error &&
-            uploadError.message === "Upload timeout"
-              ? "Le téléchargement de la photo a expiré. Vérifiez votre connexion et réessayez."
-              : "Impossible de télécharger la photo de profil. Vérifiez votre connexion et réessayez.";
-          Alert.alert("Erreur", errorMsg);
           setLoading(false);
           return;
         }
+
+        avatarMediaId = uploadResult.id;
+        avatarRemoteUrl = uploadResult.url;
+        setPendingAvatar({
+          localUri,
+          mediaId: avatarMediaId,
+          remoteUrl: avatarRemoteUrl,
+        });
       }
 
       // Check if save was cancelled
       if (abortController.signal.aborted) return;
 
       const service = UserService.getInstance();
-      const res = await service.updateProfile({
+      const updateData: any = {
         firstName: profile.firstName,
         lastName: profile.lastName,
-        username: normalizedUsername,
         biography: profile.biography,
-        profilePicture: profilePictureUrl,
-      });
+      };
+      if (avatarMediaId) {
+        updateData.profilePicture = avatarMediaId;
+      }
+      if (!usernameError && normalizedUsername.length >= 3) {
+        updateData.username = normalizedUsername;
+      }
+      const tryUpdate = () => service.updateProfile(updateData);
+      let res = await tryUpdate();
+      if (!res.success && avatarMediaId && isMediaNotFound(res.message)) {
+        try {
+          await waitForMediaAvailable(avatarMediaId, abortController.signal);
+        } catch {
+          // ignore, we'll still retry once below
+        }
+        await new Promise((r) => setTimeout(r, 650));
+        res = await tryUpdate();
+      }
 
       // Check if save was cancelled while updating profile
       if (abortController.signal.aborted) return;
 
       if (!res.success) {
+        if (avatarMediaId && isMediaNotFound(res.message)) {
+          const withoutAvatar = { ...updateData };
+          delete withoutAvatar.profilePicture;
+          const partialRes = await service.updateProfile(withoutAvatar);
+          if (partialRes.success) {
+            if (partialRes.profile) {
+              setProfile((prev) => ({ ...prev, ...partialRes.profile }));
+            }
+            setIsEditing(false);
+            setFieldErrors({});
+            Alert.alert(
+              "Profil enregistré",
+              "Les informations du profil ont été sauvegardées. La photo est encore en cours de disponibilité serveur.",
+            );
+            return;
+          }
+          Alert.alert(
+            "Erreur",
+            partialRes.message || "Impossible de mettre à jour le profil",
+          );
+          return;
+        }
         Alert.alert(
           "Erreur",
           res.message || "Impossible de mettre à jour le profil",
@@ -363,11 +438,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       if (res.profile) {
         setProfile((prev) => ({ ...prev, ...res.profile }));
-      } else if (normalizedUsername !== profile.username) {
+        if (avatarMediaId) setPendingAvatar(null);
+      } else if (!usernameError && normalizedUsername !== profile.username) {
         setProfile((prev) => ({ ...prev, username: normalizedUsername }));
+        if (avatarRemoteUrl) {
+          setProfile((prev) => ({ ...prev, profilePicture: avatarRemoteUrl }));
+          if (avatarMediaId) setPendingAvatar(null);
+        }
+      } else if (avatarRemoteUrl) {
+        setProfile((prev) => ({ ...prev, profilePicture: avatarRemoteUrl }));
+        if (avatarMediaId) setPendingAvatar(null);
       }
 
       setIsEditing(false);
+      setFieldErrors({});
       Alert.alert("Succès", "Profil mis à jour avec succès", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -430,6 +514,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Handle field change (validation is done on save only)
   const handleFieldChange = (field: keyof UserProfile, value: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field as keyof typeof prev]) return prev;
+      return { ...prev, [field]: undefined };
+    });
     setProfile((prev) => ({
       ...prev,
       [field]: value,
@@ -565,19 +653,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 style={styles.profilePictureContainer}
                 disabled={!isEditing}
               >
-                {profile.profilePicture ? (
-                  <Image
-                    source={{ uri: profile.profilePicture }}
-                    style={styles.profilePicture}
-                  />
-                ) : (
-                  <View style={styles.profilePicturePlaceholder}>
-                    <Text style={styles.profilePicturePlaceholderText}>
-                      {(profile.firstName || "").charAt(0)}
-                      {(profile.lastName || "").charAt(0)}
-                    </Text>
-                  </View>
-                )}
+                <Avatar
+                  uri={profile.profilePicture}
+                  name={`${profile.firstName} ${profile.lastName}`.trim()}
+                  size={120}
+                />
 
                 {isEditing && (
                   <View style={styles.editOverlay}>
@@ -593,6 +673,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
             {/* Profile Information */}
             <View style={styles.profileInfo}>
+              {!profileLoaded ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.loadingText}>Chargement du profil…</Text>
+                </View>
+              ) : profileLoadError ? (
+                <Text style={styles.loadErrorText}>{profileLoadError}</Text>
+              ) : null}
               {/* Name Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Nom complet</Text>
@@ -619,7 +707,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   </View>
                 ) : (
                   <Text style={styles.sectionValue}>
-                    {profile.firstName} {profile.lastName}
+                    {profile.firstName || profile.lastName
+                      ? `${profile.firstName} ${profile.lastName}`.trim()
+                      : "—"}
                   </Text>
                 )}
               </View>
@@ -628,17 +718,31 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Nom d'utilisateur</Text>
                 {isEditing ? (
-                  <TextInput
-                    style={styles.input}
-                    value={profile.username}
-                    onChangeText={(text) => handleFieldChange("username", text)}
-                    placeholder="@nomdutilisateur"
-                    placeholderTextColor={colors.text.placeholder}
-                    autoCapitalize="none"
-                  />
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      value={profile.username}
+                      onChangeText={(text) =>
+                        handleFieldChange("username", normalizeUsername(text))
+                      }
+                      placeholder="@nomdutilisateur"
+                      placeholderTextColor={colors.text.placeholder}
+                      autoCapitalize="none"
+                    />
+                    {!!fieldErrors.username && (
+                      <Text style={styles.fieldErrorText}>
+                        {fieldErrors.username}
+                      </Text>
+                    )}
+                    {!fieldErrors.username && (
+                      <Text style={styles.fieldHelperText}>
+                        Seuls minuscules, chiffres et _ (auto-corrigé)
+                      </Text>
+                    )}
+                  </>
                 ) : (
                   <Text style={styles.sectionValue}>
-                    {formatUsername(profile.username)}
+                    {profile.username ? formatUsername(profile.username) : "—"}
                   </Text>
                 )}
               </View>
@@ -656,7 +760,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     editable={false}
                   />
                 ) : (
-                  <Text style={styles.sectionValue}>{profile.phoneNumber}</Text>
+                  <Text style={styles.sectionValue}>
+                    {profile.phoneNumber || "—"}
+                  </Text>
                 )}
               </View>
 
@@ -683,7 +789,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     </Text>
                   </>
                 ) : (
-                  <Text style={styles.sectionValue}>{profile.biography}</Text>
+                  <Text style={styles.sectionValue}>
+                    {profile.biography || "—"}
+                  </Text>
                 )}
               </View>
 
@@ -891,19 +999,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.25)",
   },
-  profilePicturePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.primary.main,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profilePicturePlaceholderText: {
-    fontSize: typography.fontSize.xxxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.light,
-  },
   editOverlay: {
     position: "absolute",
     bottom: 0,
@@ -928,6 +1023,21 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     paddingBottom: spacing.xxxl,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  loadingText: {
+    fontSize: typography.fontSize.sm,
+    color: "rgba(255,255,255,0.85)",
+  },
+  loadErrorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.ui.error,
+    marginBottom: spacing.lg,
   },
   section: {
     marginBottom: spacing.xl,
@@ -966,6 +1076,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  fieldErrorText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.ui.error,
+    marginTop: spacing.xs,
+  },
+  fieldHelperText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+    opacity: 0.7,
   },
   nameInput: {
     flex: 1,

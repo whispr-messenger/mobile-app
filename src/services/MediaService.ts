@@ -72,6 +72,8 @@ export interface UploadMediaResult {
   size: number;
 }
 
+export type UploadMediaContext = "message" | "avatar" | "group_icon";
+
 // The media-service upload response uses {mediaId, ...} but the rest of the
 // app (chat send path, attachment metadata) expects {id}. Normalise here so
 // callers don't have to know which key the server happened to return.
@@ -99,12 +101,15 @@ export const MediaService = {
   async uploadMedia(
     file: { uri: string; name: string; type: string },
     onProgress?: (percent: number) => void,
+    meta?: { context?: UploadMediaContext; ownerId?: string },
   ): Promise<UploadMediaResult> {
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const formData = new FormData();
+    if (meta?.context) formData.append("context", meta.context);
+    if (meta?.ownerId) formData.append("ownerId", meta.ownerId);
 
     // On web, FormData needs a real Blob; on native, the {uri,name,type} object works
     if (Platform.OS === "web") {
