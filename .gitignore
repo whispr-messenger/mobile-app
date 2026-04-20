@@ -32,6 +32,9 @@ Thumbs.db
 .idea/
 .claude/settings.local.json
 
+# Test artifacts
+test-results/
+
 # Build
 build/
 CLAUDE.local.md
