@@ -51,15 +51,12 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Type check
         run: npm run type-check
-        continue-on-error: true
 
       - name: Run tests
         run: npm test -- --watchAll=false --passWithNoTests
-        continue-on-error: true
 
   # ================================
   # Docker Build

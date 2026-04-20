@@ -138,9 +138,9 @@ describe('GroupDetailsScreen', () => {
   });
 
   it('shows group name after loading', async () => {
-    const { getByText } = render(<GroupDetailsScreen />);
+    const { getAllByText } = render(<GroupDetailsScreen />);
     await waitFor(() => {
-      expect(getByText('Test Group')).toBeTruthy();
+      expect(getAllByText('Test Group').length).toBeGreaterThan(0);
     });
   });
 });

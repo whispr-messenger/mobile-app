@@ -103,6 +103,22 @@ export class UserService {
     return response;
   }
 
+  private async extractErrorMessage(
+    response: Response,
+    fallback: string,
+  ): Promise<string> {
+    try {
+      const data = await response.json().catch(() => null);
+      const msg =
+        data?.message ??
+        data?.error ??
+        data?.detail ??
+        (typeof data === "string" ? data : undefined);
+      if (typeof msg === "string" && msg.trim()) return msg.trim();
+    } catch {}
+    return fallback;
+  }
+
   /**
    * POST /user/v1/account/bootstrap
    * Initialize user-service side state (privacy settings, role, etc.) after first login.
@@ -183,7 +199,13 @@ export class UserService {
       });
 
       if (!response.ok) {
-        return { success: false, message: `Erreur ${response.status}` };
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
       }
 
       const data = await response.json().catch(() => null);
@@ -217,7 +239,13 @@ export class UserService {
       });
 
       if (!response.ok) {
-        return { success: false, message: `Erreur ${response.status}` };
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
       }
 
       const data = await response.json().catch(() => null);
@@ -256,7 +284,13 @@ export class UserService {
       });
 
       if (!response.ok) {
-        return { success: false, message: `Erreur ${response.status}` };
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
       }
 
       const data = await response.json().catch(() => null);

@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Avatar } from "./Avatar";
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -59,6 +60,12 @@ interface MessageBubbleProps {
   isSent: boolean;
   currentUserId: string;
   senderName?: string;
+  /** Avatar URL of the sender — displayed only for received group messages */
+  senderAvatarUrl?: string | null;
+  /** True when this message is from the same sender as the previous one (avatar is hidden but space is kept) */
+  isConsecutive?: boolean;
+  /** When true, the conversation is a group and avatars should be shown for received messages */
+  showSenderAvatar?: boolean;
   onReactionPress?: (messageId: string, emoji: string) => void;
   /** Appui long sur une pastille de réaction : afficher les réacteurs */
   onReactionDetailsPress?: (messageId: string, emoji: string) => void;
@@ -83,6 +90,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   isSent,
   currentUserId,
   senderName,
+  senderAvatarUrl,
+  isConsecutive = false,
+  showSenderAvatar = false,
   onReactionPress,
   onReactionDetailsPress,
   resolveReactorName,
@@ -240,6 +250,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const isForwarded = message.metadata?.forwarded === true;
   const isFailed = message.status === "failed";
+
+  // Only display the sender avatar for received messages in a group conversation.
+  const shouldRenderAvatarSlot = !isSent && showSenderAvatar;
+  // Filter internal cluster URLs that the device cannot resolve.
+  const safeAvatarUri =
+    typeof senderAvatarUrl === "string" &&
+    senderAvatarUrl.length > 0 &&
+    !senderAvatarUrl.includes(".svc.cluster.local") &&
+    !senderAvatarUrl.includes("minio.minio")
+      ? senderAvatarUrl
+      : undefined;
 
   const renderBubbleContent = () => {
     // Failed message: show error overlay with reason
@@ -524,7 +545,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             animatedStyle,
           ]}
         >
-          {renderBubbleContent()}
+          {shouldRenderAvatarSlot ? (
+            <View style={styles.receivedRow}>
+              <View style={styles.avatarSlot}>
+                {!isConsecutive ? (
+                  <Avatar uri={safeAvatarUri} name={senderName} size={32} />
+                ) : null}
+              </View>
+              <View style={styles.receivedBubbleWrapper}>
+                {renderBubbleContent()}
+              </View>
+            </View>
+          ) : (
+            renderBubbleContent()
+          )}
           {message.reactions && message.reactions.length > 0 ? (
             <ReactionBar
               reactions={message.reactions}
@@ -572,6 +606,18 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginVertical: 4,
     marginHorizontal: 16,
+  },
+  receivedRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+  },
+  avatarSlot: {
+    width: 32,
+    height: 32,
+    marginRight: 8,
+  },
+  receivedBubbleWrapper: {
+    flexShrink: 1,
   },
   receivedBubble: {
     maxWidth: "75%",
@@ -666,6 +712,9 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.message.edited_at === nextProps.message.edited_at &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&
     prevProps.senderName === nextProps.senderName &&
+    prevProps.senderAvatarUrl === nextProps.senderAvatarUrl &&
+    prevProps.isConsecutive === nextProps.isConsecutive &&
+    prevProps.showSenderAvatar === nextProps.showSenderAvatar &&
     prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
     prevProps.pendingAppeal?.status === nextProps.pendingAppeal?.status &&
     JSON.stringify(prevProps.message.metadata) ===
