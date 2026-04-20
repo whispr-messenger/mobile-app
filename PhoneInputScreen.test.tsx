@@ -25,6 +25,8 @@ jest.mock('./src/context/ThemeContext', () => ({
     }),
     getFontSize: () => 16,
     getLocalizedText: (key: string) => key,
+    settings: { language: 'fr', theme: 'dark', fontSize: 'medium' },
+    updateSettings: jest.fn(),
   }),
 }));
 jest.mock('./src/components', () => ({
@@ -58,7 +60,7 @@ describe('PhoneInputScreen', () => {
 
   it('renders phone input field', () => {
     const { getByPlaceholderText } = render(<PhoneInputScreen />);
-    expect(getByPlaceholderText('7 12 34 56 78')).toBeTruthy();
+    expect(getByPlaceholderText('07 12 34 56 78')).toBeTruthy();
   });
 
   it('shows continue button', () => {
@@ -72,7 +74,7 @@ describe('PhoneInputScreen', () => {
       code: '123456',
     });
     const { getByPlaceholderText, getByText } = render(<PhoneInputScreen />);
-    fireEvent.changeText(getByPlaceholderText('7 12 34 56 78'), '0612345678');
+    fireEvent.changeText(getByPlaceholderText('07 12 34 56 78'), '0612345678');
     fireEvent.press(getByText('auth.continue'));
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('Otp', expect.objectContaining({

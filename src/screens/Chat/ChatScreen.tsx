@@ -58,6 +58,7 @@ import { MessageSearch } from "../../components/Chat/MessageSearch";
 import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
 import { EmptyChatState } from "../../components/Chat/EmptyChatState";
 import { ChatHeader } from "./ChatHeader";
+import { getConversationDisplayName } from "../../utils";
 import { usePresenceStore } from "../../store/presenceStore";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
@@ -130,7 +131,12 @@ export const ChatScreen: React.FC = () => {
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
-    Array<{ id: string; display_name: string; username?: string }>
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+    }>
   >([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [showForwardModal, setShowForwardModal] = useState(false);
@@ -237,12 +243,35 @@ export const ChatScreen: React.FC = () => {
                 : m,
             );
           }
-          // Replace optimistic message if it matches client_random
-          const optimisticMessageIndex = prev.findIndex(
+          const optimisticByClientRandom = prev.findIndex(
             (m) =>
               m.id.startsWith("temp-") &&
-              m.client_random === message.client_random,
+              String(m.client_random ?? "") ===
+                String(message.client_random ?? ""),
           );
+          const optimisticByHeuristic =
+            optimisticByClientRandom === -1 && message.sender_id === userId
+              ? prev.findIndex((m) => {
+                  if (!m.id.startsWith("temp-")) return false;
+                  if ((m as any).status !== "sending") return false;
+                  if ((m as any).message_type !== (message as any).message_type)
+                    return false;
+                  if ((m as any).content !== (message as any).content)
+                    return false;
+                  const a = new Date((m as any).sent_at).getTime();
+                  const b = new Date((message as any).sent_at).getTime();
+                  return (
+                    Number.isFinite(a) &&
+                    Number.isFinite(b) &&
+                    Math.abs(a - b) < 15000
+                  );
+                })
+              : -1;
+          const optimisticMessageIndex =
+            optimisticByClientRandom !== -1
+              ? optimisticByClientRandom
+              : optimisticByHeuristic;
+
           if (optimisticMessageIndex !== -1) {
             const existing = prev[
               optimisticMessageIndex
@@ -1746,6 +1775,7 @@ export const ChatScreen: React.FC = () => {
         navigation.navigate("GroupDetails", {
           groupId,
           conversationId: conversation.id,
+          conversationName: getConversationDisplayName(conversation),
         });
       }, 0);
     } else {
@@ -1756,8 +1786,10 @@ export const ChatScreen: React.FC = () => {
   const renderItem = useCallback(
     ({
       item,
+      index,
     }: {
       item: MessageWithRelations | { type: "date"; date: Date; id: string };
+      index: number;
     }) => {
       // Check if it's a date separator
       if ((item as any).type === "date") {
@@ -1776,12 +1808,32 @@ export const ChatScreen: React.FC = () => {
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
 
-      // Resolve sender name for group conversations
-      const senderName =
-        !isSent && conversation?.type === "group"
+      const isGroup = conversation?.type === "group";
+      // Resolve sender info for group conversations.
+      const sender =
+        !isSent && isGroup
           ? conversationMembers.find((m) => m.id === message.sender_id)
-              ?.display_name
           : undefined;
+      const senderName = sender?.display_name || sender?.username;
+      const senderAvatarUrl = sender?.avatar_url;
+
+      // Inverted FlatList: newer messages have lower indices. The item that
+      // visually appears above the current one is messagesWithSeparators[index + 1].
+      // Consider the message "consecutive" when the previous (older, visually
+      // above) item is from the same sender — in that case we hide the avatar
+      // to keep bursts compact.
+      let isConsecutive = false;
+      if (!isSent && isGroup) {
+        const prev = messagesWithSeparators[index + 1];
+        if (
+          prev &&
+          (prev as any).type !== "date" &&
+          (prev as MessageWithRelations).sender_id === message.sender_id &&
+          (prev as MessageWithRelations).message_type !== "system"
+        ) {
+          isConsecutive = true;
+        }
+      }
 
       return (
         <MessageBubble
@@ -1789,6 +1841,9 @@ export const ChatScreen: React.FC = () => {
           isSent={isSent}
           currentUserId={userId}
           senderName={senderName}
+          senderAvatarUrl={senderAvatarUrl}
+          showSenderAvatar={!isSent && isGroup}
+          isConsecutive={isConsecutive}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
           resolveReactorName={resolveReactorDisplayName}
@@ -1822,6 +1877,7 @@ export const ChatScreen: React.FC = () => {
       searchQuery,
       searchResults,
       pendingAppeals,
+      messagesWithSeparators,
     ],
   );
 
@@ -1845,9 +1901,24 @@ export const ChatScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
-          conversationName={conversation?.display_name || "Contact"}
+          conversationName={
+            conversation
+              ? getConversationDisplayName(conversation)
+              : "Conversation"
+          }
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || "direct"}
+          groupAvatars={
+            conversation?.type === "group"
+              ? conversationMembers
+                  .filter((m) => m.id && m.id !== userId)
+                  .slice(0, 2)
+                  .map((m) => ({
+                    uri: m.avatar_url,
+                    name: m.display_name || m.username || "Utilisateur",
+                  }))
+              : undefined
+          }
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
           onlineMemberCount={onlineMemberCount}
@@ -1971,7 +2042,11 @@ export const ChatScreen: React.FC = () => {
           visible={showReportSheet}
           message={reportSheetMessage}
           conversationId={conversationId}
-          conversationTitle={conversation?.display_name || "Contact"}
+          conversationTitle={
+            conversation
+              ? getConversationDisplayName(conversation)
+              : "Conversation"
+          }
           onClose={() => {
             setShowReportSheet(false);
             setReportSheetMessage(null);
@@ -2095,12 +2170,18 @@ export const ChatScreen: React.FC = () => {
                     <Avatar
                       size={80}
                       uri={conversation?.avatar_url}
-                      name={conversation?.display_name || "Contact"}
+                      name={
+                        conversation
+                          ? getConversationDisplayName(conversation)
+                          : "Contact"
+                      }
                       showOnlineBadge={conversation?.type === "direct"}
                       isOnline={false}
                     />
                     <Text style={styles.infoName}>
-                      {conversation?.display_name || "Contact"}
+                      {conversation
+                        ? getConversationDisplayName(conversation)
+                        : "Contact"}
                     </Text>
                     {conversation?.type === "direct" && (
                       <Text style={styles.infoStatus}>Hors ligne</Text>

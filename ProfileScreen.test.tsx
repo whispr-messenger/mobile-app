@@ -8,6 +8,7 @@ const mockGoBack = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack, reset: jest.fn() }),
   useRoute: () => ({ params: { firstName: 'John', lastName: 'Doe', username: 'johndoe', phoneNumber: '+33612345678', biography: '' } }),
+  useFocusEffect: (cb: () => void | (() => void)) => { const React = require('react'); React.useEffect(() => cb(), []); },
 }));
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: any) => children,

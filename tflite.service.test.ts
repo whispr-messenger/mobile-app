@@ -7,7 +7,7 @@ jest.mock("react-native", () => ({
 
 jest.mock("react-native-fast-tflite", () => ({
   loadTensorflowModel: (...args: any[]) => mockLoadTensorflowModel(...args),
-}));
+}), { virtual: true });
 
 const mockImageUriToFloatTensor = jest.fn();
 jest.mock("./src/services/moderation/image-to-tensor", () => ({
@@ -17,9 +17,13 @@ jest.mock("./src/services/moderation/image-to-tensor", () => ({
 
 jest.mock("./assets/models/whispr.tflite", () => 1, { virtual: true });
 
-import { tfliteService } from "./src/services/moderation/tflite.service";
+// TODO(WHISPR-967-followup): The native tflite.service.ts was removed and only
+// tflite.service.web.ts remains. This test suite targets the obsolete native
+// implementation and must be rewritten against the current moderation stack.
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+const tfliteService: any = {};
 
-describe("TfliteModerationService", () => {
+describe.skip("TfliteModerationService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (tfliteService as any).model = null;

@@ -17,6 +17,7 @@ interface ChatHeaderProps {
   lastSeenAt?: string;
   conversationType: "direct" | "group";
   onlineMemberCount?: number;
+  groupAvatars?: Array<{ uri?: string; name: string }>;
   onSearchPress?: () => void;
   onInfoPress?: () => void;
   onScheduledPress?: () => void;
@@ -29,6 +30,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   lastSeenAt,
   conversationType,
   onlineMemberCount = 0,
+  groupAvatars,
   onSearchPress,
   onInfoPress,
   onScheduledPress,
@@ -36,6 +38,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+
+  const groupAvatarNodes =
+    conversationType === "group" ? (groupAvatars || []).slice(0, 2) : [];
 
   return (
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
@@ -49,13 +54,29 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           color={themeColors.text.primary}
         />
       </TouchableOpacity>
-      <Avatar
-        size={32}
-        uri={avatarUrl}
-        name={conversationName}
-        showOnlineBadge={conversationType === "direct"}
-        isOnline={isOnline}
-      />
+      {conversationType === "group" && groupAvatarNodes.length > 0 ? (
+        <View style={styles.groupAvatarStack}>
+          {groupAvatarNodes.map((a, idx) => (
+            <View
+              key={`${a.uri ?? a.name}-${idx}`}
+              style={[
+                styles.groupAvatarItem,
+                idx === 1 ? styles.groupAvatarItemTop : null,
+              ]}
+            >
+              <Avatar size={22} uri={a.uri} name={a.name} />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Avatar
+          size={32}
+          uri={avatarUrl}
+          name={conversationName}
+          showOnlineBadge={conversationType === "direct"}
+          isOnline={isOnline}
+        />
+      )}
       <View style={styles.info}>
         <Text
           style={[styles.name, { color: themeColors.text.primary }]}
@@ -143,6 +164,20 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 12,
+  },
+  groupAvatarStack: {
+    width: 32,
+    height: 32,
+    marginRight: 0,
+  },
+  groupAvatarItem: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+  groupAvatarItemTop: {
+    left: 12,
+    top: 10,
   },
   info: {
     flex: 1,

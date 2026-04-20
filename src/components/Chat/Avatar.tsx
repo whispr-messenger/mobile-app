@@ -7,8 +7,7 @@ import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
 import { getApiBaseUrl } from "../../services/apiBase";
-
-const MEDIA_API_URL = `${getApiBaseUrl()}/media`;
+import { MEDIA_API_URL } from "../../config/api";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -33,16 +32,23 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   const effectiveUri = React.useMemo(() => {
     if (!uri) return undefined;
+    if (/^https?:\/\//i.test(uri)) return uri;
+    if (uri.startsWith("/")) return `${getApiBaseUrl()}${uri}`;
     const directPublic = uri.match(
-      /\/media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (directPublic?.[1]) return `${MEDIA_API_URL}/public/${directPublic[1]}`;
+    const directPublicLegacy = uri.match(
+      /(?:^|\/)media\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
+    );
+    if (directPublicLegacy?.[1])
+      return `${MEDIA_API_URL}/public/${directPublicLegacy[1]}`;
     const match = uri.match(
-      /\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (match?.[2]) return `${MEDIA_API_URL}/public/${match[2]}`;
     const minioMatch = uri.match(
-      /\/whispr-media\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)whispr-media\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
     );
     if (minioMatch?.[2]) return `${MEDIA_API_URL}/public/${minioMatch[2]}`;
     return uri;

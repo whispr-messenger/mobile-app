@@ -41,3 +41,8 @@ CLAUDE.local.md
 .gitnexus/
 .playwright-mcp/
 AGENTS.md
+
+# Local Expo caches (CI / sandbox)
+.home/
+.expo-home/
+.cache/

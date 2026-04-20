@@ -21,7 +21,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -236,7 +240,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const lastNameError = validateField("lastName", profile.lastName);
     if (lastNameError) errors.push(`Nom: ${lastNameError}`);
 
-    const usernameError = validateField("username", profile.username);
+    const normalizedUsername = (profile.username || "")
+      .trim()
+      .replace(/^@+/, "")
+      .toLowerCase();
+    const usernameError = validateField("username", normalizedUsername);
     if (usernameError) errors.push(`Nom d'utilisateur: ${usernameError}`);
 
     // phoneNumber is read-only from registration — skip validation on save
@@ -294,10 +302,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             type: fileType,
           });
           const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Upload timeout")),
-              15000,
-            ),
+            setTimeout(() => reject(new Error("Upload timeout")), 15000),
           );
           const uploadResult = await Promise.race([
             uploadPromise,
@@ -340,7 +345,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       const res = await service.updateProfile({
         firstName: profile.firstName,
         lastName: profile.lastName,
-        username: profile.username,
+        username: normalizedUsername,
         biography: profile.biography,
         profilePicture: profilePictureUrl,
       });
@@ -358,6 +363,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       if (res.profile) {
         setProfile((prev) => ({ ...prev, ...res.profile }));
+      } else if (normalizedUsername !== profile.username) {
+        setProfile((prev) => ({ ...prev, username: normalizedUsername }));
       }
 
       setIsEditing(false);
@@ -367,7 +374,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     } catch (error) {
       // If save was cancelled, exit silently
       if (abortController.signal.aborted) return;
-      Alert.alert("Erreur", "Impossible de mettre à jour le profil. Vérifiez votre connexion et réessayez.");
+      Alert.alert(
+        "Erreur",
+        "Impossible de mettre à jour le profil. Vérifiez votre connexion et réessayez.",
+      );
     } finally {
       setLoading(false);
       if (saveAbortRef.current === abortController) {
@@ -394,8 +404,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
         if (v.trim().length < 3) return "Minimum 3 caractères";
         if (v.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-zA-Z0-9_]+$/.test(v.trim()))
-          return "Seuls lettres, chiffres et _ autorisés";
+        if (!/^[a-z0-9_]+$/.test(v.trim()))
+          return "Seuls minuscules, chiffres et _ autorisés";
         return null;
 
       case "phoneNumber":
@@ -627,7 +637,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     autoCapitalize="none"
                   />
                 ) : (
-                  <Text style={styles.sectionValue}>{formatUsername(profile.username)}</Text>
+                  <Text style={styles.sectionValue}>
+                    {formatUsername(profile.username)}
+                  </Text>
                 )}
               </View>
 
@@ -638,12 +650,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <TextInput
                     style={styles.input}
                     value={profile.phoneNumber}
-                    onChangeText={(text) =>
-                      handleFieldChange("phoneNumber", text)
-                    }
                     placeholder="+33 07 12 34 56 78"
                     placeholderTextColor={colors.text.placeholder}
                     keyboardType="phone-pad"
+                    editable={false}
                   />
                 ) : (
                   <Text style={styles.sectionValue}>{profile.phoneNumber}</Text>

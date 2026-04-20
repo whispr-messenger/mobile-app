@@ -176,7 +176,7 @@ export const contactsAPI = {
           "Content-Type": "application/json",
           ...(await getAuthHeaders()),
         },
-        body: JSON.stringify({ nickname: data.nickname }),
+        body: JSON.stringify(data),
       },
     );
 
