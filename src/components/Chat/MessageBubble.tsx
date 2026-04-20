@@ -31,6 +31,7 @@ import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
 import { AudioMessage } from "./AudioMessage";
 import { FormattedText } from "../../utils/textFormatter";
+import { isReachableUrl } from "../../utils";
 import { getApiBaseUrl } from "../../services/apiBase";
 
 /** Resolve a media URL — prepend the API base when it is a relative path */
@@ -146,22 +147,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     // URL when no mediaId is available (legacy metadata).
     const mediaId = meta.media_id;
     const apiBase = getApiBaseUrl();
-    const isPublicUrl = (u?: string) => {
-      if (typeof u !== "string" || u.length === 0) return false;
-      if (u.includes(".svc.cluster.local")) return false;
-      if (u.includes("minio.minio")) return false;
-      if (/^http:\/\/(minio|[\d.]+:)/i.test(u)) return false;
-      return true;
-    };
     const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
     const thumbFallback = mediaId
       ? `${apiBase}/media/v1/${mediaId}/thumbnail`
       : null;
     const blobUrl =
-      blobFallback || (isPublicUrl(meta.media_url) ? meta.media_url : null);
+      blobFallback || (isReachableUrl(meta.media_url) ? meta.media_url : null);
     const thumbUrl =
       thumbFallback ||
-      (isPublicUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
+      (isReachableUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
 
     return {
       id: `synth-${message.id}`,
@@ -253,14 +247,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // Only display the sender avatar for received messages in a group conversation.
   const shouldRenderAvatarSlot = !isSent && showSenderAvatar;
-  // Filter internal cluster URLs that the device cannot resolve.
-  const safeAvatarUri =
-    typeof senderAvatarUrl === "string" &&
-    senderAvatarUrl.length > 0 &&
-    !senderAvatarUrl.includes(".svc.cluster.local") &&
-    !senderAvatarUrl.includes("minio.minio")
-      ? senderAvatarUrl
-      : undefined;
+  const safeAvatarUri = isReachableUrl(senderAvatarUrl)
+    ? senderAvatarUrl!
+    : undefined;
 
   const renderBubbleContent = () => {
     // Failed message: show error overlay with reason
@@ -717,8 +706,7 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.showSenderAvatar === nextProps.showSenderAvatar &&
     prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
     prevProps.pendingAppeal?.status === nextProps.pendingAppeal?.status &&
-    JSON.stringify(prevProps.message.metadata) ===
-      JSON.stringify(nextProps.message.metadata) &&
+    prevProps.message.metadata === nextProps.message.metadata &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );
