@@ -1723,6 +1723,15 @@ export const ChatScreen: React.FC = () => {
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
   const otherLastSeenAt = otherUserId ? lastSeenAt[otherUserId] : undefined;
 
+  // Count online members for group conversations
+  const onlineMemberCount = useMemo(() => {
+    if (conversation?.type !== "group") return 0;
+    const memberIds: string[] =
+      conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
+    return memberIds.filter((id) => id !== userId && onlineUserIds.has(id))
+      .length;
+  }, [conversation, conversationMembers, onlineUserIds, userId]);
+
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === "group") {
       // Ensure modal is closed before navigating
@@ -1841,6 +1850,7 @@ export const ChatScreen: React.FC = () => {
           conversationType={conversation?.type || "direct"}
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
+          onlineMemberCount={onlineMemberCount}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}

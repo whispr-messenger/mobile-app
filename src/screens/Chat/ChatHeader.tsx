@@ -2,20 +2,21 @@
  * ChatHeader - Header component for ChatScreen
  */
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { Avatar } from '../../components/Chat/Avatar';
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { Avatar } from "../../components/Chat/Avatar";
 
 interface ChatHeaderProps {
   conversationName: string;
   avatarUrl?: string;
   isOnline?: boolean;
   lastSeenAt?: string;
-  conversationType: 'direct' | 'group';
+  conversationType: "direct" | "group";
+  onlineMemberCount?: number;
   onSearchPress?: () => void;
   onInfoPress?: () => void;
   onScheduledPress?: () => void;
@@ -27,6 +28,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isOnline = false,
   lastSeenAt,
   conversationType,
+  onlineMemberCount = 0,
   onSearchPress,
   onInfoPress,
   onScheduledPress,
@@ -36,12 +38,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const themeColors = getThemeColors();
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: 'transparent' },
-      ]}
-    >
+    <View style={[styles.container, { backgroundColor: "transparent" }]}>
       <TouchableOpacity
         onPress={() => navigation.goBack()}
         style={styles.backButton}
@@ -56,7 +53,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         size={32}
         uri={avatarUrl}
         name={conversationName}
-        showOnlineBadge={conversationType === 'direct'}
+        showOnlineBadge={conversationType === "direct"}
         isOnline={isOnline}
       />
       <View style={styles.info}>
@@ -66,16 +63,33 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         >
           {conversationName}
         </Text>
-        {conversationType === 'direct' && (
+        {conversationType === "direct" && (
           <Text
-            style={[styles.status, { color: isOnline ? colors.status.online : themeColors.text.secondary }]}
+            style={[
+              styles.status,
+              {
+                color: isOnline
+                  ? colors.status.online
+                  : themeColors.text.secondary,
+              },
+            ]}
             numberOfLines={1}
           >
             {isOnline
-              ? 'En ligne'
+              ? "En ligne"
               : lastSeenAt
-                ? `Vu \u00e0 ${new Date(lastSeenAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
-                : 'Hors ligne'}
+                ? `Vu \u00e0 ${new Date(lastSeenAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+                : "Hors ligne"}
+          </Text>
+        )}
+        {conversationType === "group" && onlineMemberCount > 0 && (
+          <Text
+            style={[styles.status, { color: colors.status.online }]}
+            numberOfLines={1}
+          >
+            {onlineMemberCount === 1
+              ? "1 membre en ligne"
+              : `${onlineMemberCount} membres en ligne`}
           </Text>
         )}
       </View>
@@ -93,10 +107,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </TouchableOpacity>
         )}
         {onSearchPress && (
-          <TouchableOpacity
-            onPress={onSearchPress}
-            style={styles.actionButton}
-          >
+          <TouchableOpacity onPress={onSearchPress} style={styles.actionButton}>
             <Ionicons
               name="search"
               size={22}
@@ -123,12 +134,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   backButton: {
     marginRight: 12,
@@ -139,15 +150,15 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   status: {
     fontSize: 12,
     marginTop: 2,
   },
   actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginLeft: 8,
   },
   actionButton: {
@@ -155,4 +166,3 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
-
