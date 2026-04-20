@@ -38,6 +38,7 @@ import {
   shadows,
 } from "../../theme";
 import { UserService } from "../../services";
+import type { UpdateProfileRequest } from "../../services/UserService";
 import { MediaService } from "../../services/MediaService";
 import { useAuth } from "../../context/AuthContext";
 
@@ -380,13 +381,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (abortController.signal.aborted) return;
 
       const service = UserService.getInstance();
-      const updateData: any = {
+      const updateData: UpdateProfileRequest = {
         firstName: profile.firstName,
         lastName: profile.lastName,
         biography: profile.biography,
       };
       if (avatarMediaId) {
-        updateData.profilePicture = avatarMediaId;
+        updateData.avatarMediaId = avatarMediaId;
       }
       if (!usernameError && normalizedUsername.length >= 3) {
         updateData.username = normalizedUsername;
@@ -409,7 +410,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (!res.success) {
         if (avatarMediaId && isMediaNotFound(res.message)) {
           const withoutAvatar = { ...updateData };
-          delete withoutAvatar.profilePicture;
+          delete withoutAvatar.avatarMediaId;
           const partialRes = await service.updateProfile(withoutAvatar);
           if (partialRes.success) {
             if (partialRes.profile) {
