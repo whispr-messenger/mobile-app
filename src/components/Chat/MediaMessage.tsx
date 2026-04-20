@@ -20,6 +20,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { TokenService } from "../../services/TokenService";
+import { isReachableUrl } from "../../utils";
 
 /**
  * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
@@ -54,9 +55,6 @@ function useResolvedMediaUrl(uri: string | undefined): {
     }
 
     let cancelled = false;
-    // Clear while resolving — the raw /blob or /thumbnail URL needs an auth
-    // header that <Image> can't send, so leaving it would break the fallback.
-    setResolvedUri("");
     setLoading(true);
     setError(false);
 
@@ -100,17 +98,7 @@ function useResolvedMediaUrl(uri: string | undefined): {
           presigned = response.url;
         }
 
-        // Reject internal cluster URLs — the browser cannot resolve
-        // minio.minio.svc.cluster.local and http:// on https pages breaks
-        // under Mixed Content. Better to surface an error than a broken img.
-        const isReachable =
-          typeof presigned === "string" &&
-          presigned.length > 0 &&
-          !presigned.includes(".svc.cluster.local") &&
-          !presigned.includes("minio.minio") &&
-          !/^http:\/\/(minio|[\d.]+:)/i.test(presigned);
-
-        if (isReachable) {
+        if (isReachableUrl(presigned)) {
           setResolvedUri(presigned as string);
         } else {
           if (presigned) {

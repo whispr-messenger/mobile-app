@@ -84,6 +84,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
   const [creating, setCreating] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const groupSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -141,6 +142,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
 
   useEffect(
     () => () => {
+      mountedRef.current = false;
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
       if (groupSearchTimeoutRef.current)
         clearTimeout(groupSearchTimeoutRef.current);
@@ -284,9 +286,11 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
         return;
       }
       groupSearchTimeoutRef.current = setTimeout(async () => {
+        if (!mountedRef.current) return;
         try {
           setLoadingGroupSearch(true);
           const results = await contactsAPI.searchUsers({ username: trimmed });
+          if (!mountedRef.current) return;
           const contactUserIds = new Set(
             contacts
               .map((c) => c.contact_user?.id ?? c.contact_id)
@@ -296,9 +300,10 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
             results.filter((r) => !contactUserIds.has(r.user.id)),
           );
         } catch {
+          if (!mountedRef.current) return;
           setGroupUserSearchResults([]);
         } finally {
-          setLoadingGroupSearch(false);
+          if (mountedRef.current) setLoadingGroupSearch(false);
         }
       }, 400);
     },
