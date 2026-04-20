@@ -706,7 +706,12 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.showSenderAvatar === nextProps.showSenderAvatar &&
     prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
     prevProps.pendingAppeal?.status === nextProps.pendingAppeal?.status &&
-    prevProps.message.metadata === nextProps.message.metadata &&
+    (prevProps.message.metadata as any)?.blockedByModeration ===
+      (nextProps.message.metadata as any)?.blockedByModeration &&
+    (prevProps.message.metadata as any)?.appealRejected ===
+      (nextProps.message.metadata as any)?.appealRejected &&
+    (prevProps.message.metadata as any)?.media_url ===
+      (nextProps.message.metadata as any)?.media_url &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );

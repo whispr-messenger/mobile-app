@@ -76,7 +76,6 @@ function useResolvedMediaUrl(uri: string | undefined): {
             `[MediaMessage] Failed to resolve media URL: HTTP ${response.status}`,
           );
           setError(true);
-          setResolvedUri("");
           return;
         }
 
@@ -108,13 +107,11 @@ function useResolvedMediaUrl(uri: string | undefined): {
             );
           }
           setError(true);
-          setResolvedUri("");
         }
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
         setError(true);
-        setResolvedUri("");
       } finally {
         if (!cancelled) setLoading(false);
       }

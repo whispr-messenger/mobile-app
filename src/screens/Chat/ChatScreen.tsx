@@ -167,6 +167,7 @@ export const ChatScreen: React.FC = () => {
   const allConversations = useConversationsStore((s) => s.conversations);
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
   const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
+  const handleSendMediaRef = useRef<typeof handleSendMedia>(null!);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const initialScrollDoneRef = useRef(false);
@@ -578,9 +579,10 @@ export const ChatScreen: React.FC = () => {
 
       if (decision === "approved" && current?.localUri) {
         // Re-submit bypassing the gate, then cleanup.
-        handleSendMedia(current.localUri, "image", undefined, undefined, {
-          skipGate: true,
-        })
+        handleSendMediaRef
+          .current(current.localUri, "image", undefined, undefined, {
+            skipGate: true,
+          })
           .catch((err) =>
             logger.warn("ChatScreen", "re-submit after appeal failed", err),
           )
@@ -1186,6 +1188,11 @@ export const ChatScreen: React.FC = () => {
     },
     [conversationId, userId, sendTyping, replyingTo],
   );
+
+  // Keep ref in sync so the WebSocket listener always calls the latest version
+  useEffect(() => {
+    handleSendMediaRef.current = handleSendMedia;
+  });
 
   const handleScheduleSend = useCallback((messageText: string) => {
     setScheduleMessageText(messageText);

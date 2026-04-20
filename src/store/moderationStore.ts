@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
+
+// expo-file-system v55 types don't fully match the runtime API — alias to avoid
+// scattering `as any` across every call site.
+const FS = FileSystem as any;
 import type {
   Report,
   UserSanction,
@@ -212,22 +216,22 @@ export const useModerationStore = create<ModerationState>((set, get) => ({
     blockReason,
     scores,
   }) => {
-    const cacheDir = (FileSystem as any).cacheDirectory as string | undefined;
+    const cacheDir = FS.cacheDirectory as string | undefined;
     let localPath = imageUri;
 
     try {
       if (cacheDir) {
         const dir = `${cacheDir}blocked-appeals`;
         try {
-          const info = await (FileSystem as any).getInfoAsync(dir);
+          const info = await FS.getInfoAsync(dir);
           if (!info.exists) {
-            await (FileSystem as any).makeDirectoryAsync(dir, {
+            await FS.makeDirectoryAsync(dir, {
               intermediates: true,
             });
           }
         } catch {
           try {
-            await (FileSystem as any).makeDirectoryAsync(dir, {
+            await FS.makeDirectoryAsync(dir, {
               intermediates: true,
             });
           } catch {
@@ -238,7 +242,7 @@ export const useModerationStore = create<ModerationState>((set, get) => ({
         const ext = imageUri.split(".").pop()?.split("?")[0] || "jpg";
         localPath = `${dir}/${messageTempId}.${ext}`;
         try {
-          await (FileSystem as any).copyAsync({
+          await FS.copyAsync({
             from: imageUri,
             to: localPath,
           });
@@ -300,20 +304,9 @@ export const useModerationStore = create<ModerationState>((set, get) => ({
 
   cleanupAppeal: async (messageTempId) => {
     const entry = get().pendingAppeals[messageTempId];
-    if (entry?.localUri && entry.localUri.startsWith("file://") === false) {
-      // relative cache path — try to delete
+    if (entry?.localUri) {
       try {
-        await (FileSystem as any).deleteAsync(entry.localUri, {
-          idempotent: true,
-        });
-      } catch {
-        /* ignore */
-      }
-    } else if (entry?.localUri) {
-      try {
-        await (FileSystem as any).deleteAsync(entry.localUri, {
-          idempotent: true,
-        });
+        await FS.deleteAsync(entry.localUri, { idempotent: true });
       } catch {
         /* ignore */
       }
