@@ -21,6 +21,16 @@ jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
 }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+jest.mock('./src/context/AuthContext', () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    isLoading: false,
+    userId: 'user1',
+    deviceId: 'dev1',
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+  }),
+}));
 jest.mock('./src/components', () => ({
   Logo: () => null,
   Button: ({ title, onPress, disabled }: any) => {
