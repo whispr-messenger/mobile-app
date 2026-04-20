@@ -97,6 +97,27 @@ interface ConversationMembersResult {
   rawMembers: RawConversationMember[];
 }
 
+/**
+ * Run an async mapper over items in bounded-size batches to cap the number of
+ * concurrent requests. Avoids DoS-ing the client and backend when a group has
+ * hundreds of members and each one requires a profile fetch.
+ */
+async function batchedMap<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
+
 interface ConversationPayload {
   memberUserIds?: string[];
   member_user_ids?: string[];
@@ -259,8 +280,10 @@ export const groupsAPI = {
       fallbackConv = fallback.conv;
     }
 
-    const members: GroupMember[] = await Promise.all(
-      resolvedMemberIds.map(async (userId: string) => {
+    const members: GroupMember[] = await batchedMap(
+      resolvedMemberIds,
+      MEMBER_PROFILE_FETCH_CONCURRENCY,
+      async (userId: string) => {
         const profileResponse = await fetch(
           `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
           { headers },
@@ -294,7 +317,7 @@ export const groupsAPI = {
             new Date().toISOString(),
           is_active: memberMeta?.isActive ?? true,
         };
-      }),
+      },
     );
 
     return { members, total: members.length };

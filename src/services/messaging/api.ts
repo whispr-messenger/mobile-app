@@ -130,6 +130,27 @@ function httpError(label: string, response: Response): Error {
   return new Error(`${label} (${response.status})`);
 }
 
+/**
+ * Run an async mapper over items in bounded-size batches to cap the number of
+ * concurrent requests. Avoids DoS-ing the client and backend when a group has
+ * hundreds of members and each one requires a profile fetch.
+ */
+async function batchedMap<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
+
 // --- User profile cache ------------------------------------------------------
 // Avoid re-fetching the same /user/v1/profile/{id} on every render cycle. A
 // simple in-memory map keyed by userId with a short TTL is enough to smooth
@@ -621,8 +642,10 @@ export const messagingAPI = {
       ? { Authorization: `Bearer ${token}` }
       : {};
 
-    return Promise.all(
-      rawMembers.map(async (member) => {
+    return batchedMap(
+      rawMembers,
+      MEMBER_PROFILE_FETCH_CONCURRENCY,
+      async (member) => {
         const userId = member.userId ?? member.user_id ?? member.id ?? "";
         const rawRole = (member.role ?? "member").toLowerCase();
         const role: "admin" | "moderator" | "member" =
@@ -675,7 +698,7 @@ export const messagingAPI = {
           joined_at: member.joinedAt ?? member.joined_at,
           is_active: member.isActive ?? member.is_active,
         };
-      }),
+      },
     );
   },
 
