@@ -29,13 +29,13 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: generate_token
-        uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ secrets.ACTIONS_CD }}
-          private_key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
+          app-id: ${{ secrets.ACTIONS_CD }}
+          private-key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
 
       - name: Checkout mobile-app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: mobile-app
           ref: ${{ github.event.workflow_run.head_branch || 'main' }}
@@ -113,7 +113,7 @@ jobs:
           echo "✅ Image found in registry"
 
       - name: Checkout infrastructure repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: whispr-messenger/infrastructure
           path: infrastructure
