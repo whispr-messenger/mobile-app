@@ -7,6 +7,14 @@ import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
 import { getApiBaseUrl } from "./apiBase";
 
+const normalizeUsernameValue = (username: string): string => {
+  const raw = (username ?? "").trim().replace(/^@+/, "").toLowerCase();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^a-z0-9_]/g, "_").slice(0, 20);
+  if (!/[a-z0-9]/.test(normalized)) return "";
+  return normalized;
+};
+
 // Types
 export interface UserProfile {
   id: string;
@@ -63,6 +71,7 @@ export class UserService {
 
   /**
    * Authenticated fetch with automatic token refresh on 401.
+   * Uses isRetry guard to prevent infinite refresh/retry loops.
    */
   private async authFetch(
     path: string,
@@ -96,6 +105,69 @@ export class UserService {
     return response;
   }
 
+  private async extractErrorMessage(
+    response: Response,
+    fallback: string,
+  ): Promise<string> {
+    try {
+      const data = await response.json().catch(() => null);
+      const msg =
+        data?.message ??
+        data?.error ??
+        data?.detail ??
+        (typeof data === "string" ? data : undefined);
+      if (typeof msg === "string" && msg.trim()) return msg.trim();
+    } catch {}
+    return fallback;
+  }
+
+  private normalizeProfile(raw: any): UserProfile | undefined {
+    if (!raw || typeof raw !== "object") return undefined;
+    const profilePicture =
+      raw.profilePicture ??
+      raw.profilePictureUrl ??
+      raw.profile_picture_url ??
+      raw.avatar_url;
+    return {
+      id: String(raw.id ?? ""),
+      firstName: String(raw.firstName ?? raw.first_name ?? ""),
+      lastName: String(raw.lastName ?? raw.last_name ?? ""),
+      username: String(raw.username ?? ""),
+      phoneNumber: String(raw.phoneNumber ?? raw.phone_number ?? ""),
+      biography: String(raw.biography ?? ""),
+      profilePicture: profilePicture ? String(profilePicture) : undefined,
+      isOnline: Boolean(raw.isOnline ?? raw.is_online ?? true),
+      lastSeen: raw.lastSeen ?? raw.last_seen ?? undefined,
+      createdAt: String(raw.createdAt ?? raw.created_at ?? ""),
+      updatedAt: String(raw.updatedAt ?? raw.updated_at ?? ""),
+    };
+  }
+
+  /**
+   * POST /user/v1/account/bootstrap
+   * Initialize user-service side state (privacy settings, role, etc.) after first login.
+   * Idempotent — safe to call on every login.
+   */
+  async bootstrapAccount(
+    userId: string,
+    phoneNumber: string,
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await this.authFetch("/account/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, phoneNumber }),
+      });
+      if (!response.ok) {
+        return { success: false, message: `HTTP ${response.status}` };
+      }
+      return { success: true };
+    } catch (error) {
+      console.warn("[UserService] bootstrapAccount failed:", error);
+      return { success: false, message: "bootstrap failed" };
+    }
+  }
+
   /**
    * Get current user profile
    */
@@ -112,10 +184,10 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
-      if (data && data.profilePictureUrl && !data.profilePicture) {
-        data.profilePicture = data.profilePictureUrl;
-      }
-      return { success: true, profile: data };
+      const profile = this.normalizeProfile(data);
+      return profile
+        ? { success: true, profile }
+        : { success: false, message: "Profil invalide reçu du serveur" };
     } catch (error) {
       console.error("Erreur récupération profil:", error);
       return { success: false, message: "Impossible de récupérer le profil" };
@@ -134,14 +206,16 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      // Map profilePicture to profilePictureUrl for the backend API
-      const { profilePicture, ...restData } = profileData;
-      const apiData = {
+      // Map profilePicture to avatarMediaId for the backend API
+      const { profilePicture, profilePictureUrl, ...restData } = profileData;
+      const apiData: any = {
         ...restData,
-        profilePictureUrl: profileData.profilePictureUrl || profilePicture,
       };
-      if (apiData.profilePictureUrl === undefined) {
-        delete apiData.profilePictureUrl;
+
+      const avatarId = profilePictureUrl || profilePicture;
+      if (avatarId && !avatarId.startsWith("http")) {
+        // Assume it's a UUID (media ID) since it doesn't start with http
+        apiData.avatarMediaId = avatarId;
       }
 
       const response = await this.authFetch("/profile/{userId}", {
@@ -151,18 +225,21 @@ export class UserService {
       });
 
       if (!response.ok) {
-        return { success: false, message: `Erreur ${response.status}` };
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
       }
 
       const data = await response.json().catch(() => null);
-      // Map profilePictureUrl from backend to profilePicture for frontend
-      if (data && data.profilePictureUrl && !data.profilePicture) {
-        data.profilePicture = data.profilePictureUrl;
-      }
+      const normalized = this.normalizeProfile(data);
       return {
         success: true,
         message: "Profil mis à jour avec succès",
-        profile: data,
+        profile: normalized,
       };
     } catch (error) {
       console.error("Erreur mise à jour profil:", error);
@@ -176,27 +253,30 @@ export class UserService {
   /**
    * Update profile picture
    */
-  async updateProfilePicture(imageUri: string): Promise<UpdateProfileResponse> {
+  async updateProfilePicture(mediaId: string): Promise<UpdateProfileResponse> {
     try {
       const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profilePictureUrl: imageUri }),
+        body: JSON.stringify({ avatarMediaId: mediaId }),
       });
 
       if (!response.ok) {
-        return { success: false, message: `Erreur ${response.status}` };
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
       }
 
       const data = await response.json().catch(() => null);
-      // Map profilePictureUrl from backend to profilePicture for frontend
-      if (data && data.profilePictureUrl && !data.profilePicture) {
-        data.profilePicture = data.profilePictureUrl;
-      }
+      const normalized = this.normalizeProfile(data);
       return {
         success: true,
         message: "Photo de profil mise à jour avec succès",
-        profile: data,
+        profile: normalized,
       };
     } catch (error) {
       console.error("Erreur mise à jour photo:", error);
@@ -212,7 +292,8 @@ export class UserService {
    */
   async updateUsername(username: string): Promise<UpdateProfileResponse> {
     try {
-      const validation = this.validateUsername(username);
+      const normalizedUsername = normalizeUsernameValue(username);
+      const validation = this.validateUsername(normalizedUsername);
       if (!validation.isValid) {
         return { success: false, message: validation.error };
       }
@@ -220,18 +301,25 @@ export class UserService {
       const response = await this.authFetch("/profile/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ username: normalizedUsername }),
       });
 
       if (!response.ok) {
-        return { success: false, message: `Erreur ${response.status}` };
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
       }
 
       const data = await response.json().catch(() => null);
+      const normalizedProfile = this.normalizeProfile(data);
       return {
         success: true,
         message: "Nom d'utilisateur mis à jour avec succès",
-        profile: data,
+        profile: normalizedProfile,
       };
     } catch (error) {
       console.error("Erreur mise à jour username:", error);
@@ -299,7 +387,7 @@ export class UserService {
           firstNamePrivacy: settings.firstNameVisibility,
           lastNamePrivacy: settings.lastNameVisibility,
           biographyPrivacy: settings.biographyVisibility,
-          searchByPhone: settings.phoneNumberSearch,
+          searchByPhone: settings.phoneNumberSearch !== "nobody",
           searchByUsername: settings.searchVisibility,
         }),
       });
@@ -345,10 +433,11 @@ export class UserService {
       }
 
       const data = await response.json().catch(() => null);
+      const normalized = this.normalizeProfile(data);
       return {
         success: true,
         message: "Numéro de téléphone mis à jour avec succès",
-        profile: data,
+        profile: normalized,
       };
     } catch (error) {
       console.error("Erreur changement numéro:", error);
@@ -404,7 +493,7 @@ export class UserService {
       };
     }
 
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    if (!/^[a-z0-9_]+$/.test(username)) {
       return {
         isValid: false,
         error:

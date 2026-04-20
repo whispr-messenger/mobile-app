@@ -153,6 +153,39 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.large": "Grand",
     "settings.modalPickHint":
       "Touchez une option — le changement est appliqué tout de suite. La sélection active est surlignée en bleu.",
+    "settings.aboutWhispr": "À propos",
+    "settings.aboutWhisprSubtitle": "Contenu, sécurité et informations légales",
+    "settings.aboutSection": "Légal & contenu",
+
+    // Moderation settings
+    "settings.moderation": "Modération",
+    "settings.myReports": "Mes signalements",
+    "settings.myReportsSubtitle": "Historique de vos signalements",
+    "settings.mySanctions": "Mes sanctions",
+    "settings.mySanctionsSubtitle": "Voir vos sanctions",
+    "settings.moderationDashboard": "Tableau de bord",
+    "settings.moderationDashboardSubtitle": "Gestion de la modération",
+
+    // About — contenu & sécurité (WHISPR)
+    "about.title": "À propos",
+    "about.sectionContentSecurity": "Contenu et sécurité",
+    "about.p1":
+      "Pour contribuer à la sécurité tout en limitant l'exposition de vos médias, certaines images peuvent être analysées directement sur votre appareil avant l'envoi.",
+    "about.p2":
+      "Cette technologie a des limites : des faux positifs ou des détections manquées sont possibles. Elle ne remplace pas votre vigilance.",
+    "about.p3":
+      "Pour plus de détails sur le traitement de vos données, consultez notre politique de confidentialité.",
+    "about.reportCallout":
+      "Vous pouvez signaler un abus ou un contenu problématique depuis le menu d'un message, dans une conversation.",
+    "about.p4":
+      "Une modération automatique côté serveur peut également être appliquée pour protéger l'intégrité du réseau ; cela ne garantit pas une intervention humaine pour chaque signalement.",
+    "about.privacyPolicy": "Politique de confidentialité",
+    "about.termsOfUse": "Conditions d'utilisation",
+    "about.reportContent": "Signaler un contenu",
+    "about.reportComingSoon":
+      "Le flux de signalement sera bientôt disponible. En attendant, utilisez le menu du message lorsque l'option sera proposée.",
+    "about.legalOpenError":
+      "Impossible d'ouvrir le lien. Vérifiez votre connexion ou l'URL configurée.",
 
     // Notifications
     "notif.success": "Succès",
@@ -267,6 +300,37 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Cette action va générer de nouveaux codes et invalider les précédents. Vos anciens codes ne fonctionneront plus.",
     "twoFactor.codesRegenerated": "Codes de récupération régénérés",
 
+    // Report message (WHISPR-174)
+    "report.menuAction": "Signaler",
+    "report.sheetTitle": "Signaler un contenu",
+    "report.step1of2": "ÉTAPE 1 / 2",
+    "report.step2of2": "ÉTAPE 2 / 2",
+    "report.conversationLabel": "CONVERSATION",
+    "report.step1Subtitle": "Pourquoi signalez-vous ce message ?",
+    "report.step2Header": "Précisez votre signalement",
+    "report.category.offensive": "Contenu offensant",
+    "report.category.spam": "Spam / arnaque",
+    "report.category.nudity": "Nudité ou contenu sexuel",
+    "report.category.violence": "Violence",
+    "report.category.harassment": "Harcèlement",
+    "report.category.other": "Autre",
+    "report.disclaimer":
+      "Votre signalement est traité de manière confidentielle. L'autre personne n'est pas notifiée automatiquement.",
+    "report.continue": "Continuer",
+    "report.additionalDetails": "INFORMATIONS COMPLÉMENTAIRES",
+    "report.placeholder": "Décrivez le problème (recommandé)",
+    "report.attachOptional": "PIÈCE JOINTE (OPTIONNEL)",
+    "report.attachHint": "Ajouter une photo",
+    "report.back": "Retour",
+    "report.send": "Envoyer le signalement",
+    "report.successTitle": "Signalement envoyé",
+    "report.successBody":
+      "Merci, votre signalement a bien été reçu. Nos modérateurs vont l'examiner dans les plus brefs délais.",
+    "report.errorBanner": "Une erreur est survenue",
+    "report.errorTitle": "Impossible d'envoyer",
+    "report.errorBody":
+      "Veuillez vérifier votre connexion internet et réessayer l'envoi de votre signalement.",
+
     // Common
     "common.confirm": "Confirmer",
     "common.cancel": "Annuler",
@@ -367,6 +431,38 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.fontSize.large": "Large",
     "settings.modalPickHint":
       "Tap an option — it applies instantly. The active choice is highlighted in blue.",
+    "settings.aboutWhispr": "About",
+    "settings.aboutWhisprSubtitle": "Content, security, and legal information",
+    "settings.aboutSection": "Legal & content",
+
+    // Moderation settings
+    "settings.moderation": "Moderation",
+    "settings.myReports": "My Reports",
+    "settings.myReportsSubtitle": "History of your reports",
+    "settings.mySanctions": "My Sanctions",
+    "settings.mySanctionsSubtitle": "View your sanctions",
+    "settings.moderationDashboard": "Dashboard",
+    "settings.moderationDashboardSubtitle": "Moderation management",
+
+    // About — content & security (WHISPR)
+    "about.title": "About",
+    "about.sectionContentSecurity": "Content & security",
+    "about.p1":
+      "To improve safety while limiting exposure of your media, some images may be analyzed on your device before they are sent.",
+    "about.p2":
+      "This technology has limits: false positives or missed detections can happen. It does not replace your own judgment.",
+    "about.p3": "For more on how we process your data, see our privacy policy.",
+    "about.reportCallout":
+      "You can report abuse or problematic content from a message's menu inside a conversation.",
+    "about.p4":
+      "Automatic server-side moderation may also be used to protect the network; this does not guarantee human review for every report.",
+    "about.privacyPolicy": "Privacy policy",
+    "about.termsOfUse": "Terms of use",
+    "about.reportContent": "Report content",
+    "about.reportComingSoon":
+      "The reporting flow is coming soon. Until then, use the message menu when the option is available.",
+    "about.legalOpenError":
+      "Could not open the link. Check your connection or the configured URL.",
 
     // Notifications
     "notif.success": "Success",
@@ -473,6 +569,37 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.regenerateConfirm":
       "This will generate new codes and invalidate your previous ones. Your old codes will no longer work.",
     "twoFactor.codesRegenerated": "Recovery codes regenerated",
+
+    // Report message (WHISPR-174)
+    "report.menuAction": "Report",
+    "report.sheetTitle": "Report content",
+    "report.step1of2": "STEP 1 / 2",
+    "report.step2of2": "STEP 2 / 2",
+    "report.conversationLabel": "CONVERSATION",
+    "report.step1Subtitle": "Why are you reporting this message?",
+    "report.step2Header": "Add details",
+    "report.category.offensive": "Offensive content",
+    "report.category.spam": "Spam or scam",
+    "report.category.nudity": "Nudity or sexual content",
+    "report.category.violence": "Violence",
+    "report.category.harassment": "Harassment",
+    "report.category.other": "Other",
+    "report.disclaimer":
+      "Your report is handled confidentially. The other person is not notified automatically.",
+    "report.continue": "Continue",
+    "report.additionalDetails": "ADDITIONAL DETAILS",
+    "report.placeholder": "Describe the issue (recommended)",
+    "report.attachOptional": "ATTACHMENT (OPTIONAL)",
+    "report.attachHint": "Add a photo",
+    "report.back": "Back",
+    "report.send": "Submit report",
+    "report.successTitle": "Report sent",
+    "report.successBody":
+      "Thank you. Your report has been received. Our moderators will review it as soon as possible.",
+    "report.errorBanner": "Something went wrong",
+    "report.errorTitle": "Could not send",
+    "report.errorBody":
+      "Please check your internet connection and try sending your report again.",
 
     // Common
     "common.confirm": "Confirm",

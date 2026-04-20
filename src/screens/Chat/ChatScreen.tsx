@@ -31,11 +31,12 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import {
   Message,
+  MessageAttachment,
   MessageWithStatus,
   MessageWithRelations,
   MessageReaction,
-  MessageAttachment,
   Conversation,
+  PinnedMessage,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
 import { contactsAPI } from "../../services/contacts/api";
@@ -46,6 +47,7 @@ import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
 import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
+import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
@@ -56,6 +58,7 @@ import { MessageSearch } from "../../components/Chat/MessageSearch";
 import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
 import { EmptyChatState } from "../../components/Chat/EmptyChatState";
 import { ChatHeader } from "./ChatHeader";
+import { getConversationDisplayName } from "../../utils";
 import { usePresenceStore } from "../../store/presenceStore";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
@@ -66,6 +69,9 @@ import { SchedulingService } from "../../services/SchedulingService";
 import { gateChatImageBeforeSend } from "../../services/moderation";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
+import { BlockedImageAppealModal } from "../../components/Chat/BlockedImageAppealModal";
+import { useModerationStore } from "../../store/moderationStore";
+import { getSharedSocket } from "../../services/messaging/websocket";
 import { offlineQueue, QueuedMessage } from "../../services/offlineQueue";
 import {
   validateReactionEmoji,
@@ -121,29 +127,66 @@ export const ChatScreen: React.FC = () => {
     [],
   );
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
-  const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
-    Array<{ id: string; display_name: string; username?: string }>
+    Array<{
+      id: string;
+      display_name: string;
+      username?: string;
+      avatar_url?: string;
+    }>
   >([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageWithRelations | null>(null);
   const [forwardSending, setForwardSending] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportSheetMessage, setReportSheetMessage] =
+    useState<MessageWithRelations | null>(null);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleMessageText, setScheduleMessageText] = useState("");
   const [isOtherUserContact, setIsOtherUserContact] = useState<boolean | null>(
     null,
   );
   const [addingContact, setAddingContact] = useState(false);
+  const [appealModal, setAppealModal] = useState<{
+    visible: boolean;
+    imageUri: string;
+    blockReason?: string;
+    scores?: Record<string, number>;
+    messageTempId: string;
+  } | null>(null);
+  const pendingAppeals = useModerationStore((s) => s.pendingAppeals);
+  const handleAppealDecision = useModerationStore(
+    (s) => s.handleAppealDecision,
+  );
+  const cleanupAppeal = useModerationStore((s) => s.cleanupAppeal);
   const allConversations = useConversationsStore((s) => s.conversations);
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
   const lastSeenAt = usePresenceStore((s) => s.lastSeenAt);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  const initialScrollDoneRef = useRef(false);
+  const isNearBottomRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+  // `viewabilityConfig` and `onViewableItemsChanged` must be stable references —
+  // FlatList throws if they change between renders. Using refs keeps the
+  // underlying function identity constant while letting us read/write the
+  // latest `isNearBottomRef` value from inside the handler.
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+  const handleViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
+      // Inverted list: index 0 is the newest message (rendered at the bottom).
+      // If it is visible, the user is reading the latest section and we can
+      // safely auto-scroll when a new message arrives.
+      isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
+    },
+  ).current;
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
@@ -200,12 +243,35 @@ export const ChatScreen: React.FC = () => {
                 : m,
             );
           }
-          // Replace optimistic message if it matches client_random
-          const optimisticMessageIndex = prev.findIndex(
+          const optimisticByClientRandom = prev.findIndex(
             (m) =>
               m.id.startsWith("temp-") &&
-              m.client_random === message.client_random,
+              String(m.client_random ?? "") ===
+                String(message.client_random ?? ""),
           );
+          const optimisticByHeuristic =
+            optimisticByClientRandom === -1 && message.sender_id === userId
+              ? prev.findIndex((m) => {
+                  if (!m.id.startsWith("temp-")) return false;
+                  if ((m as any).status !== "sending") return false;
+                  if ((m as any).message_type !== (message as any).message_type)
+                    return false;
+                  if ((m as any).content !== (message as any).content)
+                    return false;
+                  const a = new Date((m as any).sent_at).getTime();
+                  const b = new Date((message as any).sent_at).getTime();
+                  return (
+                    Number.isFinite(a) &&
+                    Number.isFinite(b) &&
+                    Math.abs(a - b) < 15000
+                  );
+                })
+              : -1;
+          const optimisticMessageIndex =
+            optimisticByClientRandom !== -1
+              ? optimisticByClientRandom
+              : optimisticByHeuristic;
+
           if (optimisticMessageIndex !== -1) {
             const existing = prev[
               optimisticMessageIndex
@@ -229,6 +295,24 @@ export const ChatScreen: React.FC = () => {
         });
         // Mark as read if chat is open
         markAsRead(conversationId, message.id);
+        // Auto-scroll to the new message only when the user was already
+        // reading the bottom of the list — don't yank them down if they
+        // were scrolled up browsing older messages.
+        if (isNearBottomRef.current) {
+          setTimeout(() => {
+            try {
+              flatListRef.current?.scrollToIndex({
+                index: 0,
+                animated: true,
+              });
+            } catch {
+              flatListRef.current?.scrollToOffset({
+                offset: 0,
+                animated: true,
+              });
+            }
+          }, 50);
+        }
       }
     },
     onDeliveryStatus: (messageId: string, status: string) => {
@@ -450,6 +534,7 @@ export const ChatScreen: React.FC = () => {
 
   useEffect(() => {
     // Load data
+    initialScrollDoneRef.current = false;
     loadConversation();
     loadMessages();
     loadPinnedMessages();
@@ -468,6 +553,64 @@ export const ChatScreen: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
+
+  // Listen for admin decisions on blocked-image appeals.
+  // On approve: re-submit the original image bypassing the gate.
+  // On reject: annotate the bubble so the user sees "Refusée par l'admin".
+  useEffect(() => {
+    if (!userId) return;
+    let socket: ReturnType<typeof getSharedSocket>;
+    try {
+      socket = getSharedSocket();
+    } catch {
+      return;
+    }
+    const channel = socket.channel(`user:${userId}`);
+    const onDecision = (data: any) => {
+      const messageTempId: string | undefined =
+        data?.messageTempId || data?.message_temp_id;
+      const decision: "approved" | "rejected" | undefined = data?.decision;
+      if (!messageTempId || !decision) return;
+
+      const current =
+        useModerationStore.getState().pendingAppeals[messageTempId];
+      handleAppealDecision({ messageTempId, decision });
+
+      if (decision === "approved" && current?.localUri) {
+        // Re-submit bypassing the gate, then cleanup.
+        handleSendMedia(current.localUri, "image", undefined, undefined, {
+          skipGate: true,
+        })
+          .catch((err) =>
+            logger.warn("ChatScreen", "re-submit after appeal failed", err),
+          )
+          .finally(() => {
+            cleanupAppeal(messageTempId).catch(() => {});
+          });
+      } else if (decision === "rejected") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageTempId
+              ? {
+                  ...m,
+                  metadata: {
+                    ...(m.metadata || {}),
+                    appealRejected: true,
+                  } as any,
+                  content: "Refusée par l'admin",
+                }
+              : m,
+          ),
+        );
+        cleanupAppeal(messageTempId).catch(() => {});
+      }
+    };
+    channel.on("blocked_image_decision", onDecision);
+    return () => {
+      channel.off("blocked_image_decision", onDecision);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   // Check if the other user in a direct conversation is in our contacts
   useEffect(() => {
@@ -700,6 +843,12 @@ export const ChatScreen: React.FC = () => {
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
 
+      // Scroll to bottom so the newly sent text message is visible
+      // (FlatList is inverted, so offset 0 is the bottom)
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+
       // If offline, queue the message for later delivery
       if (connectionState !== "connected") {
         const queued: QueuedMessage = {
@@ -775,6 +924,7 @@ export const ChatScreen: React.FC = () => {
       type: "image" | "video" | "file" | "audio",
       replyToId?: string,
       caption?: string,
+      opts?: { skipGate?: boolean },
     ) => {
       // Stop typing indicator
       sendTyping(conversationId, false);
@@ -869,14 +1019,13 @@ export const ChatScreen: React.FC = () => {
 
       try {
         // Gate check: block inappropriate images before upload
-        if (type === "image") {
+        if (type === "image" && !opts?.skipGate) {
           const gateResult = await gateChatImageBeforeSend(uri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";
-            // Show a user-visible alert so the sender is aware the image was blocked
-            showAlert("Envoi bloqué", blockedReason);
-            // Keep message in chat but mark as blocked
+            // Keep message in chat but mark as blocked, and annotate
+            // metadata so the bubble can offer a "Contester" action.
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempMessageId
@@ -884,10 +1033,25 @@ export const ChatScreen: React.FC = () => {
                       ...m,
                       status: "failed" as const,
                       content: blockedReason,
+                      metadata: {
+                        ...(m.metadata || {}),
+                        blockedByModeration: true,
+                        blockReason: blockedReason,
+                        scores: gateResult.scores,
+                        localUri: uri,
+                      } as any,
                     }
                   : m,
               ),
             );
+            // Open the appeal modal so the user can contest immediately.
+            setAppealModal({
+              visible: true,
+              imageUri: uri,
+              blockReason: blockedReason,
+              scores: gateResult.scores,
+              messageTempId: tempMessageId,
+            });
             return;
           }
         }
@@ -939,7 +1103,30 @@ export const ChatScreen: React.FC = () => {
           ),
         );
 
-        // 2. Send message via messaging-service with remote media URLs
+        // 2. Share media with all conversation participants so they can access it
+        const rawMemberIds: string[] = [
+          ...(conversation?.member_user_ids ?? []),
+          ...(allConversations.find((c) => c.id === conversationId)
+            ?.member_user_ids ?? []),
+          ...(conversation?.members?.map(
+            (m: { user_id: string }) => m.user_id,
+          ) ?? []),
+          ...conversationMembers.map((m) => m.id),
+        ];
+        const memberIds = [...new Set(rawMemberIds)]
+          .filter(Boolean)
+          .filter((id) => id !== userId);
+        if (memberIds.length > 0) {
+          await MediaService.shareMedia(uploadResult.id, memberIds).catch(
+            (err) =>
+              console.warn(
+                "[ChatScreen] shareMedia failed (non-blocking):",
+                err,
+              ),
+          );
+        }
+
+        // 3. Send message via messaging-service with remote media URLs
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: messageContent,
           message_type: "media",
@@ -949,7 +1136,7 @@ export const ChatScreen: React.FC = () => {
           reply_to_id: replyToId,
         });
 
-        // 3. Attach media record to the message (non-blocking — message already has metadata)
+        // 4. Attach media record to the message (non-blocking — message already has metadata)
         messagingAPI
           .addAttachment(sentMessage.id, {
             media_id: uploadResult.id,
@@ -969,7 +1156,7 @@ export const ChatScreen: React.FC = () => {
             ),
           );
 
-        // 4. Update optimistic message with the real server ID
+        // 5. Update optimistic message with the real server ID
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempMessageId
@@ -1152,6 +1339,27 @@ export const ChatScreen: React.FC = () => {
     return result;
   }, [messages]);
 
+  // Initial scroll to the newest message once the list has rendered content.
+  // Using `scrollToIndex({ index: 0 })` (rather than `scrollToOffset`) is
+  // important on react-native-web: the inverted list is implemented via a
+  // CSS scaleY(-1) transform, so offset 0 is the *visual top* (oldest data),
+  // not the bottom. Index-based scrolling stays consistent across platforms.
+  useEffect(() => {
+    if (initialScrollDoneRef.current || messagesWithSeparators.length === 0) {
+      return;
+    }
+    initialScrollDoneRef.current = true;
+    // Defer one frame so FlatList has finished laying out items.
+    const id = setTimeout(() => {
+      try {
+        flatListRef.current?.scrollToIndex({ index: 0, animated: false });
+      } catch {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [messagesWithSeparators.length]);
+
   const scrollToMessage = useCallback(
     (messageId: string) => {
       const index = messagesWithSeparators.findIndex(
@@ -1198,6 +1406,13 @@ export const ChatScreen: React.FC = () => {
     },
     [],
   );
+
+  const handleOpenReportSheet = useCallback(() => {
+    if (selectedMessage) {
+      setReportSheetMessage(selectedMessage);
+      setShowReportSheet(true);
+    }
+  }, [selectedMessage]);
 
   const handleForwardMessage = useCallback(() => {
     if (selectedMessage) {
@@ -1309,7 +1524,7 @@ export const ChatScreen: React.FC = () => {
 
     try {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
@@ -1330,7 +1545,7 @@ export const ChatScreen: React.FC = () => {
       );
     } catch (error) {
       const isCurrentlyPinned = pinnedMessages.some(
-        (m) => m.id === selectedMessage.id,
+        (m) => (m.messageId ?? m.message?.id) === selectedMessage.id,
       );
       logger.error(
         "ChatScreen",
@@ -1537,6 +1752,15 @@ export const ChatScreen: React.FC = () => {
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
   const otherLastSeenAt = otherUserId ? lastSeenAt[otherUserId] : undefined;
 
+  // Count online members for group conversations
+  const onlineMemberCount = useMemo(() => {
+    if (conversation?.type !== "group") return 0;
+    const memberIds: string[] =
+      conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
+    return memberIds.filter((id) => id !== userId && onlineUserIds.has(id))
+      .length;
+  }, [conversation, conversationMembers, onlineUserIds, userId]);
+
   const handleInfoPress = useCallback(() => {
     if (conversation?.type === "group") {
       // Ensure modal is closed before navigating
@@ -1551,6 +1775,7 @@ export const ChatScreen: React.FC = () => {
         navigation.navigate("GroupDetails", {
           groupId,
           conversationId: conversation.id,
+          conversationName: getConversationDisplayName(conversation),
         });
       }, 0);
     } else {
@@ -1561,8 +1786,10 @@ export const ChatScreen: React.FC = () => {
   const renderItem = useCallback(
     ({
       item,
+      index,
     }: {
       item: MessageWithRelations | { type: "date"; date: Date; id: string };
+      index: number;
     }) => {
       // Check if it's a date separator
       if ((item as any).type === "date") {
@@ -1581,12 +1808,32 @@ export const ChatScreen: React.FC = () => {
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
 
-      // Resolve sender name for group conversations
-      const senderName =
-        !isSent && conversation?.type === "group"
+      const isGroup = conversation?.type === "group";
+      // Resolve sender info for group conversations.
+      const sender =
+        !isSent && isGroup
           ? conversationMembers.find((m) => m.id === message.sender_id)
-              ?.display_name
           : undefined;
+      const senderName = sender?.display_name || sender?.username;
+      const senderAvatarUrl = sender?.avatar_url;
+
+      // Inverted FlatList: newer messages have lower indices. The item that
+      // visually appears above the current one is messagesWithSeparators[index + 1].
+      // Consider the message "consecutive" when the previous (older, visually
+      // above) item is from the same sender — in that case we hide the avatar
+      // to keep bursts compact.
+      let isConsecutive = false;
+      if (!isSent && isGroup) {
+        const prev = messagesWithSeparators[index + 1];
+        if (
+          prev &&
+          (prev as any).type !== "date" &&
+          (prev as MessageWithRelations).sender_id === message.sender_id &&
+          (prev as MessageWithRelations).message_type !== "system"
+        ) {
+          isConsecutive = true;
+        }
+      }
 
       return (
         <MessageBubble
@@ -1594,6 +1841,9 @@ export const ChatScreen: React.FC = () => {
           isSent={isSent}
           currentUserId={userId}
           senderName={senderName}
+          senderAvatarUrl={senderAvatarUrl}
+          showSenderAvatar={!isSent && isGroup}
+          isConsecutive={isConsecutive}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
           resolveReactorName={resolveReactorDisplayName}
@@ -1601,6 +1851,17 @@ export const ChatScreen: React.FC = () => {
           onLongPress={() => handleMessageLongPress(message)}
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
+          pendingAppeal={pendingAppeals[message.id]}
+          onContest={(m) => {
+            const meta = (m.metadata || {}) as any;
+            setAppealModal({
+              visible: true,
+              imageUri: meta.localUri || "",
+              blockReason: meta.blockReason,
+              scores: meta.scores,
+              messageTempId: m.id,
+            });
+          }}
         />
       );
     },
@@ -1615,6 +1876,8 @@ export const ChatScreen: React.FC = () => {
       handleMessageLongPress,
       searchQuery,
       searchResults,
+      pendingAppeals,
+      messagesWithSeparators,
     ],
   );
 
@@ -1638,11 +1901,27 @@ export const ChatScreen: React.FC = () => {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
-          conversationName={conversation?.display_name || "Contact"}
+          conversationName={
+            conversation
+              ? getConversationDisplayName(conversation)
+              : "Conversation"
+          }
           avatarUrl={conversation?.avatar_url}
           conversationType={conversation?.type || "direct"}
+          groupAvatars={
+            conversation?.type === "group"
+              ? conversationMembers
+                  .filter((m) => m.id && m.id !== userId)
+                  .slice(0, 2)
+                  .map((m) => ({
+                    uri: m.avatar_url,
+                    name: m.display_name || m.username || "Utilisateur",
+                  }))
+              : undefined
+          }
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
+          onlineMemberCount={onlineMemberCount}
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}
@@ -1700,6 +1979,8 @@ export const ChatScreen: React.FC = () => {
             maintainVisibleContentPosition={{
               minIndexForVisible: 0,
             }}
+            viewabilityConfig={viewabilityConfig}
+            onViewableItemsChanged={handleViewableItemsChanged}
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               !loading ? (
@@ -1742,7 +2023,9 @@ export const ChatScreen: React.FC = () => {
           visible={showActionsMenu}
           message={selectedMessage}
           isSent={selectedMessage?.sender_id === userId}
-          isPinned={pinnedMessages.some((m) => m.id === selectedMessage?.id)}
+          isPinned={pinnedMessages.some(
+            (m) => (m.messageId ?? m.message?.id) === selectedMessage?.id,
+          )}
           onClose={() => {
             setShowActionsMenu(false);
             setSelectedMessage(null);
@@ -1753,6 +2036,21 @@ export const ChatScreen: React.FC = () => {
           onReact={handleStartReaction}
           onPin={handlePinMessage}
           onForward={handleForwardMessage}
+          onReport={handleOpenReportSheet}
+        />
+        <ReportMessageSheet
+          visible={showReportSheet}
+          message={reportSheetMessage}
+          conversationId={conversationId}
+          conversationTitle={
+            conversation
+              ? getConversationDisplayName(conversation)
+              : "Conversation"
+          }
+          onClose={() => {
+            setShowReportSheet(false);
+            setReportSheetMessage(null);
+          }}
         />
         <ForwardMessageModal
           visible={showForwardModal}
@@ -1782,6 +2080,31 @@ export const ChatScreen: React.FC = () => {
           resolveName={resolveReactorDisplayName}
           onClose={() => setReactionReactorsModal(null)}
         />
+        {appealModal ? (
+          <BlockedImageAppealModal
+            visible={appealModal.visible}
+            onClose={() =>
+              setAppealModal((prev) =>
+                prev ? { ...prev, visible: false } : prev,
+              )
+            }
+            imageUri={appealModal.imageUri}
+            blockReason={appealModal.blockReason}
+            scores={appealModal.scores}
+            messageTempId={appealModal.messageTempId}
+            conversationId={conversationId}
+            recipientId={
+              conversation?.type === "direct"
+                ? (
+                    conversation.member_user_ids ||
+                    conversation.members?.map(
+                      (m: { user_id: string }) => m.user_id,
+                    )
+                  )?.find((id: string) => id !== userId)
+                : undefined
+            }
+          />
+        ) : null}
         <MessageSearch
           visible={showSearch}
           onClose={() => {
@@ -1807,6 +2130,7 @@ export const ChatScreen: React.FC = () => {
           visible={showInfoModal && conversation?.type !== "group"}
           transparent
           animationType="slide"
+          statusBarTranslucent
           onRequestClose={() => {
             setShowInfoModal(false);
           }}
@@ -1846,12 +2170,18 @@ export const ChatScreen: React.FC = () => {
                     <Avatar
                       size={80}
                       uri={conversation?.avatar_url}
-                      name={conversation?.display_name || "Contact"}
+                      name={
+                        conversation
+                          ? getConversationDisplayName(conversation)
+                          : "Contact"
+                      }
                       showOnlineBadge={conversation?.type === "direct"}
                       isOnline={false}
                     />
                     <Text style={styles.infoName}>
-                      {conversation?.display_name || "Contact"}
+                      {conversation
+                        ? getConversationDisplayName(conversation)
+                        : "Contact"}
                     </Text>
                     {conversation?.type === "direct" && (
                       <Text style={styles.infoStatus}>Hors ligne</Text>
@@ -1952,7 +2282,6 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   modalGradient: {
-    flex: 1,
     paddingBottom: 20,
   },
   modalHeader: {

@@ -2,13 +2,18 @@
  * MessageActionsMenu - Context menu for message actions
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { MessageWithRelations } from '../../types/messaging';
+import React from "react";
+import { View, Text, StyleSheet, Modal, TouchableOpacity } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { MessageWithRelations } from "../../types/messaging";
+
+/** Menu : même famille que le chat mais bas très assombri (pas de corail vif sur toute la carte) */
+const MENU_GRADIENT = colors.background.gradient.app;
+/** Bas du dégradé : mélange visuel navy + corail, opaque et sombre */
+const MENU_GRADIENT_BOTTOM = "#2A1820";
 
 interface MessageActionsMenuProps {
   visible: boolean;
@@ -22,6 +27,7 @@ interface MessageActionsMenuProps {
   onReact?: () => void;
   onPin?: () => void;
   onForward?: () => void;
+  onReport?: () => void;
 }
 
 export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
@@ -36,9 +42,9 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
   onReact,
   onPin,
   onForward,
+  onReport,
 }) => {
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+  const { getLocalizedText } = useTheme();
 
   if (!visible || !message) return null;
 
@@ -59,12 +65,10 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
         activeOpacity={1}
         onPress={onClose}
       >
-        <View
-          style={styles.container}
-          onStartShouldSetResponder={() => true}
-        >
+        <View style={styles.container} onStartShouldSetResponder={() => true}>
           <LinearGradient
-            colors={['rgba(26, 31, 58, 0.95)', 'rgba(26, 31, 58, 0.98)']}
+            colors={[MENU_GRADIENT[0], MENU_GRADIENT[1], MENU_GRADIENT_BOTTOM]}
+            locations={[0, 0.48, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.gradientContainer}
@@ -78,7 +82,11 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="happy-outline" size={20} color={colors.primary.main} />
+                <Ionicons
+                  name="happy-outline"
+                  size={20}
+                  color={colors.primary.main}
+                />
                 <Text style={[styles.actionText, { color: colors.text.light }]}>
                   Réagir
                 </Text>
@@ -94,7 +102,11 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="arrow-undo-outline" size={20} color={colors.primary.main} />
+                <Ionicons
+                  name="arrow-undo-outline"
+                  size={20}
+                  color={colors.primary.main}
+                />
                 <Text style={[styles.actionText, { color: colors.text.light }]}>
                   Répondre
                 </Text>
@@ -110,7 +122,11 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="create-outline" size={20} color={colors.primary.main} />
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={colors.primary.main}
+                />
                 <Text style={[styles.actionText, { color: colors.text.light }]}>
                   Modifier
                 </Text>
@@ -132,7 +148,7 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                   color={colors.primary.main}
                 />
                 <Text style={[styles.actionText, { color: colors.text.light }]}>
-                  {isPinned ? 'Désépingler' : 'Épingler'}
+                  {isPinned ? "Désépingler" : "Épingler"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -146,9 +162,33 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="arrow-redo-outline" size={20} color={colors.primary.main} />
+                <Ionicons
+                  name="arrow-redo-outline"
+                  size={20}
+                  color={colors.primary.main}
+                />
                 <Text style={[styles.actionText, { color: colors.text.light }]}>
                   Transférer
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {onReport && (
+              <TouchableOpacity
+                style={styles.actionItem}
+                onPress={() => {
+                  onReport();
+                  onClose();
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="flag-outline"
+                  size={20}
+                  color={colors.ui.warning}
+                />
+                <Text style={[styles.actionText, styles.reportText]}>
+                  {getLocalizedText("report.menuAction")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -161,7 +201,11 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
                   onPress={() => handleDelete(false)}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="trash-outline" size={20} color={colors.ui.error} />
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color={colors.ui.error}
+                  />
                   <Text style={[styles.actionText, styles.dangerText]}>
                     Supprimer pour moi
                   </Text>
@@ -201,16 +245,16 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   container: {
     borderRadius: 20,
     minWidth: 240,
     maxWidth: 280,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -221,29 +265,31 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   actionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
   actionText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     marginLeft: 12,
   },
   dangerText: {
     color: colors.ui.error,
   },
+  reportText: {
+    color: colors.ui.warning,
+    fontWeight: "600",
+  },
   cancelText: {
-    color: colors.text.tertiary,
-    textAlign: 'center',
-    fontWeight: '600',
+    color: "rgba(255, 255, 255, 0.72)",
+    textAlign: "center",
+    fontWeight: "600",
   },
   separator: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     marginVertical: 4,
   },
 });
-
-
