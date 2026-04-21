@@ -2,6 +2,7 @@ import { AuthService } from "./AuthService";
 import { TokenService } from "./TokenService";
 import { getApiBaseUrl } from "./apiBase";
 import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
@@ -211,6 +212,93 @@ export const MediaService = {
     } catch {
       return { url: response.url };
     }
+  },
+
+  /**
+   * Download media to a local cache file (works for protected endpoints).
+   * Useful for React Native <Image> when auth headers are required.
+   */
+  async downloadMediaToCacheFile(id: string): Promise<string> {
+    const token = await TokenService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const cacheRoot =
+      (FileSystem as any).cacheDirectory ??
+      (FileSystem as any).documentDirectory ??
+      "";
+    const cacheDir = `${cacheRoot}avatars/`;
+    await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true }).catch(
+      () => {},
+    );
+    const baseName = `${encodeURIComponent(id)}`;
+    const tmpPath = `${cacheDir}${baseName}.tmp`;
+
+    const result = await FileSystem.downloadAsync(
+      `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`,
+      tmpPath,
+      { headers },
+    );
+
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`Failed to download media file: HTTP ${result.status}`);
+    }
+
+    const contentType =
+      (result as any)?.headers?.["Content-Type"] ??
+      (result as any)?.headers?.["content-type"] ??
+      "";
+
+    const info = (await FileSystem.getInfoAsync(result.uri).catch(
+      () => null,
+    )) as any;
+    const size = typeof info?.size === "number" ? info.size : undefined;
+
+    const tryParseUrl = async () => {
+      const raw = await FileSystem.readAsStringAsync(result.uri).catch(() => "");
+      try {
+        const data = JSON.parse(raw);
+        const url = typeof data?.url === "string" ? data.url : undefined;
+        if (url) return url;
+      } catch {
+        // ignore
+      }
+      return undefined;
+    };
+
+    if (
+      contentType.includes("application/json") ||
+      contentType.includes("text/plain") ||
+      (typeof size === "number" && size > 0 && size < 1024)
+    ) {
+      const url = await tryParseUrl();
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+      if (url) return url;
+      throw new Error("Downloaded avatar is not an image");
+    }
+
+    if (!contentType.startsWith("image/")) {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+      throw new Error(`Downloaded avatar has invalid content-type: ${contentType}`);
+    }
+
+    const ext =
+      contentType.includes("png")
+        ? "png"
+        : contentType.includes("webp")
+          ? "webp"
+          : contentType.includes("heic") || contentType.includes("heif")
+            ? "heic"
+            : "jpg";
+    const finalPath = `${cacheDir}${baseName}.${ext}`;
+    await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(() => {});
+    await FileSystem.moveAsync({ from: result.uri, to: finalPath });
+
+    return finalPath;
   },
 
   /**

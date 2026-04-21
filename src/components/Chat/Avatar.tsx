@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
 import { getApiBaseUrl } from "../../services/apiBase";
 import { MEDIA_API_URL } from "../../config/api";
+import { MediaService } from "../../services/MediaService";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -29,11 +30,19 @@ export const Avatar: React.FC<AvatarProps> = ({
   isOnline = false,
 }) => {
   const [imageError, setImageError] = React.useState(false);
+  const [authFallbackUri, setAuthFallbackUri] = React.useState<string>();
+  const [triedAuthFallback, setTriedAuthFallback] = React.useState(false);
 
   const effectiveUri = React.useMemo(() => {
     if (!uri) return undefined;
     const uuidOnly = uri.match(/^[0-9a-f-]{36}$/i);
     if (uuidOnly) return `${MEDIA_API_URL}/public/${uri}`;
+
+    const anyUuids = uri.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+    if (anyUuids?.length) {
+      const last = anyUuids[anyUuids.length - 1];
+      return `${MEDIA_API_URL}/public/${last}`;
+    }
 
     const directPublic = uri.match(
       /(?:^|\/)media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
@@ -52,18 +61,43 @@ export const Avatar: React.FC<AvatarProps> = ({
       return `${MEDIA_API_URL}/public/${directPublicLegacy[1]}`;
 
     const match = uri.match(
-      /(?:^|\/)(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:\.[a-z0-9]+)?(?:[/?]|$)/i,
     );
     if (match?.[2]) return `${MEDIA_API_URL}/public/${match[2]}`;
 
     const minioMatch = uri.match(
-      /(?:^|\/)whispr-media\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:[/?]|$)/i,
+      /(?:^|\/)whispr-media(?:-[^/]+)?\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:\.[a-z0-9]+)?(?:[/?]|$)/i,
     );
     if (minioMatch?.[2]) return `${MEDIA_API_URL}/public/${minioMatch[2]}`;
 
     if (uri.startsWith("/")) return `${getApiBaseUrl()}${uri}`;
     if (/^https?:\/\//i.test(uri)) return uri;
     return uri;
+  }, [uri]);
+
+  const mediaId = React.useMemo(() => {
+    if (!uri) return undefined;
+    const uuidOnly = uri.match(/^[0-9a-f-]{36}$/i);
+    if (uuidOnly) return uri;
+    const anyUuids = uri.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+    if (anyUuids?.length) return anyUuids[anyUuids.length - 1];
+    const fromPublic = uri.match(
+      /(?:^|\/)media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
+    );
+    if (fromPublic?.[1]) return fromPublic[1];
+    const fromBlob = uri.match(
+      /(?:^|\/)media\/v1\/([0-9a-f-]{36})\/(?:blob|thumbnail)(?:[/?]|$)/i,
+    );
+    if (fromBlob?.[1]) return fromBlob[1];
+    const fromStoragePath = uri.match(
+      /(?:^|\/)(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:\.[a-z0-9]+)?(?:[/?]|$)/i,
+    );
+    if (fromStoragePath?.[2]) return fromStoragePath[2];
+    const fromMinio = uri.match(
+      /(?:^|\/)whispr-media(?:-[^/]+)?\/(avatars|group_icons)\/[0-9a-f-]{36}\/([0-9a-f-]{36})(?:\.[a-z0-9]+)?(?:[/?]|$)/i,
+    );
+    if (fromMinio?.[2]) return fromMinio[2];
+    return undefined;
   }, [uri]);
 
   const initials =
@@ -77,26 +111,40 @@ export const Avatar: React.FC<AvatarProps> = ({
   // Reset error state when URI changes
   React.useEffect(() => {
     setImageError(false);
+    setAuthFallbackUri(undefined);
+    setTriedAuthFallback(false);
   }, [effectiveUri]);
 
-  const shouldShowImage = effectiveUri && !imageError;
+  const resolvedUri = authFallbackUri ?? effectiveUri;
+  const shouldShowImage = resolvedUri && !imageError;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       {shouldShowImage ? (
         <Image
-          source={{ uri: effectiveUri }}
+          source={{ uri: resolvedUri }}
           style={[
             styles.image,
             { width: size, height: size, borderRadius: size / 2 },
           ]}
           resizeMode="cover"
           onError={(error) => {
-            console.log(
-              "[Avatar] Image load error:",
-              effectiveUri,
-              error.nativeEvent?.error,
-            );
+            const msg = error.nativeEvent?.error;
+            if (!triedAuthFallback && mediaId) {
+              setTriedAuthFallback(true);
+              (async () => {
+                try {
+                  const localUri =
+                    await MediaService.downloadMediaToCacheFile(mediaId);
+                  setAuthFallbackUri(localUri);
+                } catch {
+                  console.log("[Avatar] Image load error:", resolvedUri, msg);
+                  setImageError(true);
+                }
+              })();
+              return;
+            }
+            console.log("[Avatar] Image load error:", resolvedUri, msg);
             setImageError(true);
           }}
         />
