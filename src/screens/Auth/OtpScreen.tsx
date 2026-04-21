@@ -115,7 +115,6 @@ export const OtpScreen: React.FC = () => {
    */
   const generateAndUploadSignalKeys = async (): Promise<void> => {
     try {
-      console.log("[OtpScreen] Generating Signal key bundle...");
       const bundle = await SignalKeyService.generateKeyBundle();
 
       // Upload signed prekey (map camelCase DTO → snake_case API)
@@ -124,7 +123,6 @@ export const OtpScreen: React.FC = () => {
         public_key: bundle.signedPreKey.publicKey,
         signature: bundle.signedPreKey.signature,
       });
-      console.log("[OtpScreen] Signed prekey uploaded");
 
       // Upload one-time prekeys
       await SignalKeysService.uploadPrekeys(
@@ -133,7 +131,6 @@ export const OtpScreen: React.FC = () => {
           public_key: pk.publicKey,
         })),
       );
-      console.log("[OtpScreen] One-time prekeys uploaded");
     } catch (err) {
       // Do not block the auth flow — keys can be uploaded later
       console.warn("[OtpScreen] Signal key upload failed (non-blocking):", err);
