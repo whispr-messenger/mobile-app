@@ -50,6 +50,7 @@ import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
 import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
+import { useCallsStore } from "../../store/callsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -1245,6 +1246,24 @@ export const ChatScreen: React.FC = () => {
     navigation.navigate("ScheduledMessages", { conversationId });
   }, [navigation, conversationId]);
 
+  const handleInitiateCall = useCallback(
+    async (type: "audio" | "video") => {
+      if (!conversation) return;
+      const memberIds: string[] =
+        conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
+      const participantIds = memberIds.filter((id) => id && id !== userId);
+      try {
+        await useCallsStore
+          .getState()
+          .initiate(conversationId, type, participantIds);
+        navigation.navigate("InCall");
+      } catch (err) {
+        console.error("Failed to initiate call", err);
+      }
+    },
+    [conversation, conversationMembers, conversationId, userId, navigation],
+  );
+
   const resolveReactorDisplayName = useCallback(
     (uid: string) => {
       if (uid === userId) return "Vous";
@@ -1926,6 +1945,8 @@ export const ChatScreen: React.FC = () => {
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}
+          onAudioCallPress={() => handleInitiateCall("audio")}
+          onVideoCallPress={() => handleInitiateCall("video")}
         />
         {isOtherUserContact === false && (
           <View style={styles.notContactBanner}>
