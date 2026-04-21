@@ -21,6 +21,8 @@ jest.mock('./src/context/ThemeContext', () => ({
     getLocalizedText: (key: string) => key,
     theme: 'dark',
     language: 'fr',
+    settings: { language: 'fr', theme: 'dark', fontSize: 'medium' },
+    updateSettings: jest.fn(),
   }),
 }));
 jest.mock('./src/components', () => ({

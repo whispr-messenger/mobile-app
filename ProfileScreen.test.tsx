@@ -8,6 +8,7 @@ const mockGoBack = jest.fn();
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack, reset: jest.fn() }),
   useRoute: () => ({ params: { firstName: 'John', lastName: 'Doe', username: 'johndoe', phoneNumber: '+33612345678', biography: '' } }),
+  useFocusEffect: (cb: () => void | (() => void)) => { const React = require('react'); React.useEffect(() => cb(), []); },
 }));
 jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: any) => children,
@@ -20,6 +21,16 @@ jest.mock('expo-image-picker', () => ({
   MediaTypeOptions: { Images: 'Images' },
 }));
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
+jest.mock('./src/context/AuthContext', () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    isLoading: false,
+    userId: 'user1',
+    deviceId: 'dev1',
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+  }),
+}));
 jest.mock('./src/components', () => ({
   Logo: () => null,
   Button: ({ title, onPress, disabled }: any) => {
@@ -36,7 +47,10 @@ jest.mock('./src/services', () => ({
   },
 }));
 jest.mock('./src/services/MediaService', () => ({
-  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ url: 'https://cdn.test/img.jpg' }) },
+  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ id: 'media-1', url: 'https://cdn.test/img.jpg' }) },
+}));
+jest.mock('./src/context/AuthContext', () => ({
+  useAuth: () => ({ userId: 'user-123' }),
 }));
 // ProfileScreen uses colors.background.gradient.app from theme/colors (not theme)
 jest.mock('./src/theme/colors', () => ({

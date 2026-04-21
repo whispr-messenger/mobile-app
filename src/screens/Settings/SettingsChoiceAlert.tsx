@@ -59,8 +59,15 @@ export function SettingsChoiceAlert({
       statusBarTranslucent
     >
       <View style={styles.root}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" />
-        <View style={[styles.card, { maxWidth: CARD_MAX }]} accessibilityViewIsModal>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+        />
+        <View
+          style={[styles.card, { maxWidth: CARD_MAX }]}
+          accessibilityViewIsModal
+        >
           <Text style={styles.title} accessibilityRole="header">
             {title}
           </Text>
@@ -133,7 +140,10 @@ export function SettingsChoiceAlert({
           )}
 
           <Pressable
-            style={({ pressed }) => [styles.cancelBtn, pressed && styles.pressedLight]}
+            style={({ pressed }) => [
+              styles.cancelBtn,
+              pressed && styles.pressedLight,
+            ]}
             onPress={onClose}
           >
             <Text style={styles.cancelText}>{cancelLabel}</Text>

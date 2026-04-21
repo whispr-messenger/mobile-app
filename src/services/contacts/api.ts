@@ -49,7 +49,6 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
     const response = await fetch(
       `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
       {
-        cache: "no-store",
         headers: {
           ...(await getAuthHeaders()),
         },
@@ -64,7 +63,12 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
       phone_number: u.phoneNumber ?? u.phone_number,
       first_name: u.firstName ?? u.first_name,
       last_name: u.lastName ?? u.last_name,
-      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      avatar_url:
+        u.profilePictureUrl ??
+        u.profile_picture_url ??
+        u.profilePicture ??
+        u.profile_picture ??
+        u.avatar_url,
       last_seen: u.lastSeen ?? u.last_seen,
       is_active: u.isActive ?? u.is_active ?? true,
     };
@@ -85,7 +89,12 @@ const buildSearchResult = (
       phone_number: u.phoneNumber ?? u.phone_number,
       first_name: u.firstName ?? u.first_name,
       last_name: u.lastName ?? u.last_name,
-      avatar_url: u.profilePictureUrl ?? u.avatar_url,
+      avatar_url:
+        u.profilePictureUrl ??
+        u.profile_picture_url ??
+        u.profilePicture ??
+        u.profile_picture ??
+        u.avatar_url,
       last_seen: u.lastSeen ?? u.last_seen,
       is_active: u.isActive ?? u.is_active ?? true,
     },
@@ -101,13 +110,32 @@ export const contactsAPI = {
   ): Promise<{ contacts: Contact[]; total: number }> {
     const url = `${API_BASE_URL}/contacts`;
     const response = await fetch(url, {
-      cache: "no-store",
       headers: {
         ...(await getAuthHeaders()),
       },
     });
     if (!response.ok) {
-      throw new Error("Failed to fetch contacts");
+      const errorText = await response.text();
+      let errorBody: any = null;
+      try {
+        errorBody = JSON.parse(errorText);
+      } catch {
+        errorBody = null;
+      }
+
+      const errorMessage =
+        errorBody?.data?.message ?? errorBody?.message ?? errorText;
+
+      if (
+        response.status === 404 &&
+        errorMessage?.toLowerCase().includes("no contacts")
+      ) {
+        return { contacts: [], total: 0 };
+      }
+
+      throw new Error(
+        `Failed to fetch contacts (${response.status}): ${errorMessage}`,
+      );
     }
 
     const raw = await response.json();
@@ -178,7 +206,7 @@ export const contactsAPI = {
           "Content-Type": "application/json",
           ...(await getAuthHeaders()),
         },
-        body: JSON.stringify({ nickname: data.nickname }),
+        body: JSON.stringify(data),
       },
     );
 
@@ -416,7 +444,6 @@ export const contactsAPI = {
 
   async getContactRequests(): Promise<ContactRequest[]> {
     const response = await fetch(`${API_BASE_URL}/contact-requests`, {
-      cache: "no-store",
       headers: {
         ...(await getAuthHeaders()),
       },
@@ -441,7 +468,12 @@ export const contactsAPI = {
             phone_number: r.requester.phoneNumber ?? r.requester.phone_number,
             first_name: r.requester.firstName ?? r.requester.first_name,
             last_name: r.requester.lastName ?? r.requester.last_name,
-            avatar_url: r.requester.profilePictureUrl ?? r.requester.avatar_url,
+            avatar_url:
+              r.requester.profilePictureUrl ??
+              r.requester.profile_picture_url ??
+              r.requester.profilePicture ??
+              r.requester.profile_picture ??
+              r.requester.avatar_url,
             last_seen: r.requester.lastSeen ?? r.requester.last_seen,
             is_active: r.requester.isActive ?? r.requester.is_active ?? true,
           }
@@ -453,7 +485,12 @@ export const contactsAPI = {
             phone_number: r.recipient.phoneNumber ?? r.recipient.phone_number,
             first_name: r.recipient.firstName ?? r.recipient.first_name,
             last_name: r.recipient.lastName ?? r.recipient.last_name,
-            avatar_url: r.recipient.profilePictureUrl ?? r.recipient.avatar_url,
+            avatar_url:
+              r.recipient.profilePictureUrl ??
+              r.recipient.profile_picture_url ??
+              r.recipient.profilePicture ??
+              r.recipient.profile_picture ??
+              r.recipient.avatar_url,
             last_seen: r.recipient.lastSeen ?? r.recipient.last_seen,
             is_active: r.recipient.isActive ?? r.recipient.is_active ?? true,
           }
@@ -548,7 +585,6 @@ export const contactsAPI = {
     _limit: number = 50,
   ): Promise<{ blocked: BlockedUser[]; total: number }> {
     const response = await fetch(`${API_BASE_URL}/blocked-users`, {
-      cache: "no-store",
       headers: {
         ...(await getAuthHeaders()),
       },

@@ -3,6 +3,7 @@ export { FormattedText } from "./textFormatter";
 export { logger } from "./logger";
 export { copyToClipboard } from "./clipboard";
 export { toSnakeCase, snakecaseKeys } from "./caseTransform";
+export { isReachableUrl } from "./urlFilters";
 
 /**
  * Format a username for display with a single "@" prefix.
@@ -14,6 +15,16 @@ export const formatUsername = (username: string | undefined | null): string => {
   const clean = username.replace(/^@+/, "");
   if (!clean) return "";
   return `@${clean}`;
+};
+
+export const normalizeUsername = (
+  username: string | undefined | null,
+): string => {
+  const raw = (username ?? "").trim().replace(/^@+/, "").toLowerCase();
+  if (!raw) return "";
+  const normalized = raw.replace(/[^a-z0-9_]/g, "_").slice(0, 20);
+  if (!/[a-z0-9]/.test(normalized)) return "";
+  return normalized;
 };
 
 interface ConversationLike {

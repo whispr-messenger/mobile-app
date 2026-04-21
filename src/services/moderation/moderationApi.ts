@@ -5,6 +5,8 @@ import type {
   Report,
   UserSanction,
   Appeal,
+  AppealEvidence,
+  AppealType,
   ReportStats,
   ConversationSanction,
   AuditLogEntry,
@@ -220,13 +222,20 @@ export const appealsAPI = {
   },
 
   async createAppeal(params: {
-    sanctionId: string;
+    sanctionId?: string | null;
+    type?: AppealType;
     reason: string;
-    evidence?: Record<string, any>;
+    evidence?: AppealEvidence;
   }): Promise<Appeal> {
+    const body = {
+      sanctionId: params.sanctionId ?? null,
+      type: params.type ?? "sanction",
+      reason: params.reason,
+      evidence: params.evidence ?? {},
+    };
     const res = await authenticatedFetch(`${USER_BASE()}/appeals`, {
       method: "POST",
-      body: JSON.stringify(params),
+      body: JSON.stringify(body),
     });
     return parseJson<Appeal>(res);
   },
