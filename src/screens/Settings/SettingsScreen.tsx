@@ -940,7 +940,7 @@ export const SettingsScreen: React.FC = () => {
               getLocalizedText("settings.mySanctionsSubtitle") ||
               "View your sanctions"
             }
-            onPress={() => navigation.navigate("ReportHistory" as never)}
+            onPress={() => navigation.navigate("MySanctions" as never)}
             icon="alert-circle-outline"
           />
           {isStaff && (
