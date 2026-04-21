@@ -1803,7 +1803,11 @@ export const GroupDetailsScreen: React.FC = () => {
                   {member.display_name}
                 </Text>
                 <Text style={styles.modalDescription}>
-                  {member.role === "admin" ? "Administrateur" : "Membre"}
+                  {member.role === "admin"
+                    ? "Administrateur"
+                    : member.role === "moderator"
+                      ? "Modérateur"
+                      : "Membre"}
                 </Text>
               </View>
 
@@ -1815,7 +1819,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 />
               )}
 
-              {member.role === "member" && (
+              {member.role !== "admin" && !isSelf && (
                 <TouchableOpacity
                   style={styles.memberActionRow}
                   onPress={() => handleChangeRole(member, "admin")}
