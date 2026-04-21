@@ -21,6 +21,9 @@ import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
 import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
 import { CallsScreen } from "../screens/Calls/CallsScreen";
+import { IncomingCallScreen } from "../screens/Calls/IncomingCallScreen";
+import { InCallScreen } from "../screens/Calls/InCallScreen";
+import { CallHistoryScreen } from "../screens/Calls/CallHistoryScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
 import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
 import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
@@ -91,6 +94,9 @@ export type AuthStackParamList = {
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
+  IncomingCall: undefined;
+  InCall: undefined;
+  CallHistory: undefined;
   ModerationTest: undefined;
   ModerationDecision:
     | {
@@ -215,6 +221,25 @@ export const AuthNavigator: React.FC = () => {
         component={ScheduledMessagesScreen}
       />
       <Stack.Screen name="Calls" component={CallsScreen} />
+      <Stack.Screen
+        name="IncomingCall"
+        component={IncomingCallScreen}
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="InCall"
+        component={InCallScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="CallHistory"
+        component={CallHistoryScreen}
+        options={{ title: "Appels" }}
+      />
       <Stack.Screen
         name="ModerationDecision"
         component={ModerationDecisionScreen}
