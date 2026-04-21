@@ -23,7 +23,7 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
-import { useModerationStore } from "../../store/moderationStore";
+import { useIsStaff, useModerationStore } from "../../store/moderationStore";
 import { UserService, PrivacySettings } from "../../services/UserService";
 import {
   NotificationService,
@@ -49,7 +49,8 @@ export const SettingsScreen: React.FC = () => {
   } = useTheme();
   const themeColors = getThemeColors();
   const { signOut, userId } = useAuth();
-  const { isModerator, isAdmin, fetchMyRole } = useModerationStore();
+  const { fetchMyRole } = useModerationStore();
+  const isStaff = useIsStaff();
   const insets = useSafeAreaInsets();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
@@ -937,7 +938,7 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => navigation.navigate("ReportHistory" as never)}
             icon="alert-circle-outline"
           />
-          {(isAdmin || isModerator) && (
+          {isStaff && (
             <SettingItem
               label={
                 getLocalizedText("settings.moderationDashboard") ||
