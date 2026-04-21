@@ -23,7 +23,11 @@ jest.mock("@react-navigation/native", () => {
   return {
     useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
     useFocusEffect: (cb: () => void | (() => void)) => {
-      React.useEffect(() => cb(), []);
+      // useLayoutEffect fires synchronously after render, before paint.
+      // useEffect can be deferred by the React scheduler in CI, causing
+      // waitFor timeouts.  useLayoutEffect guarantees the callback runs
+      // within the same act() boundary as the render.
+      React.useLayoutEffect(() => cb(), []);
     },
   };
 });
