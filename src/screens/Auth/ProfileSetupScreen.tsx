@@ -226,6 +226,9 @@ export const ProfileSetupScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.avatarContainer}
               onPress={pickImage}
+              accessibilityRole="button"
+              accessibilityLabel={getLocalizedText("auth.selectPhoto")}
+              accessibilityHint="Ouvre la bibliothèque photo pour choisir une image de profil"
             >
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatar} />
@@ -342,7 +345,13 @@ export const ProfileSetupScreen: React.FC = () => {
               onPress={handleSave}
             />
 
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={handleSkip}
+              accessibilityRole="button"
+              accessibilityLabel={`${getLocalizedText("auth.cancel")} — compléter plus tard`}
+              accessibilityHint="Ignore la configuration du profil pour l'instant"
+            >
               <Text
                 style={[
                   styles.skipText,
