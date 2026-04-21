@@ -333,3 +333,18 @@ export const useModerationStore = create<ModerationState>((set, get) => ({
 
   reset: () => set(initialState),
 }));
+
+/**
+ * Single source of truth for "is the logged-in user admin or moderator?"
+ * Callers should prefer this selector over reading `isAdmin`/`isModerator`
+ * separately so the authorisation check stays consistent between the
+ * visibility gate (SettingsScreen button) and the screen-level AdminGate
+ * (WHISPR-1075).
+ *
+ * Note: this is a CLIENT-side UX gate only. Actual authorisation is enforced
+ * server-side — the admin endpoints on user-service sit behind RolesGuard
+ * (WHISPR-1027) and will 403 any request that doesn't carry an admin/moderator
+ * role, regardless of what the client believes its role is.
+ */
+export const useIsStaff = () =>
+  useModerationStore((state) => state.isAdmin || state.isModerator);
