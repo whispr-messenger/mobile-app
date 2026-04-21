@@ -178,6 +178,7 @@ export const ReportMessageSheet: React.FC<ReportMessageSheetProps> = ({
       const res = await submitContentReport({
         conversationId,
         messageId: message.id,
+        reportedUserId: message.sender_id || "",
         category,
         description: description.trim() || undefined,
       });

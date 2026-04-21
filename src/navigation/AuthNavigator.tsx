@@ -25,6 +25,22 @@ import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
 import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
 import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
 import { ModerationAppealSubmittedScreen } from "../screens/Moderation/ModerationAppealSubmittedScreen";
+import {
+  ReportHistoryScreen,
+  ReportDetailScreen,
+  SanctionNoticeScreen,
+  AppealFormScreen,
+  AppealStatusScreen,
+} from "../screens/Moderation";
+import {
+  ModerationDashboardScreen,
+  ReportQueueScreen,
+  ReportReviewScreen,
+  AppealQueueScreen,
+  AppealReviewScreen,
+  UserModerationScreen,
+  SanctionFormScreen,
+} from "../screens/Admin";
 
 import { useAuth } from "../context/AuthContext";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
@@ -66,7 +82,11 @@ export type AuthStackParamList = {
   MyQRCode: undefined;
   QRCodeScanner: undefined;
   BlockedUsers: undefined;
-  GroupDetails: { groupId: string; conversationId: string };
+  GroupDetails: {
+    groupId: string;
+    conversationId: string;
+    conversationName?: string;
+  };
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
@@ -87,6 +107,20 @@ export type AuthStackParamList = {
     decisionId: string;
     status?: string;
   };
+  // Moderation (user-facing)
+  ReportHistory: undefined;
+  ReportDetail: { reportId: string };
+  SanctionNotice: { sanctionId: string };
+  AppealForm: { sanctionId: string };
+  AppealStatus: { appealId: string };
+  // Admin screens
+  ModerationDashboard: undefined;
+  ReportQueue: undefined;
+  ReportReview: { reportId: string };
+  AppealQueue: undefined;
+  AppealReview: { appealId: string };
+  UserModeration: { userId: string };
+  SanctionForm: { userId: string };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -191,6 +225,27 @@ export const AuthNavigator: React.FC = () => {
         name="ModerationAppealSubmitted"
         component={ModerationAppealSubmittedScreen}
       />
+      {/* Moderation — user-facing */}
+      <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
+      <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+      <Stack.Screen
+        name="SanctionNotice"
+        component={SanctionNoticeScreen}
+        options={{ gestureEnabled: false }}
+      />
+      <Stack.Screen name="AppealForm" component={AppealFormScreen} />
+      <Stack.Screen name="AppealStatus" component={AppealStatusScreen} />
+      {/* Moderation — admin */}
+      <Stack.Screen
+        name="ModerationDashboard"
+        component={ModerationDashboardScreen}
+      />
+      <Stack.Screen name="ReportQueue" component={ReportQueueScreen} />
+      <Stack.Screen name="ReportReview" component={ReportReviewScreen} />
+      <Stack.Screen name="AppealQueue" component={AppealQueueScreen} />
+      <Stack.Screen name="AppealReview" component={AppealReviewScreen} />
+      <Stack.Screen name="UserModeration" component={UserModerationScreen} />
+      <Stack.Screen name="SanctionForm" component={SanctionFormScreen} />
       {__DEV__ && (
         <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
       )}

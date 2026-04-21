@@ -13,7 +13,6 @@ module.exports = ({ config }) => ({
     apiBaseUrl: process.env.API_BASE_URL || 'https://preprod-whispr-api.roadmvn.com',
     devAuthApiUrl: 'http://10.0.2.2:3010',
     devUserApiUrl: 'http://10.0.2.2:3011',
-    /** Pages légales — remplacer par vos URLs (EXPO_PUBLIC_* ou domaine équipe). */
     legalPrivacyUrl:
       process.env.EXPO_PUBLIC_LEGAL_PRIVACY_URL || 'https://whispr.example/privacy',
     legalTermsUrl:

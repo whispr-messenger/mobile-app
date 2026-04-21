@@ -6,7 +6,7 @@ import { AuthService } from "../AuthService";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
-const REPORT_PATH = "/api/v1/moderation/report";
+const REPORT_PATH = "/messaging/api/v1/reports";
 
 export type ReportCategoryId =
   | "offensive"
@@ -19,6 +19,7 @@ export type ReportCategoryId =
 export interface SubmitContentReportPayload {
   conversationId: string;
   messageId: string;
+  reportedUserId: string;
   category: ReportCategoryId;
   description?: string;
 }
@@ -60,6 +61,7 @@ export async function submitContentReport(
 ): Promise<Response> {
   const url = `${getApiBaseUrl()}${REPORT_PATH}`;
   const body = {
+    reported_user_id: payload.reportedUserId,
     conversation_id: payload.conversationId,
     message_id: payload.messageId,
     category: payload.category,
