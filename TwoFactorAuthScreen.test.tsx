@@ -19,19 +19,23 @@ const mockGoBack = jest.fn();
 
 jest.mock("./src/services/TwoFactorService");
 
-// Capture the latest useFocusEffect callback so tests can fire it
-// inside an explicit act() block after render.  Neither useEffect nor
-// useLayoutEffect reliably fire in GitHub Actions CI — the React
-// scheduler can defer them past the Jest timeout.  By capturing the
-// callback and invoking it manually we remove all scheduler dependency.
-let _focusEffectCb: (() => void) | null = null;
-
-jest.mock("@react-navigation/native", () => ({
-  useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
-  useFocusEffect: (cb: () => void | (() => void)) => {
-    _focusEffectCb = cb as () => void;
-  },
-}));
+// useFocusEffect mock: call the callback synchronously during render via
+// a ref guard so it only fires once (mirrors real react-navigation behaviour).
+// Neither useEffect nor useLayoutEffect fire reliably in GitHub Actions CI —
+// the React 19 scheduler defers them past Jest's 5s timeout.
+jest.mock("@react-navigation/native", () => {
+  const React = require("react");
+  return {
+    useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
+    useFocusEffect: (cb: () => void | (() => void)) => {
+      const called = React.useRef(false);
+      if (!called.current) {
+        called.current = true;
+        cb();
+      }
+    },
+  };
+});
 
 jest.mock("./src/context/ThemeContext", () => ({
   useTheme: () => ({
@@ -67,15 +71,14 @@ const mockedTwoFactorService = TwoFactorService as jest.Mocked<
 describe("TwoFactorAuthScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    _focusEffectCb = null;
   });
 
-  /** Render the screen then manually fire the useFocusEffect callback. */
+  /** Render the screen then flush the async getStatus() promise triggered by useFocusEffect. */
   async function renderAndLoad() {
     const utils = render(<TwoFactorAuthScreen />);
-    await act(async () => {
-      _focusEffectCb?.();
-    });
+    // The mock useFocusEffect fires cb() synchronously during render, which
+    // calls getStatus().then(…).  Flush that microtask + resulting setState.
+    await act(async () => {});
     return utils;
   }
 
