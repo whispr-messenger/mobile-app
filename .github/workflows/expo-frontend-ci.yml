@@ -50,7 +50,36 @@ jobs:
         run: npm run type-check
 
       - name: Run tests
-        run: npm test -- --watchAll=false --passWithNoTests
+        run: npm test -- --watchAll=false --passWithNoTests --coverage
+
+      - name: Check SonarCloud secrets
+        id: check-secrets
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          if [[ -n "$SONAR_TOKEN" && -n "$SONAR_HOST_URL" ]]; then
+            echo "secrets-available=true" >> $GITHUB_OUTPUT
+          else
+            echo "secrets-available=false" >> $GITHUB_OUTPUT
+            echo "SonarCloud secrets not configured. Skipping analysis."
+          fi
+
+      - name: SonarCloud Analysis
+        if: ${{ steps.check-secrets.outputs.secrets-available == 'true' }}
+        uses: sonarsource/sonarqube-scan-action@fd88b7d7ccbaefd23d8f36f73b59db7a3d246602 # v6.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: SonarCloud Quality Gate
+        if: ${{ steps.check-secrets.outputs.secrets-available == 'true' }}
+        uses: sonarsource/sonarqube-quality-gate-action@cf038b0e0cdecfa9e56c198bbb7d21d751d62c3b # v1.2.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -66,12 +95,21 @@ jobs:
           retention-days: 30
 
   # ================================
+  # Security Scanning
+  # ================================
+  security:
+    name: 🛡️ Security Analysis
+    uses: ./.github/workflows/trivy.yml
+    with:
+      ref: ${{ github.ref }}
+
+  # ================================
   # Docker Build
   # ================================
   docker:
     name: 📦 Container Registry
-    needs: [tests]
-    if: always()
+    needs: [tests, security]
+    if: success()
     uses: ./.github/workflows/docker.yml
     with:
       ref: ${{ github.ref }}
