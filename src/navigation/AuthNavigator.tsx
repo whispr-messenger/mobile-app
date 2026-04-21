@@ -29,6 +29,7 @@ import {
   ReportHistoryScreen,
   ReportDetailScreen,
   SanctionNoticeScreen,
+  MySanctionsScreen,
   AppealFormScreen,
   AppealStatusScreen,
 } from "../screens/Moderation";
@@ -110,6 +111,7 @@ export type AuthStackParamList = {
   // Moderation (user-facing)
   ReportHistory: undefined;
   ReportDetail: { reportId: string };
+  MySanctions: undefined;
   SanctionNotice: { sanctionId: string };
   AppealForm: { sanctionId: string };
   AppealStatus: { appealId: string };
@@ -228,6 +230,7 @@ export const AuthNavigator: React.FC = () => {
       {/* Moderation — user-facing */}
       <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
       <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+      <Stack.Screen name="MySanctions" component={MySanctionsScreen} />
       <Stack.Screen
         name="SanctionNotice"
         component={SanctionNoticeScreen}
