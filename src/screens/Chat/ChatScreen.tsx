@@ -196,7 +196,7 @@ export const ChatScreen: React.FC = () => {
       isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
     },
   ).current;
-  const { getThemeColors } = useTheme();
+  const { getThemeColors, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
   const { userId: rawUserId } = useAuth();
@@ -660,7 +660,10 @@ export const ChatScreen: React.FC = () => {
     try {
       setAddingContact(true);
       await contactsAPI.sendContactRequest(otherUserId);
-      showAlert("Demande envoyée", "Votre demande de contact a été envoyée.");
+      showAlert(
+        getLocalizedText("chat.requestSentTitle"),
+        getLocalizedText("chat.requestSentMessage"),
+      );
       setIsOtherUserContact(null); // Hide banner after sending
     } catch (error: any) {
       showAlert(
@@ -832,7 +835,10 @@ export const ChatScreen: React.FC = () => {
           setEditingMessage(null);
         } catch (error) {
           logger.error("ChatScreen", "Error editing message", error);
-          Alert.alert("Erreur", "Impossible de modifier le message");
+          Alert.alert(
+            getLocalizedText("notif.error"),
+            getLocalizedText("chat.errorEditMessage"),
+          );
           setEditingMessage(null);
         }
         return;
@@ -1233,7 +1239,10 @@ export const ChatScreen: React.FC = () => {
         );
       } catch (error) {
         logger.error("ChatScreen", "Error scheduling message", error);
-        Alert.alert("Erreur", "Impossible de programmer le message.");
+        Alert.alert(
+          getLocalizedText("notif.error"),
+          getLocalizedText("chat.errorScheduleMessage"),
+        );
       }
       setScheduleMessageText("");
     },
@@ -1513,7 +1522,10 @@ export const ChatScreen: React.FC = () => {
         await loadPinnedMessages();
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
-        Alert.alert("Erreur", "Impossible de supprimer le message");
+        Alert.alert(
+          getLocalizedText("notif.error"),
+          getLocalizedText("chat.errorDeleteMessage"),
+        );
       }
     },
     [selectedMessage, conversationId, loadPinnedMessages],
