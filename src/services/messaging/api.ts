@@ -599,19 +599,6 @@ export const messagingAPI = {
       is_active?: boolean;
     }>
   > {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
-    );
-
-    if (!response.ok) {
-      throw httpError("Failed to fetch conversation members", response);
-    }
-
-    const data = await unwrap(response);
-    if (!Array.isArray(data)) {
-      return [];
-    }
-
     type BackendMember = {
       userId?: string;
       user_id?: string;
@@ -625,7 +612,33 @@ export const messagingAPI = {
       display_name?: string;
     };
 
-    const rawMembers = data as BackendMember[];
+    let rawMembers: BackendMember[] = [];
+
+    try {
+      const conv = await messagingAPI.getConversation(conversationId);
+      const fromConv = (conv as { members?: BackendMember[] }).members;
+      if (Array.isArray(fromConv) && fromConv.length > 0) {
+        rawMembers = fromConv;
+      }
+    } catch {
+      /* GET /conversations/:id peut échouer — on tente /members ci-dessous */
+    }
+
+    if (rawMembers.length === 0) {
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
+      );
+      if (response.ok) {
+        const data = await unwrap(response);
+        if (Array.isArray(data)) {
+          rawMembers = data as BackendMember[];
+        }
+      }
+    }
+
+    if (rawMembers.length === 0) {
+      return [];
+    }
 
     // Resolve display name and avatar for each member via /user/v1/profile/:userId
     // in parallel to avoid sequential N+1.
@@ -641,8 +654,12 @@ export const messagingAPI = {
       async (member) => {
         const userId = member.userId ?? member.user_id ?? member.id ?? "";
         const rawRole = (member.role ?? "member").toLowerCase();
-        const role: "admin" | "moderator" | "member" =
-          rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+        let role: "admin" | "moderator" | "member" = "member";
+        if (rawRole === "admin" || rawRole === "owner") {
+          role = "admin";
+        } else if (rawRole === "moderator") {
+          role = "moderator";
+        }
 
         let displayName = member.display_name || member.username || "";
         let avatarUrl: string | undefined;
