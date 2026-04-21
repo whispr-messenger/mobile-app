@@ -18,19 +18,21 @@ const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 
 jest.mock("./src/services/TwoFactorService");
-jest.mock("@react-navigation/native", () => {
-  const React = require("react");
-  return {
-    useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
-    useFocusEffect: (cb: () => void | (() => void)) => {
-      // useLayoutEffect fires synchronously after render, before paint.
-      // useEffect can be deferred by the React scheduler in CI, causing
-      // waitFor timeouts.  useLayoutEffect guarantees the callback runs
-      // within the same act() boundary as the render.
-      React.useLayoutEffect(() => cb(), []);
-    },
-  };
-});
+
+// Capture the latest useFocusEffect callback so tests can fire it
+// inside an explicit act() block after render.  Neither useEffect nor
+// useLayoutEffect reliably fire in GitHub Actions CI — the React
+// scheduler can defer them past the Jest timeout.  By capturing the
+// callback and invoking it manually we remove all scheduler dependency.
+let _focusEffectCb: (() => void) | null = null;
+
+jest.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    _focusEffectCb = cb as () => void;
+  },
+}));
+
 jest.mock("./src/context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -65,42 +67,38 @@ const mockedTwoFactorService = TwoFactorService as jest.Mocked<
 describe("TwoFactorAuthScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    _focusEffectCb = null;
   });
 
-  /** Wait for the mocked getStatus call to resolve and the component to re-render. */
-  async function waitForLoad(
-    utils: ReturnType<typeof render>,
-  ): Promise<ReturnType<typeof render>> {
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
-    );
-    // Flush the state updates triggered by the resolved promise.
-    await act(async () => {});
+  /** Render the screen then manually fire the useFocusEffect callback. */
+  async function renderAndLoad() {
+    const utils = render(<TwoFactorAuthScreen />);
+    await act(async () => {
+      _focusEffectCb?.();
+    });
     return utils;
   }
 
   it("renders switch OFF when getStatus returns enabled: false", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const utils = render(<TwoFactorAuthScreen />);
-    await waitForLoad(utils);
+    const { getByRole } = await renderAndLoad();
 
-    expect(utils.getByRole("switch").props.value).toBe(false);
+    expect(getByRole("switch").props.value).toBe(false);
   });
 
   it("renders switch ON when getStatus returns enabled: true", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const utils = render(<TwoFactorAuthScreen />);
-    await waitForLoad(utils);
+    const { getByRole } = await renderAndLoad();
 
-    expect(utils.getByRole("switch").props.value).toBe(true);
+    expect(getByRole("switch").props.value).toBe(true);
   });
 
   it("navigates to TwoFactorSetup when toggle is turned ON", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const { getByRole } = await waitForLoad(render(<TwoFactorAuthScreen />));
+    const { getByRole } = await renderAndLoad();
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", true);
@@ -112,9 +110,7 @@ describe("TwoFactorAuthScreen", () => {
   it("shows disable card when toggle is turned OFF", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole, getByPlaceholderText } = await waitForLoad(
-      render(<TwoFactorAuthScreen />),
-    );
+    const { getByRole, getByPlaceholderText } = await renderAndLoad();
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", false);
@@ -126,9 +122,8 @@ describe("TwoFactorAuthScreen", () => {
   it("shows error toast when disable code is too short", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole, getByPlaceholderText, getAllByText } = await waitForLoad(
-      render(<TwoFactorAuthScreen />),
-    );
+    const { getByRole, getByPlaceholderText, getAllByText } =
+      await renderAndLoad();
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", false);
@@ -153,7 +148,7 @@ describe("TwoFactorAuthScreen", () => {
       getByPlaceholderText,
       getAllByText,
       queryByPlaceholderText,
-    } = await waitForLoad(render(<TwoFactorAuthScreen />));
+    } = await renderAndLoad();
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", false);
@@ -179,7 +174,7 @@ describe("TwoFactorAuthScreen", () => {
 
     const alertSpy = jest.spyOn(require("react-native").Alert, "alert");
 
-    const { getByText } = await waitForLoad(render(<TwoFactorAuthScreen />));
+    const { getByText } = await renderAndLoad();
 
     const viewCodesButton = getByText("twoFactor.regenerateCodes");
     await act(async () => {
