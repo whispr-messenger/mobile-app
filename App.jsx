@@ -1,10 +1,9 @@
 import "react-native-gesture-handler";
-import { registerGlobals } from "@livekit/react-native";
+// WHISPR-calls: Metro resolves bootstrap.native vs bootstrap.web based on
+// platform — native runs registerGlobals() from @livekit/react-native,
+// web is a no-op (no native WebRTC bindings to install).
+import "./src/services/calls/bootstrap";
 import { enableScreens } from "react-native-screens";
-
-// WHISPR-calls: LiveKit requires registerGlobals() once at app bootstrap,
-// before any Room/track usage. Must run on native platforms only.
-registerGlobals();
 import { useCallback, useEffect } from "react";
 import { Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
