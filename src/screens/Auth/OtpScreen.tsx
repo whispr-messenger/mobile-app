@@ -294,6 +294,9 @@ export const OtpScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            accessibilityHint="Retour à la saisie du numéro de téléphone"
           >
             <Text style={[styles.backText, { color: themeColors.primary }]}>
               ←
@@ -406,7 +409,14 @@ export const OtpScreen: React.FC = () => {
                 {getLocalizedText("auth.resendIn")} {resendCountdown}s
               </Text>
             ) : (
-              <TouchableOpacity onPress={handleResend} disabled={resending}>
+              <TouchableOpacity
+                onPress={handleResend}
+                disabled={resending}
+                accessibilityRole="button"
+                accessibilityLabel={getLocalizedText("auth.resendCode")}
+                accessibilityHint="Demande un nouvel envoi du code par SMS"
+                accessibilityState={{ disabled: resending }}
+              >
                 <Text
                   style={[
                     styles.resendLink,
