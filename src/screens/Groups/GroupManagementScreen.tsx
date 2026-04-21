@@ -102,7 +102,7 @@ export const GroupManagementScreen: React.FC = () => {
       setLoading(true);
       const [details, membersData] = await Promise.all([
         groupsAPI.getGroupDetails(groupId, conversationId),
-        groupsAPI.getGroupMembers(groupId),
+        groupsAPI.getGroupMembers(groupId, { conversationId }),
       ]);
 
       setGroupDetails(details);
@@ -143,9 +143,13 @@ export const GroupManagementScreen: React.FC = () => {
     try {
       setSaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const updated = await groupsAPI.updateGroup(groupId, {
-        name: newName.trim(),
-      });
+      const updated = await groupsAPI.updateGroup(
+        groupId,
+        {
+          name: newName.trim(),
+        },
+        conversationId,
+      );
       setGroupDetails(updated);
       setEditingName(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -170,9 +174,13 @@ export const GroupManagementScreen: React.FC = () => {
     try {
       setSaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const updated = await groupsAPI.updateGroup(groupId, {
-        description: newDescription.trim() || undefined,
-      });
+      const updated = await groupsAPI.updateGroup(
+        groupId,
+        {
+          description: newDescription.trim() || undefined,
+        },
+        conversationId,
+      );
       setGroupDetails(updated);
       setEditingDescription(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -223,9 +231,13 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(groupId, {
-                  picture_url: result.assets[0].uri,
-                });
+                const updated = await groupsAPI.updateGroup(
+                  groupId,
+                  {
+                    picture_url: result.assets[0].uri,
+                  },
+                  conversationId,
+                );
                 setGroupDetails(updated);
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
@@ -267,9 +279,13 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(groupId, {
-                  picture_url: result.assets[0].uri,
-                });
+                const updated = await groupsAPI.updateGroup(
+                  groupId,
+                  {
+                    picture_url: result.assets[0].uri,
+                  },
+                  conversationId,
+                );
                 setGroupDetails(updated);
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
@@ -310,7 +326,11 @@ export const GroupManagementScreen: React.FC = () => {
             onPress: async () => {
               try {
                 setSaving(true);
-                await groupsAPI.removeMember(groupId, member.id);
+                await groupsAPI.removeMember(
+                  groupId,
+                  member.id,
+                  conversationId,
+                );
                 await loadGroupData();
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
@@ -361,7 +381,11 @@ export const GroupManagementScreen: React.FC = () => {
             onPress: async () => {
               try {
                 setSaving(true);
-                await groupsAPI.transferAdmin(groupId, member.user_id);
+                await groupsAPI.transferAdmin(
+                  groupId,
+                  member.user_id,
+                  conversationId,
+                );
                 await loadGroupData();
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
@@ -482,7 +506,7 @@ export const GroupManagementScreen: React.FC = () => {
         };
       });
 
-      await groupsAPI.addMembers(groupId, userIds, memberInfo);
+      await groupsAPI.addMembers(groupId, userIds, memberInfo, conversationId);
       await loadGroupData();
       setSelectedContacts(new Set());
       setShowAddMembersModal(false);
