@@ -37,6 +37,10 @@ jest.mock("@react-navigation/native", () => {
   };
 });
 
+// Increase default test timeout for CI — the React 19 scheduler in GitHub
+// Actions (Node 22) can take >5s to flush microtasks from mocked promises.
+jest.setTimeout(15_000);
+
 jest.mock("./src/context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -73,12 +77,27 @@ describe("TwoFactorAuthScreen", () => {
     jest.clearAllMocks();
   });
 
-  /** Render the screen then flush the async getStatus() promise triggered by useFocusEffect. */
+  /**
+   * Render the screen and wait until the loading spinner is replaced by real
+   * content (the Switch).  The mock useFocusEffect fires cb() synchronously
+   * during render which triggers getStatus().then(…).finally(() => setLoading(false)).
+   *
+   * In CI (GitHub Actions / Node 22), the React 19 scheduler can delay flushing
+   * microtasks from mocked promises far longer than locally.  We use waitFor
+   * with an explicit 10s timeout to poll until getStatus has been called AND
+   * its resolved value has flushed through setState.
+   */
   async function renderAndLoad() {
     const utils = render(<TwoFactorAuthScreen />);
-    // The mock useFocusEffect fires cb() synchronously during render, which
-    // calls getStatus().then(…).  Flush that microtask + resulting setState.
-    await act(async () => {});
+    await waitFor(
+      () => {
+        // getStatus must have been called (useFocusEffect callback fired)
+        expect(mockedTwoFactorService.getStatus).toHaveBeenCalled();
+        // AND the loading spinner must be gone (promise chain flushed)
+        utils.getByRole("switch");
+      },
+      { timeout: 10_000 },
+    );
     return utils;
   }
 
