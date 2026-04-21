@@ -24,6 +24,7 @@ import {
   useNavigation,
   useRoute,
   useFocusEffect,
+  type RouteProp,
 } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
@@ -79,8 +80,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { userId: currentUserId } = useAuth();
   const navigation = useNavigation<NavigationProp>();
-  const route = useRoute();
-  const params = (route as any)?.params as RouteParams | undefined;
+  const route = useRoute<RouteProp<{ Profile: RouteParams }, "Profile">>();
+  const params = route.params;
   // ProfileScreen params loaded
 
   // States

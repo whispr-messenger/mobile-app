@@ -57,7 +57,7 @@ export interface Message {
   edited_at?: string;
   is_deleted: boolean;
   delete_for_everyone?: boolean;
-  status?: "sending" | "sent" | "delivered" | "read" | "failed";
+  status?: "sending" | "queued" | "sent" | "delivered" | "read" | "failed";
   reply_to?: Message; // Populated reply chain
 }
 
@@ -71,7 +71,7 @@ export interface DeliveryStatus {
 }
 
 export interface MessageWithStatus extends Message {
-  status: "sending" | "sent" | "delivered" | "read" | "failed";
+  status: "sending" | "queued" | "sent" | "delivered" | "read" | "failed";
   delivery_statuses?: DeliveryStatus[];
 }
 
