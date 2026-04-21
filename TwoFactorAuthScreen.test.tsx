@@ -66,35 +66,29 @@ describe("TwoFactorAuthScreen", () => {
   it("renders switch OFF when getStatus returns enabled: false", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const { getByRole } = render(<TwoFactorAuthScreen />);
+    const { findByRole } = render(<TwoFactorAuthScreen />);
 
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
-    );
-    expect(getByRole("switch").props.value).toBe(false);
+    const toggle = await findByRole("switch");
+    expect(toggle.props.value).toBe(false);
   });
 
   it("renders switch ON when getStatus returns enabled: true", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole } = render(<TwoFactorAuthScreen />);
+    const { findByRole } = render(<TwoFactorAuthScreen />);
 
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
-    );
-    expect(getByRole("switch").props.value).toBe(true);
+    const toggle = await findByRole("switch");
+    expect(toggle.props.value).toBe(true);
   });
 
   it("navigates to TwoFactorSetup when toggle is turned ON", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const { getByRole } = render(<TwoFactorAuthScreen />);
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
-    );
+    const { findByRole } = render(<TwoFactorAuthScreen />);
+    const toggle = await findByRole("switch");
 
     await act(async () => {
-      fireEvent(getByRole("switch"), "valueChange", true);
+      fireEvent(toggle, "valueChange", true);
     });
 
     expect(mockNavigate).toHaveBeenCalledWith("TwoFactorSetup");
@@ -103,13 +97,13 @@ describe("TwoFactorAuthScreen", () => {
   it("shows disable card when toggle is turned OFF", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole, getByPlaceholderText } = render(<TwoFactorAuthScreen />);
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
+    const { findByRole, getByPlaceholderText } = render(
+      <TwoFactorAuthScreen />,
     );
+    const toggle = await findByRole("switch");
 
     await act(async () => {
-      fireEvent(getByRole("switch"), "valueChange", false);
+      fireEvent(toggle, "valueChange", false);
     });
 
     expect(getByPlaceholderText("twoFactor.enterCode")).toBeTruthy();
@@ -118,15 +112,13 @@ describe("TwoFactorAuthScreen", () => {
   it("shows error toast when disable code is too short", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole, getByPlaceholderText, getAllByText } = render(
+    const { findByRole, getByPlaceholderText, getAllByText } = render(
       <TwoFactorAuthScreen />,
     );
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
-    );
+    const toggle = await findByRole("switch");
 
     await act(async () => {
-      fireEvent(getByRole("switch"), "valueChange", false);
+      fireEvent(toggle, "valueChange", false);
     });
     fireEvent.changeText(getByPlaceholderText("twoFactor.enterCode"), "123");
 
@@ -144,17 +136,15 @@ describe("TwoFactorAuthScreen", () => {
     mockedTwoFactorService.disable.mockResolvedValue(undefined);
 
     const {
-      getByRole,
+      findByRole,
       getByPlaceholderText,
       getAllByText,
       queryByPlaceholderText,
     } = render(<TwoFactorAuthScreen />);
-    await waitFor(() =>
-      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
-    );
+    const toggle = await findByRole("switch");
 
     await act(async () => {
-      fireEvent(getByRole("switch"), "valueChange", false);
+      fireEvent(toggle, "valueChange", false);
     });
     fireEvent.changeText(getByPlaceholderText("twoFactor.enterCode"), "654321");
 
