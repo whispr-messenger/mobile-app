@@ -88,6 +88,14 @@ function showAlert(title: string, message: string): void {
   }
 }
 
+// WHISPR-1074: FlatList items are either messages or date separators.
+// Centralising the union + guard removes the `(item as any).type === "date"`
+// casts sprinkled through the render paths.
+type DateSeparatorItem = { type: "date"; date: Date; id: string };
+type ChatListItem = MessageWithRelations | DateSeparatorItem;
+const isDateSeparator = (item: ChatListItem): item is DateSeparatorItem =>
+  (item as DateSeparatorItem).type === "date";
+
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
   "Chat"
@@ -224,7 +232,13 @@ export const ChatScreen: React.FC = () => {
         return next;
       });
     },
-    onNewMessage: (message: Message) => {
+    onNewMessage: (incoming: Message) => {
+      // WHISPR-1074: the socket may ship the enriched form (attachments,
+      // status, delivery_statuses). The hook types the payload as the base
+      // Message so we widen once here and drop the per-field `as any`
+      // casts below. Missing fields stay undefined and the `||` fallbacks
+      // still kick in, so behaviour is unchanged.
+      const message = incoming as MessageWithRelations;
       if (message.conversation_id === conversationId) {
         setMessages((prev) => {
           // Check if message already exists (avoid duplicates)
@@ -236,10 +250,8 @@ export const ChatScreen: React.FC = () => {
                     // Preserve attachments from the optimistic message when the
                     // WebSocket echo doesn't carry them (server Message has no
                     // attachments array).
-                    attachments:
-                      (message as any).attachments ||
-                      (m as MessageWithRelations).attachments,
-                    status: (message as any).status || ("sent" as const),
+                    attachments: message.attachments || m.attachments,
+                    status: message.status || ("sent" as const),
                   }
                 : m,
             );
@@ -254,13 +266,11 @@ export const ChatScreen: React.FC = () => {
             optimisticByClientRandom === -1 && message.sender_id === userId
               ? prev.findIndex((m) => {
                   if (!m.id.startsWith("temp-")) return false;
-                  if ((m as any).status !== "sending") return false;
-                  if ((m as any).message_type !== (message as any).message_type)
-                    return false;
-                  if ((m as any).content !== (message as any).content)
-                    return false;
-                  const a = new Date((m as any).sent_at).getTime();
-                  const b = new Date((message as any).sent_at).getTime();
+                  if (m.status !== "sending") return false;
+                  if (m.message_type !== message.message_type) return false;
+                  if (m.content !== message.content) return false;
+                  const a = new Date(m.sent_at).getTime();
+                  const b = new Date(message.sent_at).getTime();
                   return (
                     Number.isFinite(a) &&
                     Number.isFinite(b) &&
@@ -274,22 +284,20 @@ export const ChatScreen: React.FC = () => {
               : optimisticByHeuristic;
 
           if (optimisticMessageIndex !== -1) {
-            const existing = prev[
-              optimisticMessageIndex
-            ] as MessageWithRelations;
+            const existing = prev[optimisticMessageIndex];
             const newMessages = [...prev];
             newMessages[optimisticMessageIndex] = {
               ...message,
               // Preserve attachments from the optimistic message
-              attachments: (message as any).attachments || existing.attachments,
-              status: (message as any).status || ("sent" as const),
+              attachments: message.attachments || existing.attachments,
+              status: message.status || ("sent" as const),
             };
             return newMessages;
           }
           return [
             {
               ...message,
-              status: (message as any).status || ("sent" as const),
+              status: message.status || ("sent" as const),
             },
             ...prev,
           ];
@@ -457,7 +465,10 @@ export const ChatScreen: React.FC = () => {
             setMessages((prev) =>
               prev.map((m) =>
                 m.client_random === queued.client_random
-                  ? { ...(sent as any), status: "sent" }
+                  ? {
+                      ...(sent as MessageWithRelations),
+                      status: "sent" as const,
+                    }
                   : m,
               ),
             );
@@ -598,7 +609,7 @@ export const ChatScreen: React.FC = () => {
                   metadata: {
                     ...(m.metadata || {}),
                     appealRejected: true,
-                  } as any,
+                  },
                   content: "Refusée par l'admin",
                 }
               : m,
@@ -687,17 +698,18 @@ export const ChatScreen: React.FC = () => {
                   msg.message_type === "system"),
             ) // Include all message types
             .map(async (msg) => {
+              // WHISPR-1074: the backend may ship the enriched shape
+              // (delivery_statuses + status). Widen once instead of
+              // per-field casts below.
+              const enriched = msg as MessageWithRelations;
               // Derive delivery status: prefer explicit status, then check delivery_statuses array
-              let status: "sending" | "sent" | "delivered" | "read" | "failed" =
-                (msg as any)?.status || ("sent" as const);
-              if (
-                status === "sent" &&
-                (msg as any)?.delivery_statuses?.length
-              ) {
-                const ds = (msg as any).delivery_statuses;
-                if (ds.some((d: any) => d.read_at)) {
+              let status: NonNullable<MessageWithRelations["status"]> =
+                enriched.status || ("sent" as const);
+              if (status === "sent" && enriched.delivery_statuses?.length) {
+                const ds = enriched.delivery_statuses;
+                if (ds.some((d) => d.read_at)) {
                   status = "read";
-                } else if (ds.some((d: any) => d.delivered_at)) {
+                } else if (ds.some((d) => d.delivered_at)) {
                   status = "delivered";
                 }
               }
@@ -865,7 +877,7 @@ export const ChatScreen: React.FC = () => {
         await offlineQueue.enqueue(queued);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === tempMessage.id ? { ...m, status: "queued" as any } : m,
+            m.id === tempMessage.id ? { ...m, status: "queued" as const } : m,
           ),
         );
         return;
@@ -888,8 +900,8 @@ export const ChatScreen: React.FC = () => {
               m.client_random === tempMessage.client_random
             ) {
               const updated: MessageWithRelations = {
-                ...(sent as any),
-                status: "sent",
+                ...(sent as MessageWithRelations),
+                status: "sent" as const,
                 reply_to: tempMessage.reply_to,
               };
               return updated;
@@ -1041,7 +1053,7 @@ export const ChatScreen: React.FC = () => {
                         blockReason: blockedReason,
                         scores: gateResult.scores,
                         localUri: uri,
-                      } as any,
+                      },
                     }
                   : m,
               ),
@@ -1317,9 +1329,7 @@ export const ChatScreen: React.FC = () => {
     // In an inverted list, index 0 renders at the bottom, so we need
     // date separators to appear AFTER (higher index = visually above)
     // the last message of each date group.
-    const result: Array<
-      MessageWithRelations | { type: "date"; date: Date; id: string }
-    > = [];
+    const result: Array<ChatListItem> = [];
 
     messages.forEach((message, index) => {
       const messageDate = new Date(message.sent_at);
@@ -1339,7 +1349,7 @@ export const ChatScreen: React.FC = () => {
           type: "date",
           date: messageDate,
           id: `date-${dateKey}`,
-        } as any);
+        });
       }
     });
 
@@ -1370,9 +1380,7 @@ export const ChatScreen: React.FC = () => {
   const scrollToMessage = useCallback(
     (messageId: string) => {
       const index = messagesWithSeparators.findIndex(
-        (item) =>
-          !(item as any).type &&
-          (item as MessageWithRelations).id === messageId,
+        (item) => !isDateSeparator(item) && item.id === messageId,
       );
 
       if (index !== -1 && flatListRef.current) {
@@ -1609,10 +1617,13 @@ export const ChatScreen: React.FC = () => {
           // Server returned results — map them to MessageWithRelations
           results = apiResults
             .filter((msg) => msg.message_type !== "system" && !msg.is_deleted)
-            .map((msg) => ({
-              ...msg,
-              status: (msg as any).status || ("sent" as const),
-            }));
+            .map((msg) => {
+              const enriched = msg as MessageWithRelations;
+              return {
+                ...enriched,
+                status: enriched.status || ("sent" as const),
+              };
+            });
         } else {
           // Fallback: client-side search on loaded messages
           results = messages.filter((msg) => {
@@ -1629,9 +1640,7 @@ export const ChatScreen: React.FC = () => {
         if (results.length > 0 && flatListRef.current) {
           setTimeout(() => {
             const firstResultIndex = messagesWithSeparators.findIndex(
-              (item) =>
-                !(item as any).type &&
-                (item as MessageWithRelations).id === results[0].id,
+              (item) => !isDateSeparator(item) && item.id === results[0].id,
             );
 
             if (firstResultIndex !== -1 && flatListRef.current) {
@@ -1677,9 +1686,7 @@ export const ChatScreen: React.FC = () => {
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
-          (item) =>
-            !(item as any).type &&
-            (item as MessageWithRelations).id === result.id,
+          (item) => !isDateSeparator(item) && item.id === result.id,
         );
         if (resultIndex !== -1 && flatListRef.current) {
           try {
@@ -1721,9 +1728,7 @@ export const ChatScreen: React.FC = () => {
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
-          (item) =>
-            !(item as any).type &&
-            (item as MessageWithRelations).id === result.id,
+          (item) => !isDateSeparator(item) && item.id === result.id,
         );
         if (resultIndex !== -1 && flatListRef.current) {
           try {
@@ -1791,19 +1796,13 @@ export const ChatScreen: React.FC = () => {
   }, [conversation, navigation]);
 
   const renderItem = useCallback(
-    ({
-      item,
-      index,
-    }: {
-      item: MessageWithRelations | { type: "date"; date: Date; id: string };
-      index: number;
-    }) => {
+    ({ item, index }: { item: ChatListItem; index: number }) => {
       // Check if it's a date separator
-      if ((item as any).type === "date") {
-        return <DateSeparator date={(item as any).date} />;
+      if (isDateSeparator(item)) {
+        return <DateSeparator date={item.date} />;
       }
 
-      const message = item as MessageWithRelations;
+      const message = item;
 
       // Handle system messages
       if (message.message_type === "system") {
@@ -1834,9 +1833,9 @@ export const ChatScreen: React.FC = () => {
         const prev = messagesWithSeparators[index + 1];
         if (
           prev &&
-          (prev as any).type !== "date" &&
-          (prev as MessageWithRelations).sender_id === message.sender_id &&
-          (prev as MessageWithRelations).message_type !== "system"
+          !isDateSeparator(prev) &&
+          prev.sender_id === message.sender_id &&
+          prev.message_type !== "system"
         ) {
           isConsecutive = true;
         }
@@ -1860,7 +1859,8 @@ export const ChatScreen: React.FC = () => {
           searchQuery={searchQuery}
           pendingAppeal={pendingAppeals[message.id]}
           onContest={(m) => {
-            const meta = (m.metadata || {}) as any;
+            // metadata is already Record<string, any>; no cast needed
+            const meta = m.metadata || {};
             setAppealModal({
               visible: true,
               imageUri: meta.localUri || "",
@@ -1889,12 +1889,7 @@ export const ChatScreen: React.FC = () => {
   );
 
   const keyExtractor = useCallback(
-    (item: MessageWithRelations | { type: "date"; date: Date; id: string }) => {
-      if ((item as any).type === "date") {
-        return (item as any).id;
-      }
-      return (item as MessageWithRelations).id;
-    },
+    (item: ChatListItem) => (isDateSeparator(item) ? item.id : item.id),
     [],
   );
 

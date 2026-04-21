@@ -20,8 +20,15 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { StackScreenProps } from "@react-navigation/stack";
+import {
+  useRoute,
+  useNavigation,
+  type ParamListBase,
+} from "@react-navigation/native";
+import {
+  StackScreenProps,
+  type StackNavigationProp,
+} from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -64,7 +71,10 @@ type GroupDetailsScreenRouteProp = StackScreenProps<
 
 export const GroupDetailsScreen: React.FC = () => {
   const route = useRoute<GroupDetailsScreenRouteProp>();
-  const navigation = useNavigation();
+  // WHISPR-1074: the screen isn't scoped to a typed param list, so we reach
+  // for the base stack signature rather than sprinkling `as any` on every
+  // navigate() call.
+  const navigation = useNavigation<StackNavigationProp<ParamListBase>>();
   const { userId } = useAuth();
   const CURRENT_USER_ID = userId ?? "";
   const { groupId, conversationId, conversationName } = route.params;
@@ -215,10 +225,7 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleManageGroup = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    (navigation as any).navigate("GroupManagement", {
-      groupId,
-      conversationId,
-    });
+    navigation.navigate("GroupManagement", { groupId, conversationId });
   }, [navigation, groupId, conversationId]);
 
   const currentUserMember = members.find((m) => m.user_id === CURRENT_USER_ID);
@@ -239,7 +246,7 @@ export const GroupDetailsScreen: React.FC = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      (navigation as any).navigate("ConversationsList");
+      navigation.navigate("ConversationsList");
     } catch (error: any) {
       logger.error("GroupDetailsScreen", "Error leaving group", error);
       Alert.alert("Erreur", error.message || "Impossible de quitter le groupe");
@@ -257,7 +264,7 @@ export const GroupDetailsScreen: React.FC = () => {
       await groupsAPI.deleteGroup(groupId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Le groupe a été supprimé");
-      (navigation as any).navigate("ConversationsList");
+      navigation.navigate("ConversationsList");
     } catch (error) {
       logger.error("GroupDetailsScreen", "Error deleting group", error);
       Alert.alert("Erreur", "Impossible de supprimer le groupe");
@@ -276,7 +283,7 @@ export const GroupDetailsScreen: React.FC = () => {
         await groupsAPI.transferAdmin(groupId, newAdminId);
         await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        (navigation as any).navigate("ConversationsList");
+        navigation.navigate("ConversationsList");
       } catch (error: any) {
         logger.error(
           "GroupDetailsScreen",
@@ -575,29 +582,31 @@ export const GroupDetailsScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabsScroll}
       >
-        {[
-          {
-            key: "info" as const,
-            label: "Informations",
-            icon: "information-circle-outline",
-          },
-          { key: "members" as const, label: "Membres", icon: "people-outline" },
-          {
-            key: "stats" as const,
-            label: "Statistiques",
-            icon: "stats-chart-outline",
-          },
-          {
-            key: "history" as const,
-            label: "Historique",
-            icon: "time-outline",
-          },
-          {
-            key: "settings" as const,
-            label: "Paramètres",
-            icon: "settings-outline",
-          },
-        ].map((tab, index) => {
+        {(
+          [
+            {
+              key: "info",
+              label: "Informations",
+              icon: "information-circle-outline",
+            },
+            { key: "members", label: "Membres", icon: "people-outline" },
+            {
+              key: "stats",
+              label: "Statistiques",
+              icon: "stats-chart-outline",
+            },
+            {
+              key: "history",
+              label: "Historique",
+              icon: "time-outline",
+            },
+            {
+              key: "settings",
+              label: "Paramètres",
+              icon: "settings-outline",
+            },
+          ] as const
+        ).map((tab, index) => {
           const isActive = activeTab === tab.key;
           return (
             <AnimatedTouchableOpacity
@@ -615,7 +624,7 @@ export const GroupDetailsScreen: React.FC = () => {
               entering={SlideInRight.delay(100 + index * 50).springify()}
             >
               <Ionicons
-                name={tab.icon as any}
+                name={tab.icon}
                 size={18}
                 color={
                   isActive
@@ -789,7 +798,7 @@ export const GroupDetailsScreen: React.FC = () => {
             activeOpacity={0.7}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              (navigation as any).navigate("Profile", {
+              navigation.navigate("Profile", {
                 userId:
                   member.user_id === CURRENT_USER_ID
                     ? CURRENT_USER_ID
