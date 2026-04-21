@@ -95,12 +95,6 @@ export const MediaSelector: React.FC<MediaSelectorProps> = ({
                   maxHeight: 1920,
                   quality: 0.8,
                 });
-                console.log(
-                  "[MediaSelector] Image compressed:",
-                  asset.uri.substring(0, 50),
-                  "->",
-                  finalUri.substring(0, 50),
-                );
               } catch (error) {
                 console.error(
                   "[MediaSelector] Error compressing image:",
