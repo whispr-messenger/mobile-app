@@ -20,11 +20,14 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { TokenService } from "../../services/TokenService";
+import { isReachableUrl } from "../../utils";
 
 /**
  * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
- * The blob/thumbnail endpoints return a 302 redirect; we follow it manually
- * so we get a presigned URL that <Image> can use without auth headers.
+ * The blob/thumbnail endpoints now return 200 JSON `{ url, expiresAt }`
+ * (previously a 302 redirect). We fetch with Bearer, extract `url`, and
+ * reject any URL pointing at internal cluster hostnames — the browser
+ * cannot resolve those and they trigger Mixed Content on https pages.
  */
 function useResolvedMediaUrl(uri: string | undefined): {
   resolvedUri: string;
@@ -68,21 +71,47 @@ function useResolvedMediaUrl(uri: string | undefined): {
 
         if (cancelled) return;
 
-        if (response.ok || response.url !== uri) {
-          // fetch followed the 302 redirect — response.url is the presigned URL
-          setResolvedUri(response.url);
-        } else {
+        if (!response.ok) {
           console.warn(
             `[MediaMessage] Failed to resolve media URL: HTTP ${response.status}`,
           );
           setError(true);
-          setResolvedUri(uri);
+          return;
+        }
+
+        // New contract (media-service deploy/preprod ≥ cedf7f9b):
+        // `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON, not a
+        // 302 redirect. Parse JSON first; fall back to response.url for the
+        // legacy 302 redirect contract.
+        let presigned: string | null = null;
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          try {
+            const body = (await response.json()) as { url?: string | null };
+            presigned = body?.url ?? null;
+          } catch {
+            presigned = null;
+          }
+        } else if (response.url && response.url !== uri) {
+          // Legacy: fetch followed a 302 — response.url is the presigned URL
+          presigned = response.url;
+        }
+
+        if (isReachableUrl(presigned)) {
+          setResolvedUri(presigned as string);
+        } else {
+          if (presigned) {
+            console.warn(
+              "[MediaMessage] Rejected unreachable media URL (cluster-internal):",
+              presigned,
+            );
+          }
+          setError(true);
         }
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
         setError(true);
-        setResolvedUri(uri);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -158,7 +187,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         try {
           // Load video first
           try {
-            const loadResult = await playerVideoRef.current.loadAsync({ uri: resolvedMainUri });
+            const loadResult = await playerVideoRef.current.loadAsync({
+              uri: resolvedMainUri,
+            });
             console.log(
               "[MediaMessage] Video preloaded",
               loadResult ? "with status" : "no status",
@@ -200,7 +231,16 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           style={styles.imageContainer}
         >
           {mainLoading ? (
-            <View style={[styles.image, { justifyContent: "center", alignItems: "center", backgroundColor: "rgba(26, 31, 58, 0.4)" }]}>
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(26, 31, 58, 0.4)",
+                },
+              ]}
+            >
               <ActivityIndicator size="small" color={colors.primary.main} />
             </View>
           ) : (

@@ -72,13 +72,26 @@ export interface UploadMediaResult {
   size: number;
 }
 
+export type UploadMediaContext = "message" | "avatar" | "group_icon";
+
 // The media-service upload response uses {mediaId, ...} but the rest of the
 // app (chat send path, attachment metadata) expects {id}. Normalise here so
 // callers don't have to know which key the server happened to return.
-const normaliseUpload = (raw: any): UploadMediaResult => ({
-  ...raw,
-  id: raw?.id ?? raw?.mediaId ?? raw?.media_id,
-});
+const normaliseUpload = (raw: any): UploadMediaResult => {
+  const id = raw?.mediaId ?? raw?.id ?? raw?.media_id;
+  // Always use the media-service API endpoint so recipients fetch via auth header.
+  // Presigned MinIO URLs stored in messages would be inaccessible to non-owners.
+  return {
+    ...raw,
+    id,
+    url: id
+      ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`
+      : (raw?.url ?? ""),
+    thumbnail_url: id
+      ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/thumbnail`
+      : (raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined),
+  };
+};
 
 export const MediaService = {
   /**
@@ -88,12 +101,15 @@ export const MediaService = {
   async uploadMedia(
     file: { uri: string; name: string; type: string },
     onProgress?: (percent: number) => void,
+    meta?: { context?: UploadMediaContext; ownerId?: string },
   ): Promise<UploadMediaResult> {
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const formData = new FormData();
+    if (meta?.context) formData.append("context", meta.context);
+    if (meta?.ownerId) formData.append("ownerId", meta.ownerId);
 
     // On web, FormData needs a real Blob; on native, the {uri,name,type} object works
     if (Platform.OS === "web") {
@@ -224,6 +240,22 @@ export const MediaService = {
    */
   async deleteMedia(id: string): Promise<void> {
     await apiFetch<void>(`/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  /**
+   * PATCH /media/:id/share
+   * Grant read access to the given user IDs for a media file.
+   */
+  async shareMedia(id: string, userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    await apiFetch<{ sharedWith: string[] }>(
+      `/${encodeURIComponent(id)}/share`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds }),
+      },
+    );
   },
 };
 

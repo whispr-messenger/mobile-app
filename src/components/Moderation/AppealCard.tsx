@@ -79,7 +79,21 @@ export const AppealCard: React.FC<Props> = ({
           Appel du {formatDate(appeal.createdAt)}
         </Text>
         <View style={styles.badgeRow}>
-          <SanctionBadge type={sanctionType} />
+          <View
+            style={[
+              styles.typeBadge,
+              appeal.type === "blocked_image"
+                ? styles.typeBadgeImage
+                : styles.typeBadgeSanction,
+            ]}
+          >
+            <Text style={styles.typeBadgeText}>
+              {appeal.type === "blocked_image" ? "Image" : "Sanction"}
+            </Text>
+          </View>
+          {appeal.type !== "blocked_image" ? (
+            <SanctionBadge type={sanctionType} />
+          ) : null}
         </View>
       </View>
 
@@ -130,5 +144,23 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: "row",
     marginTop: 6,
+    gap: 6,
+    alignItems: "center",
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  typeBadgeSanction: {
+    backgroundColor: "rgba(103, 116, 189, 0.25)",
+  },
+  typeBadgeImage: {
+    backgroundColor: "rgba(240, 72, 130, 0.25)",
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

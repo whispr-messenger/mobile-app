@@ -49,6 +49,14 @@ export const TokenService = {
     return storage.getItem(KEYS.IDENTITY_KEY);
   },
 
+  async clearIdentityPrivateKey(): Promise<void> {
+    await storage.deleteItem(KEYS.IDENTITY_KEY);
+  },
+
+  async clearAll(): Promise<void> {
+    await Promise.all([this.clearTokens(), this.clearIdentityPrivateKey()]);
+  },
+
   decodeAccessToken(token: string): JwtPayload | null {
     return decodeJwtPayload(token);
   },

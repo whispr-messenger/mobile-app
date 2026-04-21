@@ -22,6 +22,9 @@ import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
 import { CallsScreen } from "../screens/Calls/CallsScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
+import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
+import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
+import { ModerationAppealSubmittedScreen } from "../screens/Moderation/ModerationAppealSubmittedScreen";
 import {
   ReportHistoryScreen,
   ReportDetailScreen,
@@ -79,11 +82,31 @@ export type AuthStackParamList = {
   MyQRCode: undefined;
   QRCodeScanner: undefined;
   BlockedUsers: undefined;
-  GroupDetails: { groupId: string; conversationId: string };
+  GroupDetails: {
+    groupId: string;
+    conversationId: string;
+    conversationName?: string;
+  };
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
   ModerationTest: undefined;
+  ModerationDecision:
+    | {
+        decisionId?: string;
+        sanctionType?: string;
+        reasonLabel?: string;
+        incidentDate?: string;
+        deadlineDate?: string;
+        reference?: string;
+      }
+    | undefined;
+  ModerationAppealForm: { decisionId: string };
+  ModerationAppealSubmitted: {
+    appealId: string;
+    decisionId: string;
+    status?: string;
+  };
   // Moderation (user-facing)
   ReportHistory: undefined;
   ReportDetail: { reportId: string };
@@ -190,6 +213,18 @@ export const AuthNavigator: React.FC = () => {
         component={ScheduledMessagesScreen}
       />
       <Stack.Screen name="Calls" component={CallsScreen} />
+      <Stack.Screen
+        name="ModerationDecision"
+        component={ModerationDecisionScreen}
+      />
+      <Stack.Screen
+        name="ModerationAppealForm"
+        component={ModerationAppealFormScreen}
+      />
+      <Stack.Screen
+        name="ModerationAppealSubmitted"
+        component={ModerationAppealSubmittedScreen}
+      />
       {/* Moderation — user-facing */}
       <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
       <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />

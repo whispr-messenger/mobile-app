@@ -90,11 +90,14 @@ export type ConversationsStatus =
   | "loaded"
   | "error";
 
+export type GroupAvatar = { uri?: string; name: string };
+
 interface ConversationsState {
   conversations: Conversation[];
   status: ConversationsStatus;
   error: string | null;
   manuallyUnreadIds: Set<string>;
+  groupAvatars: Record<string, GroupAvatar[]>;
   _gracePeriodTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -111,6 +114,7 @@ interface ConversationsActions {
   markAsUnread: (id: string) => Promise<void>;
   clearManualUnread: (id: string) => Promise<void>;
   resetUnreadCount: (conversationId: string) => void;
+  setGroupAvatars: (conversationId: string, avatars: GroupAvatar[]) => void;
   reset: () => void;
   loadManuallyUnreadIds: () => Promise<void>;
   _startGracePeriod: () => void;
@@ -128,6 +132,7 @@ export const useConversationsStore = create<
   status: "loading",
   error: null,
   manuallyUnreadIds: new Set<string>(),
+  groupAvatars: {},
   _gracePeriodTimer: null,
 
   reset: () => {
@@ -140,7 +145,14 @@ export const useConversationsStore = create<
       status: "loading",
       error: null,
       manuallyUnreadIds: new Set<string>(),
+      groupAvatars: {},
       _gracePeriodTimer: null,
+    });
+  },
+
+  setGroupAvatars: (conversationId, avatars) => {
+    set({
+      groupAvatars: { ...get().groupAvatars, [conversationId]: avatars },
     });
   },
 
