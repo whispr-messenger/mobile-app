@@ -19,6 +19,7 @@ async function apiFetch<T>(
   const token = await TokenService.getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "x-device-type": "mobile",
     ...(options.headers as Record<string, string>),
   };
   if (token) {
