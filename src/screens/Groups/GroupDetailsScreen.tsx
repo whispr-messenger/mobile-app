@@ -1803,7 +1803,11 @@ export const GroupDetailsScreen: React.FC = () => {
                   {member.display_name}
                 </Text>
                 <Text style={styles.modalDescription}>
-                  {member.role === "admin" ? "Administrateur" : "Membre"}
+                  {member.role === "admin"
+                    ? "Administrateur"
+                    : member.role === "moderator"
+                      ? "Modérateur"
+                      : "Membre"}
                 </Text>
               </View>
 
@@ -1815,7 +1819,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 />
               )}
 
-              {member.role === "member" && (
+              {member.role !== "admin" && !isSelf && (
                 <TouchableOpacity
                   style={styles.memberActionRow}
                   onPress={() => handleChangeRole(member, "admin")}
@@ -2297,10 +2301,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.primary.main, 0.2),
@@ -2311,10 +2312,7 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.secondary.main, 0.2),
@@ -2379,20 +2377,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.primary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.primary.main, 0.3)}`,
     elevation: 5,
   },
   modalButtonDelete: {
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.ui.error,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.ui.error, 0.3)}`,
     elevation: 5,
   },
   modalButtonGradient: {

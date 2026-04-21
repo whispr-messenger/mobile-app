@@ -144,11 +144,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     };
   }, []);
 
+  const viewedUserId = params?.userId || userId || "";
+  const isOwnProfile = !viewedUserId || viewedUserId === currentUserId;
+
   const loadProfile = useCallback(async () => {
     try {
       setProfileLoadError(null);
       const service = UserService.getInstance();
-      const res = await service.getProfile();
+      const res = isOwnProfile
+        ? await service.getProfile()
+        : await service.getUserProfile(viewedUserId);
       if (res.success && res.profile) {
         const p = res.profile;
         setProfile((prev) => ({
@@ -172,7 +177,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setProfileLoadError(e?.message || "Impossible de récupérer le profil");
       setProfileLoaded(true);
     }
-  }, [pendingAvatar?.localUri]);
+  }, [pendingAvatar?.localUri, isOwnProfile, viewedUserId]);
 
   useEffect(() => {
     loadProfile();

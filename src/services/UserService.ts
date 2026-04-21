@@ -187,6 +187,39 @@ export class UserService {
   }
 
   /**
+   * Get a specific user's profile by id (not the authenticated user).
+   * Used when viewing another member's profile from groups, contacts, etc.
+   */
+  async getUserProfile(userId: string): Promise<{
+    success: boolean;
+    profile?: UserProfile;
+    message?: string;
+  }> {
+    try {
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: "Non authentifié" };
+
+      const url = `${this.baseUrl}/profile/${encodeURIComponent(userId)}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json().catch(() => null);
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
+      return { success: true, profile: data };
+    } catch (error) {
+      console.error("Erreur récupération profil utilisateur:", error);
+      return { success: false, message: "Impossible de récupérer le profil" };
+    }
+  }
+
+  /**
    * Update user profile
    */
   async updateProfile(

@@ -105,11 +105,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         setAddingContactId(user.user.id);
         await contactsAPI.sendContactRequest(user.user.id);
 
-        console.log(
-          "[AddContactModal] Contact request sent successfully:",
-          user.user.id,
-        );
-
         if (Platform.OS === "web") {
           onContactAdded();
           handleClose();

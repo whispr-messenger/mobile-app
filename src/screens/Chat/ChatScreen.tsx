@@ -1077,17 +1077,9 @@ export const ChatScreen: React.FC = () => {
         }
 
         // 1. Upload file to media-service
-        console.log("[ChatScreen] Uploading media to media-service:", filename);
         const uploadResult = await MediaService.uploadMedia(
           { uri, name: filename, type: mimeType },
-          (percent) => {
-            console.log(`[ChatScreen] Upload progress: ${percent}%`);
-          },
-        );
-        console.log(
-          "[ChatScreen] Media uploaded:",
-          uploadResult.id,
-          uploadResult.url,
+          (percent) => {},
         );
 
         // Build metadata with the remote URLs from the upload result
