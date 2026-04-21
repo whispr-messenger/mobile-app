@@ -7,6 +7,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthNavigator } from "./src/navigation/AuthNavigator";
+import { linkingConfig } from "./src/navigation/linkingConfig";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 
@@ -36,7 +37,8 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <AuthProvider>
-            <NavigationContainer>
+            {/* WHISPR-1073: whispr:// deep links → conversation / group / profile screens. */}
+            <NavigationContainer linking={linkingConfig}>
               <AuthNavigator />
               <StatusBar style="light" />
             </NavigationContainer>
