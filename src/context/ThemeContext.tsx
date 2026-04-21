@@ -10,6 +10,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Types
@@ -674,6 +675,19 @@ const baseFontSizes = {
   xxxl: 32,
 };
 
+// WHISPR-1072: exported so the resolution logic can be covered by unit tests
+// without mounting a full React Native renderer (useColorScheme needs the
+// native event loop, which the Jest RN preset flakes on).
+export const resolveThemeColors = (
+  theme: Theme,
+  systemColorScheme: "light" | "dark" | null | undefined,
+): ThemeColors => {
+  if (theme === "light") return lightThemeColors;
+  if (theme === "dark") return darkThemeColors;
+  // theme === "auto"
+  return systemColorScheme === "light" ? lightThemeColors : darkThemeColors;
+};
+
 // Context
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
@@ -683,6 +697,9 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [settings, setSettings] = useState<GlobalSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  // WHISPR-1072: watch the OS-level color scheme so "auto" actually follows
+  // the system preference instead of silently defaulting to dark.
+  const systemColorScheme = useColorScheme();
 
   // Load settings from storage
   useEffect(() => {
@@ -713,17 +730,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Get theme colors based on current theme
-  const getThemeColors = (): ThemeColors => {
-    if (settings.theme === "light") {
-      return lightThemeColors;
-    } else if (settings.theme === "dark") {
-      return darkThemeColors;
-    } else {
-      // Auto: use dark for now (could be system-based)
-      return darkThemeColors;
-    }
-  };
+  // Get theme colors based on current theme (delegates to the pure helper
+  // so the resolution logic can be unit-tested without mounting RN).
+  const getThemeColors = (): ThemeColors =>
+    resolveThemeColors(settings.theme, systemColorScheme);
 
   // Get font size with multiplier
   const getFontSize = (
