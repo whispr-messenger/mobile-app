@@ -2,7 +2,7 @@
  * ConversationItem - Individual conversation list item
  */
 
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import {
   useSharedValue,
@@ -18,14 +18,12 @@ import { colors } from "../../theme/colors";
 import { Avatar } from "./Avatar";
 import { Ionicons } from "@expo/vector-icons";
 import { usePresenceStore } from "../../store/presenceStore";
+import { useConversationsStore } from "../../store/conversationsStore";
 import { useAuth } from "../../context/AuthContext";
 import { getConversationDisplayName } from "../../utils";
 import { messagingAPI } from "../../services/messaging/api";
 
-const groupAvatarCache = new Map<
-  string,
-  Array<{ uri?: string; name: string }>
->();
+const EMPTY_GROUP_AVATARS: Array<{ uri?: string; name: string }> = [];
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -54,13 +52,17 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       : undefined;
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
 
-  const [groupAvatars, setGroupAvatars] = useState<
-    Array<{ uri?: string; name: string }>
-  >(() => groupAvatarCache.get(conversation.id) ?? []);
+  const groupAvatars = useConversationsStore(
+    (s) => s.groupAvatars[conversation.id] ?? EMPTY_GROUP_AVATARS,
+  );
+  const setGroupAvatars = useConversationsStore((s) => s.setGroupAvatars);
+  const hasCachedAvatars = useConversationsStore(
+    (s) => conversation.id in s.groupAvatars,
+  );
 
   React.useEffect(() => {
     if (conversation.type !== "group") return;
-    if (groupAvatarCache.has(conversation.id)) return;
+    if (hasCachedAvatars) return;
     let cancelled = false;
     messagingAPI
       .getConversationMembers(conversation.id)
@@ -73,14 +75,19 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             uri: m.avatar_url,
             name: m.display_name || m.username || "Utilisateur",
           }));
-        groupAvatarCache.set(conversation.id, avatars);
-        setGroupAvatars(avatars);
+        setGroupAvatars(conversation.id, avatars);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [conversation.id, conversation.type, currentUserId]);
+  }, [
+    conversation.id,
+    conversation.type,
+    currentUserId,
+    hasCachedAvatars,
+    setGroupAvatars,
+  ]);
 
   const translateX = useSharedValue(50);
   const opacity = useSharedValue(0);
