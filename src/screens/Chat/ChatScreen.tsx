@@ -1440,31 +1440,26 @@ export const ChatScreen: React.FC = () => {
   }, [selectedMessage]);
 
   const handleForwardSelect = useCallback(
-    async (targetConversationId: string) => {
-      if (!forwardingMessage) return;
+    async (targetConversationIds: string[]) => {
+      if (!forwardingMessage || targetConversationIds.length === 0) return;
 
       setForwardSending(true);
       try {
-        await messagingAPI.sendMessage(targetConversationId, {
-          content: forwardingMessage.content,
-          message_type: forwardingMessage.message_type,
-          client_random: Math.floor(Math.random() * 1000000),
-          metadata: {
-            forwarded: true,
-            original_sender: forwardingMessage.sender_id,
-            original_timestamp: forwardingMessage.sent_at,
-          },
-        });
+        await messagingAPI.forwardMessage(
+          forwardingMessage.id,
+          targetConversationIds,
+        );
         setShowForwardModal(false);
         setForwardingMessage(null);
         setForwardSending(false);
 
-        // Navigate to the target conversation so the user sees the forwarded
-        // message immediately. Using `push` creates a new stack entry so the
-        // back button returns to the original conversation.
-        navigation.push("Chat", {
-          conversationId: targetConversationId,
-        });
+        // If forwarded to a single target, navigate there so the user sees
+        // the forwarded message. For multi-select stay in place.
+        if (targetConversationIds.length === 1) {
+          navigation.push("Chat", {
+            conversationId: targetConversationIds[0],
+          });
+        }
       } catch (error) {
         logger.error("ChatScreen", "Error forwarding message", error);
         setForwardSending(false);
