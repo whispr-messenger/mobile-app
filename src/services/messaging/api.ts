@@ -781,6 +781,48 @@ export const messagingAPI = {
       currentUserId = payload?.sub ?? "";
     }
 
+    if (!token || !currentUserId) {
+      throw new Error("Authentication required");
+    }
+
+    const contactsResponse = await fetch(`${getApiBaseUrl()}/user/v1/contacts`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+
+    if (!contactsResponse) {
+      throw new Error("Impossible de vérifier vos contacts (réseau).");
+    }
+
+    let items: any[] = [];
+    if (contactsResponse.ok) {
+      const raw = await contactsResponse.json().catch(() => null);
+      const data = raw?.data !== undefined ? raw.data : raw;
+      items = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.contacts)
+          ? data.contacts
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+    } else {
+      const errorText = await contactsResponse.text().catch(() => "");
+      const lowered = String(errorText || "").toLowerCase();
+      if (!(contactsResponse.status === 404 && lowered.includes("no contacts"))) {
+        throw new Error("Impossible de vérifier vos contacts.");
+      }
+    }
+
+    const isContact = items.some((c: any) => {
+      const contactId = c?.contactId ?? c?.contact_id;
+      return String(contactId ?? "") === String(otherUserId);
+    });
+
+    if (!isContact) {
+      throw new Error(
+        "Vous devez être amis avec cet utilisateur pour créer un chat 1v1.",
+      );
+    }
+
     const response = await authenticatedFetch(`${API_BASE_URL}/conversations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
