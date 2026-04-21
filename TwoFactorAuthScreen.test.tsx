@@ -22,13 +22,8 @@ jest.mock("@react-navigation/native", () => {
   const React = require("react");
   return {
     useNavigation: () => ({ navigate: mockNavigate, goBack: mockGoBack }),
-    useFocusEffect: (cb: () => void) => {
-      const ref = React.useRef(cb);
-      ref.current = cb;
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      React.useEffect(() => {
-        ref.current();
-      }, []);
+    useFocusEffect: (cb: () => void | (() => void)) => {
+      React.useEffect(() => cb(), []);
     },
   };
 });
@@ -68,29 +63,40 @@ describe("TwoFactorAuthScreen", () => {
     jest.clearAllMocks();
   });
 
+  /** Wait for the mocked getStatus call to resolve and the component to re-render. */
+  async function waitForLoad(
+    utils: ReturnType<typeof render>,
+  ): Promise<ReturnType<typeof render>> {
+    await waitFor(() =>
+      expect(mockedTwoFactorService.getStatus).toHaveBeenCalled(),
+    );
+    // Flush the state updates triggered by the resolved promise.
+    await act(async () => {});
+    return utils;
+  }
+
   it("renders switch OFF when getStatus returns enabled: false", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const { getByRole } = render(<TwoFactorAuthScreen />);
+    const utils = render(<TwoFactorAuthScreen />);
+    await waitForLoad(utils);
 
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
-    expect(getByRole("switch").props.value).toBe(false);
+    expect(utils.getByRole("switch").props.value).toBe(false);
   });
 
   it("renders switch ON when getStatus returns enabled: true", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole } = render(<TwoFactorAuthScreen />);
+    const utils = render(<TwoFactorAuthScreen />);
+    await waitForLoad(utils);
 
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
-    expect(getByRole("switch").props.value).toBe(true);
+    expect(utils.getByRole("switch").props.value).toBe(true);
   });
 
   it("navigates to TwoFactorSetup when toggle is turned ON", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: false });
 
-    const { getByRole } = render(<TwoFactorAuthScreen />);
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
+    const { getByRole } = await waitForLoad(render(<TwoFactorAuthScreen />));
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", true);
@@ -102,10 +108,9 @@ describe("TwoFactorAuthScreen", () => {
   it("shows disable card when toggle is turned OFF", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole, getByPlaceholderText } = render(
-      <TwoFactorAuthScreen />,
+    const { getByRole, getByPlaceholderText } = await waitForLoad(
+      render(<TwoFactorAuthScreen />),
     );
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", false);
@@ -117,10 +122,9 @@ describe("TwoFactorAuthScreen", () => {
   it("shows error toast when disable code is too short", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
 
-    const { getByRole, getByPlaceholderText, getAllByText } = render(
-      <TwoFactorAuthScreen />,
+    const { getByRole, getByPlaceholderText, getAllByText } = await waitForLoad(
+      render(<TwoFactorAuthScreen />),
     );
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", false);
@@ -145,8 +149,7 @@ describe("TwoFactorAuthScreen", () => {
       getByPlaceholderText,
       getAllByText,
       queryByPlaceholderText,
-    } = render(<TwoFactorAuthScreen />);
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
+    } = await waitForLoad(render(<TwoFactorAuthScreen />));
 
     await act(async () => {
       fireEvent(getByRole("switch"), "valueChange", false);
@@ -172,8 +175,7 @@ describe("TwoFactorAuthScreen", () => {
 
     const alertSpy = jest.spyOn(require("react-native").Alert, "alert");
 
-    const { getByRole, getByText } = render(<TwoFactorAuthScreen />);
-    await waitFor(() => expect(getByRole("switch")).toBeTruthy());
+    const { getByText } = await waitForLoad(render(<TwoFactorAuthScreen />));
 
     const viewCodesButton = getByText("twoFactor.regenerateCodes");
     await act(async () => {
