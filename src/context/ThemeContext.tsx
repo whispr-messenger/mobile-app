@@ -93,6 +93,15 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.phoneInvalidFormat": "Format de numéro invalide (ex: 07 12 34 56 78)",
     "auth.errorConnection": "Une erreur est survenue lors de la connexion",
     "auth.errorSendCode": "Impossible d'envoyer le code de vérification",
+    "auth.permissionDeniedGallery":
+      "Permission refusée pour accéder à la galerie.",
+    "auth.fillAllRequiredFields":
+      "Veuillez remplir tous les champs obligatoires.",
+    "chat.requestSentTitle": "Demande envoyée",
+    "chat.requestSentMessage": "Votre demande de contact a été envoyée.",
+    "chat.errorEditMessage": "Impossible de modifier le message",
+    "chat.errorScheduleMessage": "Impossible de programmer le message.",
+    "chat.errorDeleteMessage": "Impossible de supprimer le message",
     "auth.noAccountFound":
       "Aucun compte trouvé pour ce numéro. Voulez-vous vous inscrire ?",
     "auth.accountAlreadyExists":
@@ -371,6 +380,13 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.phoneInvalidFormat": "Invalid phone format (e.g.: 07 12 34 56 78)",
     "auth.errorConnection": "An error occurred during connection",
     "auth.errorSendCode": "Unable to send verification code",
+    "auth.permissionDeniedGallery": "Permission denied to access the gallery.",
+    "auth.fillAllRequiredFields": "Please fill in all required fields.",
+    "chat.requestSentTitle": "Request sent",
+    "chat.requestSentMessage": "Your contact request has been sent.",
+    "chat.errorEditMessage": "Could not edit the message",
+    "chat.errorScheduleMessage": "Could not schedule the message.",
+    "chat.errorDeleteMessage": "Could not delete the message",
     "auth.noAccountFound":
       "No account found for this number. Would you like to register?",
     "auth.accountAlreadyExists":

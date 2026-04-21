@@ -95,7 +95,7 @@ export const ProfileSetupScreen: React.FC = () => {
     if (status !== "granted") {
       Alert.alert(
         getLocalizedText("notif.error"),
-        "Permission refusée pour accéder à la galerie.",
+        getLocalizedText("auth.permissionDeniedGallery"),
       );
       return;
     }
@@ -114,7 +114,7 @@ export const ProfileSetupScreen: React.FC = () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert(
         getLocalizedText("notif.error"),
-        "Veuillez remplir tous les champs obligatoires.",
+        getLocalizedText("auth.fillAllRequiredFields"),
       );
       return;
     }
