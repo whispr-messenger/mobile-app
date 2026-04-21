@@ -21,6 +21,7 @@ import {
 } from "@expo-google-fonts/inter";
 import { AuthNavigator } from "./src/navigation/AuthNavigator";
 import { linkingConfig } from "./src/navigation/linkingConfig";
+import { navigationRef } from "./src/navigation/navigationRef";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 
@@ -73,7 +74,10 @@ export default function App() {
         <ThemeProvider>
           <AuthProvider>
             {/* WHISPR-1073: whispr:// deep links → conversation / group / profile screens. */}
-            <NavigationContainer linking={linkingConfig}>
+            <NavigationContainer
+              ref={navigationRef}
+              linking={linkingConfig}
+            >
               <AuthNavigator />
               <StatusBar style="light" />
             </NavigationContainer>
