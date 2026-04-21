@@ -118,11 +118,9 @@ async function ensureModel(): Promise<void> {
         await tf.setBackend("cpu");
         await tf.ready();
         tfReady = true;
-        console.log("[tfjs] Backend:", tf.getBackend());
       }
       await yieldThread();
       model = await tf.loadGraphModel(bundledAssetIO());
-      console.log("[tfjs] Model loaded successfully");
     } catch (err) {
       // Surface the real failure reason so gate-chat-image can log it
       // explicitly instead of the generic catch-all message.
@@ -142,14 +140,12 @@ async function gate(params: {
   const { uri, threshold = 0.5 } = params;
   const t0 = Date.now();
 
-  console.log("[tfjs] gate() called, loading model...");
   await ensureModel();
   if (!model) throw new Error("TFJS model failed to load");
 
   // Yield before heavy image processing
   await yieldThread();
 
-  console.log("[tfjs] Converting image to tensor...");
   const flat = await imageUriToFloatTensor_0_255({
     uri,
     width: INPUT_SIZE,
@@ -159,7 +155,6 @@ async function gate(params: {
   // Yield before inference (the heaviest part)
   await yieldThread();
 
-  console.log("[tfjs] Running predict...");
   const tInfer = Date.now();
 
   // Run inference wrapped in InteractionManager to avoid blocking animations
@@ -178,10 +173,6 @@ async function gate(params: {
         }
       });
     },
-  );
-
-  console.log(
-    `[tfjs] Inference: ${Date.now() - tInfer}ms, Total: ${Date.now() - t0}ms`,
   );
 
   if (data.length !== CLASS_NAMES.length) {
@@ -217,10 +208,6 @@ async function gate(params: {
   }
   const maxEntropy = Math.log2(CLASS_NAMES.length); // log2(9) ≈ 3.17
   const normEntropy = entropy / maxEntropy; // 0 = certain, 1 = uniform
-
-  console.log(
-    `[tfjs] bestClass=${bestClass} bestProb=${Number(bestProb).toFixed(3)} entropy=${entropy.toFixed(3)} normEntropy=${normEntropy.toFixed(3)}`,
-  );
 
   // With the "Other" class, the logic is simple:
   // - If bestClass is "Other" → not food → allow
