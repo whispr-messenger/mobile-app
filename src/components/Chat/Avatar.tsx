@@ -38,7 +38,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     const uuidOnly = uri.match(/^[0-9a-f-]{36}$/i);
     if (uuidOnly) return `${MEDIA_API_URL}/public/${uri}`;
 
-    const anyUuids = uri.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+    const anyUuids = uri.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    );
     if (anyUuids?.length) {
       const last = anyUuids[anyUuids.length - 1];
       return `${MEDIA_API_URL}/public/${last}`;
@@ -79,7 +81,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     if (!uri) return undefined;
     const uuidOnly = uri.match(/^[0-9a-f-]{36}$/i);
     if (uuidOnly) return uri;
-    const anyUuids = uri.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi);
+    const anyUuids = uri.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    );
     if (anyUuids?.length) return anyUuids[anyUuids.length - 1];
     const fromPublic = uri.match(
       /(?:^|\/)media\/v1\/public\/([0-9a-f-]{36})(?:[/?]|$)/i,
@@ -138,13 +142,11 @@ export const Avatar: React.FC<AvatarProps> = ({
                     await MediaService.downloadMediaToCacheFile(mediaId);
                   setAuthFallbackUri(localUri);
                 } catch {
-                  console.log("[Avatar] Image load error:", resolvedUri, msg);
                   setImageError(true);
                 }
               })();
               return;
             }
-            console.log("[Avatar] Image load error:", resolvedUri, msg);
             setImageError(true);
           }}
         />

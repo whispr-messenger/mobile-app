@@ -207,6 +207,9 @@ export const PhoneInputScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.backButton}
                 onPress={() => navigation.goBack()}
+                accessibilityRole="button"
+                accessibilityLabel="Retour"
+                accessibilityHint="Revient à l'écran précédent"
               >
                 <Text style={[styles.backText, { color: themeColors.primary }]}>
                   ←
@@ -270,6 +273,10 @@ export const PhoneInputScreen: React.FC = () => {
                     }
                     setShowCountryPicker(!showCountryPicker);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Sélecteur de pays, ${selectedCountry.code}`}
+                  accessibilityHint="Ouvre la liste des indicatifs téléphoniques"
+                  accessibilityState={{ expanded: showCountryPicker }}
                 >
                   <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
                   <Text
@@ -334,6 +341,8 @@ export const PhoneInputScreen: React.FC = () => {
                           Keyboard.dismiss();
                           setShowCountryPicker(false);
                         }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${item.name}, indicatif ${item.code}`}
                       >
                         <Text
                           style={[

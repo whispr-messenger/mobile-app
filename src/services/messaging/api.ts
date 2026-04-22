@@ -313,6 +313,27 @@ export const messagingAPI = {
     return unwrap(response);
   },
 
+  async forwardMessage(
+    messageId: string,
+    conversationIds: string[],
+  ): Promise<Message[]> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/messages/${encodeURIComponent(messageId)}/forward`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_ids: conversationIds }),
+      },
+    );
+
+    if (!response.ok) {
+      throw httpError("Failed to forward message", response);
+    }
+
+    const data = await unwrap(response);
+    return Array.isArray(data) ? data : [];
+  },
+
   async editMessage(
     messageId: string,
     conversationId: string,
@@ -785,9 +806,12 @@ export const messagingAPI = {
       throw new Error("Authentication required");
     }
 
-    const contactsResponse = await fetch(`${getApiBaseUrl()}/user/v1/contacts`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch(() => null);
+    const contactsResponse = await fetch(
+      `${getApiBaseUrl()}/user/v1/contacts`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    ).catch(() => null);
 
     if (!contactsResponse) {
       throw new Error("Impossible de vérifier vos contacts (réseau).");
@@ -807,7 +831,9 @@ export const messagingAPI = {
     } else {
       const errorText = await contactsResponse.text().catch(() => "");
       const lowered = String(errorText || "").toLowerCase();
-      if (!(contactsResponse.status === 404 && lowered.includes("no contacts"))) {
+      if (
+        !(contactsResponse.status === 404 && lowered.includes("no contacts"))
+      ) {
         throw new Error("Impossible de vérifier vos contacts.");
       }
     }

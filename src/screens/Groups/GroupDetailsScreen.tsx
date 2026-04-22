@@ -209,13 +209,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, [groupId, conversationId, conversationName]);
 
   useEffect(() => {
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData effect failed", err);
+    });
   }, [loadGroupData]);
 
   const handleRefresh = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setRefreshing(true);
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData refresh failed", err);
+    });
   }, [loadGroupData]);
 
   const handleTabChange = useCallback((tab: typeof activeTab) => {
@@ -317,11 +321,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, []);
 
   const openAddMemberModal = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setContactSearch("");
     setShowAddMemberModal(true);
     if (contacts.length === 0) {
-      loadContactsForPicker();
+      loadContactsForPicker().catch((err) => {
+        logger.error(
+          "GroupDetailsScreen",
+          "loadContactsForPicker rejected",
+          err,
+        );
+      });
     }
   }, [contacts.length, loadContactsForPicker]);
 
@@ -797,7 +807,9 @@ export const GroupDetailsScreen: React.FC = () => {
             ]}
             activeOpacity={0.7}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {},
+              );
               navigation.navigate("Profile", {
                 userId:
                   member.user_id === CURRENT_USER_ID
@@ -806,7 +818,9 @@ export const GroupDetailsScreen: React.FC = () => {
               });
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Ouvrir le profil de ${member.display_name}`}
+            accessibilityLabel={`Ouvrir le profil de ${
+              member.display_name ?? "membre"
+            }`}
             entering={FadeInDown.delay(150 + index * 50).springify()}
           >
             <Avatar
@@ -1803,7 +1817,11 @@ export const GroupDetailsScreen: React.FC = () => {
                   {member.display_name}
                 </Text>
                 <Text style={styles.modalDescription}>
-                  {member.role === "admin" ? "Administrateur" : "Membre"}
+                  {member.role === "admin"
+                    ? "Administrateur"
+                    : member.role === "moderator"
+                      ? "Modérateur"
+                      : "Membre"}
                 </Text>
               </View>
 
@@ -1815,7 +1833,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 />
               )}
 
-              {member.role === "member" && (
+              {member.role !== "admin" && !isSelf && (
                 <TouchableOpacity
                   style={styles.memberActionRow}
                   onPress={() => handleChangeRole(member, "admin")}
@@ -2297,10 +2315,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.primary.main, 0.2),
@@ -2311,10 +2326,7 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.secondary.main, 0.2),
@@ -2379,20 +2391,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.primary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.primary.main, 0.3)}`,
     elevation: 5,
   },
   modalButtonDelete: {
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.ui.error,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.ui.error, 0.3)}`,
     elevation: 5,
   },
   modalButtonGradient: {

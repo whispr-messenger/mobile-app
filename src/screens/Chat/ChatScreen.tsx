@@ -50,6 +50,7 @@ import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
 import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
+import { useCallsStore } from "../../store/callsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -196,7 +197,7 @@ export const ChatScreen: React.FC = () => {
       isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
     },
   ).current;
-  const { getThemeColors } = useTheme();
+  const { getThemeColors, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
   const { userId: rawUserId } = useAuth();
@@ -660,7 +661,10 @@ export const ChatScreen: React.FC = () => {
     try {
       setAddingContact(true);
       await contactsAPI.sendContactRequest(otherUserId);
-      showAlert("Demande envoyée", "Votre demande de contact a été envoyée.");
+      showAlert(
+        getLocalizedText("chat.requestSentTitle"),
+        getLocalizedText("chat.requestSentMessage"),
+      );
       setIsOtherUserContact(null); // Hide banner after sending
     } catch (error: any) {
       showAlert(
@@ -832,7 +836,10 @@ export const ChatScreen: React.FC = () => {
           setEditingMessage(null);
         } catch (error) {
           logger.error("ChatScreen", "Error editing message", error);
-          Alert.alert("Erreur", "Impossible de modifier le message");
+          Alert.alert(
+            getLocalizedText("notif.error"),
+            getLocalizedText("chat.errorEditMessage"),
+          );
           setEditingMessage(null);
         }
         return;
@@ -1071,17 +1078,9 @@ export const ChatScreen: React.FC = () => {
         }
 
         // 1. Upload file to media-service
-        console.log("[ChatScreen] Uploading media to media-service:", filename);
         const uploadResult = await MediaService.uploadMedia(
           { uri, name: filename, type: mimeType },
-          (percent) => {
-            console.log(`[ChatScreen] Upload progress: ${percent}%`);
-          },
-        );
-        console.log(
-          "[ChatScreen] Media uploaded:",
-          uploadResult.id,
-          uploadResult.url,
+          (percent) => {},
         );
 
         // Build metadata with the remote URLs from the upload result
@@ -1233,7 +1232,10 @@ export const ChatScreen: React.FC = () => {
         );
       } catch (error) {
         logger.error("ChatScreen", "Error scheduling message", error);
-        Alert.alert("Erreur", "Impossible de programmer le message.");
+        Alert.alert(
+          getLocalizedText("notif.error"),
+          getLocalizedText("chat.errorScheduleMessage"),
+        );
       }
       setScheduleMessageText("");
     },
@@ -1243,6 +1245,24 @@ export const ChatScreen: React.FC = () => {
   const handleScheduledPress = useCallback(() => {
     navigation.navigate("ScheduledMessages", { conversationId });
   }, [navigation, conversationId]);
+
+  const handleInitiateCall = useCallback(
+    async (type: "audio" | "video") => {
+      if (!conversation) return;
+      const memberIds: string[] =
+        conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
+      const participantIds = memberIds.filter((id) => id && id !== userId);
+      try {
+        await useCallsStore
+          .getState()
+          .initiate(conversationId, type, participantIds);
+        navigation.navigate("InCall");
+      } catch (err) {
+        console.error("Failed to initiate call", err);
+      }
+    },
+    [conversation, conversationMembers, conversationId, userId, navigation],
+  );
 
   const resolveReactorDisplayName = useCallback(
     (uid: string) => {
@@ -1439,31 +1459,26 @@ export const ChatScreen: React.FC = () => {
   }, [selectedMessage]);
 
   const handleForwardSelect = useCallback(
-    async (targetConversationId: string) => {
-      if (!forwardingMessage) return;
+    async (targetConversationIds: string[]) => {
+      if (!forwardingMessage || targetConversationIds.length === 0) return;
 
       setForwardSending(true);
       try {
-        await messagingAPI.sendMessage(targetConversationId, {
-          content: forwardingMessage.content,
-          message_type: forwardingMessage.message_type,
-          client_random: Math.floor(Math.random() * 1000000),
-          metadata: {
-            forwarded: true,
-            original_sender: forwardingMessage.sender_id,
-            original_timestamp: forwardingMessage.sent_at,
-          },
-        });
+        await messagingAPI.forwardMessage(
+          forwardingMessage.id,
+          targetConversationIds,
+        );
         setShowForwardModal(false);
         setForwardingMessage(null);
         setForwardSending(false);
 
-        // Navigate to the target conversation so the user sees the forwarded
-        // message immediately. Using `push` creates a new stack entry so the
-        // back button returns to the original conversation.
-        navigation.push("Chat", {
-          conversationId: targetConversationId,
-        });
+        // If forwarded to a single target, navigate there so the user sees
+        // the forwarded message. For multi-select stay in place.
+        if (targetConversationIds.length === 1) {
+          navigation.push("Chat", {
+            conversationId: targetConversationIds[0],
+          });
+        }
       } catch (error) {
         logger.error("ChatScreen", "Error forwarding message", error);
         setForwardSending(false);
@@ -1513,7 +1528,10 @@ export const ChatScreen: React.FC = () => {
         await loadPinnedMessages();
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
-        Alert.alert("Erreur", "Impossible de supprimer le message");
+        Alert.alert(
+          getLocalizedText("notif.error"),
+          getLocalizedText("chat.errorDeleteMessage"),
+        );
       }
     },
     [selectedMessage, conversationId, loadPinnedMessages],
@@ -1927,6 +1945,8 @@ export const ChatScreen: React.FC = () => {
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}
+          onAudioCallPress={() => handleInitiateCall("audio")}
+          onVideoCallPress={() => handleInitiateCall("video")}
         />
         {isOtherUserContact === false && (
           <View style={styles.notContactBanner}>
