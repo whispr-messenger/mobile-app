@@ -39,7 +39,6 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
 import {
   getFavoriteIds,
   toggleFavorite,
@@ -753,7 +752,6 @@ export const ContactsScreen: React.FC = () => {
           onContactsSynced={loadContacts}
         />
       </SafeAreaView>
-      <BottomTabBar />
     </LinearGradient>
   );
 };

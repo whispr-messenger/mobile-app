@@ -4,8 +4,8 @@ import "react-native-gesture-handler";
 // web is a no-op (no native WebRTC bindings to install).
 import "./src/services/calls/bootstrap";
 import { enableScreens } from "react-native-screens";
-import { useCallback, useEffect } from "react";
-import { Platform } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Platform, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -23,6 +23,7 @@ import { linkingConfig } from "./src/navigation/linkingConfig";
 import { navigationRef } from "./src/navigation/navigationRef";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
+import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
 
 enableScreens(false);
 
@@ -36,6 +37,7 @@ export default function App() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [currentRouteName, setCurrentRouteName] = useState("");
 
   // Fix: constrain the app to the viewport height on web so the bottom
   // tab bar stays visible without the page itself becoming scrollable.
@@ -54,6 +56,10 @@ export default function App() {
       await SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded]);
+
+  const syncCurrentRouteName = useCallback(() => {
+    setCurrentRouteName(navigationRef.getCurrentRoute()?.name ?? "");
+  }, []);
 
   if (!fontsLoaded) {
     return null;
@@ -76,8 +82,13 @@ export default function App() {
             <NavigationContainer
               ref={navigationRef}
               linking={linkingConfig}
+              onReady={syncCurrentRouteName}
+              onStateChange={syncCurrentRouteName}
             >
-              <AuthNavigator />
+              <View style={{ flex: 1 }}>
+                <AuthNavigator />
+              </View>
+              <BottomTabBar currentRouteName={currentRouteName} />
               <StatusBar style="light" />
             </NavigationContainer>
           </AuthProvider>

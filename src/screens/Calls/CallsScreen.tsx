@@ -2,7 +2,6 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
 import { CallHistoryScreen } from "./CallHistoryScreen";
 import { colors } from "../../theme/colors";
 
@@ -22,7 +21,6 @@ export const CallsScreen: React.FC = () => {
           <CallHistoryScreen />
         </View>
       </SafeAreaView>
-      <BottomTabBar />
     </LinearGradient>
   );
 };
@@ -45,7 +43,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingBottom: 80,
   },
 });
 

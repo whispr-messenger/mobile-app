@@ -27,7 +27,6 @@ import { TokenService } from "../../services/TokenService";
 import { SwipeableConversationItem } from "../../components/Chat/SwipeableConversationItem";
 import { EmptyState } from "../../components/Chat/EmptyState";
 import { ConversationSkeleton } from "../../components/Chat/SkeletonLoader";
-import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
 import { NewConversationModal } from "../../components/Chat/NewConversationModal";
 import { useTheme } from "../../context/ThemeContext";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
@@ -597,7 +596,6 @@ export const ConversationsListScreen: React.FC = () => {
           type={toast.type}
           onHide={() => setToast({ ...toast, visible: false })}
         />
-        <BottomTabBar />
       </SafeAreaView>
 
       <NewConversationModal
