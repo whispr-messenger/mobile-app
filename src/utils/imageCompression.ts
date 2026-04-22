@@ -3,7 +3,7 @@
  * WHISPR-265: Compression automatique des images avant envoi
  */
 
-import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImageManipulator from "expo-image-manipulator";
 
 export interface CompressionOptions {
   maxWidth?: number;
@@ -25,7 +25,7 @@ const DEFAULT_COMPRESS = 0.7;
  */
 export async function compressImage(
   uri: string,
-  options: CompressionOptions = {}
+  options: CompressionOptions = {},
 ): Promise<string> {
   try {
     const {
@@ -49,7 +49,7 @@ export async function compressImage(
       {
         compress: compress,
         format: ImageManipulator.SaveFormat.JPEG,
-      }
+      },
     );
 
     // Apply quality compression
@@ -59,12 +59,12 @@ export async function compressImage(
       {
         compress: quality,
         format: ImageManipulator.SaveFormat.JPEG,
-      }
+      },
     );
 
     return finalResult.uri;
   } catch (error) {
-    console.error('[ImageCompression] Error compressing image:', error);
+    console.error("[ImageCompression] Error compressing image:", error);
     // Return original URI if compression fails
     return uri;
   }
@@ -75,13 +75,13 @@ export async function compressImage(
  * @param uri - File URI
  * @returns File size in bytes or null if unable to determine
  */
-export async function getFileSize(uri: string): Promise<number | null> {
+export async function getFileSize(_uri: string): Promise<number | null> {
   try {
     // For local files, we can't easily get size without FileSystem
     // This is a placeholder - in production, use expo-file-system
     return null;
   } catch (error) {
-    console.error('[ImageCompression] Error getting file size:', error);
+    console.error("[ImageCompression] Error getting file size:", error);
     return null;
   }
 }

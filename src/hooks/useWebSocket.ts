@@ -7,12 +7,21 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import Constants from "expo-constants";
 import {
   getSharedSocket,
   ConnectionState,
 } from "../services/messaging/websocket";
 import { Conversation, Message } from "../types/messaging";
 import { usePresenceStore } from "../store/presenceStore";
+import { useCallsStore } from "../store/callsStore";
+import { navigate } from "../navigation/navigationRef";
+import type { CallType } from "../types/calls";
+
+const executionEnvironment = (Constants as any)?.executionEnvironment;
+const appOwnership = (Constants as any)?.appOwnership;
+const isExpoGo =
+  executionEnvironment === "storeClient" || appOwnership === "expo";
 
 /** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
 export interface ReactionRealtimePayload {
@@ -107,6 +116,30 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       onContactReq: (data: { request: any }) => {
         callbacksRef.current.onContactRequest?.(data.request);
       },
+      // incoming_call: WS broadcast from calls-service when another user
+      // initiates a call involving us. Push to the store and route to the
+      // modal IncomingCallScreen.
+      onIncomingCall: (data: {
+        call_id: string;
+        initiator_id: string;
+        conversation_id: string;
+        type: CallType;
+      }) => {
+        if (!data?.call_id) return;
+        if (isExpoGo) return;
+        useCallsStore.getState().setIncoming({
+          callId: data.call_id,
+          initiatorId: data.initiator_id,
+          conversationId: data.conversation_id,
+          type: data.type,
+        });
+        navigate("IncomingCall");
+      },
+      // call_ended: remote party hung up or server timed out the call.
+      // Clear any pending incoming state so the modal dismisses cleanly.
+      onCallEnded: () => {
+        useCallsStore.getState().setIncoming(null);
+      },
     }),
     [],
   );
@@ -124,15 +157,21 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.off("new_message", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
+    userChannel.off("incoming_call", userHandlers.onIncomingCall);
+    userChannel.off("call_ended", userHandlers.onCallEnded);
 
     userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
+    userChannel.on("incoming_call", userHandlers.onIncomingCall);
+    userChannel.on("call_ended", userHandlers.onCallEnded);
 
     return () => {
       userChannel.off("new_message", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
+      userChannel.off("incoming_call", userHandlers.onIncomingCall);
+      userChannel.off("call_ended", userHandlers.onCallEnded);
     };
   }, [options.userId, options.token, userHandlers]);
 

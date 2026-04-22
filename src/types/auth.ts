@@ -66,3 +66,7 @@ export interface TwoFactorSetupResponse {
 export interface TwoFactorBackupCodesResponse {
   backupCodes: string[];
 }
+
+export interface TwoFactorBackupCodesRemainingResponse {
+  remaining: number;
+}
