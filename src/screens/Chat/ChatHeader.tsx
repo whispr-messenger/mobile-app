@@ -58,26 +58,32 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           color={themeColors.text.primary}
         />
       </TouchableOpacity>
-      {conversationType === "group" && groupAvatarNodes.length > 0 ? (
-        <View style={styles.groupAvatarStack}>
-          {groupAvatarNodes.map((a, idx) => (
-            <View
-              key={`${a.uri ?? a.name}-${idx}`}
-              style={[
-                styles.groupAvatarItem,
-                idx === 1 ? styles.groupAvatarItemTop : null,
-              ]}
-            >
-              <Avatar size={22} uri={a.uri} name={a.name} />
-            </View>
-          ))}
-        </View>
+      {conversationType === "group" ? (
+        avatarUrl ? (
+          <Avatar size={32} uri={avatarUrl} name={conversationName} />
+        ) : groupAvatarNodes.length > 0 ? (
+          <View style={styles.groupAvatarStack}>
+            {groupAvatarNodes.map((a, idx) => (
+              <View
+                key={`${a.uri ?? a.name}-${idx}`}
+                style={[
+                  styles.groupAvatarItem,
+                  idx === 1 ? styles.groupAvatarItemTop : null,
+                ]}
+              >
+                <Avatar size={22} uri={a.uri} name={a.name} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Avatar size={32} name={conversationName} />
+        )
       ) : (
         <Avatar
           size={32}
           uri={avatarUrl}
           name={conversationName}
-          showOnlineBadge={conversationType === "direct"}
+          showOnlineBadge
           isOnline={isOnline}
         />
       )}

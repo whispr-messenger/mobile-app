@@ -59,6 +59,62 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   const hasCachedAvatars = useConversationsStore(
     (s) => conversation.id in s.groupAvatars,
   );
+  const applyConversationUpdate = useConversationsStore(
+    (s) => s.applyConversationUpdate,
+  );
+
+  const groupAvatarUrl = useMemo(() => {
+    if (conversation.type !== "group") return undefined;
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation]);
+
+  const triedGroupAvatarFetchRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (conversation.type !== "group") return;
+    if (groupAvatarUrl) return;
+    if (triedGroupAvatarFetchRef.current) return;
+    triedGroupAvatarFetchRef.current = true;
+
+    let cancelled = false;
+    messagingAPI
+      .getConversation(conversation.id)
+      .then((detail) => {
+        if (cancelled || !detail) return;
+        const meta = (detail.metadata ?? {}) as Record<string, any>;
+        const resolved =
+          detail.avatar_url ||
+          meta.avatar_url ||
+          meta.group_avatar_url ||
+          meta.group_icon_url ||
+          meta.icon_url ||
+          meta.photo_url ||
+          meta.picture_url ||
+          meta.image_url;
+        if (!resolved) return;
+        applyConversationUpdate({ ...detail, avatar_url: resolved });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applyConversationUpdate,
+    conversation.id,
+    conversation.type,
+    groupAvatarUrl,
+  ]);
 
   React.useEffect(() => {
     if (conversation.type !== "group") return;
@@ -243,7 +299,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           )}
           <View style={styles.avatarContainer}>
             {conversation.type === "group" &&
-            !conversation.avatar_url &&
+            !groupAvatarUrl &&
             groupAvatars.length > 0 ? (
               <View style={styles.groupAvatarStack}>
                 {groupAvatars.map((a, idx) => (
@@ -261,7 +317,11 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             ) : (
               <Avatar
                 size={48}
-                uri={conversation.avatar_url}
+                uri={
+                  conversation.type === "group"
+                    ? groupAvatarUrl
+                    : conversation.avatar_url
+                }
                 name={displayName}
                 showOnlineBadge={conversation.type === "direct"}
                 isOnline={isOtherOnline}

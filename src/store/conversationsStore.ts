@@ -312,6 +312,7 @@ export const useConversationsStore = create<
         is_pinned: wsConv.is_pinned ?? wsConv.isPinned ?? false,
         is_muted: wsConv.is_muted ?? wsConv.isMuted ?? false,
         is_archived: wsConv.is_archived ?? wsConv.isArchived ?? false,
+        avatar_url: wsConv.avatar_url || wsConv.avatarUrl,
       };
       const existing = existingMap.get(conv.id);
       if (existing) {
@@ -319,7 +320,7 @@ export const useConversationsStore = create<
           ...conv,
           display_name: existing.display_name || conv.display_name,
           member_user_ids: conv.member_user_ids || existing.member_user_ids,
-          avatar_url: existing.avatar_url,
+          avatar_url: conv.avatar_url || existing.avatar_url,
           // Preserve local enrichments the backend summary doesn't include
           last_message: conv.last_message || existing.last_message,
           is_pinned: conv.is_pinned || existing.is_pinned,
