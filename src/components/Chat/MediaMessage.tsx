@@ -146,10 +146,14 @@ function useResolvedMediaUrl(uri: string | undefined): {
         // 302 redirect. Parse JSON first; fall back to response.url for the
         // legacy 302 redirect contract.
         let presigned: string | null = null;
+        let urlExplicitlyNull = false;
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           try {
             const body = (await response.json()) as { url?: string | null };
+            if (body && "url" in body && body.url === null) {
+              urlExplicitlyNull = true;
+            }
             presigned = body?.url ?? null;
           } catch {
             presigned = null;
@@ -157,6 +161,15 @@ function useResolvedMediaUrl(uri: string | undefined): {
         } else if (response.url && response.url !== uri) {
           // Legacy: fetch followed a 302 — response.url is the presigned URL
           presigned = response.url;
+        }
+
+        // `/thumbnail` retourne `{ url: null }` quand aucune vignette n'est
+        // stockée — c'est légitime, pas une erreur. On laisse `resolvedUri`
+        // vide et on évite tout fallback réseau (qui aboutirait à un blob de
+        // JSON inutile et casserait l'affichage de l'image principale).
+        if (urlExplicitlyNull) {
+          setResolvedUri("");
+          return;
         }
 
         if (isReachableUrl(presigned)) {
@@ -244,8 +257,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     loading: mainLoading,
     error: mainError,
   } = useResolvedMediaUrl(uri);
-  const { resolvedUri: resolvedThumbUri, error: thumbError } =
-    useResolvedMediaUrl(thumbnailUri || uri);
+  const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
+    thumbnailUri || uri,
+  );
 
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
@@ -295,7 +309,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   }, [showVideoPlayer, uri, type]);
 
   if (type === "image") {
-    const imageError = mainError || thumbError || !resolvedMainUri;
+    // Une thumbnail manquante ou en erreur ne doit jamais empêcher le rendu
+    // de l'image principale — on tombe simplement sur l'URI principale via
+    // `resolvedThumbUri || resolvedMainUri`. On exclut donc `thumbError` du
+    // calcul d'erreur global.
+    const imageError = mainError || !resolvedMainUri;
     return (
       <>
         <TouchableOpacity
