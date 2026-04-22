@@ -47,6 +47,12 @@ import { useAuth } from "../context/AuthContext";
 import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
 import type { AuthPurpose } from "../types/auth";
+import type {
+  Report,
+  Appeal,
+  UserSanction,
+  SanctionType,
+} from "../types/moderation";
 
 /** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
 const SPLASH_MIN_MS = 2000;
@@ -115,19 +121,23 @@ export type AuthStackParamList = {
   };
   // Moderation (user-facing)
   ReportHistory: undefined;
-  ReportDetail: { reportId: string };
+  ReportDetail: { report: Report };
   MySanctions: undefined;
   SanctionNotice: { sanctionId: string };
-  AppealForm: { sanctionId: string };
-  AppealStatus: { appealId: string };
+  AppealForm: { sanction: UserSanction };
+  AppealStatus: { sanctionId?: string; appealId?: string };
   // Admin screens
   ModerationDashboard: undefined;
   ReportQueue: undefined;
-  ReportReview: { reportId: string };
+  ReportReview: { report: Report };
   AppealQueue: undefined;
-  AppealReview: { appealId: string };
-  UserModeration: { userId: string };
-  SanctionForm: { userId: string };
+  AppealReview: { appeal: Appeal };
+  UserModeration: { userId: string; userName?: string; userAvatar?: string };
+  SanctionForm: {
+    userId?: string;
+    userName?: string;
+    defaultType?: SanctionType;
+  };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
