@@ -14,8 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import { useTheme } from "../../context/ThemeContext";
+import { navigate } from "../../navigation/navigationRef";
 import { colors } from "../../theme/colors";
 import { useConversationsStore } from "../../store/conversationsStore";
 
@@ -46,12 +45,11 @@ const tabs: TabItem[] = [
   { name: "Settings", useLogo: true, logoVariant: "single", route: "Settings" },
 ];
 
-export const BottomTabBar: React.FC = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+type Props = {
+  currentRouteName: string;
+};
 
+export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
   const conversations = useConversationsStore((s) => s.conversations);
   const chatsUnread = React.useMemo(
     () =>
@@ -65,15 +63,18 @@ export const BottomTabBar: React.FC = () => {
   const unreadCounts = { chats: chatsUnread };
 
   const handleTabPress = (tabRoute: string) => {
-    if (route.name !== tabRoute) {
-      // @ts-ignore
-      navigation.navigate(tabRoute);
+    if (currentRouteName !== tabRoute) {
+      navigate(tabRoute as any);
     }
   };
 
   const isActive = (tabRoute: string) => {
-    return route.name === tabRoute;
+    return currentRouteName === tabRoute;
   };
+
+  if (!tabs.some((t) => t.route === currentRouteName)) {
+    return null;
+  }
 
   const Wrapper = Platform.OS === "web" ? View : SafeAreaView;
   const wrapperProps =
