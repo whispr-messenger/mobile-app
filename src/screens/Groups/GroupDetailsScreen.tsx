@@ -807,7 +807,9 @@ export const GroupDetailsScreen: React.FC = () => {
             ]}
             activeOpacity={0.7}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {},
+              );
               navigation.navigate("Profile", {
                 userId:
                   member.user_id === CURRENT_USER_ID
@@ -816,7 +818,9 @@ export const GroupDetailsScreen: React.FC = () => {
               });
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Ouvrir le profil de ${member.display_name}`}
+            accessibilityLabel={`Ouvrir le profil de ${
+              member.display_name ?? "membre"
+            }`}
             entering={FadeInDown.delay(150 + index * 50).springify()}
           >
             <Avatar
