@@ -266,7 +266,7 @@ export const GroupDetailsScreen: React.FC = () => {
       navigation.navigate("ConversationsList");
     } catch (error: any) {
       logger.error("GroupDetailsScreen", "Error leaving group", error);
-      Alert.alert("Erreur", error.message || "Impossible de quitter le groupe");
+      Alert.alert("Erreur", "Impossible de quitter le groupe");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLeaving(false);
