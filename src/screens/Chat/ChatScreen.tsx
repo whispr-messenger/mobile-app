@@ -2112,12 +2112,13 @@ export const ChatScreen: React.FC = () => {
               viewabilityConfig={viewabilityConfig}
               onViewableItemsChanged={handleViewableItemsChanged}
               keyboardShouldPersistTaps="handled"
-              // Web : sans flex:1/minHeight:0 explicite, la VirtualizedList
-              // react-native-web ne calcule pas bien la hauteur scrollable
-              // quand son parent est lui-même flex — résultat : aucun scroll
-              // et MessageInput poussé hors du viewport.
+              // Web : on absolute-positionne la FlatList à l'intérieur du
+              // wrapper `webListViewport` (qui est `position: relative`). Ça
+              // donne à la VirtualizedList une boîte de taille définie sans
+              // dépendre du flex layout, indispensable pour que Chrome accepte
+              // de scroller sur la molette quand `inverted` est actif.
               style={
-                Platform.OS === "web" ? { flex: 1, minHeight: 0 } : undefined
+                Platform.OS === "web" ? styles.webFlatListAbsolute : undefined
               }
               ListEmptyComponent={
                 !loading ? (
@@ -2445,6 +2446,21 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     overflow: "hidden",
+    // `position: relative` permet à la FlatList interne d'utiliser
+    // `position: absolute, inset: 0` pour s'imposer une hauteur définie : sans
+    // ça, `flex: 1, minHeight: 0` seul ne suffit pas à react-native-web pour
+    // donner une bordure de scroll à un VirtualizedList inversé. Conséquence :
+    // la ScrollView interne grandit avec le contenu et la molette n'a rien à
+    // scroller.
+    position: "relative",
+  },
+  webFlatListAbsolute: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 0,
   },
   loadingMore: {
     paddingVertical: 16,
