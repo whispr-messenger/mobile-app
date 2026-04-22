@@ -391,7 +391,7 @@ export const SettingsScreen: React.FC = () => {
             await signOut();
             navigation.reset({
               index: 0,
-              routes: [{ name: "Welcome" as never }],
+              routes: [{ name: "Welcome" }],
             });
           },
         },
@@ -610,7 +610,7 @@ export const SettingsScreen: React.FC = () => {
               getLocalizedText("settings.blockedUsersSubtitle") ||
               "View and unblock users you've blocked"
             }
-            onPress={() => navigation.navigate("BlockedUsers" as never)}
+            onPress={() => navigation.navigate("BlockedUsers")}
             icon="ban-outline"
           />
         </SettingSection>
@@ -882,7 +882,7 @@ export const SettingsScreen: React.FC = () => {
           <SettingItem
             label="Security Keys"
             subtitle="Manage your encryption keys and devices"
-            onPress={() => navigation.navigate("SecurityKeys" as never)}
+            onPress={() => navigation.navigate("SecurityKeys")}
             icon="key-outline"
           />
           {/* WHISPR-1055: session management — list connected devices + revoke. */}
@@ -892,13 +892,13 @@ export const SettingsScreen: React.FC = () => {
               getLocalizedText("devices.subtitle") ||
               "View and sign out active sessions"
             }
-            onPress={() => navigation.navigate("Devices" as never)}
+            onPress={() => navigation.navigate("Devices")}
             icon="phone-portrait-outline"
           />
           <SettingItem
             label={getLocalizedText("twoFactor.title")}
             subtitle={getLocalizedText("twoFactor.authenticationSubtitle")}
-            onPress={() => navigation.navigate("TwoFactorAuth" as never)}
+            onPress={() => navigation.navigate("TwoFactorAuth")}
             icon="shield-checkmark-outline"
           />
           <View style={styles.settingItem}>
@@ -953,7 +953,7 @@ export const SettingsScreen: React.FC = () => {
               getLocalizedText("settings.myReportsSubtitle") ||
               "History of your reports"
             }
-            onPress={() => navigation.navigate("ReportHistory" as never)}
+            onPress={() => navigation.navigate("ReportHistory")}
             icon="document-text-outline"
           />
           <SettingItem
@@ -962,7 +962,7 @@ export const SettingsScreen: React.FC = () => {
               getLocalizedText("settings.mySanctionsSubtitle") ||
               "View your sanctions"
             }
-            onPress={() => navigation.navigate("MySanctions" as never)}
+            onPress={() => navigation.navigate("MySanctions")}
             icon="alert-circle-outline"
           />
           {isStaff && (
@@ -975,9 +975,7 @@ export const SettingsScreen: React.FC = () => {
                 getLocalizedText("settings.moderationDashboardSubtitle") ||
                 "Moderation management"
               }
-              onPress={() =>
-                navigation.navigate("ModerationDashboard" as never)
-              }
+              onPress={() => navigation.navigate("ModerationDashboard")}
               icon="shield-outline"
             />
           )}
@@ -1033,7 +1031,7 @@ export const SettingsScreen: React.FC = () => {
             <SettingItem
               label="Moderation Test"
               subtitle="Run the on-device TFJS image gate"
-              onPress={() => navigation.navigate("ModerationTest" as never)}
+              onPress={() => navigation.navigate("ModerationTest")}
               icon="image-outline"
               rightComponent={
                 <Ionicons
