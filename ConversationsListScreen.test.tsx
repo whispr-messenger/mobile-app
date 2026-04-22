@@ -135,12 +135,12 @@ describe('ConversationsListScreen', () => {
 
   it('renders Edit button', () => {
     const { getByText } = render(<ConversationsListScreen />);
-    expect(getByText('Edit')).toBeTruthy();
+    expect(getByText('Modifier')).toBeTruthy();
   });
 
   it('toggles edit mode on Edit press', () => {
     const { getByText } = render(<ConversationsListScreen />);
-    fireEvent.press(getByText('Edit'));
-    expect(getByText('Cancel')).toBeTruthy();
+    fireEvent.press(getByText('Modifier'));
+    expect(getByText('Annuler')).toBeTruthy();
   });
 });
