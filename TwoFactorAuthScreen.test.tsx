@@ -188,39 +188,73 @@ describe("TwoFactorAuthScreen", () => {
     );
   });
 
-  it("shows confirmation alert before regenerating backup codes", async () => {
+  it("shows remaining backup codes count when 2FA is enabled", async () => {
     mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
-    mockedTwoFactorService.getBackupCodes.mockResolvedValue({
-      backupCodes: ["aaaa-1111", "bbbb-2222"],
+    mockedTwoFactorService.getRemainingBackupCodes.mockResolvedValue({
+      remaining: 7,
     });
 
-    const alertSpy = jest.spyOn(require("react-native").Alert, "alert");
+    const { findByText } = await renderAndLoad();
 
-    const { getByText } = await renderAndLoad();
+    expect(await findByText("twoFactor.remainingCodes")).toBeTruthy();
+    expect(mockedTwoFactorService.getRemainingBackupCodes).toHaveBeenCalled();
+  });
 
-    const viewCodesButton = getByText("twoFactor.regenerateCodes");
+  it("opens regenerate inline card and requires a TOTP code before calling the API", async () => {
+    mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
+    mockedTwoFactorService.getRemainingBackupCodes.mockResolvedValue({
+      remaining: 5,
+    });
+
+    const { findByText, queryByPlaceholderText, getByPlaceholderText } =
+      await renderAndLoad();
+
+    expect(queryByPlaceholderText("twoFactor.enterCode")).toBeNull();
+
+    const regenerateAction = await findByText("twoFactor.regenerateCodes");
     await act(async () => {
-      fireEvent.press(viewCodesButton);
+      fireEvent.press(regenerateAction);
     });
 
-    // Alert shown, API not called yet
-    expect(alertSpy).toHaveBeenCalledTimes(1);
-    expect(mockedTwoFactorService.getBackupCodes).not.toHaveBeenCalled();
+    expect(getByPlaceholderText("twoFactor.enterCode")).toBeTruthy();
+    // Nothing hit the backend yet
+    expect(
+      mockedTwoFactorService.regenerateBackupCodes,
+    ).not.toHaveBeenCalled();
+  });
 
-    // Simulate user confirming the destructive action (last button = destructive)
-    const alertButtons = alertSpy.mock.calls[0][2] as Array<{
-      onPress?: () => void;
-    }>;
-    const confirmButton = alertButtons[alertButtons.length - 1];
+  it("calls regenerateBackupCodes and navigates on valid TOTP code", async () => {
+    mockedTwoFactorService.getStatus.mockResolvedValue({ enabled: true });
+    mockedTwoFactorService.getRemainingBackupCodes.mockResolvedValue({
+      remaining: 3,
+    });
+    mockedTwoFactorService.regenerateBackupCodes.mockResolvedValue({
+      backupCodes: ["AAAA-1111", "BBBB-2222"],
+    });
+
+    const { findByText, getByPlaceholderText, getAllByText } =
+      await renderAndLoad();
+
     await act(async () => {
-      confirmButton.onPress?.();
+      fireEvent.press(await findByText("twoFactor.regenerateCodes"));
     });
 
-    expect(mockedTwoFactorService.getBackupCodes).toHaveBeenCalledTimes(1);
+    fireEvent.changeText(
+      getByPlaceholderText("twoFactor.enterCode"),
+      "123456",
+    );
+
+    // Second occurrence is the confirm button inside the inline card
+    const regenerateButtons = getAllByText("twoFactor.regenerateCodes");
+    await act(async () => {
+      fireEvent.press(regenerateButtons[regenerateButtons.length - 1]);
+    });
+
+    expect(mockedTwoFactorService.regenerateBackupCodes).toHaveBeenCalledWith(
+      "123456",
+    );
     expect(mockNavigate).toHaveBeenCalledWith("TwoFactorBackupCodes", {
-      codes: ["aaaa-1111", "bbbb-2222"],
+      codes: ["AAAA-1111", "BBBB-2222"],
     });
-
-    alertSpy.mockRestore();
   });
 });
