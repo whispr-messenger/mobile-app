@@ -1940,9 +1940,22 @@ export const ChatScreen: React.FC = () => {
       colors={colors.background.gradient.app}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradientContainer}
+      // Web : la chaîne flex doit être complètement "min-height: 0" de haut
+      // en bas pour que la FlatList virtualisée puisse scroller. Sans ça les
+      // conteneurs parents refusent de laisser leur enfant rétrécir et la
+      // hauteur scrollable finit à 0.
+      style={[
+        styles.gradientContainer,
+        Platform.OS === "web" && { minHeight: 0, height: "100%" },
+      ]}
     >
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          Platform.OS === "web" && { minHeight: 0, height: "100%" },
+        ]}
+        edges={["top"]}
+      >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
           conversationName={
