@@ -487,7 +487,7 @@ export const ConversationsListScreen: React.FC = () => {
             />
             <TextInput
               style={[styles.searchInput, { color: colors.text.light }]}
-              placeholder="Search for messages or users"
+              placeholder="Rechercher des messages ou utilisateurs"
               placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={searchQuery}
               onChangeText={(text) => {
