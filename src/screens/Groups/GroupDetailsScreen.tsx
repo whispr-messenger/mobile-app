@@ -321,11 +321,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, []);
 
   const openAddMemberModal = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setContactSearch("");
     setShowAddMemberModal(true);
     if (contacts.length === 0) {
-      loadContactsForPicker();
+      loadContactsForPicker().catch((err) => {
+        logger.error(
+          "GroupDetailsScreen",
+          "loadContactsForPicker rejected",
+          err,
+        );
+      });
     }
   }, [contacts.length, loadContactsForPicker]);
 
