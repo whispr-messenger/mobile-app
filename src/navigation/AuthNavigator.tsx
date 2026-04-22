@@ -45,6 +45,7 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
+import { useModerationStore } from "../store/moderationStore";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
 import type { AuthPurpose } from "../types/auth";
 import type {
@@ -145,6 +146,7 @@ const Stack = createStackNavigator<AuthStackParamList>();
 export const AuthNavigator: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+  const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
 
   // WHISPR-1060: drain any offline-queued messages left over from a
   // previous session as soon as the authenticated tree mounts, and keep
@@ -157,6 +159,15 @@ export const AuthNavigator: React.FC = () => {
     const t = setTimeout(() => setSplashMinElapsed(true), SPLASH_MIN_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // WHISPR-929: load the current user's moderation role as soon as the app
+  // enters its authenticated tree so every screen (not just Settings) can
+  // gate admin-only UI correctly from first render.
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMyRole();
+    }
+  }, [isAuthenticated, fetchMyRole]);
 
   const showSplash = isLoading || !splashMinElapsed;
 
