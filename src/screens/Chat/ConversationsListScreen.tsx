@@ -443,7 +443,7 @@ export const ConversationsListScreen: React.FC = () => {
             style={styles.headerButton}
           >
             <Text style={[styles.editButton, { color: colors.text.light }]}>
-              {editMode ? "Cancel" : "Edit"}
+              {editMode ? "Annuler" : "Modifier"}
             </Text>
           </TouchableOpacity>
           <Text
