@@ -2097,8 +2097,21 @@ export const ChatScreen: React.FC = () => {
           // Natif (iOS/Android) : comportement inchangé, KeyboardAvoidingView
           // reste nécessaire pour le clavier physique.
           if (Platform.OS === "web") {
+            // overflow:hidden + flexDirection:column ensures MessageInput
+            // stays inside the viewport: without it, react-native-web lets
+            // the FlatList content grow past the flex container and pushes
+            // MessageInput off-screen.
             return (
-              <View style={[styles.keyboardView, { minHeight: 0 }]}>
+              <View
+                style={[
+                  styles.keyboardView,
+                  {
+                    minHeight: 0,
+                    overflow: "hidden",
+                    flexDirection: "column",
+                  },
+                ]}
+              >
                 {chatBody}
               </View>
             );
