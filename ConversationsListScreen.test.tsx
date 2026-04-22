@@ -125,7 +125,7 @@ describe('ConversationsListScreen', () => {
 
   it('renders search bar', () => {
     const { getByPlaceholderText } = render(<ConversationsListScreen />);
-    expect(getByPlaceholderText('Search for messages or users')).toBeTruthy();
+    expect(getByPlaceholderText('Rechercher des messages ou utilisateurs')).toBeTruthy();
   });
 
   it('renders empty state when no conversations', () => {
