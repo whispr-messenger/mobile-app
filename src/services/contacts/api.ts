@@ -532,7 +532,11 @@ export const contactsAPI = {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || "Failed to send contact request");
+      const e = new Error(
+        err.message || "Failed to send contact request",
+      ) as Error & { status: number };
+      e.status = response.status;
+      throw e;
     }
 
     const r = await response.json();
