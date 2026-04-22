@@ -228,9 +228,9 @@ export const MediaService = {
       (FileSystem as any).documentDirectory ??
       "";
     const cacheDir = `${cacheRoot}avatars/`;
-    await FileSystem.makeDirectoryAsync(cacheDir, { intermediates: true }).catch(
-      () => {},
-    );
+    await FileSystem.makeDirectoryAsync(cacheDir, {
+      intermediates: true,
+    }).catch(() => {});
     const baseName = `${encodeURIComponent(id)}`;
     const tmpPath = `${cacheDir}${baseName}.tmp`;
 
@@ -255,7 +255,9 @@ export const MediaService = {
     const size = typeof info?.size === "number" ? info.size : undefined;
 
     const tryParseUrl = async () => {
-      const raw = await FileSystem.readAsStringAsync(result.uri).catch(() => "");
+      const raw = await FileSystem.readAsStringAsync(result.uri).catch(
+        () => "",
+      );
       try {
         const data = JSON.parse(raw);
         const url = typeof data?.url === "string" ? data.url : undefined;
@@ -283,19 +285,22 @@ export const MediaService = {
       await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
         () => {},
       );
-      throw new Error(`Downloaded avatar has invalid content-type: ${contentType}`);
+      throw new Error(
+        `Downloaded avatar has invalid content-type: ${contentType}`,
+      );
     }
 
-    const ext =
-      contentType.includes("png")
-        ? "png"
-        : contentType.includes("webp")
-          ? "webp"
-          : contentType.includes("heic") || contentType.includes("heif")
-            ? "heic"
-            : "jpg";
+    const ext = contentType.includes("png")
+      ? "png"
+      : contentType.includes("webp")
+        ? "webp"
+        : contentType.includes("heic") || contentType.includes("heif")
+          ? "heic"
+          : "jpg";
     const finalPath = `${cacheDir}${baseName}.${ext}`;
-    await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(() => {});
+    await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+      () => {},
+    );
     await FileSystem.moveAsync({ from: result.uri, to: finalPath });
 
     return finalPath;
