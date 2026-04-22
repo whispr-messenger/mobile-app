@@ -96,6 +96,17 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.blockedUsers": "Utilisateurs bloqués",
     "settings.blockedUsersSubtitle":
       "Voir et débloquer les utilisateurs que vous avez bloqués",
+    "devices.title": "Mes appareils",
+    "devices.subtitle": "Voir et déconnecter les sessions actives",
+    "devices.currentBadge": "Cet appareil",
+    "devices.lastActive": "Dernière activité il y a",
+    "devices.revokeAction": "Révoquer",
+    "devices.revokeTitle": "Révoquer l'appareil",
+    "devices.revokeConfirm":
+      "Cet appareil sera déconnecté. Il devra se reconnecter avec un code SMS.",
+    "devices.revokeConfirmAction": "Révoquer",
+    "devices.revokeError": "Impossible de révoquer cet appareil.",
+    "devices.empty": "Aucun appareil actif sur votre compte.",
     "auth.permissionDeniedGallery":
       "Permission refusée pour accéder à la galerie.",
     "auth.fillAllRequiredFields":
@@ -385,6 +396,17 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.errorSendCode": "Unable to send verification code",
     "settings.blockedUsers": "Blocked users",
     "settings.blockedUsersSubtitle": "View and unblock users you've blocked",
+    "devices.title": "My devices",
+    "devices.subtitle": "View and sign out active sessions",
+    "devices.currentBadge": "This device",
+    "devices.lastActive": "Last active",
+    "devices.revokeAction": "Revoke",
+    "devices.revokeTitle": "Revoke device",
+    "devices.revokeConfirm":
+      "This device will be signed out and will need to re-authenticate with an SMS code.",
+    "devices.revokeConfirmAction": "Revoke",
+    "devices.revokeError": "Could not revoke this device.",
+    "devices.empty": "No active devices on your account.",
     "auth.permissionDeniedGallery": "Permission denied to access the gallery.",
     "auth.fillAllRequiredFields": "Please fill in all required fields.",
     "chat.requestSentTitle": "Request sent",

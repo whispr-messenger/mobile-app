@@ -885,6 +885,16 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => navigation.navigate("SecurityKeys" as never)}
             icon="key-outline"
           />
+          {/* WHISPR-1055: session management — list connected devices + revoke. */}
+          <SettingItem
+            label={getLocalizedText("devices.title") || "My devices"}
+            subtitle={
+              getLocalizedText("devices.subtitle") ||
+              "View and sign out active sessions"
+            }
+            onPress={() => navigation.navigate("Devices" as never)}
+            icon="phone-portrait-outline"
+          />
           <SettingItem
             label={getLocalizedText("twoFactor.title")}
             subtitle={getLocalizedText("twoFactor.authenticationSubtitle")}
