@@ -2014,68 +2014,103 @@ export const ChatScreen: React.FC = () => {
             onClose={() => setShowPinnedBar(false)}
           />
         )}
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        >
-          <FlatList
-            ref={flatListRef}
-            data={messagesWithSeparators}
-            renderItem={renderItem}
-            keyExtractor={keyExtractor}
-            inverted
-            contentContainerStyle={styles.listContent}
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            initialNumToRender={15}
-            windowSize={10}
-            onEndReached={loadMoreMessages}
-            onEndReachedThreshold={0.3}
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 0,
-            }}
-            viewabilityConfig={viewabilityConfig}
-            onViewableItemsChanged={handleViewableItemsChanged}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              !loading ? (
-                <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
-                  <EmptyChatState />
-                </View>
-              ) : null
-            }
-            ListFooterComponent={
-              loadingMore ? (
-                <View style={styles.loadingMore}>
-                  <ActivityIndicator size="small" color={themeColors.primary} />
-                </View>
-              ) : null
-            }
-          />
-          {typingUsers.length > 0 && (
-            <View style={styles.typingContainer}>
-              <TypingIndicator
-                userNames={typingUsers.map(
-                  (id) => typingUsersNames[id] || "Quelqu'un",
-                )}
+        {(() => {
+          // Contenu partagé web / natif — extrait pour que le wrapper soit
+          // branché conditionnellement sans dupliquer le JSX.
+          const chatBody = (
+            <>
+              <FlatList
+                ref={flatListRef}
+                data={messagesWithSeparators}
+                renderItem={renderItem}
+                keyExtractor={keyExtractor}
+                inverted
+                contentContainerStyle={styles.listContent}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                initialNumToRender={15}
+                windowSize={10}
+                onEndReached={loadMoreMessages}
+                onEndReachedThreshold={0.3}
+                maintainVisibleContentPosition={{
+                  minIndexForVisible: 0,
+                }}
+                viewabilityConfig={viewabilityConfig}
+                onViewableItemsChanged={handleViewableItemsChanged}
+                keyboardShouldPersistTaps="handled"
+                // Web : sans flex:1/minHeight:0 explicite, la VirtualizedList
+                // react-native-web ne calcule pas bien la hauteur scrollable
+                // quand son parent est lui-même flex — résultat : aucun scroll
+                // et MessageInput poussé hors du viewport.
+                style={
+                  Platform.OS === "web" ? { flex: 1, minHeight: 0 } : undefined
+                }
+                ListEmptyComponent={
+                  !loading ? (
+                    <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
+                      <EmptyChatState />
+                    </View>
+                  ) : null
+                }
+                ListFooterComponent={
+                  loadingMore ? (
+                    <View style={styles.loadingMore}>
+                      <ActivityIndicator
+                        size="small"
+                        color={themeColors.primary}
+                      />
+                    </View>
+                  ) : null
+                }
               />
-            </View>
-          )}
-          <MessageInput
-            onSend={handleSendMessage}
-            onSendMedia={handleSendMedia}
-            onScheduleSend={handleScheduleSend}
-            onTyping={(typing) => sendTyping(conversationId, typing)}
-            replyingTo={replyingTo}
-            onCancelReply={() => setReplyingTo(null)}
-            editingMessage={editingMessage}
-            onCancelEdit={() => setEditingMessage(null)}
-            conversationType={conversation?.type || "direct"}
-            members={conversationMembers}
-          />
-        </KeyboardAvoidingView>
+              {typingUsers.length > 0 && (
+                <View style={styles.typingContainer}>
+                  <TypingIndicator
+                    userNames={typingUsers.map(
+                      (id) => typingUsersNames[id] || "Quelqu'un",
+                    )}
+                  />
+                </View>
+              )}
+              <MessageInput
+                onSend={handleSendMessage}
+                onSendMedia={handleSendMedia}
+                onScheduleSend={handleScheduleSend}
+                onTyping={(typing) => sendTyping(conversationId, typing)}
+                replyingTo={replyingTo}
+                onCancelReply={() => setReplyingTo(null)}
+                editingMessage={editingMessage}
+                onCancelEdit={() => setEditingMessage(null)}
+                conversationType={conversation?.type || "direct"}
+                members={conversationMembers}
+              />
+            </>
+          );
+
+          // Web : KeyboardAvoidingView (behavior="height") recalcule la hauteur
+          // en fonction du clavier virtuel inexistant en navigateur, ce qui
+          // finit par réduire le container à 0 px → MessageInput invisible et
+          // chat non scrollable. On remplace par un simple View flex:1.
+          // Natif (iOS/Android) : comportement inchangé, KeyboardAvoidingView
+          // reste nécessaire pour le clavier physique.
+          if (Platform.OS === "web") {
+            return (
+              <View style={[styles.keyboardView, { minHeight: 0 }]}>
+                {chatBody}
+              </View>
+            );
+          }
+          return (
+            <KeyboardAvoidingView
+              style={styles.keyboardView}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+            >
+              {chatBody}
+            </KeyboardAvoidingView>
+          );
+        })()}
         <MessageActionsMenu
           visible={showActionsMenu}
           message={selectedMessage}
