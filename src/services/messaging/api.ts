@@ -582,6 +582,9 @@ export const messagingAPI = {
         const avatarUrl =
           user.profilePictureUrl ||
           user.profile_picture_url ||
+          user.profilePicture ||
+          user.profile_picture ||
+          user.avatarUrl ||
           user.avatar_url ||
           undefined;
 

@@ -1925,6 +1925,27 @@ export const ChatScreen: React.FC = () => {
     [],
   );
 
+  const headerAvatarUrl = useMemo(() => {
+    if (!conversation) return undefined;
+
+    if (conversation.type === "direct") {
+      const other = conversationMembers.find((m) => m.id && m.id !== userId);
+      return other?.avatar_url || conversation.avatar_url;
+    }
+
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation, conversationMembers, userId]);
+
   return (
     <LinearGradient
       colors={colors.background.gradient.app}
@@ -1940,7 +1961,7 @@ export const ChatScreen: React.FC = () => {
               ? getConversationDisplayName(conversation)
               : "Conversation"
           }
-          avatarUrl={conversation?.avatar_url}
+          avatarUrl={headerAvatarUrl}
           conversationType={conversation?.type || "direct"}
           groupAvatars={
             conversation?.type === "group"
