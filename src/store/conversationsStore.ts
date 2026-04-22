@@ -108,6 +108,7 @@ interface ConversationsActions {
   applyConversationSummaries: (conversations: Conversation[]) => void;
   applyNewMessage: (message: Message) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  removeConversationLocal: (id: string) => void;
   archiveConversation: (id: string) => void;
   muteConversation: (id: string) => Promise<void>;
   pinConversation: (id: string) => void;
@@ -438,6 +439,26 @@ export const useConversationsStore = create<
       set({ conversations, status: "loaded" });
       throw err;
     }
+  },
+
+  removeConversationLocal: (id) => {
+    const { conversations, groupAvatars, manuallyUnreadIds } = get();
+    const next = conversations.filter((c) => c.id !== id);
+    const nextAvatars = { ...groupAvatars };
+    delete nextAvatars[id];
+    const nextUnread = new Set(manuallyUnreadIds);
+    nextUnread.delete(id);
+    set({
+      conversations: next,
+      status: next.length === 0 ? "empty" : "loaded",
+      groupAvatars: nextAvatars,
+      manuallyUnreadIds: nextUnread,
+    });
+    cacheService.saveConversations(next);
+    AsyncStorage.setItem(
+      MANUALLY_UNREAD_KEY,
+      JSON.stringify(Array.from(nextUnread)),
+    ).catch(() => {});
   },
 
   archiveConversation: (id) => {

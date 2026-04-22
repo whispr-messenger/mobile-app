@@ -1126,9 +1126,18 @@ export const ChatScreen: React.FC = () => {
           ) ?? []),
           ...conversationMembers.map((m) => m.id),
         ];
-        const memberIds = [...new Set(rawMemberIds)]
+        let memberIds = [...new Set(rawMemberIds)]
           .filter(Boolean)
           .filter((id) => id !== userId);
+        if (memberIds.length === 0 && conversation?.type === "group") {
+          try {
+            const members =
+              await messagingAPI.getConversationMembers(conversationId);
+            memberIds = members.map((m) => m.id).filter((id) => id !== userId);
+          } catch (err) {
+            console.warn("[ChatScreen] getConversationMembers failed:", err);
+          }
+        }
         if (memberIds.length > 0) {
           await MediaService.shareMedia(uploadResult.id, memberIds).catch(
             (err) =>
@@ -1197,7 +1206,15 @@ export const ChatScreen: React.FC = () => {
         );
       }
     },
-    [conversationId, userId, sendTyping, replyingTo],
+    [
+      conversationId,
+      userId,
+      sendTyping,
+      replyingTo,
+      conversation,
+      allConversations,
+      conversationMembers,
+    ],
   );
 
   // Keep ref in sync so the WebSocket listener always calls the latest version
@@ -1795,10 +1812,7 @@ export const ChatScreen: React.FC = () => {
     if (conversation?.type === "group") {
       // Ensure modal is closed before navigating
       setShowInfoModal(false);
-      const groupId =
-        conversation.external_group_id ||
-        conversation.metadata?.group_id ||
-        conversation.id;
+      const groupId = conversation.id;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       // Use setTimeout to ensure modal is closed before navigation
       setTimeout(() => {
