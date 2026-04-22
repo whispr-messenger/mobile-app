@@ -30,16 +30,30 @@ export const normalizeUsername = (
 interface ConversationLike {
   type: "direct" | "group";
   display_name?: string;
+  username?: string;
+  phone_number?: string;
   metadata?: Record<string, any>;
 }
 
 /**
+ * True when the given string looks like a raw UUID v1-v5 (backend sometimes
+ * leaks the user_id straight into display_name when enrichment fails).
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuidLike = (value: string): boolean => UUID_RE.test(value.trim());
+
+/**
  * Resolve the display label for a conversation in lists/headers.
  *
- * For direct conversations, prefers the enriched `display_name` produced by
- * the backend lookup (full name → username → phone number). Falls back to
- * "Utilisateur" when enrichment hasn't completed yet — never the misleading
- * generic "Contact" placeholder.
+ * For direct conversations the preference chain is:
+ *   display_name (real name from profile)
+ *   -> username
+ *   -> phone_number
+ *   -> "Utilisateur"
+ *
+ * Values that look like UUIDs are treated as missing to avoid surfacing
+ * raw user ids to the UI when enrichment hasn't completed yet.
  *
  * For groups, prefers `metadata.name` and falls back to "Groupe".
  */
@@ -47,7 +61,24 @@ export const getConversationDisplayName = (
   conversation: ConversationLike,
 ): string => {
   if (conversation.type === "direct") {
-    return conversation.display_name?.trim() || "Utilisateur";
+    const rawUsername =
+      conversation.username ?? conversation.metadata?.username;
+    const usernameLabel = rawUsername
+      ? `@${String(rawUsername).replace(/^@+/, "")}`
+      : "";
+    const candidates: Array<string | undefined> = [
+      conversation.display_name,
+      usernameLabel,
+      conversation.phone_number,
+      conversation.metadata?.phone_number,
+    ];
+    for (const raw of candidates) {
+      const trimmed = (raw ?? "").toString().trim();
+      if (trimmed && !isUuidLike(trimmed)) {
+        return trimmed;
+      }
+    }
+    return "Utilisateur";
   }
   return conversation.metadata?.name?.trim() || "Groupe";
 };

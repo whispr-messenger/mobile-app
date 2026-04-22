@@ -1,21 +1,27 @@
 /**
- * AdminGate - Wrapper that checks admin/moderator role
- * Shows "Access Denied" if user lacks permissions
+ * AdminGate - Wrapper that checks admin/moderator role and renders an
+ * "Access Denied" screen if the user lacks permissions.
+ *
+ * Uses the shared `useIsStaff()` selector (WHISPR-1075) so every gate in
+ * the app reads the same flag from moderationStore. This is a UX gate only;
+ * authorisation is actually enforced server-side by user-service's
+ * RolesGuard (WHISPR-1027) — any admin API call made by a non-staff user
+ * gets a 403 regardless of what this store believes.
  */
 
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useModerationStore } from "../../store/moderationStore";
+import { useIsStaff } from "../../store/moderationStore";
 
 interface Props {
   children: React.ReactNode;
 }
 
 export const AdminGate: React.FC<Props> = ({ children }) => {
-  const { isAdmin, isModerator } = useModerationStore();
+  const isStaff = useIsStaff();
 
-  if (!isAdmin && !isModerator) {
+  if (!isStaff) {
     return (
       <View style={styles.container}>
         <Ionicons name="lock-closed" size={64} color="#8E8E93" />

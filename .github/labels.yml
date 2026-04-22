@@ -1,0 +1,294 @@
+# Repository Labels Configuration
+
+labels:
+  # ================================
+  # Priority Labels
+  # ================================
+  - name: "priority:high"
+    color: "d73a4a"
+    description: "Critical issues that need immediate attention"
+
+  - name: "priority:medium"
+    color: "fbca04"
+    description: "Important issues that should be addressed soon"
+
+  - name: "priority:low"
+    color: "0075ca"
+    description: "Nice to have improvements"
+
+  # ================================
+  # Size Labels
+  # ================================
+  - name: "size:XS"
+    color: "c2e0c6"
+    description: "Extra small changes (1-10 lines)"
+
+  - name: "size:S"
+    color: "a3d977"
+    description: "Small changes (11-100 lines)"
+
+  - name: "size:M"
+    color: "7fc84a"
+    description: "Medium changes (101-500 lines)"
+
+  - name: "size:L"
+    color: "f9ca24"
+    description: "Large changes (501-1000 lines)"
+
+  - name: "size:XL"
+    color: "e17055"
+    description: "Extra large changes (1000+ lines)"
+
+  # ================================
+  # Type Labels
+  # ================================
+  - name: "type:testing"
+    color: "0e8a16"
+    description: "Changes related to testing"
+
+  - name: "type:documentation"
+    color: "1d76db"
+    description: "Documentation improvements or additions"
+
+  - name: "type:security"
+    color: "b60205"
+    description: "Security-related changes"
+
+  - name: "type:state-management"
+    color: "5319e7"
+    description: "State management changes (store, context)"
+
+  - name: "type:bugfix"
+    color: "d73a4a"
+    description: "Bug fixes"
+
+  - name: "type:feature"
+    color: "0075ca"
+    description: "New features or enhancements"
+
+  - name: "type:maintenance"
+    color: "fef2c0"
+    description: "Code maintenance and refactoring"
+
+  - name: "type:performance"
+    color: "f9ca24"
+    description: "Performance improvements"
+
+  # ================================
+  # Source Area Labels
+  # ================================
+  - name: "screens"
+    color: "1d76db"
+    description: "Changes to screen components"
+
+  - name: "components"
+    color: "0075ca"
+    description: "Changes to reusable UI components"
+
+  - name: "services"
+    color: "5319e7"
+    description: "Changes to API services and business logic"
+
+  - name: "hooks"
+    color: "7057ff"
+    description: "Changes to custom React hooks"
+
+  - name: "navigation"
+    color: "0366d6"
+    description: "Changes to navigation and routing"
+
+  - name: "store"
+    color: "6f42c1"
+    description: "Changes to Zustand state stores"
+
+  - name: "context"
+    color: "d876e3"
+    description: "Changes to React Context providers"
+
+  - name: "theme"
+    color: "f9ca24"
+    description: "Changes to design tokens and theming"
+
+  - name: "utils"
+    color: "0e8a16"
+    description: "Changes to utility functions"
+
+  - name: "types"
+    color: "c5def5"
+    description: "Changes to TypeScript type definitions"
+
+  - name: "i18n"
+    color: "bfdadc"
+    description: "Internationalization and translations"
+
+  - name: "config"
+    color: "28a745"
+    description: "Configuration changes"
+
+  - name: "data"
+    color: "fef2c0"
+    description: "Changes to static data files"
+
+  # ================================
+  # Screen-specific Labels
+  # ================================
+  - name: "screens:auth"
+    color: "b60205"
+    description: "Authentication screens"
+
+  - name: "screens:chat"
+    color: "0075ca"
+    description: "Chat and messaging screens"
+
+  - name: "screens:contacts"
+    color: "0e8a16"
+    description: "Contacts screens"
+
+  - name: "screens:profile"
+    color: "7057ff"
+    description: "Profile screens"
+
+  - name: "screens:groups"
+    color: "5319e7"
+    description: "Group management screens"
+
+  - name: "screens:settings"
+    color: "6f42c1"
+    description: "Settings screens"
+
+  - name: "screens:security"
+    color: "d93f0b"
+    description: "Security and 2FA screens"
+
+  - name: "screens:moderation"
+    color: "fbca04"
+    description: "Content moderation screens"
+
+  - name: "screens:admin"
+    color: "b60205"
+    description: "Admin panel screens"
+
+  - name: "screens:calls"
+    color: "0366d6"
+    description: "Calls screens"
+
+  # ================================
+  # Security & Auth
+  # ================================
+  - name: "auth"
+    color: "b60205"
+    description: "Authentication and token management"
+
+  - name: "security:crypto"
+    color: "d93f0b"
+    description: "Cryptography and Signal protocol"
+
+  # ================================
+  # DevOps & Infrastructure
+  # ================================
+  - name: "devops:docker"
+    color: "0366d6"
+    description: "Docker containers and configuration"
+
+  - name: "devops:ci-cd"
+    color: "28a745"
+    description: "CI/CD workflows and automation"
+
+  # ================================
+  # Testing & Quality
+  # ================================
+  - name: "tests"
+    color: "0e8a16"
+    description: "Test files and test infrastructure"
+
+  - name: "documentation"
+    color: "1d76db"
+    description: "Documentation updates"
+
+  - name: "dependencies"
+    color: "0e8a16"
+    description: "Package dependencies and updates"
+
+  - name: "tools:linting"
+    color: "f9ca24"
+    description: "Code linting and formatting tools"
+
+  - name: "tools:security"
+    color: "b60205"
+    description: "Security scanning and analysis tools"
+
+  # ================================
+  # Special Impact Labels
+  # ================================
+  - name: "breaking-change"
+    color: "d73a4a"
+    description: "Changes that break backward compatibility"
+
+  - name: "performance"
+    color: "f9ca24"
+    description: "Performance-critical changes"
+
+  # ================================
+  # Workflow States
+  # ================================
+  - name: "status:in-progress"
+    color: "fbca04"
+    description: "Work in progress"
+
+  - name: "status:needs-review"
+    color: "0075ca"
+    description: "Ready for review"
+
+  - name: "status:blocked"
+    color: "d73a4a"
+    description: "Blocked by dependencies or issues"
+
+  - name: "status:ready-to-merge"
+    color: "0e8a16"
+    description: "Approved and ready to merge"
+
+  - name: "status:needs-changes"
+    color: "e99695"
+    description: "Changes requested by reviewers"
+
+  # ================================
+  # Review Categories
+  # ================================
+  - name: "review:frontend"
+    color: "5319e7"
+    description: "Requires frontend developer review"
+
+  - name: "review:security"
+    color: "b60205"
+    description: "Requires security review"
+
+  - name: "review:devops"
+    color: "0366d6"
+    description: "Requires DevOps review"
+
+  # ================================
+  # Issue Labels
+  # ================================
+  - name: "bug"
+    color: "d73a4a"
+    description: "Something isn't working"
+
+  - name: "enhancement"
+    color: "0075ca"
+    description: "New feature or request"
+
+  - name: "question"
+    color: "d876e3"
+    description: "Further information is requested"
+
+  - name: "good first issue"
+    color: "7057ff"
+    description: "Good for newcomers"
+
+  - name: "help wanted"
+    color: "0e8a16"
+    description: "Extra attention is needed"
+
+  - name: "duplicate"
+    color: "cfd3d7"
+    description: "This issue or pull request already exists"

@@ -36,8 +36,9 @@ export const mediaAPI = {
     const { type, name } = guessImageMimeType(fileUri);
 
     const form = new FormData();
+    // Intentional any-cast: React Native's FormData accepts this file-shaped
+    // object at runtime but the type def only allows Blob/string on web.
     form.append("file", {
-      // @ts-ignore React Native FormData file shape
       uri: fileUri,
       type,
       name,

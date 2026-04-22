@@ -30,7 +30,10 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSMicrophoneUsageDescription": "Whispr a besoin du micro pour les appels voix et video.",
+        "NSCameraUsageDescription": "Whispr a besoin de la camera pour les appels video.",
+        "UIBackgroundModes": ["voip", "audio"]
       }
     },
     "android": {
@@ -39,7 +42,13 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Whispr_Frontend"
+      "package": "com.anonymous.Whispr_Frontend",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

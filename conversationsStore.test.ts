@@ -131,3 +131,89 @@ describe("conversationsStore — groupAvatars", () => {
     expect(useConversationsStore.getState().groupAvatars).toEqual({});
   });
 });
+
+describe("conversationsStore — applyNewMessage unread_count (WHISPR-1050)", () => {
+  // Minimal Conversation shape that satisfies the store
+  function seed(convId: string, unread = 0) {
+    const conv = {
+      id: convId,
+      type: "direct",
+      display_name: "Alice",
+      avatar_url: null,
+      member_user_ids: ["other", "me"],
+      last_message: null,
+      unread_count: unread,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-20T00:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<typeof useConversationsStore.getState>["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  function msg(conversationId: string, senderId: string, id = "m1") {
+    return {
+      id,
+      conversation_id: conversationId,
+      sender_id: senderId,
+      message_type: "text",
+      content: "hi",
+      metadata: {},
+      client_random: 1,
+      sent_at: "2026-04-21T10:00:00Z",
+      is_deleted: false,
+    } as unknown as Parameters<
+      ReturnType<typeof useConversationsStore.getState>["applyNewMessage"]
+    >[0];
+  }
+
+  it("increments unread_count when the message is from someone else", async () => {
+    seed("c1", 2);
+
+    await act(async () => {
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(msg("c1", "other"), "me");
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c1");
+    expect(conv?.unread_count).toBe(3);
+  });
+
+  it("does NOT increment unread_count when the message is our own echo", async () => {
+    seed("c1", 2);
+
+    await act(async () => {
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(msg("c1", "me"), "me");
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c1");
+    expect(conv?.unread_count).toBe(2);
+    // Last message still updated (bubble preview refresh)
+    expect(conv?.last_message?.sender_id).toBe("me");
+  });
+
+  it("falls back to legacy +1 behaviour when no currentUserId is provided", async () => {
+    seed("c1", 0);
+
+    await act(async () => {
+      await useConversationsStore.getState().applyNewMessage(msg("c1", "me"));
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c1");
+    expect(conv?.unread_count).toBe(1);
+  });
+});
