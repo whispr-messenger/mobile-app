@@ -7,6 +7,7 @@ import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
 import { ProfileScreen } from "../screens/Profile/ProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
 import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
+import { DevicesScreen } from "../screens/Settings/DevicesScreen";
 import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
 import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
 import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
@@ -73,6 +74,7 @@ export type AuthStackParamList = {
   Settings: undefined;
   AboutContent: undefined;
   SecurityKeys: undefined;
+  Devices: undefined;
   TwoFactorAuth: undefined;
   TwoFactorSetup: undefined;
   TwoFactorVerify: { secret: string };
@@ -188,6 +190,7 @@ export const AuthNavigator: React.FC = () => {
       />
       <Stack.Screen name="AboutContent" component={AboutContentScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
+      <Stack.Screen name="Devices" component={DevicesScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
         name="TwoFactorSetup"
