@@ -93,6 +93,9 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.phoneInvalidFormat": "Format de numéro invalide (ex: 07 12 34 56 78)",
     "auth.errorConnection": "Une erreur est survenue lors de la connexion",
     "auth.errorSendCode": "Impossible d'envoyer le code de vérification",
+    "settings.blockedUsers": "Utilisateurs bloqués",
+    "settings.blockedUsersSubtitle":
+      "Voir et débloquer les utilisateurs que vous avez bloqués",
     "auth.permissionDeniedGallery":
       "Permission refusée pour accéder à la galerie.",
     "auth.fillAllRequiredFields":
@@ -380,6 +383,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.phoneInvalidFormat": "Invalid phone format (e.g.: 07 12 34 56 78)",
     "auth.errorConnection": "An error occurred during connection",
     "auth.errorSendCode": "Unable to send verification code",
+    "settings.blockedUsers": "Blocked users",
+    "settings.blockedUsersSubtitle": "View and unblock users you've blocked",
     "auth.permissionDeniedGallery": "Permission denied to access the gallery.",
     "auth.fillAllRequiredFields": "Please fill in all required fields.",
     "chat.requestSentTitle": "Request sent",

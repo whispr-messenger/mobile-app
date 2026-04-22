@@ -601,6 +601,18 @@ export const SettingsScreen: React.FC = () => {
             value={privacySettings.biography}
             onPress={() => handlePrivacyItemPress("biography")}
           />
+          {/* WHISPR-1056: entry point to the BlockedUsersScreen — the
+              screen was already registered in AuthNavigator but unreachable
+              from the settings UI. */}
+          <SettingItem
+            label={getLocalizedText("settings.blockedUsers") || "Blocked users"}
+            subtitle={
+              getLocalizedText("settings.blockedUsersSubtitle") ||
+              "View and unblock users you've blocked"
+            }
+            onPress={() => navigation.navigate("BlockedUsers" as never)}
+            icon="ban-outline"
+          />
         </SettingSection>
 
         {/* Notifications Section */}
