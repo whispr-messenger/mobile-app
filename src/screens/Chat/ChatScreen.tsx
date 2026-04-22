@@ -644,7 +644,6 @@ export const ChatScreen: React.FC = () => {
     return () => {
       channel.off("blocked_image_decision", onDecision);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, applyBlockedImageDecision]);
 
   // Polling fallback: if the WebSocket event is ever missed (connection loss,
