@@ -138,7 +138,6 @@ async function gate(params: {
   threshold?: number;
 }): Promise<GateResult> {
   const { uri, threshold = 0.5 } = params;
-  const t0 = Date.now();
 
   await ensureModel();
   if (!model) throw new Error("TFJS model failed to load");
@@ -154,8 +153,6 @@ async function gate(params: {
 
   // Yield before inference (the heaviest part)
   await yieldThread();
-
-  const tInfer = Date.now();
 
   // Run inference wrapped in InteractionManager to avoid blocking animations
   const data = await new Promise<Float32Array | Int32Array | Uint8Array>(
@@ -196,18 +193,6 @@ async function gate(params: {
   for (let i = 0; i < CLASS_NAMES.length; i++) {
     probs[CLASS_NAMES[i]] = Number(data[i]);
   }
-
-  // Shannon entropy: measures how "spread out" the prediction is.
-  // Low entropy = confident. High entropy = guessing.
-  let entropy = 0;
-  for (let i = 0; i < data.length; i++) {
-    const p = Number(data[i]);
-    if (p > 1e-10) {
-      entropy -= p * Math.log2(p);
-    }
-  }
-  const maxEntropy = Math.log2(CLASS_NAMES.length); // log2(9) ≈ 3.17
-  const normEntropy = entropy / maxEntropy; // 0 = certain, 1 = uniform
 
   // With the "Other" class, the logic is simple:
   // - If bestClass is "Other" → not food → allow
