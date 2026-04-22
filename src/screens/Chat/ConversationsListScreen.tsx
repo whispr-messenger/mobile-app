@@ -143,7 +143,7 @@ export const ConversationsListScreen: React.FC = () => {
     token,
     onNewMessage: (message: Message) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      applyNewMessage(message);
+      applyNewMessage(message, userId);
     },
     onConversationUpdate: (conversation: Conversation) => {
       applyConversationUpdate(conversation);
