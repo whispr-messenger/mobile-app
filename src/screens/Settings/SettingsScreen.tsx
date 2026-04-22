@@ -32,11 +32,20 @@ import {
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
 
 const PRIVACY_ALERT_TITLE: Record<string, string> = {
-  profilePhoto: "Profile photo",
-  firstName: "First name",
-  lastName: "Last name",
-  biography: "Biography",
+  profilePhoto: "Photo de profil",
+  firstName: "Prénom",
+  lastName: "Nom",
+  biography: "Biographie",
 };
+
+const PRIVACY_VALUE_LABELS: Record<string, string> = {
+  Everyone: "Tout le monde",
+  Contacts: "Mes contacts",
+  Nobody: "Personne",
+};
+
+const translatePrivacyValue = (value: string | undefined): string =>
+  value ? (PRIVACY_VALUE_LABELS[value] ?? value) : "";
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -582,23 +591,23 @@ export const SettingsScreen: React.FC = () => {
           icon="shield-outline"
         >
           <SettingItem
-            label="Profile photo"
-            value={privacySettings.profilePhoto}
+            label="Photo de profil"
+            value={translatePrivacyValue(privacySettings.profilePhoto)}
             onPress={() => handlePrivacyItemPress("profilePhoto")}
           />
           <SettingItem
-            label="First name"
-            value={privacySettings.firstName}
+            label="Prénom"
+            value={translatePrivacyValue(privacySettings.firstName)}
             onPress={() => handlePrivacyItemPress("firstName")}
           />
           <SettingItem
-            label="Last name"
-            value={privacySettings.lastName}
+            label="Nom"
+            value={translatePrivacyValue(privacySettings.lastName)}
             onPress={() => handlePrivacyItemPress("lastName")}
           />
           <SettingItem
-            label="Biography"
-            value={privacySettings.biography}
+            label="Biographie"
+            value={translatePrivacyValue(privacySettings.biography)}
             onPress={() => handlePrivacyItemPress("biography")}
           />
           {/* WHISPR-1056: entry point to the BlockedUsersScreen — the
@@ -643,7 +652,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Receive notifications
+                  Recevoir les notifications
                 </Text>
               </View>
             </View>
@@ -671,7 +680,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Sound
+                  Son
                 </Text>
                 <Text
                   style={[
@@ -682,7 +691,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Notification sound
+                  Son de notification
                 </Text>
               </View>
             </View>
@@ -721,7 +730,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Mention notifications
+                  Notifications de mention
                 </Text>
               </View>
             </View>
@@ -1110,9 +1119,9 @@ export const SettingsScreen: React.FC = () => {
             PRIVACY_ALERT_TITLE[selectedPrivacyItem] ?? selectedPrivacyItem
           }
           options={[
-            { label: "Everyone", value: "Everyone" },
-            { label: "Contacts", value: "Contacts" },
-            { label: "Nobody", value: "Nobody" },
+            { label: "Tout le monde", value: "Everyone" },
+            { label: "Mes contacts", value: "Contacts" },
+            { label: "Personne", value: "Nobody" },
           ]}
           selectedValue={
             privacySettings[
