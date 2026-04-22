@@ -23,9 +23,16 @@ describe("linkingConfig", () => {
   });
 
   it("keeps URL paths stable (any rename is a breaking change for existing share-sheet links)", () => {
-    const screens = linkingConfig.config?.screens as Record<string, string>;
+    const screens = linkingConfig.config?.screens as Record<string, any>;
     expect(screens.Chat).toMatch(/^conversation\/:conversationId$/);
     expect(screens.GroupDetails).toMatch(/^group\/:groupId$/);
     expect(screens.Profile).toMatch(/^profile\/:userId$/);
+  });
+
+  it("maps the Settings screen and its capitalised alias (WHISPR-1115)", () => {
+    const screens = linkingConfig.config?.screens as Record<string, any>;
+    expect(screens.Settings).toBeDefined();
+    expect(screens.Settings.path).toBe("settings");
+    expect(screens.Settings.alias).toContain("Settings");
   });
 });

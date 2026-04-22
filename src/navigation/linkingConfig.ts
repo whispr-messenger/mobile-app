@@ -15,6 +15,9 @@
  *   whispr://profile/<userId>
  *     → Profile screen with { userId }
  *
+ *   whispr://settings (or whispr://Settings)
+ *     → Settings screen (no params)
+ *
  * When a user is not authenticated, React Navigation will still resolve the
  * target route, but the auth gate in AuthNavigator renders the Welcome stack
  * instead — the deep link lands on the resolved screen only after a
@@ -41,6 +44,12 @@ export const linkingConfig: LinkingOptions<LinkingParamList> = {
       GroupDetails: "group/:groupId",
       // whispr://profile/<userId>
       Profile: "profile/:userId",
+      // whispr://settings — support both cases since some notifications and
+      // email links shipped with the capitalised `Settings` path (WHISPR-1115).
+      Settings: {
+        path: "settings",
+        alias: ["Settings"],
+      },
     },
   },
 };
