@@ -5,6 +5,7 @@ import type {
   TwoFactorStatusResponse,
   TwoFactorSetupResponse,
   TwoFactorBackupCodesResponse,
+  TwoFactorBackupCodesRemainingResponse,
 } from "../types/auth";
 
 function getAuthBaseUrl(): string {
@@ -85,6 +86,24 @@ export const TwoFactorService = {
       method: "POST",
       body: JSON.stringify({ token }),
     });
+  },
+
+  async regenerateBackupCodes(
+    token: string,
+  ): Promise<TwoFactorBackupCodesResponse> {
+    return apiFetch<TwoFactorBackupCodesResponse>(
+      "/2fa/backup-codes/regenerate",
+      {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      },
+    );
+  },
+
+  async getRemainingBackupCodes(): Promise<TwoFactorBackupCodesRemainingResponse> {
+    return apiFetch<TwoFactorBackupCodesRemainingResponse>(
+      "/2fa/backup-codes/remaining",
+    );
   },
 };
 

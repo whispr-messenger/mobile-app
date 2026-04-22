@@ -121,11 +121,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         setAddingContactId(user.user.id);
         await contactsAPI.sendContactRequest(user.user.id);
 
-        console.log(
-          "[AddContactModal] Contact request sent successfully:",
-          user.user.id,
-        );
-
         if (Platform.OS === "web") {
           onContactAdded();
           handleClose();
@@ -535,9 +530,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                       setSelectedUser(null);
                       handleAddContact(user);
                     }}
-                    disabled={
-                      addingContactId === selectedUser.user.id || doingBoth
-                    }
+                    disabled={addingContactId === selectedUser.user.id}
                   >
                     {addingContactId === selectedUser.user.id ? (
                       <ActivityIndicator
@@ -559,7 +552,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   </TouchableOpacity>
                 )}
 
-                {onMessageUser && (
+                {onMessageUser && selectedUser.is_contact && (
                   <TouchableOpacity
                     style={[
                       styles.actionCardButton,

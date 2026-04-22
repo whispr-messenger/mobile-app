@@ -1,0 +1,154 @@
+name: Discord CD Notifications
+
+on:
+  workflow_run:
+    workflows: [CD Pipeline]
+    types: [requested, in_progress, completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  # ================================
+  # CD Pipeline Start Notification
+  # ================================
+  notify-cd-start:
+    name: Send CD Start Notification
+    runs-on: ubuntu-latest
+    if: github.event.action == 'requested'
+
+    steps:
+      - name: Extract commit details
+        id: commit
+        run: |
+          SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Send Discord notification
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          username: "GitHub Actions"
+          avatar-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          embed-title: "CD Pipeline Started"
+          embed-description: |
+            **Deployment in progress...**
+
+            Branch: `${{ github.event.workflow_run.head_branch }}`
+            Commit: `${{ steps.commit.outputs.short_sha }}`
+            Triggered by: [${{ github.event.workflow_run.triggering_actor.login }}](${{ github.event.workflow_run.triggering_actor.html_url }})
+
+            [View Workflow Run](${{ github.event.workflow_run.html_url }})
+          embed-url: ${{ github.event.workflow_run.html_url }}
+          embed-color: 3447003
+          embed-thumbnail-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          embed-footer-text: "mobile-app | whispr-messenger | CD Pipeline"
+          embed-footer-icon-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+
+  # ================================
+  # CD Pipeline Completion Notification
+  # ================================
+  notify-cd-complete:
+    name: Send CD Completion Notification
+    runs-on: ubuntu-latest
+    if: github.event.action == 'completed'
+
+    steps:
+      - name: Determine completion status
+        id: status
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+            echo "color=65280" >> $GITHUB_OUTPUT
+            echo "emoji=OK" >> $GITHUB_OUTPUT
+            echo "text=succeeded" >> $GITHUB_OUTPUT
+            echo "status_text=Deployment completed successfully!" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.workflow_run.conclusion }}" == "failure" ]; then
+            echo "color=16711680" >> $GITHUB_OUTPUT
+            echo "emoji=FAIL" >> $GITHUB_OUTPUT
+            echo "text=failed" >> $GITHUB_OUTPUT
+            echo "status_text=Deployment failed. Please check the logs." >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.workflow_run.conclusion }}" == "cancelled" ]; then
+            echo "color=9936031" >> $GITHUB_OUTPUT
+            echo "emoji=CANCELLED" >> $GITHUB_OUTPUT
+            echo "text=cancelled" >> $GITHUB_OUTPUT
+            echo "status_text=Deployment was cancelled." >> $GITHUB_OUTPUT
+          else
+            echo "color=16776960" >> $GITHUB_OUTPUT
+            echo "emoji=WARN" >> $GITHUB_OUTPUT
+            echo "text=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
+            echo "status_text=Deployment completed with status: ${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract commit details
+        id: commit
+        run: |
+          SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+          # Calculate duration
+          START_TIME="${{ github.event.workflow_run.run_started_at }}"
+          END_TIME="${{ github.event.workflow_run.updated_at }}"
+
+          if [ -n "$START_TIME" ] && [ -n "$END_TIME" ]; then
+            START_EPOCH=$(date -d "$START_TIME" +%s 2>/dev/null || echo "0")
+            END_EPOCH=$(date -d "$END_TIME" +%s 2>/dev/null || echo "0")
+
+            if [ "$START_EPOCH" != "0" ] && [ "$END_EPOCH" != "0" ]; then
+              DURATION=$((END_EPOCH - START_EPOCH))
+              MINUTES=$((DURATION / 60))
+              SECONDS=$((DURATION % 60))
+              echo "duration=${MINUTES}m ${SECONDS}s" >> $GITHUB_OUTPUT
+            else
+              echo "duration=N/A" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "duration=N/A" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Extract image tag
+        id: image
+        run: |
+          SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          FULL_IMAGE="ghcr.io/whispr-messenger/mobile-app/mobile-web:${IMAGE_TAG}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "full_image=$FULL_IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Send Discord notification
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          username: "GitHub Actions"
+          avatar-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          embed-title: "CD Pipeline ${{ steps.status.outputs.text }}"
+          embed-description: |
+            **${{ steps.status.outputs.status_text }}**
+
+            Branch: `${{ github.event.workflow_run.head_branch }}`
+            Commit: `${{ steps.commit.outputs.short_sha }}`
+            Image: `${{ steps.image.outputs.image_tag }}`
+            Duration: ${{ steps.commit.outputs.duration }}
+            Triggered by: [${{ github.event.workflow_run.triggering_actor.login }}](${{ github.event.workflow_run.triggering_actor.html_url }})
+
+            [View Workflow Run](${{ github.event.workflow_run.html_url }})
+            [View Repository](https://github.com/${{ github.repository }})
+          embed-url: ${{ github.event.workflow_run.html_url }}
+          embed-color: ${{ steps.status.outputs.color }}
+          embed-thumbnail-url: ${{ github.event.workflow_run.triggering_actor.avatar_url }}
+          embed-footer-text: "mobile-app | whispr-messenger | CD Pipeline"
+          embed-footer-icon-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          embed-timestamp: ${{ github.event.workflow_run.updated_at }}
+
+      - name: Send failure alert (if failed)
+        if: github.event.workflow_run.conclusion == 'failure'
+        uses: tsickert/discord-webhook@v7.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          username: "GitHub Actions"
+          avatar-url: "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+          content: |
+            @here **CD Pipeline Failed!**
+
+            The deployment for `${{ github.event.workflow_run.head_branch }}` has failed.
+            Please investigate: ${{ github.event.workflow_run.html_url }}

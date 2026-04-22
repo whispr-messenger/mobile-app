@@ -7,6 +7,7 @@ import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
 import { ProfileScreen } from "../screens/Profile/ProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
 import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
+import { DevicesScreen } from "../screens/Settings/DevicesScreen";
 import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
 import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
 import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
@@ -20,7 +21,6 @@ import { MyQRCodeScreen } from "../screens/Contacts/MyQRCodeScreen";
 import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
 import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
-import { CallsScreen } from "../screens/Calls/CallsScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
 import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
 import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
@@ -29,6 +29,7 @@ import {
   ReportHistoryScreen,
   ReportDetailScreen,
   SanctionNoticeScreen,
+  MySanctionsScreen,
   AppealFormScreen,
   AppealStatusScreen,
 } from "../screens/Moderation";
@@ -43,8 +44,16 @@ import {
 } from "../screens/Admin";
 
 import { useAuth } from "../context/AuthContext";
+import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
+import { useModerationStore } from "../store/moderationStore";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
 import type { AuthPurpose } from "../types/auth";
+import type {
+  Report,
+  Appeal,
+  UserSanction,
+  SanctionType,
+} from "../types/moderation";
 
 /** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
 const SPLASH_MIN_MS = 2000;
@@ -72,6 +81,7 @@ export type AuthStackParamList = {
   Settings: undefined;
   AboutContent: undefined;
   SecurityKeys: undefined;
+  Devices: undefined;
   TwoFactorAuth: undefined;
   TwoFactorSetup: undefined;
   TwoFactorVerify: { secret: string };
@@ -90,6 +100,9 @@ export type AuthStackParamList = {
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
+  IncomingCall: undefined;
+  InCall: undefined;
+  CallHistory: undefined;
   ModerationTest: undefined;
   ModerationDecision:
     | {
@@ -109,18 +122,23 @@ export type AuthStackParamList = {
   };
   // Moderation (user-facing)
   ReportHistory: undefined;
-  ReportDetail: { reportId: string };
+  ReportDetail: { report: Report };
+  MySanctions: undefined;
   SanctionNotice: { sanctionId: string };
-  AppealForm: { sanctionId: string };
-  AppealStatus: { appealId: string };
+  AppealForm: { sanction: UserSanction };
+  AppealStatus: { sanctionId?: string; appealId?: string };
   // Admin screens
   ModerationDashboard: undefined;
   ReportQueue: undefined;
-  ReportReview: { reportId: string };
+  ReportReview: { report: Report };
   AppealQueue: undefined;
-  AppealReview: { appealId: string };
-  UserModeration: { userId: string };
-  SanctionForm: { userId: string };
+  AppealReview: { appealId?: string; appeal?: Appeal };
+  UserModeration: { userId: string; userName?: string; userAvatar?: string };
+  SanctionForm: {
+    userId?: string;
+    userName?: string;
+    defaultType?: SanctionType;
+  };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -128,11 +146,28 @@ const Stack = createStackNavigator<AuthStackParamList>();
 export const AuthNavigator: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+  const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
+
+  // WHISPR-1060: drain any offline-queued messages left over from a
+  // previous session as soon as the authenticated tree mounts, and keep
+  // listening for WebSocket reconnects to drain on demand. The hook is
+  // a no-op when the queue is empty, so calling it unconditionally is
+  // cheap.
+  useOfflineQueueDrainer();
 
   useEffect(() => {
     const t = setTimeout(() => setSplashMinElapsed(true), SPLASH_MIN_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // WHISPR-929: load the current user's moderation role as soon as the app
+  // enters its authenticated tree so every screen (not just Settings) can
+  // gate admin-only UI correctly from first render.
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMyRole();
+    }
+  }, [isAuthenticated, fetchMyRole]);
 
   const showSplash = isLoading || !splashMinElapsed;
 
@@ -176,6 +211,7 @@ export const AuthNavigator: React.FC = () => {
       />
       <Stack.Screen name="AboutContent" component={AboutContentScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
+      <Stack.Screen name="Devices" component={DevicesScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
         name="TwoFactorSetup"
@@ -212,7 +248,35 @@ export const AuthNavigator: React.FC = () => {
         name="ScheduledMessages"
         component={ScheduledMessagesScreen}
       />
-      <Stack.Screen name="Calls" component={CallsScreen} />
+      <Stack.Screen
+        name="Calls"
+        getComponent={() => require("../screens/Calls/CallsScreen").CallsScreen}
+      />
+      <Stack.Screen
+        name="IncomingCall"
+        getComponent={() =>
+          require("../screens/Calls/IncomingCallScreen").IncomingCallScreen
+        }
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="InCall"
+        getComponent={() =>
+          require("../screens/Calls/InCallScreen").InCallScreen
+        }
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="CallHistory"
+        getComponent={() =>
+          require("../screens/Calls/CallHistoryScreen").CallHistoryScreen
+        }
+        options={{ title: "Appels" }}
+      />
       <Stack.Screen
         name="ModerationDecision"
         component={ModerationDecisionScreen}
@@ -228,6 +292,7 @@ export const AuthNavigator: React.FC = () => {
       {/* Moderation — user-facing */}
       <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
       <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+      <Stack.Screen name="MySanctions" component={MySanctionsScreen} />
       <Stack.Screen
         name="SanctionNotice"
         component={SanctionNoticeScreen}

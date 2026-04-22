@@ -476,7 +476,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       } catch (error: any) {
         // Error handled by Alert
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Erreur", error.message || "Impossible de créer le groupe");
+        Alert.alert("Erreur", "Impossible de créer le groupe");
       } finally {
         setCreating(false);
       }
