@@ -34,8 +34,34 @@ import { FormattedText } from "../../utils/textFormatter";
 import { isReachableUrl } from "../../utils";
 import { getApiBaseUrl } from "../../services/apiBase";
 
-/** Resolve a media URL — prepend the API base when it is a relative path */
-function resolveMediaUrl(url: string | undefined): string {
+/**
+ * True when a URL hostname points to the internal cluster (unreachable from
+ * the public network) — e.g. MinIO's in-cluster DNS `minio.minio.svc…` or
+ * other `.svc.cluster.local` entries. These hosts can leak into stored
+ * media_url values when the backend forgets to rewrite presigned URLs.
+ */
+function isInternalClusterUrl(url: string): boolean {
+  return (
+    url.includes(".svc.cluster.local") ||
+    url.includes("minio.minio") ||
+    /https?:\/\/[^/]*\.internal[:/]/.test(url) ||
+    /https?:\/\/[^/]*\.local(:\d+)?\//.test(url)
+  );
+}
+
+/**
+ * Resolve a media URL — prepend the API base for relative paths and rewrite
+ * internal cluster URLs (preprod/prod MinIO k8s DNS) to the public media
+ * proxy when a mediaId is available.
+ */
+function resolveMediaUrl(
+  url: string | undefined,
+  mediaId?: string,
+  kind: "blob" | "thumbnail" = "blob",
+): string {
+  if (!url && mediaId) {
+    return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/${kind}`;
+  }
   if (!url) return "";
   if (url.startsWith("file://") || url.startsWith("data:")) {
     return url;
@@ -47,6 +73,15 @@ function resolveMediaUrl(url: string | undefined): string {
       (url.includes("/blob") || url.includes("/thumbnail"))
     ) {
       return url;
+    }
+    // Internal cluster URLs are unreachable from the device — rewrite to the
+    // public media-service proxy when we know the mediaId, otherwise drop the
+    // URL so callers can fall back to the blob endpoint.
+    if (isInternalClusterUrl(url)) {
+      if (mediaId) {
+        return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/${kind}`;
+      }
+      return "";
     }
     // Other absolute URLs (e.g. expired presigned S3/MinIO URLs) are returned as-is;
     // the caller should prefer blob-endpoint URLs when available.
@@ -271,12 +306,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               uri={resolveMediaUrl(
                 firstAttachment.metadata.media_url ||
                   firstAttachment.metadata.thumbnail_url,
+                firstAttachment.media_id,
+                "blob",
               )}
               type={firstAttachment.media_type as any}
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
               thumbnailUri={resolveMediaUrl(
                 firstAttachment.metadata.thumbnail_url,
+                firstAttachment.media_id,
+                "thumbnail",
               )}
             />
           ) : null}
@@ -356,7 +395,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <>
               {firstAttachment.media_type === "audio" ? (
                 <AudioMessage
-                  uri={resolveMediaUrl(firstAttachment.metadata.media_url)}
+                  uri={resolveMediaUrl(
+                    firstAttachment.metadata.media_url,
+                    firstAttachment.media_id,
+                    "blob",
+                  )}
                   duration={firstAttachment.metadata.duration}
                   isSent={true}
                 />
@@ -365,12 +408,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   uri={resolveMediaUrl(
                     firstAttachment.metadata.media_url ||
                       firstAttachment.metadata.thumbnail_url,
+                    firstAttachment.media_id,
+                    "blob",
                   )}
                   type={firstAttachment.media_type}
                   filename={firstAttachment.metadata.filename}
                   size={firstAttachment.metadata.size}
                   thumbnailUri={resolveMediaUrl(
                     firstAttachment.metadata.thumbnail_url,
+                    firstAttachment.media_id,
+                    "thumbnail",
                   )}
                 />
               )}
@@ -449,7 +496,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <>
             {firstAttachment.media_type === "audio" ? (
               <AudioMessage
-                uri={resolveMediaUrl(firstAttachment.metadata.media_url)}
+                uri={resolveMediaUrl(
+                  firstAttachment.metadata.media_url,
+                  firstAttachment.media_id,
+                  "blob",
+                )}
                 duration={firstAttachment.metadata.duration}
                 isSent={false}
               />
@@ -458,12 +509,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 uri={resolveMediaUrl(
                   firstAttachment.metadata.media_url ||
                     firstAttachment.metadata.thumbnail_url,
+                  firstAttachment.media_id,
+                  "blob",
                 )}
                 type={firstAttachment.media_type as "image" | "video" | "file"}
                 filename={firstAttachment.metadata.filename}
                 size={firstAttachment.metadata.size}
                 thumbnailUri={resolveMediaUrl(
                   firstAttachment.metadata.thumbnail_url,
+                  firstAttachment.media_id,
+                  "thumbnail",
                 )}
               />
             )}
