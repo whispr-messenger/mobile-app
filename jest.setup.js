@@ -33,3 +33,12 @@ jest.mock('@expo/vector-icons', () => {
     { get: () => Noop }
   );
 });
+
+// expo-secure-store — WHISPR-994: src/services/storage.ts now imports this
+// unconditionally (no more dynamic require fallback), so every test that
+// touches storage would crash without a stable mock at the setup level.
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(undefined),
+  deleteItemAsync: jest.fn().mockResolvedValue(undefined),
+}));

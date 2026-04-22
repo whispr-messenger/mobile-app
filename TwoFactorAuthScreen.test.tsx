@@ -3,11 +3,7 @@ import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
 import { TwoFactorAuthScreen } from "./src/screens/Security/TwoFactorAuthScreen";
 import { TwoFactorService } from "./src/services/TwoFactorService";
 
-jest.mock("expo-secure-store", () => ({
-  getItemAsync: jest.fn(),
-  setItemAsync: jest.fn(),
-  deleteItemAsync: jest.fn(),
-}));
+// expo-secure-store is mocked globally in jest.setup.js (WHISPR-994).
 
 jest.mock("./src/services/apiBase", () => ({
   getApiBaseUrl: () => "https://preprod-whispr-api.roadmvn.com",
