@@ -31,15 +31,12 @@ import { AdminGate, SanctionBadge } from "../../components/Moderation";
 import type { Appeal, UserSanction } from "../../types/moderation";
 
 // Route accepts either a full appeal object (legacy) or an appealId (preferred).
-// Passing the full object produces "[object Object]" in the web URL — always
+// Passing the full object triggers "[object Object]" in the web URL — always
 // prefer the id form from navigators.
 type RouteParams = {
   AppealReview: { appealId?: string; appeal?: Appeal };
 };
 
-// Alert.alert is a no-op on React Native Web, so buttons like Approve/Reject
-// would silently do nothing. Route web through window.confirm / window.alert
-// and keep the native Alert path for iOS/Android (WHISPR-1130).
 const confirmAction = (
   title: string,
   message: string,
@@ -47,6 +44,7 @@ const confirmAction = (
   isDestructive: boolean,
 ) => {
   if (Platform.OS === "web") {
+    // eslint-disable-next-line no-alert
     if (
       typeof window !== "undefined" &&
       window.confirm(`${title}\n\n${message}`)
@@ -68,6 +66,7 @@ const confirmAction = (
 const notify = (title: string, message: string, onOk?: () => void) => {
   if (Platform.OS === "web") {
     if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-alert
       window.alert(`${title}\n\n${message}`);
     }
     onOk?.();
@@ -108,11 +107,6 @@ export const AppealReviewScreen: React.FC = () => {
   const [loadingAppeal, setLoadingAppeal] = useState(
     !appeal && !!routeAppealId,
   );
-  const isBlockedImage = appeal?.type === "blocked_image";
-  const [adminNotes, setAdminNotes] = useState("");
-  const [processing, setProcessing] = useState(false);
-  const [sanction, setSanction] = useState<UserSanction | null>(null);
-  const [loadingSanction, setLoadingSanction] = useState(false);
 
   useEffect(() => {
     if (appeal || !routeAppealId) return;
@@ -131,6 +125,12 @@ export const AppealReviewScreen: React.FC = () => {
       cancelled = true;
     };
   }, [routeAppealId, appeal]);
+
+  const isBlockedImage = appeal?.type === "blocked_image";
+  const [adminNotes, setAdminNotes] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [sanction, setSanction] = useState<UserSanction | null>(null);
+  const [loadingSanction, setLoadingSanction] = useState(false);
 
   useEffect(() => {
     if (!appeal || isBlockedImage || !appeal.sanctionId) {
@@ -303,31 +303,53 @@ export const AppealReviewScreen: React.FC = () => {
                   <View style={styles.evidenceSection}>
                     <Text style={styles.evidenceLabel}>Pièces jointes</Text>
                     {appeal.evidence.images &&
-                    Array.isArray(appeal.evidence.images) ? (
-                      appeal.evidence.images.map((img: string, idx: number) => (
-                        <View key={idx} style={styles.evidenceItem}>
-                          <Ionicons
-                            name="image"
-                            size={16}
-                            color="rgba(255,255,255,0.5)"
-                          />
-                          <Text style={styles.evidenceText} numberOfLines={1}>
-                            {img}
-                          </Text>
-                        </View>
-                      ))
-                    ) : (
-                      <View style={styles.evidenceItem}>
-                        <Ionicons
-                          name="document"
-                          size={16}
-                          color="rgba(255,255,255,0.5)"
-                        />
-                        <Text style={styles.evidenceText}>
-                          {JSON.stringify(appeal.evidence)}
-                        </Text>
-                      </View>
-                    )}
+                    Array.isArray(appeal.evidence.images)
+                      ? appeal.evidence.images.map(
+                          (img: string, idx: number) => (
+                            <View key={idx} style={styles.evidenceItem}>
+                              <Ionicons
+                                name="image"
+                                size={16}
+                                color="rgba(255,255,255,0.5)"
+                              />
+                              <Text
+                                style={styles.evidenceText}
+                                numberOfLines={1}
+                              >
+                                {img}
+                              </Text>
+                            </View>
+                          ),
+                        )
+                      : (() => {
+                          // Exclude thumbnailBase64 (10k+ chars, already rendered
+                          // inline above as an Image) from the structured evidence
+                          // dump below.
+                          const evidenceEntries = Object.entries(
+                            appeal.evidence,
+                          ).filter(([k, v]) => {
+                            if (k === "thumbnailBase64") return false;
+                            if (v === null || v === undefined || v === "")
+                              return false;
+                            return true;
+                          });
+                          if (evidenceEntries.length === 0) return null;
+                          return evidenceEntries.map(([k, v]) => (
+                            <View key={k} style={styles.evidenceItem}>
+                              <Ionicons
+                                name="document"
+                                size={16}
+                                color="rgba(255,255,255,0.5)"
+                              />
+                              <Text style={styles.evidenceText}>
+                                <Text style={styles.evidenceKey}>{k}: </Text>
+                                {typeof v === "object"
+                                  ? JSON.stringify(v)
+                                  : String(v)}
+                              </Text>
+                            </View>
+                          ));
+                        })()}
                   </View>
                 )}
               </View>
@@ -593,6 +615,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "rgba(255, 255, 255, 0.7)",
     flex: 1,
+  },
+  evidenceKey: {
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
   },
   sanctionRow: {
     flexDirection: "row",
