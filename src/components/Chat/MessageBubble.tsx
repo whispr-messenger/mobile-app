@@ -74,17 +74,18 @@ function resolveMediaUrl(
     ) {
       return url;
     }
-    // Internal cluster URLs are unreachable from the device — rewrite to the
-    // public media-service proxy when we know the mediaId, otherwise drop the
-    // URL so callers can fall back to the blob endpoint.
+    // Any other absolute URL: prefer the media-service proxy when we have a
+    // mediaId. Stored presigned MinIO URLs go stale when credentials rotate
+    // (SignatureDoesNotMatch), so always funnel through /media/v1/<id>/<kind>
+    // which re-signs on every request.
+    if (mediaId) {
+      return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/${kind}`;
+    }
+    // No mediaId: drop unreachable internal URLs, pass presigned URLs through
+    // as last-resort fallback.
     if (isInternalClusterUrl(url)) {
-      if (mediaId) {
-        return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/${kind}`;
-      }
       return "";
     }
-    // Other absolute URLs (e.g. expired presigned S3/MinIO URLs) are returned as-is;
-    // the caller should prefer blob-endpoint URLs when available.
     return url;
   }
   // Relative path from the API — prepend base URL
