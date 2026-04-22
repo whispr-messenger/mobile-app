@@ -12,6 +12,9 @@ jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('./src/components/Navigation/BottomTabBar', () => ({
   BottomTabBar: () => null,
 }));
+jest.mock('./src/screens/Calls/CallHistoryScreen', () => ({
+  CallHistoryScreen: () => null,
+}));
 jest.mock('./src/theme/colors', () => ({
   colors: {
     background: { gradient: { app: ['#000', '#111'] } },
@@ -21,9 +24,9 @@ jest.mock('./src/theme/colors', () => ({
 }));
 
 describe('CallsScreen', () => {
-  it('renders coming soon message', () => {
+  it('renders the Appels header', () => {
     const { getByText } = render(<CallsScreen />);
-    expect(getByText('Les appels vocaux et vidéo arrivent bientôt.')).toBeTruthy();
+    expect(getByText('Appels')).toBeTruthy();
   });
 
   it('renders without crashing', () => {

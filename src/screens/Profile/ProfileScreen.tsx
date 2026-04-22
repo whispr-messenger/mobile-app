@@ -24,6 +24,7 @@ import {
   useNavigation,
   useRoute,
   useFocusEffect,
+  type RouteProp,
 } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
@@ -41,6 +42,7 @@ import { UserService } from "../../services";
 import type { UpdateProfileRequest } from "../../services/UserService";
 import { MediaService } from "../../services/MediaService";
 import { useAuth } from "../../context/AuthContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Types
 interface UserProfile {
@@ -79,8 +81,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { userId: currentUserId } = useAuth();
   const navigation = useNavigation<NavigationProp>();
-  const route = useRoute();
-  const params = (route as any)?.params as RouteParams | undefined;
+  const route = useRoute<RouteProp<{ Profile: RouteParams }, "Profile">>();
+  const params = route.params;
   // ProfileScreen params loaded
 
   // States
@@ -142,11 +144,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     };
   }, []);
 
+  const viewedUserId = params?.userId || userId || "";
+  const isOwnProfile = !viewedUserId || viewedUserId === currentUserId;
+
   const loadProfile = useCallback(async () => {
     try {
       setProfileLoadError(null);
       const service = UserService.getInstance();
-      const res = await service.getProfile();
+      const res = isOwnProfile
+        ? await service.getProfile()
+        : await service.getUserProfile(viewedUserId);
       if (res.success && res.profile) {
         const p = res.profile;
         setProfile((prev) => ({
@@ -170,7 +177,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setProfileLoadError(e?.message || "Impossible de récupérer le profil");
       setProfileLoaded(true);
     }
-  }, [pendingAvatar?.localUri]);
+  }, [pendingAvatar?.localUri, isOwnProfile, viewedUserId]);
 
   useEffect(() => {
     loadProfile();
@@ -260,6 +267,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     setLoading(false);
   }, []);
 
+  const pendingAvatarKey = currentUserId
+    ? `@whispr/pending_avatar_media_id:${currentUserId}`
+    : "@whispr/pending_avatar_media_id:unknown";
+
   const isMediaNotFound = (message?: string) =>
     typeof message === "string" && /media not found/i.test(message);
 
@@ -286,6 +297,50 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
     throw lastErr ?? new Error("Media not found");
   };
+
+  const finalizePendingAvatar = useCallback(async () => {
+    if (!currentUserId) return;
+    const mediaId = pendingAvatar?.mediaId;
+    if (!mediaId) return;
+
+    const abortController = new AbortController();
+    try {
+      await waitForMediaAvailable(mediaId, abortController.signal);
+      const service = UserService.getInstance();
+      const res = await service.updateProfile({ avatarMediaId: mediaId });
+      if (res.success) {
+        if (res.profile) {
+          setProfile((prev) => ({ ...prev, ...res.profile }));
+        } else {
+          setProfile((prev) => ({ ...prev, profilePicture: mediaId }));
+        }
+        setPendingAvatar(null);
+        await AsyncStorage.removeItem(pendingAvatarKey);
+      }
+    } catch {
+      // keep pending
+    }
+  }, [currentUserId, pendingAvatar?.mediaId, pendingAvatarKey]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    AsyncStorage.getItem(pendingAvatarKey)
+      .then((mediaId) => {
+        if (!mediaId) return;
+        setProfile((prev) => ({
+          ...prev,
+          profilePicture: prev.profilePicture || mediaId,
+        }));
+        setPendingAvatar((prev) => prev ?? { localUri: mediaId, mediaId });
+      })
+      .catch(() => {});
+  }, [currentUserId, pendingAvatarKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      finalizePendingAvatar();
+    }, [finalizePendingAvatar]),
+  );
 
   // Handle profile update
   const handleSaveProfile = async () => {
@@ -375,6 +430,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           mediaId: avatarMediaId,
           remoteUrl: avatarRemoteUrl,
         });
+        setProfile((prev) => ({ ...prev, profilePicture: avatarMediaId }));
+        if (currentUserId) {
+          await AsyncStorage.setItem(pendingAvatarKey, avatarMediaId);
+        }
       }
 
       // Check if save was cancelled
@@ -422,6 +481,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               "Profil enregistré",
               "Les informations du profil ont été sauvegardées. La photo est encore en cours de disponibilité serveur.",
             );
+            setTimeout(() => {
+              finalizePendingAvatar();
+            }, 1500);
             return;
           }
           Alert.alert(
@@ -439,16 +501,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       if (res.profile) {
         setProfile((prev) => ({ ...prev, ...res.profile }));
-        if (avatarMediaId) setPendingAvatar(null);
+        if (avatarMediaId) {
+          setPendingAvatar(null);
+          await AsyncStorage.removeItem(pendingAvatarKey);
+        }
       } else if (!usernameError && normalizedUsername !== profile.username) {
         setProfile((prev) => ({ ...prev, username: normalizedUsername }));
         if (avatarRemoteUrl) {
           setProfile((prev) => ({ ...prev, profilePicture: avatarRemoteUrl }));
-          if (avatarMediaId) setPendingAvatar(null);
+          if (avatarMediaId) {
+            setPendingAvatar(null);
+            await AsyncStorage.removeItem(pendingAvatarKey);
+          }
         }
       } else if (avatarRemoteUrl) {
         setProfile((prev) => ({ ...prev, profilePicture: avatarRemoteUrl }));
-        if (avatarMediaId) setPendingAvatar(null);
+        if (avatarMediaId) {
+          setPendingAvatar(null);
+          await AsyncStorage.removeItem(pendingAvatarKey);
+        }
       }
 
       setIsEditing(false);
