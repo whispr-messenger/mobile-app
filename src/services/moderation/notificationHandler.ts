@@ -5,8 +5,6 @@
  * the user to the appropriate screen.
  */
 
-import type { UserSanction, Appeal, Report } from "../../types/moderation";
-
 // ─── Notification Types ──────────────────────────────────────────
 
 export type ModerationNotificationType =

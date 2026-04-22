@@ -21,6 +21,8 @@ interface ChatHeaderProps {
   onSearchPress?: () => void;
   onInfoPress?: () => void;
   onScheduledPress?: () => void;
+  onAudioCallPress?: () => void;
+  onVideoCallPress?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -34,6 +36,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onSearchPress,
   onInfoPress,
   onScheduledPress,
+  onAudioCallPress,
+  onVideoCallPress,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -115,6 +119,34 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
+        {onAudioCallPress && (
+          <TouchableOpacity
+            onPress={onAudioCallPress}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Appel audio"
+          >
+            <Ionicons
+              name="call-outline"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
+        {onVideoCallPress && (
+          <TouchableOpacity
+            onPress={onVideoCallPress}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Appel video"
+          >
+            <Ionicons
+              name="videocam-outline"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
         {onScheduledPress && (
           <TouchableOpacity
             onPress={onScheduledPress}
