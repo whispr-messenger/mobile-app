@@ -34,15 +34,15 @@ interface TabItem {
 
 const tabs: TabItem[] = [
   { name: "Contacts", icon: "person-outline", route: "Contacts" },
-  { name: "Calls", icon: "call-outline", route: "Calls" },
+  { name: "Appels", icon: "call-outline", route: "Calls" },
   {
-    name: "Chats",
+    name: "Discussions",
     useLogo: true,
     logoVariant: "double",
     route: "ConversationsList",
     badgeKey: "chats",
   },
-  { name: "Settings", useLogo: true, logoVariant: "single", route: "Settings" },
+  { name: "Réglages", useLogo: true, logoVariant: "single", route: "Settings" },
 ];
 
 type Props = {
