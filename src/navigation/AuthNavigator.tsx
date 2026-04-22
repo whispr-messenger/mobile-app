@@ -47,6 +47,7 @@ import {
 } from "../screens/Admin";
 
 import { useAuth } from "../context/AuthContext";
+import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
 import type { AuthPurpose } from "../types/auth";
 
@@ -136,6 +137,13 @@ const Stack = createStackNavigator<AuthStackParamList>();
 export const AuthNavigator: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+
+  // WHISPR-1060: drain any offline-queued messages left over from a
+  // previous session as soon as the authenticated tree mounts, and keep
+  // listening for WebSocket reconnects to drain on demand. The hook is
+  // a no-op when the queue is empty, so calling it unconditionally is
+  // cheap.
+  useOfflineQueueDrainer();
 
   useEffect(() => {
     const t = setTimeout(() => setSplashMinElapsed(true), SPLASH_MIN_MS);
