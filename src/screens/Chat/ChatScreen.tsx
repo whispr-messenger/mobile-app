@@ -2091,53 +2091,63 @@ export const ChatScreen: React.FC = () => {
         {(() => {
           // Contenu partagé web / natif — extrait pour que le wrapper soit
           // branché conditionnellement sans dupliquer le JSX.
+          const messageList = (
+            <FlatList
+              ref={flatListRef}
+              data={messagesWithSeparators}
+              renderItem={renderItem}
+              keyExtractor={keyExtractor}
+              inverted
+              contentContainerStyle={styles.listContent}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={15}
+              windowSize={10}
+              onEndReached={loadMoreMessages}
+              onEndReachedThreshold={0.3}
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+              }}
+              viewabilityConfig={viewabilityConfig}
+              onViewableItemsChanged={handleViewableItemsChanged}
+              keyboardShouldPersistTaps="handled"
+              // Web : sans flex:1/minHeight:0 explicite, la VirtualizedList
+              // react-native-web ne calcule pas bien la hauteur scrollable
+              // quand son parent est lui-même flex — résultat : aucun scroll
+              // et MessageInput poussé hors du viewport.
+              style={
+                Platform.OS === "web" ? { flex: 1, minHeight: 0 } : undefined
+              }
+              ListEmptyComponent={
+                !loading ? (
+                  <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
+                    <EmptyChatState />
+                  </View>
+                ) : null
+              }
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.loadingMore}>
+                    <ActivityIndicator
+                      size="small"
+                      color={themeColors.primary}
+                    />
+                  </View>
+                ) : null
+              }
+            />
+          );
+          // Sur web, on emballe la FlatList dans un viewport à overflow borné :
+          // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
+          // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
           const chatBody = (
             <>
-              <FlatList
-                ref={flatListRef}
-                data={messagesWithSeparators}
-                renderItem={renderItem}
-                keyExtractor={keyExtractor}
-                inverted
-                contentContainerStyle={styles.listContent}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                updateCellsBatchingPeriod={50}
-                initialNumToRender={15}
-                windowSize={10}
-                onEndReached={loadMoreMessages}
-                onEndReachedThreshold={0.3}
-                maintainVisibleContentPosition={{
-                  minIndexForVisible: 0,
-                }}
-                viewabilityConfig={viewabilityConfig}
-                onViewableItemsChanged={handleViewableItemsChanged}
-                keyboardShouldPersistTaps="handled"
-                // Web : sans flex:1/minHeight:0 explicite, la VirtualizedList
-                // react-native-web ne calcule pas bien la hauteur scrollable
-                // quand son parent est lui-même flex — résultat : aucun scroll
-                // et MessageInput poussé hors du viewport.
-                style={
-                  Platform.OS === "web" ? { flex: 1, minHeight: 0 } : undefined
-                }
-                ListEmptyComponent={
-                  !loading ? (
-                    <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
-                      <EmptyChatState />
-                    </View>
-                  ) : null
-                }
-                ListFooterComponent={
-                  loadingMore ? (
-                    <View style={styles.loadingMore}>
-                      <ActivityIndicator
-                        size="small"
-                        color={themeColors.primary}
-                      />
-                    </View>
-                  ) : null
-                }
-              />
+              {Platform.OS === "web" ? (
+                <View style={styles.webListViewport}>{messageList}</View>
+              ) : (
+                messageList
+              )}
               {typingUsers.length > 0 && (
                 <View style={styles.typingContainer}>
                   <TypingIndicator
@@ -2169,17 +2179,18 @@ export const ChatScreen: React.FC = () => {
           // Natif (iOS/Android) : comportement inchangé, KeyboardAvoidingView
           // reste nécessaire pour le clavier physique.
           if (Platform.OS === "web") {
-            // overflow:hidden + flexDirection:column ensures MessageInput
-            // stays inside the viewport: without it, react-native-web lets
-            // the FlatList content grow past the flex container and pushes
-            // MessageInput off-screen.
+            // Web layout : on garde `overflow:hidden` sur un wrapper dédié
+            // autour de la FlatList (et plus sur le conteneur externe), pour
+            // borner le viewport de scroll sans capturer l'event wheel en
+            // amont. Mettre overflow:hidden sur le wrapper extérieur faisait
+            // que Chrome routait la molette vers cet élément non-scrollable,
+            // bloquant totalement le scroll sur l'inverted FlatList.
             return (
               <View
                 style={[
                   styles.keyboardView,
                   {
                     minHeight: 0,
-                    overflow: "hidden",
                     flexDirection: "column",
                   },
                 ]}
@@ -2429,6 +2440,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: 16,
+  },
+  webListViewport: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
   },
   loadingMore: {
     paddingVertical: 16,
