@@ -68,6 +68,7 @@ import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
 import { gateChatImageBeforeSend } from "../../services/moderation";
+import { appealsAPI } from "../../services/moderation/moderationApi";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { BlockedImageAppealModal } from "../../components/Chat/BlockedImageAppealModal";
@@ -567,32 +568,24 @@ export const ChatScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
 
-  // Listen for admin decisions on blocked-image appeals.
+  // Applies an admin decision on a blocked-image appeal.
   // On approve: re-submit the original image bypassing the gate.
   // On reject: annotate the bubble so the user sees "Refusée par l'admin".
-  useEffect(() => {
-    if (!userId) return;
-    let socket: ReturnType<typeof getSharedSocket>;
-    try {
-      socket = getSharedSocket();
-    } catch {
-      return;
-    }
-    const channel = socket.channel(`user:${userId}`);
-    const onDecision = (data: any) => {
-      const messageTempId: string | undefined =
-        data?.messageTempId || data?.message_temp_id;
-      const decision: "approved" | "rejected" | undefined = data?.decision;
-      if (!messageTempId || !decision) return;
-
+  const applyBlockedImageDecision = useCallback(
+    (messageTempId: string, decision: "approved" | "rejected") => {
       const current =
         useModerationStore.getState().pendingAppeals[messageTempId];
+      if (!current || current.status !== "pending") return;
+
       handleAppealDecision({ messageTempId, decision });
 
-      if (decision === "approved" && current?.localUri) {
-        // Re-submit bypassing the gate, then cleanup.
+      // Prefer the base64 data URI when available (survives web logout) and
+      // fall back to the native file URI.
+      const replayUri = current?.localDataUri || current?.localUri;
+
+      if (decision === "approved" && replayUri) {
         handleSendMediaRef
-          .current(current.localUri, "image", undefined, undefined, {
+          .current(replayUri, "image", undefined, undefined, {
             skipGate: true,
           })
           .catch((err) =>
@@ -618,13 +611,92 @@ export const ChatScreen: React.FC = () => {
         );
         cleanupAppeal(messageTempId).catch(() => {});
       }
+    },
+    [cleanupAppeal, handleAppealDecision],
+  );
+
+  // WebSocket listener for admin decisions on blocked-image appeals.
+  useEffect(() => {
+    if (!userId) return;
+    let socket: ReturnType<typeof getSharedSocket>;
+    try {
+      socket = getSharedSocket();
+    } catch {
+      return;
+    }
+    const channel = socket.channel(`user:${userId}`);
+    const onDecision = (data: any) => {
+      const messageTempId: string | undefined =
+        data?.messageTempId || data?.message_temp_id;
+      const decision: "approved" | "rejected" | undefined = data?.decision;
+      if (!messageTempId || !decision) return;
+
+      applyBlockedImageDecision(messageTempId, decision);
     };
     channel.on("blocked_image_decision", onDecision);
+    // Phoenix only routes broadcasts to channels that have actually joined
+    // their topic. Without this, the backend `Endpoint.broadcast("user:<id>",
+    // "blocked_image_decision", ...)` never reaches the callback — which is
+    // exactly the WHISPR-1142 symptom.
+    channel.join().catch((err) => {
+      logger.warn("ChatScreen", "user channel join failed", err);
+    });
     return () => {
       channel.off("blocked_image_decision", onDecision);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, applyBlockedImageDecision]);
+
+  // Polling fallback: if the WebSocket event is ever missed (connection loss,
+  // backend hiccup, app relaunch before the broadcast lands), poll the user-
+  // service for the status of every pending appeal and apply the decision as
+  // if it had come over the socket. Runs once on mount and then every 10s
+  // while there is at least one pending appeal on this screen.
+  useEffect(() => {
+    if (!userId) return;
+
+    const statusToDecision = (
+      status: string,
+    ): "approved" | "rejected" | null =>
+      status === "accepted"
+        ? "approved"
+        : status === "rejected"
+          ? "rejected"
+          : null;
+
+    const pollOnce = async () => {
+      const pending = useModerationStore.getState().pendingAppeals;
+      const entries = Object.entries(pending).filter(
+        ([, v]) => v.status === "pending",
+      );
+      if (entries.length === 0) return;
+
+      await Promise.all(
+        entries.map(async ([messageTempId, entry]) => {
+          try {
+            const appeal = await appealsAPI.getAppeal(entry.appealId);
+            const decision = statusToDecision(appeal.status);
+            if (decision) {
+              applyBlockedImageDecision(messageTempId, decision);
+            }
+          } catch (err) {
+            logger.warn("ChatScreen", "appeal poll failed", {
+              appealId: entry.appealId,
+              err,
+            });
+          }
+        }),
+      );
+    };
+
+    // Kick off an immediate check so a decision that landed while the app was
+    // closed is picked up as soon as the chat opens.
+    pollOnce().catch(() => {});
+    const id = setInterval(() => {
+      pollOnce().catch(() => {});
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [userId, applyBlockedImageDecision]);
 
   // Check if the other user in a direct conversation is in our contacts
   useEffect(() => {
