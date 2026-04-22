@@ -14,6 +14,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,6 +35,45 @@ import type { Appeal, UserSanction } from "../../types/moderation";
 // prefer the id form from navigators.
 type RouteParams = {
   AppealReview: { appealId?: string; appeal?: Appeal };
+};
+
+// Alert.alert is a no-op on React Native Web, so buttons like Approve/Reject
+// would silently do nothing. Route web through window.confirm / window.alert
+// and keep the native Alert path for iOS/Android (WHISPR-1130).
+const confirmAction = (
+  title: string,
+  message: string,
+  onConfirm: () => void,
+  isDestructive: boolean,
+) => {
+  if (Platform.OS === "web") {
+    if (
+      typeof window !== "undefined" &&
+      window.confirm(`${title}\n\n${message}`)
+    ) {
+      onConfirm();
+    }
+    return;
+  }
+  Alert.alert(title, message, [
+    { text: "Annuler", style: "cancel" },
+    {
+      text: "Confirmer",
+      style: isDestructive ? "destructive" : "default",
+      onPress: onConfirm,
+    },
+  ]);
+};
+
+const notify = (title: string, message: string, onOk?: () => void) => {
+  if (Platform.OS === "web") {
+    if (typeof window !== "undefined") {
+      window.alert(`${title}\n\n${message}`);
+    }
+    onOk?.();
+    return;
+  }
+  Alert.alert(title, message, [{ text: "OK", onPress: onOk }]);
 };
 
 const formatDate = (dateStr: string): string => {
@@ -119,38 +159,32 @@ export const AppealReviewScreen: React.FC = () => {
           : "L'image restera bloquée."
         : message;
 
-      Alert.alert(
+      confirmAction(
         `Confirmer : ${actionLabel}`,
         `${confirmMessage}\n\nNotes : ${adminNotes || "(aucune)"}`,
-        [
-          { text: "Annuler", style: "cancel" },
-          {
-            text: "Confirmer",
-            style: status === "rejected" ? "destructive" : "default",
-            onPress: async () => {
-              setProcessing(true);
+        async () => {
+          setProcessing(true);
+          try {
+            await reviewAppeal(appeal.id, status, adminNotes || undefined);
+
+            if (status === "accepted" && sanction && !isBlockedImage) {
               try {
-                await reviewAppeal(appeal.id, status, adminNotes || undefined);
-
-                if (status === "accepted" && sanction && !isBlockedImage) {
-                  try {
-                    await sanctionsAPI.liftSanction(sanction.id);
-                  } catch {
-                    // sanction may already be expired
-                  }
-                }
-
-                Alert.alert("Succès", "Appel traité avec succès.", [
-                  { text: "OK", onPress: () => navigation.goBack() },
-                ]);
-              } catch (e: any) {
-                Alert.alert("Erreur", e.message || "Une erreur est survenue.");
-              } finally {
-                setProcessing(false);
+                await sanctionsAPI.liftSanction(sanction.id);
+              } catch {
+                // sanction may already be expired
               }
-            },
-          },
-        ],
+            }
+
+            notify("Succès", "Appel traité avec succès.", () =>
+              navigation.goBack(),
+            );
+          } catch (e: any) {
+            notify("Erreur", e.message || "Une erreur est survenue.");
+          } finally {
+            setProcessing(false);
+          }
+        },
+        status === "rejected",
       );
     },
     [adminNotes, appeal, sanction, reviewAppeal, navigation, isBlockedImage],
