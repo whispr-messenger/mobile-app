@@ -209,13 +209,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, [groupId, conversationId, conversationName]);
 
   useEffect(() => {
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData effect failed", err);
+    });
   }, [loadGroupData]);
 
   const handleRefresh = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setRefreshing(true);
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData refresh failed", err);
+    });
   }, [loadGroupData]);
 
   const handleTabChange = useCallback((tab: typeof activeTab) => {
