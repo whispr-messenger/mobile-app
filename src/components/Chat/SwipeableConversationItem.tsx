@@ -191,7 +191,7 @@ export const SwipeableConversationItem: React.FC<
     );
   };
 
-  if (!editMode) {
+  if (editMode) {
     return (
       <ConversationItem
         conversation={conversation}

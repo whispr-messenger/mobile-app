@@ -433,6 +433,8 @@ export const SettingsScreen: React.FC = () => {
       ]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${label}. ${subtitle}` : label}
     >
       <View style={styles.settingItemLeft}>
         {icon && (
@@ -551,6 +553,9 @@ export const SettingsScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            accessibilityHint="Ferme les réglages"
           >
             <Ionicons
               name="arrow-back"
@@ -935,7 +940,7 @@ export const SettingsScreen: React.FC = () => {
               getLocalizedText("settings.mySanctionsSubtitle") ||
               "View your sanctions"
             }
-            onPress={() => navigation.navigate("ReportHistory" as never)}
+            onPress={() => navigation.navigate("MySanctions" as never)}
             icon="alert-circle-outline"
           />
           {isStaff && (

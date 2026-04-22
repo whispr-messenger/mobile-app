@@ -187,20 +187,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         try {
           // Load video first
           try {
-            const loadResult = await playerVideoRef.current.loadAsync({
+            await playerVideoRef.current.loadAsync({
               uri: resolvedMainUri,
             });
-            console.log(
-              "[MediaMessage] Video preloaded",
-              loadResult ? "with status" : "no status",
-            );
 
             // Play immediately after load
-            const playResult = await playerVideoRef.current.playAsync();
-            console.log(
-              "[MediaMessage] Video playing",
-              playResult ? "with status" : "no status",
-            );
+            await playerVideoRef.current.playAsync();
           } catch (loadError: any) {
             console.error(
               "[MediaMessage] Error in loadAsync/playAsync:",
@@ -317,12 +309,10 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Video with thumbnail and player
   const handleVideoPress = async () => {
-    console.log("[MediaMessage] Video pressed, opening player");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (!Video) {
       // Fallback: ouvrir dans le lecteur natif
-      console.log("[MediaMessage] expo-av not available, opening with Linking");
       try {
         const supported = await Linking.canOpenURL(uri);
         if (supported) {
@@ -341,7 +331,6 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   };
 
   const handleCloseVideo = () => {
-    console.log("[MediaMessage] Closing video player");
     if (playerVideoRef.current && Video) {
       try {
         playerVideoRef.current
@@ -377,21 +366,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             onLoad={(status: any) => {
               // Silently ignore null or invalid status to prevent crashes
               if (!status || typeof status !== "object" || status === null) {
-                console.log(
-                  "[MediaMessage] Video thumbnail loaded (null status, ignoring)",
-                );
                 return;
               }
               try {
-                console.log(
-                  "[MediaMessage] Video thumbnail loaded successfully",
-                );
                 setThumbnailError(false);
-              } catch (error: any) {
+              } catch {
                 // Silently ignore errors
-                console.log(
-                  "[MediaMessage] Thumbnail load completed (status may be null, ignoring)",
-                );
               }
             }}
             onError={(error: any) => {
@@ -512,24 +492,15 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       );
                     }
                   }}
-                  onLoadStart={() => {
-                    console.log("[MediaMessage] Video load started");
-                  }}
+                  onLoadStart={() => {}}
                   onLoad={(status: any) => {
                     // Completely ignore null/undefined status to prevent crashes
                     if (status == null || typeof status !== "object") {
-                      console.log(
-                        "[MediaMessage] Video loaded (null/undefined status, ignoring)",
-                      );
                       return;
                     }
                     try {
                       // Safely access properties with optional chaining
                       const isLoaded = status?.isLoaded === true;
-                      console.log(
-                        "[MediaMessage] Video loaded, auto-playing",
-                        isLoaded,
-                      );
                       if (status) {
                         setVideoStatus(status);
                       }

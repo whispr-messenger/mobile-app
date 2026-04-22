@@ -6,14 +6,7 @@
 import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
 import { getApiBaseUrl } from "./apiBase";
-
-const normalizeUsernameValue = (username: string): string => {
-  const raw = (username ?? "").trim().replace(/^@+/, "").toLowerCase();
-  if (!raw) return "";
-  const normalized = raw.replace(/[^a-z0-9_]/g, "_").slice(0, 20);
-  if (!/[a-z0-9]/.test(normalized)) return "";
-  return normalized;
-};
+import { normalizeUsername } from "../utils";
 
 // Types
 export interface UserProfile {
@@ -194,6 +187,39 @@ export class UserService {
   }
 
   /**
+   * Get a specific user's profile by id (not the authenticated user).
+   * Used when viewing another member's profile from groups, contacts, etc.
+   */
+  async getUserProfile(userId: string): Promise<{
+    success: boolean;
+    profile?: UserProfile;
+    message?: string;
+  }> {
+    try {
+      const token = await TokenService.getAccessToken();
+      if (!token) return { success: false, message: "Non authentifié" };
+
+      const url = `${this.baseUrl}/profile/${encodeURIComponent(userId)}`;
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        return { success: false, message: `Erreur ${response.status}` };
+      }
+
+      const data = await response.json().catch(() => null);
+      if (data && data.profilePictureUrl && !data.profilePicture) {
+        data.profilePicture = data.profilePictureUrl;
+      }
+      return { success: true, profile: data };
+    } catch (error) {
+      console.error("Erreur récupération profil utilisateur:", error);
+      return { success: false, message: "Impossible de récupérer le profil" };
+    }
+  }
+
+  /**
    * Update user profile
    */
   async updateProfile(
@@ -279,7 +305,7 @@ export class UserService {
    */
   async updateUsername(username: string): Promise<UpdateProfileResponse> {
     try {
-      const normalizedUsername = normalizeUsernameValue(username);
+      const normalizedUsername = normalizeUsername(username);
       const validation = this.validateUsername(normalizedUsername);
       if (!validation.isValid) {
         return { success: false, message: validation.error };

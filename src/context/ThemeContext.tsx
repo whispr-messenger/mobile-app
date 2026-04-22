@@ -10,6 +10,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Types
@@ -92,6 +93,15 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.phoneInvalidFormat": "Format de numéro invalide (ex: 07 12 34 56 78)",
     "auth.errorConnection": "Une erreur est survenue lors de la connexion",
     "auth.errorSendCode": "Impossible d'envoyer le code de vérification",
+    "auth.permissionDeniedGallery":
+      "Permission refusée pour accéder à la galerie.",
+    "auth.fillAllRequiredFields":
+      "Veuillez remplir tous les champs obligatoires.",
+    "chat.requestSentTitle": "Demande envoyée",
+    "chat.requestSentMessage": "Votre demande de contact a été envoyée.",
+    "chat.errorEditMessage": "Impossible de modifier le message",
+    "chat.errorScheduleMessage": "Impossible de programmer le message.",
+    "chat.errorDeleteMessage": "Impossible de supprimer le message",
     "auth.noAccountFound":
       "Aucun compte trouvé pour ce numéro. Voulez-vous vous inscrire ?",
     "auth.accountAlreadyExists":
@@ -370,6 +380,13 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.phoneInvalidFormat": "Invalid phone format (e.g.: 07 12 34 56 78)",
     "auth.errorConnection": "An error occurred during connection",
     "auth.errorSendCode": "Unable to send verification code",
+    "auth.permissionDeniedGallery": "Permission denied to access the gallery.",
+    "auth.fillAllRequiredFields": "Please fill in all required fields.",
+    "chat.requestSentTitle": "Request sent",
+    "chat.requestSentMessage": "Your contact request has been sent.",
+    "chat.errorEditMessage": "Could not edit the message",
+    "chat.errorScheduleMessage": "Could not schedule the message.",
+    "chat.errorDeleteMessage": "Could not delete the message",
     "auth.noAccountFound":
       "No account found for this number. Would you like to register?",
     "auth.accountAlreadyExists":
@@ -674,6 +691,19 @@ const baseFontSizes = {
   xxxl: 32,
 };
 
+// WHISPR-1072: exported so the resolution logic can be covered by unit tests
+// without mounting a full React Native renderer (useColorScheme needs the
+// native event loop, which the Jest RN preset flakes on).
+export const resolveThemeColors = (
+  theme: Theme,
+  systemColorScheme: "light" | "dark" | null | undefined,
+): ThemeColors => {
+  if (theme === "light") return lightThemeColors;
+  if (theme === "dark") return darkThemeColors;
+  // theme === "auto"
+  return systemColorScheme === "light" ? lightThemeColors : darkThemeColors;
+};
+
 // Context
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
@@ -683,6 +713,9 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [settings, setSettings] = useState<GlobalSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  // WHISPR-1072: watch the OS-level color scheme so "auto" actually follows
+  // the system preference instead of silently defaulting to dark.
+  const systemColorScheme = useColorScheme();
 
   // Load settings from storage
   useEffect(() => {
@@ -713,17 +746,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Get theme colors based on current theme
-  const getThemeColors = (): ThemeColors => {
-    if (settings.theme === "light") {
-      return lightThemeColors;
-    } else if (settings.theme === "dark") {
-      return darkThemeColors;
-    } else {
-      // Auto: use dark for now (could be system-based)
-      return darkThemeColors;
-    }
-  };
+  // Get theme colors based on current theme (delegates to the pure helper
+  // so the resolution logic can be unit-tested without mounting RN).
+  const getThemeColors = (): ThemeColors =>
+    resolveThemeColors(settings.theme, systemColorScheme);
 
   // Get font size with multiplier
   const getFontSize = (

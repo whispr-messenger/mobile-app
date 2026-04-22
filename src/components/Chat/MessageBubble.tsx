@@ -242,7 +242,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     opacity: opacity.value,
   }));
 
-  const isForwarded = message.metadata?.forwarded === true;
+  const isForwarded =
+    !!message.forwarded_from_id || message.metadata?.forwarded === true;
   const isFailed = message.status === "failed";
 
   // Only display the sender avatar for received messages in a group conversation.

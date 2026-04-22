@@ -1,0 +1,156 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`IncomingCallScreen matches snapshot 1`] = `
+<View
+  style={
+    {
+      "alignItems": "center",
+      "backgroundColor": "#111",
+      "flex": 1,
+      "justifyContent": "center",
+      "padding": 24,
+    }
+  }
+>
+  <Text
+    style={
+      {
+        "color": "#ccc",
+        "fontFamily": "Inter_400Regular",
+        "fontSize": 16,
+      }
+    }
+  >
+    Appel 
+    audio
+     entrant
+  </Text>
+  <Text
+    numberOfLines={1}
+    style={
+      {
+        "color": "#fff",
+        "fontFamily": "Inter_700Bold",
+        "fontSize": 32,
+        "marginTop": 16,
+      }
+    }
+  >
+    user-alice
+  </Text>
+  <View
+    style={
+      {
+        "flexDirection": "row",
+        "gap": 24,
+        "marginTop": 64,
+      }
+    }
+  >
+    <View
+      accessibilityLabel="Refuser l'appel"
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "backgroundColor": "#e53935",
+          "borderRadius": 32,
+          "opacity": 1,
+          "paddingHorizontal": 32,
+          "paddingVertical": 16,
+        }
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#fff",
+            "fontFamily": "Inter_600SemiBold",
+            "fontSize": 18,
+          }
+        }
+      >
+        Refuser
+      </Text>
+    </View>
+    <View
+      accessibilityLabel="Accepter l'appel"
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": undefined,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onClick={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        {
+          "backgroundColor": "#43a047",
+          "borderRadius": 32,
+          "opacity": 1,
+          "paddingHorizontal": 32,
+          "paddingVertical": 16,
+        }
+      }
+    >
+      <Text
+        style={
+          {
+            "color": "#fff",
+            "fontFamily": "Inter_600SemiBold",
+            "fontSize": 18,
+          }
+        }
+      >
+        Accepter
+      </Text>
+    </View>
+  </View>
+</View>
+`;
