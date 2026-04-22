@@ -67,10 +67,6 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({
               style={styles.pinnedItem}
               onPress={() => {
                 if (!messageId) return;
-                console.log(
-                  "[PinnedMessagesBar] Pinned message item pressed:",
-                  messageId,
-                );
                 onMessagePress(messageId);
               }}
               activeOpacity={0.7}

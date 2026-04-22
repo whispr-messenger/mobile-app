@@ -51,7 +51,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(
     null,
   );
-  const [doingBoth, setDoingBoth] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigation =
     useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
@@ -105,11 +104,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       try {
         setAddingContactId(user.user.id);
         await contactsAPI.sendContactRequest(user.user.id);
-
-        console.log(
-          "[AddContactModal] Contact request sent successfully:",
-          user.user.id,
-        );
 
         if (Platform.OS === "web") {
           onContactAdded();
@@ -181,41 +175,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       }
     },
     [onMessageUser],
-  );
-
-  const handleAddAndMessage = useCallback(
-    async (user: UserSearchResult) => {
-      if (!onMessageUser || user.is_blocked) return;
-      try {
-        setDoingBoth(true);
-        // Send contact request first (fire and forget errors)
-        try {
-          await contactsAPI.sendContactRequest(user.user.id);
-        } catch {
-          // Ignore — may already be pending or contacts
-        }
-        onContactAdded();
-        // Then create conversation
-        const conversation = await messagingAPI.createDirectConversation(
-          user.user.id,
-        );
-        handleClose();
-        onMessageUser(conversation.id);
-      } catch (error: any) {
-        console.error(
-          "[AddContactModal] Error adding contact and messaging:",
-          error,
-        );
-        Alert.alert(
-          "Erreur",
-          error.message || "Impossible de créer la conversation",
-        );
-      } finally {
-        setDoingBoth(false);
-        setSelectedUser(null);
-      }
-    },
-    [onMessageUser, onContactAdded],
   );
 
   const handleClose = useCallback(() => {
@@ -506,9 +465,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                       setSelectedUser(null);
                       handleAddContact(user);
                     }}
-                    disabled={
-                      addingContactId === selectedUser.user.id || doingBoth
-                    }
+                    disabled={addingContactId === selectedUser.user.id}
                   >
                     {addingContactId === selectedUser.user.id ? (
                       <ActivityIndicator
@@ -530,7 +487,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   </TouchableOpacity>
                 )}
 
-                {onMessageUser && (
+                {onMessageUser && selectedUser.is_contact && (
                   <TouchableOpacity
                     style={[
                       styles.actionCardButton,
@@ -541,9 +498,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                       setSelectedUser(null);
                       handleMessageUser(user);
                     }}
-                    disabled={
-                      messagingUserId === selectedUser.user.id || doingBoth
-                    }
+                    disabled={messagingUserId === selectedUser.user.id}
                   >
                     {messagingUserId === selectedUser.user.id ? (
                       <ActivityIndicator
@@ -559,44 +514,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                         />
                         <Text style={styles.actionCardButtonText}>
                           Envoyer un message
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                {!selectedUser.is_contact && onMessageUser && (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionCardButton,
-                      {
-                        backgroundColor: "transparent",
-                        borderWidth: 1,
-                        borderColor: colors.primary.main,
-                      },
-                    ]}
-                    onPress={() => handleAddAndMessage(selectedUser)}
-                    disabled={doingBoth}
-                  >
-                    {doingBoth ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colors.primary.main}
-                      />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="people"
-                          size={18}
-                          color={colors.primary.main}
-                        />
-                        <Text
-                          style={[
-                            styles.actionCardButtonText,
-                            { color: colors.primary.main },
-                          ]}
-                        >
-                          Ajouter et envoyer un message
                         </Text>
                       </>
                     )}

@@ -20,8 +20,15 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { StackScreenProps } from "@react-navigation/stack";
+import {
+  useRoute,
+  useNavigation,
+  type ParamListBase,
+} from "@react-navigation/native";
+import {
+  StackScreenProps,
+  type StackNavigationProp,
+} from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -52,6 +59,7 @@ import { messagingAPI } from "../../services/messaging/api";
 import { contactsAPI } from "../../services/contacts/api";
 import { Contact } from "../../types/contact";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { useConversationsStore } from "../../store/conversationsStore";
 
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
@@ -64,10 +72,20 @@ type GroupDetailsScreenRouteProp = StackScreenProps<
 
 export const GroupDetailsScreen: React.FC = () => {
   const route = useRoute<GroupDetailsScreenRouteProp>();
-  const navigation = useNavigation();
+  // WHISPR-1074: the screen isn't scoped to a typed param list, so we reach
+  // for the base stack signature rather than sprinkling `as any` on every
+  // navigate() call.
+  const navigation = useNavigation<StackNavigationProp<ParamListBase>>();
   const { userId } = useAuth();
   const CURRENT_USER_ID = userId ?? "";
   const { groupId, conversationId, conversationName } = route.params;
+  const conversationKey = conversationId || groupId;
+  const removeConversationLocal = useConversationsStore(
+    (s) => s.removeConversationLocal,
+  );
+  const refreshConversations = useConversationsStore(
+    (s) => s.refreshConversations,
+  );
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -110,9 +128,13 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLoading(true);
       const results = await Promise.allSettled([
-        groupsAPI.getGroupDetails(groupId, conversationId),
-        groupsAPI.getGroupMembers(groupId, { conversationId }),
-        groupsAPI.getGroupStats(groupId, { conversationId }),
+        groupsAPI.getGroupDetails(groupId, conversationKey),
+        groupsAPI.getGroupMembers(groupId, {
+          conversationId: conversationKey,
+        }),
+        groupsAPI.getGroupStats(groupId, {
+          conversationId: conversationKey,
+        }),
         groupsAPI.getGroupLogs(groupId),
         groupsAPI.getGroupSettings(groupId),
       ]);
@@ -139,7 +161,7 @@ export const GroupDetailsScreen: React.FC = () => {
             created_at: "",
             updated_at: "",
             is_active: true,
-            conversation_id: conversationId,
+            conversation_id: conversationKey,
           } as GroupDetails;
         });
       }
@@ -199,13 +221,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, [groupId, conversationId, conversationName]);
 
   useEffect(() => {
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData effect failed", err);
+    });
   }, [loadGroupData]);
 
   const handleRefresh = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setRefreshing(true);
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData refresh failed", err);
+    });
   }, [loadGroupData]);
 
   const handleTabChange = useCallback((tab: typeof activeTab) => {
@@ -215,11 +241,11 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleManageGroup = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    (navigation as any).navigate("GroupManagement", {
+    navigation.navigate("GroupManagement", {
       groupId,
-      conversationId,
+      conversationId: conversationId ?? conversationKey,
     });
-  }, [navigation, groupId, conversationId]);
+  }, [navigation, conversationId, conversationKey]);
 
   const currentUserMember = members.find((m) => m.user_id === CURRENT_USER_ID);
   const isAdmin = currentUserMember?.role === "admin";
@@ -238,17 +264,28 @@ export const GroupDetailsScreen: React.FC = () => {
       setLeaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
+      removeConversationLocal(conversationKey);
+      refreshConversations().catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      (navigation as any).navigate("ConversationsList");
+      navigation.navigate("ConversationsList");
     } catch (error: any) {
       logger.error("GroupDetailsScreen", "Error leaving group", error);
-      Alert.alert("Erreur", error.message || "Impossible de quitter le groupe");
+      Alert.alert("Erreur", "Impossible de quitter le groupe");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLeaving(false);
       setShowLeaveModal(false);
     }
-  }, [groupId, isLastAdmin, navigation]);
+  }, [
+    CURRENT_USER_ID,
+    conversationId,
+    conversationKey,
+    groupId,
+    isLastAdmin,
+    navigation,
+    refreshConversations,
+    removeConversationLocal,
+  ]);
 
   const handleDeleteGroup = useCallback(async () => {
     try {
@@ -257,7 +294,7 @@ export const GroupDetailsScreen: React.FC = () => {
       await groupsAPI.deleteGroup(groupId, conversationId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Le groupe a été supprimé");
-      (navigation as any).navigate("ConversationsList");
+      navigation.navigate("ConversationsList");
     } catch (error) {
       logger.error("GroupDetailsScreen", "Error deleting group", error);
       Alert.alert("Erreur", "Impossible de supprimer le groupe");
@@ -275,8 +312,10 @@ export const GroupDetailsScreen: React.FC = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         await groupsAPI.transferAdmin(groupId, newAdminId, conversationId);
         await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
+        removeConversationLocal(conversationKey);
+        refreshConversations().catch(() => {});
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        (navigation as any).navigate("ConversationsList");
+        navigation.navigate("ConversationsList");
       } catch (error: any) {
         logger.error(
           "GroupDetailsScreen",
@@ -293,7 +332,15 @@ export const GroupDetailsScreen: React.FC = () => {
         setShowTransferAdminModal(false);
       }
     },
-    [groupId, navigation],
+    [
+      CURRENT_USER_ID,
+      conversationId,
+      conversationKey,
+      groupId,
+      navigation,
+      refreshConversations,
+      removeConversationLocal,
+    ],
   );
 
   const loadContactsForPicker = useCallback(async () => {
@@ -310,11 +357,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, []);
 
   const openAddMemberModal = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setContactSearch("");
     setShowAddMemberModal(true);
     if (contacts.length === 0) {
-      loadContactsForPicker();
+      loadContactsForPicker().catch((err) => {
+        logger.error(
+          "GroupDetailsScreen",
+          "loadContactsForPicker rejected",
+          err,
+        );
+      });
     }
   }, [contacts.length, loadContactsForPicker]);
 
@@ -575,29 +628,31 @@ export const GroupDetailsScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabsScroll}
       >
-        {[
-          {
-            key: "info" as const,
-            label: "Informations",
-            icon: "information-circle-outline",
-          },
-          { key: "members" as const, label: "Membres", icon: "people-outline" },
-          {
-            key: "stats" as const,
-            label: "Statistiques",
-            icon: "stats-chart-outline",
-          },
-          {
-            key: "history" as const,
-            label: "Historique",
-            icon: "time-outline",
-          },
-          {
-            key: "settings" as const,
-            label: "Paramètres",
-            icon: "settings-outline",
-          },
-        ].map((tab, index) => {
+        {(
+          [
+            {
+              key: "info",
+              label: "Informations",
+              icon: "information-circle-outline",
+            },
+            { key: "members", label: "Membres", icon: "people-outline" },
+            {
+              key: "stats",
+              label: "Statistiques",
+              icon: "stats-chart-outline",
+            },
+            {
+              key: "history",
+              label: "Historique",
+              icon: "time-outline",
+            },
+            {
+              key: "settings",
+              label: "Paramètres",
+              icon: "settings-outline",
+            },
+          ] as const
+        ).map((tab, index) => {
           const isActive = activeTab === tab.key;
           return (
             <AnimatedTouchableOpacity
@@ -615,7 +670,7 @@ export const GroupDetailsScreen: React.FC = () => {
               entering={SlideInRight.delay(100 + index * 50).springify()}
             >
               <Ionicons
-                name={tab.icon as any}
+                name={tab.icon}
                 size={18}
                 color={
                   isActive
@@ -788,8 +843,10 @@ export const GroupDetailsScreen: React.FC = () => {
             ]}
             activeOpacity={0.7}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              (navigation as any).navigate("Profile", {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {},
+              );
+              navigation.navigate("Profile", {
                 userId:
                   member.user_id === CURRENT_USER_ID
                     ? CURRENT_USER_ID
@@ -797,7 +854,9 @@ export const GroupDetailsScreen: React.FC = () => {
               });
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Ouvrir le profil de ${member.display_name}`}
+            accessibilityLabel={`Ouvrir le profil de ${
+              member.display_name ?? "membre"
+            }`}
             entering={FadeInDown.delay(150 + index * 50).springify()}
           >
             <Avatar
@@ -1794,7 +1853,11 @@ export const GroupDetailsScreen: React.FC = () => {
                   {member.display_name}
                 </Text>
                 <Text style={styles.modalDescription}>
-                  {member.role === "admin" ? "Administrateur" : "Membre"}
+                  {member.role === "admin"
+                    ? "Administrateur"
+                    : member.role === "moderator"
+                      ? "Modérateur"
+                      : "Membre"}
                 </Text>
               </View>
 
@@ -1806,7 +1869,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 />
               )}
 
-              {member.role === "member" && (
+              {member.role !== "admin" && !isSelf && (
                 <TouchableOpacity
                   style={styles.memberActionRow}
                   onPress={() => handleChangeRole(member, "admin")}
@@ -2288,10 +2351,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.primary.main, 0.2),
@@ -2302,10 +2362,7 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.secondary.main, 0.2),
@@ -2370,20 +2427,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.primary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.primary.main, 0.3)}`,
     elevation: 5,
   },
   modalButtonDelete: {
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.ui.error,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.ui.error, 0.3)}`,
     elevation: 5,
   },
   modalButtonGradient: {

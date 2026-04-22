@@ -2,17 +2,17 @@
  * DeliveryStatus - Message delivery status icons
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../../theme/colors';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { colors } from "../../theme/colors";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const UI_ERROR_COLOR = colors.ui.error;
 const TEXT_LIGHT_COLOR = colors.text.light;
 
 interface DeliveryStatusProps {
-  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+  status: "sending" | "queued" | "sent" | "delivered" | "read" | "failed";
 }
 
 export const DeliveryStatus: React.FC<DeliveryStatusProps> = ({ status }) => {
@@ -20,28 +20,30 @@ export const DeliveryStatus: React.FC<DeliveryStatusProps> = ({ status }) => {
     return null;
   }
 
-  if (status === 'sending') {
+  if (status === "sending" || status === "queued") {
+    // "queued" = offline, waiting to be drained once the socket reconnects.
+    // Render the same hourglass so users see an in-flight state.
     return <Text style={styles.sending}>⏳</Text>;
   }
 
-  if (status === 'failed') {
+  if (status === "failed") {
     return <Text style={styles.failed}>⚠️</Text>;
   }
 
-  if (status === 'sent') {
-    return <Text style={[styles.check, { color: colors.text.tertiary }]}>✓</Text>;
-  }
-
-  if (status === 'delivered') {
+  if (status === "sent") {
     return (
-      <Text style={styles.deliveredCheck}>✓✓</Text>
+      <Text style={[styles.check, { color: colors.text.tertiary }]}>✓</Text>
     );
   }
 
-  if (status === 'read') {
+  if (status === "delivered") {
+    return <Text style={styles.deliveredCheck}>✓✓</Text>;
+  }
+
+  if (status === "read") {
     return (
       <LinearGradient
-        colors={['#FFB07B', '#F04882']}
+        colors={["#FFB07B", "#F04882"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientCheck}
@@ -64,11 +66,11 @@ const styles = StyleSheet.create({
   },
   check: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   deliveredCheck: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: TEXT_LIGHT_COLOR,
     opacity: 0.7,
   },
@@ -76,14 +78,12 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkText: {
     color: TEXT_LIGHT_COLOR,
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
-
-
