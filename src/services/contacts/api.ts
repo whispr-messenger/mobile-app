@@ -229,7 +229,29 @@ export const contactsAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to delete contact");
+      const errorText = await response.text().catch(() => "");
+      let errorBody: any = null;
+      try {
+        errorBody = JSON.parse(errorText);
+      } catch {
+        errorBody = null;
+      }
+
+      const errorMessage =
+        errorBody?.data?.message ?? errorBody?.message ?? errorText;
+
+      if (
+        response.status === 404 &&
+        String(errorMessage || "")
+          .toLowerCase()
+          .includes("contact not found")
+      ) {
+        return;
+      }
+
+      throw new Error(
+        `Failed to delete contact (${response.status}): ${errorMessage || "Unknown error"}`,
+      );
     }
   },
 
