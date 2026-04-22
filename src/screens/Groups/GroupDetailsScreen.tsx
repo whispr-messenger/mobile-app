@@ -59,6 +59,7 @@ import { messagingAPI } from "../../services/messaging/api";
 import { contactsAPI } from "../../services/contacts/api";
 import { Contact } from "../../types/contact";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { useConversationsStore } from "../../store/conversationsStore";
 
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
@@ -78,6 +79,13 @@ export const GroupDetailsScreen: React.FC = () => {
   const { userId } = useAuth();
   const CURRENT_USER_ID = userId ?? "";
   const { groupId, conversationId, conversationName } = route.params;
+  const conversationKey = conversationId || groupId;
+  const removeConversationLocal = useConversationsStore(
+    (s) => s.removeConversationLocal,
+  );
+  const refreshConversations = useConversationsStore(
+    (s) => s.refreshConversations,
+  );
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -120,11 +128,11 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLoading(true);
       const results = await Promise.allSettled([
-        groupsAPI.getGroupDetails(groupId),
-        groupsAPI.getGroupMembers(groupId),
-        groupsAPI.getGroupStats(groupId),
-        groupsAPI.getGroupLogs(groupId),
-        groupsAPI.getGroupSettings(groupId),
+        groupsAPI.getGroupDetails(groupId, conversationKey),
+        groupsAPI.getGroupMembers(conversationKey),
+        groupsAPI.getGroupStats(conversationKey),
+        groupsAPI.getGroupLogs(conversationKey),
+        groupsAPI.getGroupSettings(conversationKey),
       ]);
 
       const [detailsR, membersR, statsR, logsR, settingsR] = results;
@@ -149,7 +157,7 @@ export const GroupDetailsScreen: React.FC = () => {
             created_at: "",
             updated_at: "",
             is_active: true,
-            conversation_id: conversationId,
+            conversation_id: conversationKey,
           } as GroupDetails;
         });
       }
@@ -229,8 +237,11 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleManageGroup = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate("GroupManagement", { groupId, conversationId });
-  }, [navigation, groupId, conversationId]);
+    navigation.navigate("GroupManagement", {
+      groupId: conversationKey,
+      conversationId,
+    });
+  }, [navigation, conversationId, conversationKey]);
 
   const currentUserMember = members.find((m) => m.user_id === CURRENT_USER_ID);
   const isAdmin = currentUserMember?.role === "admin";
@@ -248,7 +259,9 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLeaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+      await groupsAPI.leaveGroup(conversationKey, CURRENT_USER_ID);
+      removeConversationLocal(conversationKey);
+      refreshConversations().catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.navigate("ConversationsList");
     } catch (error: any) {
@@ -259,7 +272,14 @@ export const GroupDetailsScreen: React.FC = () => {
       setLeaving(false);
       setShowLeaveModal(false);
     }
-  }, [groupId, isLastAdmin, navigation]);
+  }, [
+    CURRENT_USER_ID,
+    conversationKey,
+    isLastAdmin,
+    navigation,
+    refreshConversations,
+    removeConversationLocal,
+  ]);
 
   const handleDeleteGroup = useCallback(async () => {
     try {
@@ -284,8 +304,10 @@ export const GroupDetailsScreen: React.FC = () => {
       try {
         setLeaving(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await groupsAPI.transferAdmin(groupId, newAdminId);
-        await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+        await groupsAPI.transferAdmin(conversationKey, newAdminId);
+        await groupsAPI.leaveGroup(conversationKey, CURRENT_USER_ID);
+        removeConversationLocal(conversationKey);
+        refreshConversations().catch(() => {});
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         navigation.navigate("ConversationsList");
       } catch (error: any) {
@@ -304,7 +326,13 @@ export const GroupDetailsScreen: React.FC = () => {
         setShowTransferAdminModal(false);
       }
     },
-    [groupId, navigation],
+    [
+      CURRENT_USER_ID,
+      conversationKey,
+      navigation,
+      refreshConversations,
+      removeConversationLocal,
+    ],
   );
 
   const loadContactsForPicker = useCallback(async () => {

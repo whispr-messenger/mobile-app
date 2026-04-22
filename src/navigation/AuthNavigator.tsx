@@ -20,10 +20,6 @@ import { MyQRCodeScreen } from "../screens/Contacts/MyQRCodeScreen";
 import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
 import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
-import { CallsScreen } from "../screens/Calls/CallsScreen";
-import { IncomingCallScreen } from "../screens/Calls/IncomingCallScreen";
-import { InCallScreen } from "../screens/Calls/InCallScreen";
-import { CallHistoryScreen } from "../screens/Calls/CallHistoryScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
 import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
 import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
@@ -228,10 +224,15 @@ export const AuthNavigator: React.FC = () => {
         name="ScheduledMessages"
         component={ScheduledMessagesScreen}
       />
-      <Stack.Screen name="Calls" component={CallsScreen} />
+      <Stack.Screen
+        name="Calls"
+        getComponent={() => require("../screens/Calls/CallsScreen").CallsScreen}
+      />
       <Stack.Screen
         name="IncomingCall"
-        component={IncomingCallScreen}
+        getComponent={() =>
+          require("../screens/Calls/IncomingCallScreen").IncomingCallScreen
+        }
         options={{
           presentation: "modal",
           headerShown: false,
@@ -240,12 +241,16 @@ export const AuthNavigator: React.FC = () => {
       />
       <Stack.Screen
         name="InCall"
-        component={InCallScreen}
+        getComponent={() =>
+          require("../screens/Calls/InCallScreen").InCallScreen
+        }
         options={{ headerShown: false, gestureEnabled: false }}
       />
       <Stack.Screen
         name="CallHistory"
-        component={CallHistoryScreen}
+        getComponent={() =>
+          require("../screens/Calls/CallHistoryScreen").CallHistoryScreen
+        }
         options={{ title: "Appels" }}
       />
       <Stack.Screen
