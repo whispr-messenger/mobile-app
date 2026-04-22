@@ -110,9 +110,9 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLoading(true);
       const results = await Promise.allSettled([
-        groupsAPI.getGroupDetails(groupId),
-        groupsAPI.getGroupMembers(groupId),
-        groupsAPI.getGroupStats(groupId),
+        groupsAPI.getGroupDetails(groupId, conversationId),
+        groupsAPI.getGroupMembers(groupId, { conversationId }),
+        groupsAPI.getGroupStats(groupId, { conversationId }),
         groupsAPI.getGroupLogs(groupId),
         groupsAPI.getGroupSettings(groupId),
       ]);
@@ -237,7 +237,7 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLeaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       (navigation as any).navigate("ConversationsList");
     } catch (error: any) {
@@ -254,7 +254,7 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setDeleting(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      await groupsAPI.deleteGroup(groupId);
+      await groupsAPI.deleteGroup(groupId, conversationId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Le groupe a été supprimé");
       (navigation as any).navigate("ConversationsList");
@@ -273,8 +273,8 @@ export const GroupDetailsScreen: React.FC = () => {
       try {
         setLeaving(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await groupsAPI.transferAdmin(groupId, newAdminId);
-        await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+        await groupsAPI.transferAdmin(groupId, newAdminId, conversationId);
+        await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         (navigation as any).navigate("ConversationsList");
       } catch (error: any) {
