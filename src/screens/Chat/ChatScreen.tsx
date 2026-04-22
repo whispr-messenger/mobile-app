@@ -1579,9 +1579,19 @@ export const ChatScreen: React.FC = () => {
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
       if (isCurrentlyPinned) {
+        // Optimistically remove from the pinned bar so the banner disappears
+        // immediately, even if the refresh below races the server.
+        setPinnedMessages((prev) =>
+          prev.filter(
+            (m) => (m.messageId ?? m.message?.id) !== selectedMessage.id,
+          ),
+        );
         await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
       } else {
         await messagingAPI.pinMessage(conversationId, selectedMessage.id);
+        // Re-open the bar when the user just pinned a new message after
+        // having manually closed it.
+        setShowPinnedBar(true);
       }
 
       await loadPinnedMessages();
