@@ -909,29 +909,46 @@ export const messagingAPI = {
     query: string,
     params?: { limit?: number },
   ): Promise<Message[] | null> {
-    try {
-      const searchParams = new URLSearchParams();
-      searchParams.append("search", query);
-      if (params?.limit !== undefined) {
-        searchParams.append("limit", String(params.limit));
+    // Try the dedicated per-conversation search endpoint first, then fall
+    // back to the `?search=` query param on the messages list endpoint. This
+    // matches both shapes the messaging service has shipped historically
+    // (WHISPR-928) so mobile clients keep working across backend revisions.
+    const limit = params?.limit ?? 50;
+    const attempts: Array<() => string> = [
+      () =>
+        `${API_BASE_URL}/messages/search?conversation_id=${encodeURIComponent(
+          conversationId,
+        )}&query=${encodeURIComponent(query)}&limit=${limit}`,
+      () => {
+        const sp = new URLSearchParams({ query, limit: String(limit) });
+        return `${API_BASE_URL}/conversations/${encodeURIComponent(
+          conversationId,
+        )}/messages/search?${sp.toString()}`;
+      },
+      () => {
+        const sp = new URLSearchParams({ search: query, limit: String(limit) });
+        return `${API_BASE_URL}/conversations/${encodeURIComponent(
+          conversationId,
+        )}/messages?${sp.toString()}`;
+      },
+    ];
+
+    for (const buildUrl of attempts) {
+      try {
+        const response = await authenticatedFetch(buildUrl());
+        if (!response.ok) {
+          // 404/405/400 -> try the next shape; any other status is a real
+          // failure and we let callers fall back to client-side filtering.
+          if ([400, 404, 405].includes(response.status)) continue;
+          return null;
+        }
+        const data = await unwrap(response);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        continue;
       }
-
-      const url = `${API_BASE_URL}/conversations/${encodeURIComponent(
-        conversationId,
-      )}/messages?${searchParams.toString()}`;
-
-      const response = await authenticatedFetch(url);
-
-      if (!response.ok) {
-        // Backend may not support search param — return null to signal fallback
-        return null;
-      }
-
-      const data = await unwrap(response);
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return null;
     }
+    return null;
   },
 
   /**
