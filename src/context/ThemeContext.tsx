@@ -323,6 +323,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.regenerateConfirm":
       "Cette action va générer de nouveaux codes et invalider les précédents. Vos anciens codes ne fonctionneront plus.",
     "twoFactor.codesRegenerated": "Codes de récupération régénérés",
+    "twoFactor.remainingCodes": "{count} codes de secours restants",
 
     // Report message (WHISPR-174)
     "report.menuAction": "Signaler",
@@ -613,6 +614,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "twoFactor.regenerateConfirm":
       "This will generate new codes and invalidate your previous ones. Your old codes will no longer work.",
     "twoFactor.codesRegenerated": "Recovery codes regenerated",
+    "twoFactor.remainingCodes": "{count} backup codes remaining",
 
     // Report message (WHISPR-174)
     "report.menuAction": "Report",
