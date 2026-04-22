@@ -65,7 +65,20 @@ export interface MuteSettings {
   muted_until?: string; // ISO date, undefined = muted forever
 }
 
+export interface BadgeCountResponse {
+  unread_count: number;
+}
+
 export const NotificationService = {
+  /**
+   * GET /notification/api/v1/badge
+   * Retourne le compteur de notifications non lues pour l'utilisateur.
+   */
+  async getBadge(): Promise<number> {
+    const res = await apiFetch<BadgeCountResponse>("/api/v1/badge");
+    return typeof res?.unread_count === "number" ? res.unread_count : 0;
+  },
+
   /**
    * GET /notification/api/settings/:id
    * Get notification settings for a user.
