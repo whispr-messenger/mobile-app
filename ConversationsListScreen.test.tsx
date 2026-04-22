@@ -125,7 +125,7 @@ describe('ConversationsListScreen', () => {
 
   it('renders search bar', () => {
     const { getByPlaceholderText } = render(<ConversationsListScreen />);
-    expect(getByPlaceholderText('Search for messages or users')).toBeTruthy();
+    expect(getByPlaceholderText('Rechercher des messages ou utilisateurs')).toBeTruthy();
   });
 
   it('renders empty state when no conversations', () => {
@@ -135,12 +135,12 @@ describe('ConversationsListScreen', () => {
 
   it('renders Edit button', () => {
     const { getByText } = render(<ConversationsListScreen />);
-    expect(getByText('Edit')).toBeTruthy();
+    expect(getByText('Modifier')).toBeTruthy();
   });
 
   it('toggles edit mode on Edit press', () => {
     const { getByText } = render(<ConversationsListScreen />);
-    fireEvent.press(getByText('Edit'));
-    expect(getByText('Cancel')).toBeTruthy();
+    fireEvent.press(getByText('Modifier'));
+    expect(getByText('Annuler')).toBeTruthy();
   });
 });

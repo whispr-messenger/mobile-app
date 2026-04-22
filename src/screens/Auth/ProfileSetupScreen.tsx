@@ -95,7 +95,7 @@ export const ProfileSetupScreen: React.FC = () => {
     if (status !== "granted") {
       Alert.alert(
         getLocalizedText("notif.error"),
-        "Permission refusée pour accéder à la galerie.",
+        getLocalizedText("auth.permissionDeniedGallery"),
       );
       return;
     }
@@ -114,7 +114,7 @@ export const ProfileSetupScreen: React.FC = () => {
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert(
         getLocalizedText("notif.error"),
-        "Veuillez remplir tous les champs obligatoires.",
+        getLocalizedText("auth.fillAllRequiredFields"),
       );
       return;
     }
@@ -226,6 +226,9 @@ export const ProfileSetupScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.avatarContainer}
               onPress={pickImage}
+              accessibilityRole="button"
+              accessibilityLabel={getLocalizedText("auth.selectPhoto")}
+              accessibilityHint="Ouvre la bibliothèque photo pour choisir une image de profil"
             >
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatar} />
@@ -342,7 +345,13 @@ export const ProfileSetupScreen: React.FC = () => {
               onPress={handleSave}
             />
 
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={handleSkip}
+              accessibilityRole="button"
+              accessibilityLabel={`${getLocalizedText("auth.cancel")} — compléter plus tard`}
+              accessibilityHint="Ignore la configuration du profil pour l'instant"
+            >
               <Text
                 style={[
                   styles.skipText,

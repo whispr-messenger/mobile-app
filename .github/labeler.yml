@@ -1,0 +1,198 @@
+# GitHub Labeler Configuration
+# Automatically applies labels based on changed files
+
+# ================================
+# Core Components
+# ================================
+
+screens:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/**/*'
+
+components:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/components/**/*'
+
+services:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/services/**/*'
+
+hooks:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/hooks/**/*'
+
+navigation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/navigation/**/*'
+
+store:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/store/**/*'
+
+context:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/context/**/*'
+
+theme:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/theme/**/*'
+
+utils:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/utils/**/*'
+
+types:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/types/**/*'
+
+i18n:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/i18n/**/*'
+
+config:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/config/**/*'
+      - 'app.config.js'
+      - 'app.json'
+      - 'tsconfig*.json'
+
+data:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/data/**/*'
+
+# ================================
+# Screen-specific labels
+# ================================
+
+screens:auth:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Auth/**/*'
+
+screens:chat:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Chat/**/*'
+
+screens:contacts:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Contacts/**/*'
+
+screens:profile:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Profile/**/*'
+
+screens:groups:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Groups/**/*'
+
+screens:settings:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Settings/**/*'
+
+screens:security:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Security/**/*'
+
+screens:moderation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Moderation/**/*'
+
+screens:admin:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Admin/**/*'
+
+screens:calls:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/screens/Calls/**/*'
+
+# ================================
+# Security & Auth
+# ================================
+
+auth:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/services/AuthService.ts'
+      - 'src/services/TokenService.ts'
+      - 'src/services/TwoFactorService.ts'
+      - 'src/context/AuthContext.tsx'
+
+security:crypto:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/services/SecurityService.ts'
+      - 'src/services/SignalKeyService.ts'
+
+# ================================
+# DevOps & Infrastructure
+# ================================
+
+devops:docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docker/**/*'
+      - 'Dockerfile*'
+      - '.dockerignore'
+
+devops:ci-cd:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**/*'
+      - '.github/labeler.yml'
+      - '.github/labels.yml'
+
+# ================================
+# Testing & Quality
+# ================================
+
+tests:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - 'jest.setup.js'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'package.json'
+      - 'package-lock.json'
+
+tools:linting:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'eslint.config.js'
+      - '.prettierrc*'
+      - '.editorconfig'
+
+tools:security:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'sonar-project.properties'
