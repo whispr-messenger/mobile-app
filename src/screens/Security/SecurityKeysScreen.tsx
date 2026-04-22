@@ -180,7 +180,7 @@ export const SecurityKeysScreen: React.FC = () => {
               : Haptics.ImpactFeedbackStyle.Heavy,
         );
       } catch (error) {
-        console.log("⚠️ Haptic feedback error:", error);
+        console.warn("[SecurityKeysScreen] Haptic feedback error:", error);
       }
     }
   };

@@ -49,6 +49,7 @@ export interface Message {
   conversation_id: string;
   sender_id: string;
   reply_to_id?: string;
+  forwarded_from_id?: string;
   message_type: MessageType;
   content: string; // Decrypted content for display
   metadata: Record<string, any>;
