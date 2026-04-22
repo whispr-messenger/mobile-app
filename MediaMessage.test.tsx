@@ -122,6 +122,32 @@ describe("MediaMessage useResolvedMediaUrl", () => {
     expect(streamCall![1].headers.Authorization).toBe("Bearer tok");
   });
 
+  it("treats {url:null} as 'no thumbnail' without error or stream fallback", async () => {
+    const blobUrl = "https://cdn.example.com/main.jpg";
+    const fetchSpy = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("/thumbnail"))
+        return Promise.resolve(mockFetchJson({ url: null }));
+      // /blob returns a normal presigned URL
+      return Promise.resolve(mockFetchJson({ url: blobUrl }));
+    });
+    (global as any).fetch = fetchSpy;
+
+    const { toJSON, queryByText } = render(
+      <MediaMessage uri={mediaUrl} type="image" />,
+    );
+
+    // Main image renders with the presigned URL — no error placeholder
+    await waitFor(() => {
+      const tree = JSON.stringify(toJSON());
+      expect(tree).toContain(blobUrl);
+    });
+    expect(queryByText("Échec du chargement")).toBeNull();
+    // No `?stream=1` request was made — null URL is legitimate, not an error
+    expect(
+      fetchSpy.mock.calls.some(([u]: [string]) => u.includes("stream=1")),
+    ).toBe(false);
+  });
+
   it("sets error state when both the JSON and the stream fetch fail", async () => {
     const fetchSpy = jest.fn().mockResolvedValue({
       ok: false,
