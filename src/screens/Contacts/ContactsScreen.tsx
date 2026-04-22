@@ -196,7 +196,6 @@ export const ContactsScreen: React.FC = () => {
       try {
         const conversation =
           await messagingAPI.createDirectConversation(otherUserId);
-        // @ts-ignore - navigation type will be fixed later
         navigation.navigate("Chat", { conversationId: conversation.id });
       } catch (error: any) {
         console.error("[ContactsScreen] Error creating conversation:", error);
@@ -556,7 +555,6 @@ export const ContactsScreen: React.FC = () => {
               { backgroundColor: "rgba(255, 255, 255, 0.1)" },
             ]}
             onPress={() => {
-              // @ts-ignore
               navigation.navigate("BlockedUsers");
             }}
           >
@@ -724,7 +722,6 @@ export const ContactsScreen: React.FC = () => {
           }}
           onMessageUser={(conversationId) => {
             setShowAddModal(false);
-            // @ts-ignore - navigation type will be fixed later
             navigation.navigate("Chat", { conversationId });
           }}
         />
