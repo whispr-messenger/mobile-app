@@ -131,7 +131,7 @@ export type AuthStackParamList = {
   ReportQueue: undefined;
   ReportReview: { report: Report };
   AppealQueue: undefined;
-  AppealReview: { appeal: Appeal };
+  AppealReview: { appealId?: string; appeal?: Appeal };
   UserModeration: { userId: string; userName?: string; userAvatar?: string };
   SanctionForm: {
     userId?: string;
