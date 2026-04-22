@@ -1010,7 +1010,7 @@ export const SettingsScreen: React.FC = () => {
           />
           <SettingItem
             label={getLocalizedText("settings.logout")}
-            subtitle="Log out of your account"
+            subtitle="Se déconnecter de votre compte"
             onPress={handleLogout}
             rightComponent={
               <Ionicons
