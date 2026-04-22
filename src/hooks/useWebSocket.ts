@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import Constants from "expo-constants";
 import {
   getSharedSocket,
   ConnectionState,
@@ -16,6 +17,11 @@ import { usePresenceStore } from "../store/presenceStore";
 import { useCallsStore } from "../store/callsStore";
 import { navigate } from "../navigation/navigationRef";
 import type { CallType } from "../types/calls";
+
+const executionEnvironment = (Constants as any)?.executionEnvironment;
+const appOwnership = (Constants as any)?.appOwnership;
+const isExpoGo =
+  executionEnvironment === "storeClient" || appOwnership === "expo";
 
 /** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
 export interface ReactionRealtimePayload {
@@ -120,6 +126,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         type: CallType;
       }) => {
         if (!data?.call_id) return;
+        if (isExpoGo) return;
         useCallsStore.getState().setIncoming({
           callId: data.call_id,
           initiatorId: data.initiator_id,

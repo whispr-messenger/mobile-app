@@ -161,11 +161,13 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [thumbnailError, setThumbnailError] = useState(false);
 
   // Resolve blob/thumbnail URLs to fresh presigned URLs
-  const { resolvedUri: resolvedMainUri, loading: mainLoading } =
-    useResolvedMediaUrl(uri);
-  const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
-    thumbnailUri || uri,
-  );
+  const {
+    resolvedUri: resolvedMainUri,
+    loading: mainLoading,
+    error: mainError,
+  } = useResolvedMediaUrl(uri);
+  const { resolvedUri: resolvedThumbUri, error: thumbError } =
+    useResolvedMediaUrl(thumbnailUri || uri);
 
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
@@ -215,12 +217,14 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   }, [showVideoPlayer, uri, type]);
 
   if (type === "image") {
+    const imageError = mainError || thumbError || !resolvedMainUri;
     return (
       <>
         <TouchableOpacity
           onPress={() => setShowFullImage(true)}
           activeOpacity={0.9}
           style={styles.imageContainer}
+          disabled={imageError || mainLoading}
         >
           {mainLoading ? (
             <View
@@ -234,6 +238,31 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               ]}
             >
               <ActivityIndicator size="small" color={colors.primary.main} />
+            </View>
+          ) : imageError ? (
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: withOpacity(colors.ui.error, 0.15),
+                },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle-outline"
+                size={22}
+                color={withOpacity(colors.text.light, 0.9)}
+              />
+              <Text
+                style={[
+                  styles.errorText,
+                  { color: withOpacity(colors.text.light, 0.9) },
+                ]}
+              >
+                Échec du chargement
+              </Text>
             </View>
           ) : (
             <Image
@@ -582,6 +611,11 @@ const styles = StyleSheet.create({
     minHeight: 150,
     aspectRatio: 4 / 3,
     borderRadius: 12,
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: "600",
   },
   fullImageOverlay: {
     flex: 1,

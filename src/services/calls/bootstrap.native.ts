@@ -1,4 +1,6 @@
-import { registerGlobals } from "@livekit/react-native";
+import Constants from "expo-constants";
+
+declare const require: (path: string) => any;
 
 /**
  * LiveKit requires registerGlobals() once at app bootstrap on native
@@ -7,4 +9,13 @@ import { registerGlobals } from "@livekit/react-native";
  *
  * Metro resolves this file on native builds via the `.native.ts` suffix.
  */
-registerGlobals();
+const executionEnvironment = (Constants as any)?.executionEnvironment;
+const appOwnership = (Constants as any)?.appOwnership;
+const isExpoGo =
+  executionEnvironment === "storeClient" || appOwnership === "expo";
+
+if (!isExpoGo) {
+  const livekit =
+    require("@livekit/react-native") as typeof import("@livekit/react-native");
+  livekit.registerGlobals();
+}
