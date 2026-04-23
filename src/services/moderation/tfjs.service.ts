@@ -6,7 +6,21 @@ import { Buffer } from "buffer";
 import { Platform, InteractionManager } from "react-native";
 import type { GateResult } from "./moderation.types";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
-import { CLASS_NAMES, INPUT_SIZE } from "./moderation.constants";
+import { INPUT_SIZE } from "./moderation.constants";
+import { decideV2FromProbs, decideV3FromProbs } from "./tfjs.decide";
+import {
+  getModerationModelVersion,
+  type ModerationModelVersion,
+} from "./model-version";
+
+export {
+  decideV2FromProbs,
+  decideV3FromProbs,
+  decideFromProbs,
+  OTHER_CONFIDENCE_CEILING,
+  SECONDARY_FOOD_THRESHOLD,
+  V3_FOOD_THRESHOLD_DEFAULT,
+} from "./tfjs.decide";
 
 // Manually register a React Native platform for Hermes compatibility
 class PlatformReactNativeManual implements tf.Platform {
@@ -42,14 +56,48 @@ if (Platform.OS !== "web") {
 }
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const modelJsonAsset = require("../../../assets/models/tfjs/model.json");
-const weightAssets = [
+const v2ModelJsonAsset = require("../../../assets/models/tfjs/model.json");
+const v2WeightAssets = [
   require("../../../assets/models/tfjs/group1-shard1of1.bin"),
+];
+const v3ModelJsonAsset = require("../../../assets/models/v3-tfjs/model.json");
+const v3WeightAssets = [
+  require("../../../assets/models/v3-tfjs/group1-shard1of1.bin"),
 ];
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-let model: tf.GraphModel | null = null;
-let loading: Promise<void> | null = null;
+type LoadedModel = tf.GraphModel | tf.LayersModel;
+
+interface ModelJson {
+  modelTopology: object;
+  weightsManifest: { weights: tf.io.WeightsManifestEntry[] }[];
+  format?: string;
+  generatedBy?: string;
+  convertedBy?: string;
+}
+
+interface ModelSpec {
+  format: "graph" | "layers";
+  modelJson: ModelJson;
+  /** Metro/Expo `require()` of a binary asset returns a numeric module id. */
+  weights: number[];
+}
+
+const SPECS: Record<ModerationModelVersion, ModelSpec> = {
+  v2: {
+    format: "graph",
+    modelJson: v2ModelJsonAsset,
+    weights: v2WeightAssets,
+  },
+  v3: {
+    format: "graph",
+    modelJson: v3ModelJsonAsset,
+    weights: v3WeightAssets,
+  },
+};
+
+const models: Partial<Record<ModerationModelVersion, LoadedModel>> = {};
+const loading: Partial<Record<ModerationModelVersion, Promise<void>>> = {};
 let tfReady = false;
 
 /** Yield to the JS thread so UI stays responsive */
@@ -62,14 +110,14 @@ function yieldThread(): Promise<void> {
  * fetches weight shards from expo-asset URIs. Uses Asset.fromModule so
  * it works on both React Native (local file URI) and web (HTTP asset URL).
  */
-function bundledAssetIO(): tf.io.IOHandler {
+function bundledAssetIO(spec: ModelSpec): tf.io.IOHandler {
   return {
     async load(): Promise<tf.io.ModelArtifacts> {
-      const modelTopology = modelJsonAsset.modelTopology;
-      const weightsManifest = modelJsonAsset.weightsManifest;
+      const modelTopology = spec.modelJson.modelTopology;
+      const weightsManifest = spec.modelJson.weightsManifest;
 
       const weightBuffers: ArrayBuffer[] = [];
-      for (const mod of weightAssets) {
+      for (const mod of spec.weights) {
         const asset = Asset.fromModule(mod);
         await asset.downloadAsync();
         const uri = asset.localUri || asset.uri;
@@ -100,75 +148,84 @@ function bundledAssetIO(): tf.io.IOHandler {
         modelTopology,
         weightSpecs,
         weightData: combined.buffer,
-        format: modelJsonAsset.format,
-        generatedBy: modelJsonAsset.generatedBy,
-        convertedBy: modelJsonAsset.convertedBy,
+        format: spec.modelJson.format,
+        generatedBy: spec.modelJson.generatedBy,
+        convertedBy: spec.modelJson.convertedBy,
       };
     },
   };
 }
 
-async function ensureModel(): Promise<void> {
-  if (model) return;
-  if (loading) return loading;
+async function ensureTf(): Promise<void> {
+  if (tfReady) return;
+  await tf.setBackend("cpu");
+  await tf.ready();
+  tfReady = true;
+}
 
-  loading = (async () => {
+async function ensureModel(version: ModerationModelVersion): Promise<void> {
+  if (models[version]) return;
+  const inFlight = loading[version];
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
     try {
-      if (!tfReady) {
-        await tf.setBackend("cpu");
-        await tf.ready();
-        tfReady = true;
-        console.log("[tfjs] Backend:", tf.getBackend());
-      }
+      await ensureTf();
       await yieldThread();
-      model = await tf.loadGraphModel(bundledAssetIO());
-      console.log("[tfjs] Model loaded successfully");
+      const spec = SPECS[version];
+      const io = bundledAssetIO(spec);
+      models[version] =
+        spec.format === "graph"
+          ? await tf.loadGraphModel(io)
+          : await tf.loadLayersModel(io);
     } catch (err) {
-      // Surface the real failure reason so gate-chat-image can log it
-      // explicitly instead of the generic catch-all message.
-      console.error("[tfjs] ensureModel failed:", err);
-      loading = null;
+      console.error(`[tfjs] ensureModel(${version}) failed:`, err);
+      delete loading[version];
       throw err;
     }
   })();
 
-  return loading;
+  loading[version] = promise;
+  return promise;
+}
+
+/**
+ * Eagerly load both v2 and v3 so that the first gate call doesn't pay the
+ * model-load cost inline. Errors are swallowed — if preload fails, the
+ * next `gate()` will retry and surface the error to the caller.
+ */
+async function preloadModels(): Promise<void> {
+  await Promise.allSettled([ensureModel("v2"), ensureModel("v3")]);
 }
 
 async function gate(params: {
   uri: string;
   threshold?: number;
+  version?: ModerationModelVersion;
 }): Promise<GateResult> {
-  const { uri, threshold = 0.5 } = params;
-  const t0 = Date.now();
+  const { uri, threshold, version } = params;
+  const resolvedVersion = version ?? (await getModerationModelVersion());
 
-  console.log("[tfjs] gate() called, loading model...");
-  await ensureModel();
-  if (!model) throw new Error("TFJS model failed to load");
+  await ensureModel(resolvedVersion);
+  const model = models[resolvedVersion];
+  if (!model) throw new Error(`TFJS model ${resolvedVersion} failed to load`);
 
-  // Yield before heavy image processing
   await yieldThread();
 
-  console.log("[tfjs] Converting image to tensor...");
   const flat = await imageUriToFloatTensor_0_255({
     uri,
     width: INPUT_SIZE,
     height: INPUT_SIZE,
   });
 
-  // Yield before inference (the heaviest part)
   await yieldThread();
 
-  console.log("[tfjs] Running predict...");
-  const tInfer = Date.now();
-
-  // Run inference wrapped in InteractionManager to avoid blocking animations
   const data = await new Promise<Float32Array | Int32Array | Uint8Array>(
     (resolve, reject) => {
       InteractionManager.runAfterInteractions(async () => {
         try {
           const input = tf.tensor4d(flat, [1, INPUT_SIZE, INPUT_SIZE, 3]);
-          const output = model!.predict(input) as tf.Tensor;
+          const output = model.predict(input) as tf.Tensor;
           const result = await output.data();
           input.dispose();
           output.dispose();
@@ -180,81 +237,18 @@ async function gate(params: {
     },
   );
 
-  console.log(
-    `[tfjs] Inference: ${Date.now() - tInfer}ms, Total: ${Date.now() - t0}ms`,
-  );
-
-  if (data.length !== CLASS_NAMES.length) {
-    throw new Error(
-      `Output length mismatch: got ${data.length}, expected ${CLASS_NAMES.length}.`,
-    );
-  }
-
-  let bestIndex = 0;
-  let bestProb = data[0];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i] > bestProb) {
-      bestProb = data[i];
-      bestIndex = i;
-    }
-  }
-
-  const bestClass = CLASS_NAMES[bestIndex];
-
-  const probs: Record<string, number> = {};
-  for (let i = 0; i < CLASS_NAMES.length; i++) {
-    probs[CLASS_NAMES[i]] = Number(data[i]);
-  }
-
-  // Shannon entropy: measures how "spread out" the prediction is.
-  // Low entropy = confident. High entropy = guessing.
-  let entropy = 0;
-  for (let i = 0; i < data.length; i++) {
-    const p = Number(data[i]);
-    if (p > 1e-10) {
-      entropy -= p * Math.log2(p);
-    }
-  }
-  const maxEntropy = Math.log2(CLASS_NAMES.length); // log2(9) ≈ 3.17
-  const normEntropy = entropy / maxEntropy; // 0 = certain, 1 = uniform
-
-  console.log(
-    `[tfjs] bestClass=${bestClass} bestProb=${Number(bestProb).toFixed(3)} entropy=${entropy.toFixed(3)} normEntropy=${normEntropy.toFixed(3)}`,
-  );
-
-  // With the "Other" class, the logic is simple:
-  // - If bestClass is "Other" → not food → allow
-  // - If bestClass is a food class AND confident enough → block
-  const isFoodClass = bestClass !== "Other";
-  const isConfident = bestProb >= threshold;
-
-  if (isFoodClass && isConfident) {
-    return {
-      allowed: false,
-      reason: "BLOCK_TRAINED_CLASS",
-      bestIndex,
-      bestProb: Number(bestProb),
-      bestClass,
-      probs,
-    };
-  }
-
-  return {
-    allowed: true,
-    reason: !isFoodClass ? "OTHER_CLASS" : "UNCERTAIN",
-    bestIndex,
-    bestProb: Number(bestProb),
-    bestClass,
-    probs,
-  };
+  return resolvedVersion === "v3"
+    ? decideV3FromProbs(data, threshold)
+    : decideV2FromProbs(data, threshold);
 }
 
 async function isAllowed(params: {
   uri: string;
   threshold?: number;
+  version?: ModerationModelVersion;
 }): Promise<boolean> {
   const r = await gate(params);
   return r.allowed;
 }
 
-export const tfjsService = { gate, isAllowed };
+export const tfjsService = { gate, isAllowed, preloadModels };

@@ -229,7 +229,29 @@ export const contactsAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to delete contact");
+      const errorText = await response.text().catch(() => "");
+      let errorBody: any = null;
+      try {
+        errorBody = JSON.parse(errorText);
+      } catch {
+        errorBody = null;
+      }
+
+      const errorMessage =
+        errorBody?.data?.message ?? errorBody?.message ?? errorText;
+
+      if (
+        response.status === 404 &&
+        String(errorMessage || "")
+          .toLowerCase()
+          .includes("contact not found")
+      ) {
+        return;
+      }
+
+      throw new Error(
+        `Failed to delete contact (${response.status}): ${errorMessage || "Unknown error"}`,
+      );
     }
   },
 
@@ -510,7 +532,11 @@ export const contactsAPI = {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || "Failed to send contact request");
+      const e = new Error(
+        err.message || "Failed to send contact request",
+      ) as Error & { status: number };
+      e.status = response.status;
+      throw e;
     }
 
     const r = await response.json();

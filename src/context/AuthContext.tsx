@@ -15,6 +15,7 @@ import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
 import { cacheService } from "../services/messaging/cache";
 import { onSessionExpired } from "../services/sessionEvents";
+import { useBadgeSync } from "../hooks/useBadgeSync";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -120,6 +121,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     return () => sub.remove();
   }, []);
+
+  // WHISPR-1049: sync app icon badge on cold-start and auth transitions.
+  useBadgeSync(state.isAuthenticated);
 
   return (
     <AuthContext.Provider value={{ ...state, signIn, signOut }}>

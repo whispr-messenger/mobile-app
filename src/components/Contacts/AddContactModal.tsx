@@ -28,6 +28,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Avatar } from "../Chat/Avatar";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import { colors } from "../../theme/colors";
 
 interface AddContactModalProps {
@@ -57,43 +58,57 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
     useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
+  const { userId: currentUserId } = useAuth();
 
   const openQrScanner = useCallback(() => {
     onClose();
     setTimeout(() => navigation.navigate("QRCodeScanner"), 300);
   }, [navigation, onClose]);
 
-  const handleSearch = useCallback(async (query: string) => {
-    setSearchQuery(query);
+  const handleSearch = useCallback(
+    async (query: string) => {
+      setSearchQuery(query);
 
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    if (!query.trim()) {
-      setSearchResults([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        const results = await contactsAPI.searchUsers({
-          username: query.trim(),
-        });
-        setSearchResults(results);
-      } catch (error) {
-        console.error("[AddContactModal] Error searching users:", error);
-        setSearchResults([]);
-      } finally {
-        setLoading(false);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
-    }, 350);
-  }, []);
+
+      if (!query.trim()) {
+        setSearchResults([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      searchTimeoutRef.current = setTimeout(async () => {
+        try {
+          const results = await contactsAPI.searchUsers({
+            username: query.trim(),
+          });
+          const filtered = currentUserId
+            ? results.filter((r) => r.user.id !== currentUserId)
+            : results;
+          setSearchResults(filtered);
+        } catch (error) {
+          console.error("[AddContactModal] Error searching users:", error);
+          setSearchResults([]);
+        } finally {
+          setLoading(false);
+        }
+      }, 350);
+    },
+    [currentUserId],
+  );
 
   const handleAddContact = useCallback(
     async (user: UserSearchResult) => {
+      if (currentUserId && user.user.id === currentUserId) {
+        Alert.alert(
+          "Info",
+          "Vous ne pouvez pas vous ajouter vous-même comme contact.",
+        );
+        return;
+      }
       if (user.is_blocked) {
         Alert.alert(
           "Contact bloqué",
@@ -105,11 +120,6 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       try {
         setAddingContactId(user.user.id);
         await contactsAPI.sendContactRequest(user.user.id);
-
-        console.log(
-          "[AddContactModal] Contact request sent successfully:",
-          user.user.id,
-        );
 
         if (Platform.OS === "web") {
           onContactAdded();
@@ -149,12 +159,19 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         setAddingContactId(null);
       }
     },
-    [onContactAdded],
+    [onContactAdded, currentUserId],
   );
 
   const handleMessageUser = useCallback(
     async (user: UserSearchResult) => {
       if (!onMessageUser) return;
+      if (currentUserId && user.user.id === currentUserId) {
+        Alert.alert(
+          "Info",
+          "Vous ne pouvez pas ouvrir une conversation avec vous-même.",
+        );
+        return;
+      }
       if (user.is_blocked) {
         Alert.alert(
           "Contact bloqué",
@@ -180,12 +197,19 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         setMessagingUserId(null);
       }
     },
-    [onMessageUser],
+    [onMessageUser, currentUserId],
   );
 
   const handleAddAndMessage = useCallback(
     async (user: UserSearchResult) => {
       if (!onMessageUser || user.is_blocked) return;
+      if (currentUserId && user.user.id === currentUserId) {
+        Alert.alert(
+          "Info",
+          "Vous ne pouvez pas vous ajouter vous-même comme contact.",
+        );
+        return;
+      }
       try {
         setDoingBoth(true);
         // Send contact request first (fire and forget errors)
@@ -215,7 +239,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
         setSelectedUser(null);
       }
     },
-    [onMessageUser, onContactAdded],
+    [onMessageUser, onContactAdded, currentUserId],
   );
 
   const handleClose = useCallback(() => {
@@ -506,9 +530,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                       setSelectedUser(null);
                       handleAddContact(user);
                     }}
-                    disabled={
-                      addingContactId === selectedUser.user.id || doingBoth
-                    }
+                    disabled={addingContactId === selectedUser.user.id}
                   >
                     {addingContactId === selectedUser.user.id ? (
                       <ActivityIndicator
@@ -530,7 +552,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
                   </TouchableOpacity>
                 )}
 
-                {onMessageUser && (
+                {onMessageUser && selectedUser.is_contact && (
                   <TouchableOpacity
                     style={[
                       styles.actionCardButton,

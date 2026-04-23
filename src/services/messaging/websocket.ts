@@ -1,6 +1,7 @@
 import { getWsBaseUrl } from "../apiBase";
 import { TokenService } from "../TokenService";
 import { AuthService } from "../AuthService";
+import { emitSessionExpired } from "../sessionEvents";
 import { logger } from "../../utils/logger";
 
 type EventCallback = (data: any) => void;
@@ -69,6 +70,9 @@ function nextRef(): string {
   return String(refCounter);
 }
 
+/** Phoenix/custom close codes that indicate an authentication failure. */
+const AUTH_CLOSE_CODES = new Set([1008, 4001]);
+
 /**
  * Encode a message in Phoenix v2 array format.
  */
@@ -130,6 +134,7 @@ export class SocketConnection {
   private shouldReconnect = false;
   private lastUserId: string | null = null;
   private lastToken: string | null = null;
+  private lastCloseCode: number = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatInterval = 30000;
 
@@ -164,6 +169,7 @@ export class SocketConnection {
 
     this.lastUserId = userId;
     this.lastToken = token;
+    this.lastCloseCode = 0;
     this.shouldReconnect = true;
 
     // Explicitly request v2 serializer so both sides agree on array format
@@ -270,6 +276,7 @@ export class SocketConnection {
     this.socket.onclose = (ev) => {
       logger.info("WS", `Closed code=${ev.code} reason=${ev.reason}`);
       this.stopHeartbeat();
+      this.lastCloseCode = ev.code;
       Object.values(this.channels).forEach((ch) => {
         ch.joined = false;
         ch.joinRef = null;
@@ -317,13 +324,13 @@ export class SocketConnection {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
+    if (!this.shouldReconnect || !this.lastUserId) return;
 
-    // Stop reconnecting after max attempts (~10 minutes with exponential backoff)
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
       logger.warn("WS", "Max reconnect attempts reached, giving up");
       this.shouldReconnect = false;
       this.setConnectionState("disconnected");
+      emitSessionExpired("ws_max_reconnect");
       return;
     }
 
@@ -334,38 +341,44 @@ export class SocketConnection {
     this.reconnectAttempt++;
 
     this.reconnectTimer = setTimeout(async () => {
-      if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
+      if (!this.shouldReconnect || !this.lastUserId) return;
 
-      // If the token is expired, try to refresh it before reconnecting
-      if (TokenService.isTokenExpired(this.lastToken)) {
-        try {
+      try {
+        let token = await TokenService.getAccessToken();
+
+        const authCloseTriggered = AUTH_CLOSE_CODES.has(this.lastCloseCode);
+        this.lastCloseCode = 0;
+
+        const needsRefresh =
+          !token || TokenService.isTokenExpired(token) || authCloseTriggered;
+
+        if (needsRefresh) {
           logger.info(
             "WS",
-            "Token expired, attempting refresh before reconnect",
+            "Refreshing token before reconnect" +
+              (authCloseTriggered ? " (auth close code)" : ""),
           );
           await AuthService.refreshTokens();
-          const newToken = await TokenService.getAccessToken();
-          if (newToken) {
-            this.lastToken = newToken;
-          } else {
-            logger.warn(
-              "WS",
-              "Token refresh returned null, stopping reconnect",
-            );
-            this.shouldReconnect = false;
-            this.setConnectionState("disconnected");
-            return;
-          }
-        } catch (err) {
-          logger.warn("WS", "Token refresh failed, stopping reconnect", err);
+          token = await TokenService.getAccessToken();
+        }
+
+        if (!token) {
+          logger.warn("WS", "No token available, stopping reconnect");
           this.shouldReconnect = false;
           this.setConnectionState("disconnected");
+          emitSessionExpired("ws_no_token");
           return;
         }
-      }
 
-      this.socket = null;
-      this.connect(this.lastUserId!, this.lastToken!);
+        this.lastToken = token;
+        this.socket = null;
+        this.connect(this.lastUserId!, this.lastToken);
+      } catch (err) {
+        logger.warn("WS", "Token refresh failed during reconnect", err);
+        this.shouldReconnect = false;
+        this.setConnectionState("disconnected");
+        emitSessionExpired("ws_token_refresh_failed");
+      }
     }, delay);
   }
 
@@ -383,6 +396,7 @@ export class SocketConnection {
       this.pendingTopics.clear();
     }
     this.reconnectAttempt = 0;
+    this.lastCloseCode = 0;
     this.setConnectionState("disconnected");
   }
 
