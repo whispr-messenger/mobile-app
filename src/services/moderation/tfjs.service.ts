@@ -134,6 +134,17 @@ async function ensureModel(): Promise<void> {
 }
 
 /**
+ * When the top class is "Other" but the model isn't very confident (below
+ * this bound), we look at the runner-up food class as a weak signal and
+ * still block if it clears `SECONDARY_FOOD_THRESHOLD`. Tuned on a sample
+ * of Wikipedia Commons junk-food photos where baked potatoes and BLT
+ * sandwiches were misclassified as "Other" with top-1 probability in the
+ * 0.58–0.81 range while the true class sat at 0.17–0.31.
+ */
+export const OTHER_CONFIDENCE_CEILING = 0.85;
+export const SECONDARY_FOOD_THRESHOLD = 0.15;
+
+/**
  * Pure decision function: maps a softmax output to the gate verdict.
  * Extracted from `gate` so it can be unit-tested without loading the
  * TF model. 0.3 is deliberately low — we need high recall on trained
@@ -178,6 +189,32 @@ export function decideFromProbs(
       bestClass,
       probs,
     };
+  }
+
+  // Fallback: the model picked "Other" but wasn't decisive, and the
+  // runner-up is a food class with enough mass. Block on that weak
+  // signal so ambiguous junk-food shots (baked potato with toppings,
+  // sandwich on a busy plate) don't slip past the gate.
+  if (bestClass === "Other" && bestProb < OTHER_CONFIDENCE_CEILING) {
+    let runnerUpIndex = -1;
+    let runnerUpProb = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (CLASS_NAMES[i] === "Other") continue;
+      if (data[i] > runnerUpProb) {
+        runnerUpProb = data[i];
+        runnerUpIndex = i;
+      }
+    }
+    if (runnerUpIndex !== -1 && runnerUpProb >= SECONDARY_FOOD_THRESHOLD) {
+      return {
+        allowed: false,
+        reason: "BLOCK_WEAK_FOOD_SIGNAL",
+        bestIndex: runnerUpIndex,
+        bestProb: Number(runnerUpProb),
+        bestClass: CLASS_NAMES[runnerUpIndex],
+        probs,
+      };
+    }
   }
 
   return {
