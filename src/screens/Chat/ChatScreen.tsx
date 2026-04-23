@@ -67,7 +67,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
-import { gateChatImageBeforeSend } from "../../services/moderation";
+import {
+  gateChatImageBeforeSend,
+  gateChatVideoBeforeSend,
+} from "../../services/moderation";
 import { appealsAPI } from "../../services/moderation/moderationApi";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
@@ -1110,9 +1113,14 @@ export const ChatScreen: React.FC = () => {
       }, 100);
 
       try {
-        // Gate check: block inappropriate images before upload
-        if (type === "image" && !opts?.skipGate) {
-          const gateResult = await gateChatImageBeforeSend(uri);
+        // Gate check: block inappropriate images / videos before upload.
+        // gateChatVideoBeforeSend is a no-op when the selected moderation
+        // model is v2 (which has no video training signal).
+        if ((type === "image" || type === "video") && !opts?.skipGate) {
+          const gateResult =
+            type === "image"
+              ? await gateChatImageBeforeSend(uri)
+              : await gateChatVideoBeforeSend(uri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";

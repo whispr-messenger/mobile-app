@@ -6,7 +6,21 @@ import { Buffer } from "buffer";
 import { Platform, InteractionManager } from "react-native";
 import type { GateResult } from "./moderation.types";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
-import { CLASS_NAMES, INPUT_SIZE } from "./moderation.constants";
+import { INPUT_SIZE } from "./moderation.constants";
+import { decideV2FromProbs, decideV3FromProbs } from "./tfjs.decide";
+import {
+  getModerationModelVersion,
+  type ModerationModelVersion,
+} from "./model-version";
+
+export {
+  decideV2FromProbs,
+  decideV3FromProbs,
+  decideFromProbs,
+  OTHER_CONFIDENCE_CEILING,
+  SECONDARY_FOOD_THRESHOLD,
+  V3_FOOD_THRESHOLD_DEFAULT,
+} from "./tfjs.decide";
 
 // Manually register a React Native platform for Hermes compatibility
 class PlatformReactNativeManual implements tf.Platform {
@@ -42,14 +56,48 @@ if (Platform.OS !== "web") {
 }
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const modelJsonAsset = require("../../../assets/models/tfjs/model.json");
-const weightAssets = [
+const v2ModelJsonAsset = require("../../../assets/models/tfjs/model.json");
+const v2WeightAssets = [
   require("../../../assets/models/tfjs/group1-shard1of1.bin"),
+];
+const v3ModelJsonAsset = require("../../../assets/models/v3-tfjs/model.json");
+const v3WeightAssets = [
+  require("../../../assets/models/v3-tfjs/group1-shard1of1.bin"),
 ];
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-let model: tf.GraphModel | null = null;
-let loading: Promise<void> | null = null;
+type LoadedModel = tf.GraphModel | tf.LayersModel;
+
+interface ModelJson {
+  modelTopology: object;
+  weightsManifest: { weights: tf.io.WeightsManifestEntry[] }[];
+  format?: string;
+  generatedBy?: string;
+  convertedBy?: string;
+}
+
+interface ModelSpec {
+  format: "graph" | "layers";
+  modelJson: ModelJson;
+  /** Metro/Expo `require()` of a binary asset returns a numeric module id. */
+  weights: number[];
+}
+
+const SPECS: Record<ModerationModelVersion, ModelSpec> = {
+  v2: {
+    format: "graph",
+    modelJson: v2ModelJsonAsset,
+    weights: v2WeightAssets,
+  },
+  v3: {
+    format: "layers",
+    modelJson: v3ModelJsonAsset,
+    weights: v3WeightAssets,
+  },
+};
+
+const models: Partial<Record<ModerationModelVersion, LoadedModel>> = {};
+const loading: Partial<Record<ModerationModelVersion, Promise<void>>> = {};
 let tfReady = false;
 
 /** Yield to the JS thread so UI stays responsive */
@@ -62,14 +110,14 @@ function yieldThread(): Promise<void> {
  * fetches weight shards from expo-asset URIs. Uses Asset.fromModule so
  * it works on both React Native (local file URI) and web (HTTP asset URL).
  */
-function bundledAssetIO(): tf.io.IOHandler {
+function bundledAssetIO(spec: ModelSpec): tf.io.IOHandler {
   return {
     async load(): Promise<tf.io.ModelArtifacts> {
-      const modelTopology = modelJsonAsset.modelTopology;
-      const weightsManifest = modelJsonAsset.weightsManifest;
+      const modelTopology = spec.modelJson.modelTopology;
+      const weightsManifest = spec.modelJson.weightsManifest;
 
       const weightBuffers: ArrayBuffer[] = [];
-      for (const mod of weightAssets) {
+      for (const mod of spec.weights) {
         const asset = Asset.fromModule(mod);
         await asset.downloadAsync();
         const uri = asset.localUri || asset.uri;
@@ -100,143 +148,68 @@ function bundledAssetIO(): tf.io.IOHandler {
         modelTopology,
         weightSpecs,
         weightData: combined.buffer,
-        format: modelJsonAsset.format,
-        generatedBy: modelJsonAsset.generatedBy,
-        convertedBy: modelJsonAsset.convertedBy,
+        format: spec.modelJson.format,
+        generatedBy: spec.modelJson.generatedBy,
+        convertedBy: spec.modelJson.convertedBy,
       };
     },
   };
 }
 
-async function ensureModel(): Promise<void> {
-  if (model) return;
-  if (loading) return loading;
+async function ensureTf(): Promise<void> {
+  if (tfReady) return;
+  await tf.setBackend("cpu");
+  await tf.ready();
+  tfReady = true;
+}
 
-  loading = (async () => {
+async function ensureModel(version: ModerationModelVersion): Promise<void> {
+  if (models[version]) return;
+  const inFlight = loading[version];
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
     try {
-      if (!tfReady) {
-        await tf.setBackend("cpu");
-        await tf.ready();
-        tfReady = true;
-      }
+      await ensureTf();
       await yieldThread();
-      model = await tf.loadGraphModel(bundledAssetIO());
+      const spec = SPECS[version];
+      const io = bundledAssetIO(spec);
+      models[version] =
+        spec.format === "graph"
+          ? await tf.loadGraphModel(io)
+          : await tf.loadLayersModel(io);
     } catch (err) {
-      // Surface the real failure reason so gate-chat-image can log it
-      // explicitly instead of the generic catch-all message.
-      console.error("[tfjs] ensureModel failed:", err);
-      loading = null;
+      console.error(`[tfjs] ensureModel(${version}) failed:`, err);
+      delete loading[version];
       throw err;
     }
   })();
 
-  return loading;
+  loading[version] = promise;
+  return promise;
 }
 
 /**
- * When the top class is "Other" but the model isn't very confident (below
- * this bound), we look at the runner-up food class as a weak signal and
- * still block if it clears `SECONDARY_FOOD_THRESHOLD`. Tuned on a sample
- * of Wikipedia Commons junk-food photos where baked potatoes and BLT
- * sandwiches were misclassified as "Other" with top-1 probability in the
- * 0.58–0.81 range while the true class sat at 0.17–0.31.
+ * Eagerly load both v2 and v3 so that the first gate call doesn't pay the
+ * model-load cost inline. Errors are swallowed — if preload fails, the
+ * next `gate()` will retry and surface the error to the caller.
  */
-export const OTHER_CONFIDENCE_CEILING = 0.85;
-export const SECONDARY_FOOD_THRESHOLD = 0.15;
-
-/**
- * Pure decision function: maps a softmax output to the gate verdict.
- * Extracted from `gate` so it can be unit-tested without loading the
- * TF model. 0.3 is deliberately low — we need high recall on trained
- * food classes (≥ 85 % target) even at the cost of occasional false
- * positives on food-looking images.
- */
-export function decideFromProbs(
-  data: ArrayLike<number>,
-  threshold = 0.3,
-): GateResult {
-  if (data.length !== CLASS_NAMES.length) {
-    throw new Error(
-      `Output length mismatch: got ${data.length}, expected ${CLASS_NAMES.length}.`,
-    );
-  }
-
-  let bestIndex = 0;
-  let bestProb = data[0];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i] > bestProb) {
-      bestProb = data[i];
-      bestIndex = i;
-    }
-  }
-
-  const bestClass = CLASS_NAMES[bestIndex];
-
-  const probs: Record<string, number> = {};
-  for (let i = 0; i < CLASS_NAMES.length; i++) {
-    probs[CLASS_NAMES[i]] = Number(data[i]);
-  }
-
-  const isFoodClass = bestClass !== "Other";
-  const isConfident = bestProb >= threshold;
-
-  if (isFoodClass && isConfident) {
-    return {
-      allowed: false,
-      reason: "BLOCK_TRAINED_CLASS",
-      bestIndex,
-      bestProb: Number(bestProb),
-      bestClass,
-      probs,
-    };
-  }
-
-  // Fallback: the model picked "Other" but wasn't decisive, and the
-  // runner-up is a food class with enough mass. Block on that weak
-  // signal so ambiguous junk-food shots (baked potato with toppings,
-  // sandwich on a busy plate) don't slip past the gate.
-  if (bestClass === "Other" && bestProb < OTHER_CONFIDENCE_CEILING) {
-    let runnerUpIndex = -1;
-    let runnerUpProb = 0;
-    for (let i = 0; i < data.length; i++) {
-      if (CLASS_NAMES[i] === "Other") continue;
-      if (data[i] > runnerUpProb) {
-        runnerUpProb = data[i];
-        runnerUpIndex = i;
-      }
-    }
-    if (runnerUpIndex !== -1 && runnerUpProb >= SECONDARY_FOOD_THRESHOLD) {
-      return {
-        allowed: false,
-        reason: "BLOCK_WEAK_FOOD_SIGNAL",
-        bestIndex: runnerUpIndex,
-        bestProb: Number(runnerUpProb),
-        bestClass: CLASS_NAMES[runnerUpIndex],
-        probs,
-      };
-    }
-  }
-
-  return {
-    allowed: true,
-    reason: !isFoodClass ? "OTHER_CLASS" : "UNCERTAIN",
-    bestIndex,
-    bestProb: Number(bestProb),
-    bestClass,
-    probs,
-  };
+async function preloadModels(): Promise<void> {
+  await Promise.allSettled([ensureModel("v2"), ensureModel("v3")]);
 }
 
 async function gate(params: {
   uri: string;
   threshold?: number;
+  version?: ModerationModelVersion;
 }): Promise<GateResult> {
-  const { uri, threshold = 0.3 } = params;
+  const { uri, threshold, version } = params;
+  const resolvedVersion = version ?? (await getModerationModelVersion());
 
-  await ensureModel();
-  if (!model) throw new Error("TFJS model failed to load");
+  await ensureModel(resolvedVersion);
+  const model = models[resolvedVersion];
+  if (!model) throw new Error(`TFJS model ${resolvedVersion} failed to load`);
 
-  // Yield before heavy image processing
   await yieldThread();
 
   const flat = await imageUriToFloatTensor_0_255({
@@ -245,16 +218,14 @@ async function gate(params: {
     height: INPUT_SIZE,
   });
 
-  // Yield before inference (the heaviest part)
   await yieldThread();
 
-  // Run inference wrapped in InteractionManager to avoid blocking animations
   const data = await new Promise<Float32Array | Int32Array | Uint8Array>(
     (resolve, reject) => {
       InteractionManager.runAfterInteractions(async () => {
         try {
           const input = tf.tensor4d(flat, [1, INPUT_SIZE, INPUT_SIZE, 3]);
-          const output = model!.predict(input) as tf.Tensor;
+          const output = model.predict(input) as tf.Tensor;
           const result = await output.data();
           input.dispose();
           output.dispose();
@@ -266,15 +237,18 @@ async function gate(params: {
     },
   );
 
-  return decideFromProbs(data, threshold);
+  return resolvedVersion === "v3"
+    ? decideV3FromProbs(data, threshold)
+    : decideV2FromProbs(data, threshold);
 }
 
 async function isAllowed(params: {
   uri: string;
   threshold?: number;
+  version?: ModerationModelVersion;
 }): Promise<boolean> {
   const r = await gate(params);
   return r.allowed;
 }
 
-export const tfjsService = { gate, isAllowed };
+export const tfjsService = { gate, isAllowed, preloadModels };

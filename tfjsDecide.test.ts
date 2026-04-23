@@ -30,8 +30,24 @@ jest.mock(
 jest.mock("./src/../assets/models/tfjs/group1-shard1of1.bin", () => ({}), {
   virtual: true,
 });
+jest.mock(
+  "./src/../assets/models/v3-tfjs/model.json",
+  () => ({
+    format: "layers-model",
+    modelTopology: {},
+    weightsManifest: [{ paths: [], weights: [] }],
+  }),
+  { virtual: true },
+);
+jest.mock("./src/../assets/models/v3-tfjs/group1-shard1of1.bin", () => ({}), {
+  virtual: true,
+});
 jest.mock("./src/services/moderation/image-to-tensor", () => ({
   imageUriToFloatTensor_0_255: jest.fn(),
+}));
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  getItem: jest.fn().mockResolvedValue(null),
+  setItem: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { decideFromProbs } from "./src/services/moderation/tfjs.service";
@@ -113,7 +129,11 @@ describe("decideFromProbs", () => {
 
   it("blocks on a weak food signal when top-1 is 'Other' but not decisive", () => {
     // Real case from 25_potato.jpg: Other=0.807, Baked Potato=0.174.
-    const data = probsFor({ Other: 0.807, "Baked Potato": 0.174, Donut: 0.016 });
+    const data = probsFor({
+      Other: 0.807,
+      "Baked Potato": 0.174,
+      Donut: 0.016,
+    });
     const r = decideFromProbs(data);
     expect(r.allowed).toBe(false);
     expect(r.reason).toBe("BLOCK_WEAK_FOOD_SIGNAL");
