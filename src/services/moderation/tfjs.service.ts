@@ -133,11 +133,68 @@ async function ensureModel(): Promise<void> {
   return loading;
 }
 
+/**
+ * Pure decision function: maps a softmax output to the gate verdict.
+ * Extracted from `gate` so it can be unit-tested without loading the
+ * TF model. 0.3 is deliberately low — we need high recall on trained
+ * food classes (≥ 85 % target) even at the cost of occasional false
+ * positives on food-looking images.
+ */
+export function decideFromProbs(
+  data: ArrayLike<number>,
+  threshold = 0.3,
+): GateResult {
+  if (data.length !== CLASS_NAMES.length) {
+    throw new Error(
+      `Output length mismatch: got ${data.length}, expected ${CLASS_NAMES.length}.`,
+    );
+  }
+
+  let bestIndex = 0;
+  let bestProb = data[0];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i] > bestProb) {
+      bestProb = data[i];
+      bestIndex = i;
+    }
+  }
+
+  const bestClass = CLASS_NAMES[bestIndex];
+
+  const probs: Record<string, number> = {};
+  for (let i = 0; i < CLASS_NAMES.length; i++) {
+    probs[CLASS_NAMES[i]] = Number(data[i]);
+  }
+
+  const isFoodClass = bestClass !== "Other";
+  const isConfident = bestProb >= threshold;
+
+  if (isFoodClass && isConfident) {
+    return {
+      allowed: false,
+      reason: "BLOCK_TRAINED_CLASS",
+      bestIndex,
+      bestProb: Number(bestProb),
+      bestClass,
+      probs,
+    };
+  }
+
+  return {
+    allowed: true,
+    reason: !isFoodClass ? "OTHER_CLASS" : "UNCERTAIN",
+    bestIndex,
+    bestProb: Number(bestProb),
+    bestClass,
+    probs,
+  };
+}
+
 async function gate(params: {
   uri: string;
   threshold?: number;
 }): Promise<GateResult> {
-  const { uri, threshold = 0.5 } = params;
+  const { uri, threshold = 0.3 } = params;
 
   await ensureModel();
   if (!model) throw new Error("TFJS model failed to load");
@@ -172,53 +229,7 @@ async function gate(params: {
     },
   );
 
-  if (data.length !== CLASS_NAMES.length) {
-    throw new Error(
-      `Output length mismatch: got ${data.length}, expected ${CLASS_NAMES.length}.`,
-    );
-  }
-
-  let bestIndex = 0;
-  let bestProb = data[0];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i] > bestProb) {
-      bestProb = data[i];
-      bestIndex = i;
-    }
-  }
-
-  const bestClass = CLASS_NAMES[bestIndex];
-
-  const probs: Record<string, number> = {};
-  for (let i = 0; i < CLASS_NAMES.length; i++) {
-    probs[CLASS_NAMES[i]] = Number(data[i]);
-  }
-
-  // With the "Other" class, the logic is simple:
-  // - If bestClass is "Other" → not food → allow
-  // - If bestClass is a food class AND confident enough → block
-  const isFoodClass = bestClass !== "Other";
-  const isConfident = bestProb >= threshold;
-
-  if (isFoodClass && isConfident) {
-    return {
-      allowed: false,
-      reason: "BLOCK_TRAINED_CLASS",
-      bestIndex,
-      bestProb: Number(bestProb),
-      bestClass,
-      probs,
-    };
-  }
-
-  return {
-    allowed: true,
-    reason: !isFoodClass ? "OTHER_CLASS" : "UNCERTAIN",
-    bestIndex,
-    bestProb: Number(bestProb),
-    bestClass,
-    probs,
-  };
+  return decideFromProbs(data, threshold);
 }
 
 async function isAllowed(params: {
