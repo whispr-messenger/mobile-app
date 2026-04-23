@@ -106,6 +106,69 @@ function yieldThread(): Promise<void> {
 }
 
 /**
+ * Keras 3 exports a few fields in a shape `@tensorflow/tfjs` still doesn't
+ * understand (as of 4.22):
+ *
+ *  - `InputLayer.config.batch_shape` instead of `batchInputShape`
+ *  - `config.dtype` as a `DTypePolicy` dict `{ class_name: "DTypePolicy",
+ *    config: { name: "float32" }}` instead of a plain `"float32"` string
+ *
+ * Without this rewrite, `tf.loadLayersModel` fails with
+ * "An InputLayer should be passed either a `batchInputShape` or an
+ * `inputShape`." on any Keras 3 export — which is exactly what the
+ * MobileNetV3-Small binary food model on Hugging Face ships.
+ *
+ * The patcher walks the topology in place and fixes both fields on every
+ * layer, including nested Functional sub-models.
+ */
+type AnyLayerConfig = Record<string, unknown>;
+
+function flattenDtype(cfg: AnyLayerConfig): void {
+  const dtype = cfg.dtype as
+    | string
+    | { class_name?: string; config?: { name?: string } }
+    | undefined;
+  if (dtype && typeof dtype === "object" && dtype.config?.name) {
+    cfg.dtype = dtype.config.name;
+  }
+}
+
+function renameBatchShape(cfg: AnyLayerConfig): void {
+  if (Array.isArray(cfg.batch_shape) && cfg.batchInputShape === undefined) {
+    cfg.batchInputShape = cfg.batch_shape;
+    delete cfg.batch_shape;
+  }
+}
+
+function patchLayersRecursively(layers: unknown): void {
+  if (!Array.isArray(layers)) return;
+  for (const layer of layers) {
+    if (!layer || typeof layer !== "object") continue;
+    const l = layer as { config?: AnyLayerConfig; class_name?: string };
+    const cfg = l.config;
+    if (!cfg) continue;
+    flattenDtype(cfg);
+    if (l.class_name === "InputLayer") renameBatchShape(cfg);
+    const nested = cfg.layers;
+    if (Array.isArray(nested)) patchLayersRecursively(nested);
+  }
+}
+
+/**
+ * Patch a Keras 3 `modelTopology` in place so that `tf.loadLayersModel` can
+ * consume it. Idempotent — safe to call on already-patched topologies.
+ * Exported for unit testing.
+ */
+export function patchKeras3TopologyForTfjs(topology: unknown): void {
+  if (!topology || typeof topology !== "object") return;
+  const root = topology as {
+    model_config?: { config?: { layers?: unknown } };
+  };
+  const layers = root.model_config?.config?.layers;
+  patchLayersRecursively(layers);
+}
+
+/**
  * Custom IOHandler: reads model.json from a bundled require() and
  * fetches weight shards from expo-asset URIs. Uses Asset.fromModule so
  * it works on both React Native (local file URI) and web (HTTP asset URL).
@@ -113,6 +176,9 @@ function yieldThread(): Promise<void> {
 function bundledAssetIO(spec: ModelSpec): tf.io.IOHandler {
   return {
     async load(): Promise<tf.io.ModelArtifacts> {
+      if (spec.format === "layers") {
+        patchKeras3TopologyForTfjs(spec.modelJson.modelTopology);
+      }
       const modelTopology = spec.modelJson.modelTopology;
       const weightsManifest = spec.modelJson.weightsManifest;
 
