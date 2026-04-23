@@ -123,6 +123,13 @@ fix(chat): scroll to bottom on new message received
 git push -u origin <branch-name>
 ```
 
+After every push, request a Copilot review on the pull request:
+
+```bash
+gh api repos/whispr-messenger/mobile-app/pulls/<PR-number>/requested_reviewers \
+  --method POST -f 'reviewers[]=copilot'
+```
+
 ---
 
 ## 8. Open a Pull Request
