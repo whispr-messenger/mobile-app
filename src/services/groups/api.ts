@@ -146,6 +146,136 @@ async function fetchMessagingConversationPayload(
   return json.data !== undefined ? json.data : json;
 }
 
+function firstFiniteNonNegativeInt(...vals: unknown[]): number | undefined {
+  for (const v of vals) {
+    if (typeof v === "number" && Number.isFinite(v)) {
+      return Math.max(0, Math.floor(v));
+    }
+    if (typeof v === "string" && /^\d+$/.test(v.trim())) {
+      const n = parseInt(v.trim(), 10);
+      if (Number.isFinite(n)) return Math.max(0, n);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Lit le nombre de messages sur la payload conversation telle que renvoyée par
+ * le messaging (camelCase / snake_case / metadata / stats imbriqués).
+ */
+function extractMessageCountFromConversation(conv: any): number | undefined {
+  if (!conv || typeof conv !== "object") return undefined;
+  const meta =
+    conv.metadata && typeof conv.metadata === "object"
+      ? (conv.metadata as Record<string, unknown>)
+      : {};
+  const stats =
+    conv.stats && typeof conv.stats === "object"
+      ? (conv.stats as Record<string, unknown>)
+      : {};
+
+  return firstFiniteNonNegativeInt(
+    conv.messageCount,
+    conv.message_count,
+    conv.totalMessages,
+    conv.total_messages,
+    conv.messagesCount,
+    conv.messages_count,
+    conv.numMessages,
+    conv.num_messages,
+    meta.messageCount,
+    meta.message_count,
+    meta.totalMessages,
+    meta.total_messages,
+    meta.messagesCount,
+    meta.messages_count,
+    stats.messageCount,
+    stats.message_count,
+    stats.totalMessages,
+    stats.total_messages,
+  );
+}
+
+/**
+ * Sans nouvel endpoint backend : déduit le total via GET …/messages existant.
+ * 1) Si `meta` expose un total (gateways / futures versions), on l’utilise.
+ * 2) Sinon pagination `before` jusqu’à épuisement (plafonné pour limiter le coût).
+ */
+async function resolveMessageCountViaMessagesList(
+  conversationId: string,
+  headers: Record<string, string>,
+): Promise<number> {
+  const PAGE = 100;
+  const MAX_PAGES = 50;
+
+  let total = 0;
+  let before: string | undefined;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const sp = new URLSearchParams({ limit: String(PAGE) });
+    if (before) sp.set("before", before);
+
+    const res = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(conversationId)}/messages?${sp.toString()}`,
+      { headers },
+    ).catch(() => null);
+
+    if (!res?.ok) {
+      return total;
+    }
+
+    const json = await res.json().catch(() => null);
+    if (!json) {
+      return total;
+    }
+
+    const meta = (
+      json.meta && typeof json.meta === "object" ? json.meta : {}
+    ) as Record<string, unknown>;
+
+    if (page === 0) {
+      const metaTotal = firstFiniteNonNegativeInt(
+        meta.total,
+        meta.totalCount,
+        meta.total_count,
+        meta.totalMessages,
+        meta.total_messages,
+        meta.messageCount,
+        meta.message_count,
+      );
+      if (metaTotal !== undefined) {
+        return metaTotal;
+      }
+    }
+
+    const arr = Array.isArray(json.data)
+      ? json.data
+      : Array.isArray(json)
+        ? json
+        : [];
+
+    const hasMore =
+      meta.hasMore === true ||
+      meta.has_more === true ||
+      meta.hasMore === "true";
+
+    total += arr.length;
+
+    if (!hasMore || arr.length === 0) {
+      return total;
+    }
+
+    const last = arr[arr.length - 1] as Record<string, unknown> | undefined;
+    const ts = (last?.sentAt ?? last?.sent_at) as string | undefined;
+    if (!ts) {
+      return total;
+    }
+    before = ts;
+  }
+
+  return total;
+}
+
 function membersFromConversationPayload(conv: any): RawConversationMember[] {
   if (!conv || !Array.isArray(conv.members)) return [];
   return conv.members as RawConversationMember[];
@@ -503,15 +633,26 @@ export const groupsAPI = {
 
     const convAny = conv as ConversationPayload & Record<string, unknown>;
 
+    const fromConversation = extractMessageCountFromConversation(conv);
+    const messageCount =
+      fromConversation !== undefined
+        ? fromConversation
+        : await resolveMessageCountViaMessagesList(convId, headers);
+
+    const fallbackLastActivity = String(
+      convAny.updatedAt ??
+        convAny.updated_at ??
+        (conv as any).updatedAt ??
+        (conv as any).updated_at ??
+        convAny.createdAt ??
+        convAny.created_at ??
+        new Date().toISOString(),
+    );
+
     return {
       memberCount: resolvedMemberIds.length,
       adminCount,
-      messageCount:
-        convAny.messageCount ??
-        convAny.message_count ??
-        (conv as any).messageCount ??
-        (conv as any).message_count ??
-        0,
+      messageCount,
       createdAt: String(
         convAny.createdAt ??
           convAny.created_at ??
@@ -519,15 +660,7 @@ export const groupsAPI = {
           (conv as any).inserted_at ??
           new Date().toISOString(),
       ),
-      lastActivity: String(
-        convAny.updatedAt ??
-          convAny.updated_at ??
-          (conv as any).updatedAt ??
-          (conv as any).updated_at ??
-          convAny.createdAt ??
-          convAny.created_at ??
-          new Date().toISOString(),
-      ),
+      lastActivity: fallbackLastActivity,
     };
   },
 
