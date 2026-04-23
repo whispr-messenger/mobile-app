@@ -47,8 +47,17 @@ export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
         />
       ) : (
         <View style={styles.placeholder}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarLetter}>
+              {(participant.name ||
+                participant.identity ||
+                "?")[0].toUpperCase()}
+            </Text>
+          </View>
           <Text style={styles.identity} numberOfLines={1}>
-            {participant.identity}
+            {participant.isLocal
+              ? "Vous"
+              : participant.name || `${participant.identity.slice(0, 8)}…`}
           </Text>
         </View>
       )}
@@ -70,6 +79,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 8,
+    gap: 12,
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#4a5cff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarLetter: {
+    color: "#fff",
+    fontSize: 28,
+    fontFamily: "Inter_600SemiBold",
   },
   identity: {
     color: "#fff",
