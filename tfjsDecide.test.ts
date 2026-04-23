@@ -110,4 +110,37 @@ describe("decideFromProbs", () => {
     expect(r.probs.Pizza).toBeCloseTo(0.2);
     expect(r.probs.Other).toBeCloseTo(0.1);
   });
+
+  it("blocks on a weak food signal when top-1 is 'Other' but not decisive", () => {
+    // Real case from 25_potato.jpg: Other=0.807, Baked Potato=0.174.
+    const data = probsFor({ Other: 0.807, "Baked Potato": 0.174, Donut: 0.016 });
+    const r = decideFromProbs(data);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("BLOCK_WEAK_FOOD_SIGNAL");
+    expect(r.bestClass).toBe("Baked Potato");
+  });
+
+  it("allows when 'Other' is highly confident (> 0.85 ceiling)", () => {
+    // Real case from 31_hotdog.jpg which is actually a 60m art installation:
+    // the model is 100 % certain it's Other, so the weak-signal fallback
+    // must NOT trigger and drag it back into the ban list.
+    const data = probsFor({ Other: 0.95, Burger: 0.03, Pizza: 0.02 });
+    const r = decideFromProbs(data);
+    expect(r.allowed).toBe(true);
+    expect(r.reason).toBe("OTHER_CLASS");
+  });
+
+  it("allows when the runner-up food class is too weak to count", () => {
+    const data = probsFor({ Other: 0.7, Burger: 0.1, Pizza: 0.1 });
+    const r = decideFromProbs(data);
+    expect(r.allowed).toBe(true);
+    expect(r.reason).toBe("OTHER_CLASS");
+  });
+
+  it("weak-signal fallback respects the 0.15 runner-up threshold at the boundary", () => {
+    const data = probsFor({ Other: 0.5, Sandwich: 0.15, Donut: 0.15 });
+    const r = decideFromProbs(data);
+    expect(r.allowed).toBe(false);
+    expect(r.reason).toBe("BLOCK_WEAK_FOOD_SIGNAL");
+  });
 });
