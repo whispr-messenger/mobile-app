@@ -2,7 +2,6 @@ name: 🚀 CI Pipeline
 
 on:
   push:
-    branches: [main, deploy/avant-preprod, deploy/preprod]
     paths-ignore:
       - '**.md'
       - 'documentation/**'
@@ -71,8 +70,8 @@ jobs:
   docker:
     name: 📦 Container Registry
     needs: [tests]
-    if: always()
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy/preprod'
     uses: ./.github/workflows/docker.yml
     with:
       ref: ${{ github.ref }}
-      should_deploy: ${{ github.event_name == 'push' }}
+      should_deploy: true
