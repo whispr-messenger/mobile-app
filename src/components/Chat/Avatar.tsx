@@ -28,11 +28,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
   const [imageError, setImageError] = React.useState(false);
 
-  const effectiveUri = React.useMemo(() => {
-    if (!uri) return undefined;
-    if (/^https?:\/\//i.test(uri)) return uri;
-    return undefined;
-  }, [uri]);
+  const effectiveUri = uri && /^https?:\/\//i.test(uri) ? uri : undefined;
 
   const initials =
     name

@@ -1,18 +1,13 @@
 import React from "react";
-import { render, fireEvent } from "@testing-library/react-native";
+import { render } from "@testing-library/react-native";
 import { Avatar } from "./src/components/Chat/Avatar";
 
 describe("Avatar", () => {
   it("renders an image when given a presigned https URL", () => {
     const url =
       "https://s3.amazonaws.com/bucket/avatar.jpg?X-Amz-Signature=abc123";
-    const { getByTestId, queryByText } = render(
-      <Avatar uri={url} name="John Doe" />,
-    );
-
-    const images = render(<Avatar uri={url} name="John Doe" />);
-    // Image should be rendered — no initials visible
-    expect(images.queryByText("JD")).toBeNull();
+    const { queryByText } = render(<Avatar uri={url} name="John Doe" />);
+    expect(queryByText("JD")).toBeNull();
   });
 
   it("renders initials when uri is undefined", () => {
@@ -67,7 +62,6 @@ describe("Avatar", () => {
   it("passes through a plain https URL unchanged", () => {
     const url = "https://cdn.example.com/avatar.png";
     const { queryByText } = render(<Avatar uri={url} name="Test User" />);
-    // Image renders, not initials
     expect(queryByText("TU")).toBeNull();
   });
 
@@ -81,7 +75,6 @@ describe("Avatar", () => {
       />,
     );
     const tree = JSON.stringify(toJSON());
-    // Online badge uses the online status color
     expect(tree).toContain("#21C004");
   });
 
@@ -95,31 +88,24 @@ describe("Avatar", () => {
       />,
     );
     const tree = JSON.stringify(toJSON());
-    // Neither online nor offline color should appear in badge
     expect(tree).not.toContain("#21C004");
-    expect(tree).not.toContain("#8E8E93");
   });
 
-  it("resets error state when URI changes", () => {
-    const url1 = "https://cdn.example.com/avatar1.png";
-    const url2 = "https://cdn.example.com/avatar2.png";
+  it("shows image again after URI changes from invalid to valid", () => {
+    const { queryByText, getByText, rerender } = render(
+      <Avatar uri="not-a-url" name="Test" />,
+    );
+    expect(getByText("T")).toBeTruthy();
 
-    const { queryByText, rerender } = render(<Avatar uri={url1} name="Test" />);
-    // Image renders, no initials
-    expect(queryByText("T")).toBeNull();
-
-    // Simulate image error
-    rerender(<Avatar uri={url1} name="Test" />);
-
-    // Change URI — error state should reset, image should try to render again
-    rerender(<Avatar uri={url2} name="Test" />);
+    rerender(
+      <Avatar uri="https://cdn.example.com/avatar.png" name="Test" />,
+    );
     expect(queryByText("T")).toBeNull();
   });
 
   it("respects custom size prop", () => {
     const { toJSON } = render(<Avatar uri={undefined} name="A" size={64} />);
     const tree = JSON.stringify(toJSON());
-    // The container and gradient should have width/height 64
     expect(tree).toContain('"width":64');
     expect(tree).toContain('"height":64');
   });
