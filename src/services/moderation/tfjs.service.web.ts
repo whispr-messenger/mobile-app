@@ -1,32 +1,59 @@
 import type { GateResult } from "./moderation.types";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
-import { CLASS_NAMES, INPUT_SIZE } from "./moderation.constants";
+import { INPUT_SIZE } from "./moderation.constants";
+import { decideV2FromProbs, decideV3FromProbs } from "./tfjs.decide";
+import {
+  getModerationModelVersion,
+  type ModerationModelVersion,
+} from "./model-version";
 
 type TF = typeof import("@tensorflow/tfjs");
 
 let tf: TF | null = null;
-let model: Awaited<ReturnType<TF["loadGraphModel"]>> | null = null;
-let loading: Promise<void> | null = null;
 
-async function ensureModel(): Promise<void> {
-  if (model) return;
-  if (loading) return loading;
+const MODEL_URLS: Record<ModerationModelVersion, string> = {
+  v2: "/models/tfjs/model.json",
+  v3: "/models/v3-tfjs/model.json",
+};
 
-  loading = (async () => {
-    tf = await import("@tensorflow/tfjs");
-    model = await tf.loadGraphModel("/models/tfjs/model.json");
+type GraphOrLayers =
+  | Awaited<ReturnType<TF["loadGraphModel"]>>
+  | Awaited<ReturnType<TF["loadLayersModel"]>>;
+
+const models: Partial<Record<ModerationModelVersion, GraphOrLayers>> = {};
+const loading: Partial<Record<ModerationModelVersion, Promise<void>>> = {};
+
+async function ensureModel(version: ModerationModelVersion): Promise<void> {
+  if (models[version]) return;
+  const inFlight = loading[version];
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    if (!tf) tf = await import("@tensorflow/tfjs");
+    models[version] =
+      version === "v3"
+        ? await tf.loadLayersModel(MODEL_URLS.v3)
+        : await tf.loadGraphModel(MODEL_URLS.v2);
   })();
 
-  return loading;
+  loading[version] = promise;
+  return promise;
+}
+
+async function preloadModels(): Promise<void> {
+  await Promise.allSettled([ensureModel("v2"), ensureModel("v3")]);
 }
 
 async function gate(params: {
   uri: string;
   threshold?: number;
+  version?: ModerationModelVersion;
 }): Promise<GateResult> {
-  const { uri, threshold = 0.5 } = params;
+  const { uri, threshold, version } = params;
+  const resolvedVersion = version ?? (await getModerationModelVersion());
 
-  await ensureModel();
+  await ensureModel(resolvedVersion);
+  const model = models[resolvedVersion];
   if (!tf || !model) throw new Error("TFJS model failed to load");
 
   const flat = await imageUriToFloatTensor_0_255({
@@ -42,58 +69,18 @@ async function gate(params: {
   input.dispose();
   output.dispose();
 
-  if (data.length !== CLASS_NAMES.length) {
-    throw new Error(
-      `Output length mismatch: got ${data.length}, expected ${CLASS_NAMES.length}.`,
-    );
-  }
-
-  let bestIndex = 0;
-  let bestProb = data[0];
-  for (let i = 1; i < data.length; i++) {
-    if (data[i] > bestProb) {
-      bestProb = data[i];
-      bestIndex = i;
-    }
-  }
-
-  const bestClass = CLASS_NAMES[bestIndex];
-
-  const probs: Record<string, number> = {};
-  for (let i = 0; i < CLASS_NAMES.length; i++) {
-    probs[CLASS_NAMES[i]] = Number(data[i]);
-  }
-
-  const isFoodClass = bestClass !== "Other";
-  const isConfident = bestProb >= threshold;
-
-  if (isFoodClass && isConfident) {
-    return {
-      allowed: false,
-      reason: "BLOCK_TRAINED_CLASS",
-      bestIndex,
-      bestProb: Number(bestProb),
-      bestClass,
-      probs,
-    };
-  }
-
-  return {
-    allowed: true,
-    reason: !isFoodClass ? "OTHER_CLASS" : "UNCERTAIN",
-    bestIndex,
-    bestProb: Number(bestProb),
-    bestClass,
-    probs,
-  };
+  return resolvedVersion === "v3"
+    ? decideV3FromProbs(data, threshold)
+    : decideV2FromProbs(data, threshold);
 }
 
 async function isAllowed(params: {
   uri: string;
   threshold?: number;
+  version?: ModerationModelVersion;
 }): Promise<boolean> {
   const r = await gate(params);
   return r.allowed;
 }
 
-export const tfjsService = { gate, isAllowed };
+export const tfjsService = { gate, isAllowed, preloadModels };
