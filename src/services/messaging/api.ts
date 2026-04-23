@@ -623,19 +623,6 @@ export const messagingAPI = {
       is_active?: boolean;
     }>
   > {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
-    );
-
-    if (!response.ok) {
-      throw httpError("Failed to fetch conversation members", response);
-    }
-
-    const data = await unwrap(response);
-    if (!Array.isArray(data)) {
-      return [];
-    }
-
     type BackendMember = {
       userId?: string;
       user_id?: string;
@@ -649,7 +636,33 @@ export const messagingAPI = {
       display_name?: string;
     };
 
-    const rawMembers = data as BackendMember[];
+    let rawMembers: BackendMember[] = [];
+
+    try {
+      const conv = await messagingAPI.getConversation(conversationId);
+      const fromConv = (conv as { members?: BackendMember[] }).members;
+      if (Array.isArray(fromConv) && fromConv.length > 0) {
+        rawMembers = fromConv;
+      }
+    } catch {
+      /* GET /conversations/:id peut échouer — on tente /members ci-dessous */
+    }
+
+    if (rawMembers.length === 0) {
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/members`,
+      );
+      if (response.ok) {
+        const data = await unwrap(response);
+        if (Array.isArray(data)) {
+          rawMembers = data as BackendMember[];
+        }
+      }
+    }
+
+    if (rawMembers.length === 0) {
+      return [];
+    }
 
     // Resolve display name and avatar for each member via /user/v1/profile/:userId
     // in parallel to avoid sequential N+1.
@@ -665,8 +678,12 @@ export const messagingAPI = {
       async (member) => {
         const userId = member.userId ?? member.user_id ?? member.id ?? "";
         const rawRole = (member.role ?? "member").toLowerCase();
-        const role: "admin" | "moderator" | "member" =
-          rawRole === "admin" || rawRole === "moderator" ? rawRole : "member";
+        let role: "admin" | "moderator" | "member" = "member";
+        if (rawRole === "admin" || rawRole === "owner") {
+          role = "admin";
+        } else if (rawRole === "moderator") {
+          role = "moderator";
+        }
 
         let displayName = member.display_name || member.username || "";
         let avatarUrl: string | undefined;
@@ -912,29 +929,46 @@ export const messagingAPI = {
     query: string,
     params?: { limit?: number },
   ): Promise<Message[] | null> {
-    try {
-      const searchParams = new URLSearchParams();
-      searchParams.append("search", query);
-      if (params?.limit !== undefined) {
-        searchParams.append("limit", String(params.limit));
+    // Try the dedicated per-conversation search endpoint first, then fall
+    // back to the `?search=` query param on the messages list endpoint. This
+    // matches both shapes the messaging service has shipped historically
+    // (WHISPR-928) so mobile clients keep working across backend revisions.
+    const limit = params?.limit ?? 50;
+    const attempts: Array<() => string> = [
+      () =>
+        `${API_BASE_URL}/messages/search?conversation_id=${encodeURIComponent(
+          conversationId,
+        )}&query=${encodeURIComponent(query)}&limit=${limit}`,
+      () => {
+        const sp = new URLSearchParams({ query, limit: String(limit) });
+        return `${API_BASE_URL}/conversations/${encodeURIComponent(
+          conversationId,
+        )}/messages/search?${sp.toString()}`;
+      },
+      () => {
+        const sp = new URLSearchParams({ search: query, limit: String(limit) });
+        return `${API_BASE_URL}/conversations/${encodeURIComponent(
+          conversationId,
+        )}/messages?${sp.toString()}`;
+      },
+    ];
+
+    for (const buildUrl of attempts) {
+      try {
+        const response = await authenticatedFetch(buildUrl());
+        if (!response.ok) {
+          // 404/405/400 -> try the next shape; any other status is a real
+          // failure and we let callers fall back to client-side filtering.
+          if ([400, 404, 405].includes(response.status)) continue;
+          return null;
+        }
+        const data = await unwrap(response);
+        return Array.isArray(data) ? data : [];
+      } catch {
+        continue;
       }
-
-      const url = `${API_BASE_URL}/conversations/${encodeURIComponent(
-        conversationId,
-      )}/messages?${searchParams.toString()}`;
-
-      const response = await authenticatedFetch(url);
-
-      if (!response.ok) {
-        // Backend may not support search param — return null to signal fallback
-        return null;
-      }
-
-      const data = await unwrap(response);
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return null;
     }
+    return null;
   },
 
   /**

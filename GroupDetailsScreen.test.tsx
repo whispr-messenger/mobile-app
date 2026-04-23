@@ -133,7 +133,10 @@ describe('GroupDetailsScreen', () => {
   it('loads group details on mount', async () => {
     render(<GroupDetailsScreen />);
     await waitFor(() => {
-      expect(mockedGroupsAPI.getGroupDetails).toHaveBeenCalledWith('g1', 'conv1');
+      expect(mockedGroupsAPI.getGroupDetails).toHaveBeenCalledWith(
+        'g1',
+        'conv1',
+      );
     });
   });
 
