@@ -1200,7 +1200,7 @@ export const ChatScreen: React.FC = () => {
         let memberIds = [...new Set(rawMemberIds)]
           .filter(Boolean)
           .filter((id) => id !== userId);
-        if (memberIds.length === 0 && conversation?.type === "group") {
+        if (memberIds.length === 0) {
           try {
             const members =
               await messagingAPI.getConversationMembers(conversationId);
