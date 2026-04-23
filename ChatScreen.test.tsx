@@ -93,6 +93,11 @@ jest.mock('./src/components/Chat/TypingIndicator', () => ({ TypingIndicator: () 
 jest.mock('./src/components/Chat/Avatar', () => ({ Avatar: () => null }));
 jest.mock('./src/components/Chat/MessageActionsMenu', () => ({ MessageActionsMenu: () => null }));
 jest.mock('./src/components/Chat/ForwardMessageModal', () => ({ ForwardMessageModal: () => null }));
+jest.mock('./src/components/Chat/ReportMessageSheet', () => ({ ReportMessageSheet: () => null }));
+jest.mock('./src/services/moderation', () => ({
+  gateChatImageBeforeSend: jest.fn().mockResolvedValue({ allowed: true }),
+}));
+jest.mock('./src/components/Chat/ReactionReactorsModal', () => ({ ReactionReactorsModal: () => null }));
 jest.mock('./src/components/Chat/ReactionPicker', () => ({ ReactionPicker: () => null }));
 jest.mock('./src/components/Chat/DateSeparator', () => ({ DateSeparator: () => null }));
 jest.mock('./src/components/Chat/SystemMessage', () => ({ SystemMessage: () => null }));

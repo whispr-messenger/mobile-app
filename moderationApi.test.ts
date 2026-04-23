@@ -251,6 +251,7 @@ describe('appealsAPI', () => {
       sanctionId: 's1',
       reason: 'Unjust ban',
       evidence: { screenshot: 'url' },
+      type: 'sanction',
     });
   });
 

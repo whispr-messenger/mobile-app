@@ -48,10 +48,20 @@ jest.mock('./src/components', () => ({
   },
 }));
 jest.mock('./src/services/TokenService', () => ({
-  TokenService: { getAccessToken: jest.fn().mockResolvedValue('tok') },
+  TokenService: { getAccessToken: jest.fn().mockResolvedValue('tok'), decodeAccessToken: jest.fn().mockReturnValue({ sub: 'user1' }) },
+}));
+const mockGetProfile = jest.fn().mockResolvedValue({ success: true, data: { firstName: 'John', lastName: 'Doe', username: 'johndoe' } });
+const mockUpdateProfile = jest.fn().mockResolvedValue({ success: true });
+jest.mock('./src/services', () => ({
+  UserService: {
+    getInstance: () => ({
+      getProfile: mockGetProfile,
+      updateProfile: mockUpdateProfile,
+    }),
+  },
 }));
 jest.mock('./src/services/MediaService', () => ({
-  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ url: 'https://cdn.test/img.jpg' }) },
+  MediaService: { uploadMedia: jest.fn().mockResolvedValue({ id: 'media-1', url: 'https://cdn.test/img.jpg' }) },
 }));
 jest.mock('./src/services/apiBase', () => ({
   getApiBaseUrl: () => 'https://api.test.com',
@@ -91,7 +101,11 @@ describe('ProfileSetupScreen', () => {
   });
 
   it('navigates to ConversationsList on successful save', async () => {
-    const { getByPlaceholderText, getByText } = render(<ProfileSetupScreen />);
+    const { getByPlaceholderText, getByText, queryByText } = render(<ProfileSetupScreen />);
+    // Wait for polling to complete (profileReady = true, banner disappears)
+    await waitFor(() => {
+      expect(queryByText('Préparation de votre compte...')).toBeNull();
+    });
     fireEvent.changeText(getByPlaceholderText('auth.firstName'), 'John');
     fireEvent.changeText(getByPlaceholderText('auth.lastName'), 'Doe');
     fireEvent.changeText(getByPlaceholderText('@username'), 'johndoe');

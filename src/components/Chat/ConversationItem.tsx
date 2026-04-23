@@ -18,8 +18,12 @@ import { colors } from "../../theme/colors";
 import { Avatar } from "./Avatar";
 import { Ionicons } from "@expo/vector-icons";
 import { usePresenceStore } from "../../store/presenceStore";
+import { useConversationsStore } from "../../store/conversationsStore";
 import { useAuth } from "../../context/AuthContext";
 import { getConversationDisplayName } from "../../utils";
+import { messagingAPI } from "../../services/messaging/api";
+
+const EMPTY_GROUP_AVATARS: Array<{ uri?: string; name: string }> = [];
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -47,6 +51,43 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       ? conversation.member_user_ids?.find((id: string) => id !== currentUserId)
       : undefined;
   const isOtherOnline = otherUserId ? onlineUserIds.has(otherUserId) : false;
+
+  const groupAvatars = useConversationsStore(
+    (s) => s.groupAvatars[conversation.id] ?? EMPTY_GROUP_AVATARS,
+  );
+  const setGroupAvatars = useConversationsStore((s) => s.setGroupAvatars);
+  const hasCachedAvatars = useConversationsStore(
+    (s) => conversation.id in s.groupAvatars,
+  );
+
+  React.useEffect(() => {
+    if (conversation.type !== "group") return;
+    if (hasCachedAvatars) return;
+    let cancelled = false;
+    messagingAPI
+      .getConversationMembers(conversation.id)
+      .then((members) => {
+        if (cancelled) return;
+        const avatars = members
+          .filter((m) => m.id && m.id !== currentUserId)
+          .slice(0, 2)
+          .map((m) => ({
+            uri: m.avatar_url,
+            name: m.display_name || m.username || "Utilisateur",
+          }));
+        setGroupAvatars(conversation.id, avatars);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    conversation.id,
+    conversation.type,
+    currentUserId,
+    hasCachedAvatars,
+    setGroupAvatars,
+  ]);
 
   const translateX = useSharedValue(50);
   const opacity = useSharedValue(0);
@@ -201,13 +242,31 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             </View>
           )}
           <View style={styles.avatarContainer}>
-            <Avatar
-              size={48}
-              uri={conversation.avatar_url}
-              name={displayName}
-              showOnlineBadge={conversation.type === "direct"}
-              isOnline={isOtherOnline}
-            />
+            {conversation.type === "group" &&
+            !conversation.avatar_url &&
+            groupAvatars.length > 0 ? (
+              <View style={styles.groupAvatarStack}>
+                {groupAvatars.map((a, idx) => (
+                  <View
+                    key={`${a.uri ?? a.name}-${idx}`}
+                    style={[
+                      styles.groupAvatarItem,
+                      idx === 1 ? styles.groupAvatarItemTop : null,
+                    ]}
+                  >
+                    <Avatar size={30} uri={a.uri} name={a.name} />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Avatar
+                size={48}
+                uri={conversation.avatar_url}
+                name={displayName}
+                showOnlineBadge={conversation.type === "direct"}
+                isOnline={isOtherOnline}
+              />
+            )}
           </View>
           <View style={styles.textContainer}>
             <View style={styles.nameRow}>
@@ -327,6 +386,19 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     marginRight: 12,
+  },
+  groupAvatarStack: {
+    width: 48,
+    height: 48,
+  },
+  groupAvatarItem: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+  groupAvatarItemTop: {
+    left: 16,
+    top: 16,
   },
   textContainer: {
     flex: 1,

@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["🚀 CI Pipeline"]
     types: [completed]
-    branches: [main, deploy/avant-preprod, deploy/preprod]
+    branches: [main, deploy/preprod]
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -29,13 +29,13 @@ jobs:
     steps:
       - name: Generate GitHub App Token
         id: generate_token
-        uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v1
         with:
-          app_id: ${{ secrets.ACTIONS_CD }}
-          private_key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
+          app-id: ${{ secrets.ACTIONS_CD }}
+          private-key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
 
       - name: Checkout mobile-app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: mobile-app
           ref: ${{ github.event.workflow_run.head_branch || 'main' }}
@@ -113,7 +113,7 @@ jobs:
           echo "✅ Image found in registry"
 
       - name: Checkout infrastructure repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: whispr-messenger/infrastructure
           path: infrastructure
@@ -122,53 +122,30 @@ jobs:
           fetch-depth: 0
 
       - name: Validate deployment manifest path
-        env:
-          INFRA_BRANCH: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
         run: |
           MANIFEST_PATH="infrastructure/k8s/whispr/preprod/mobile-web/deployment.yaml"
           if [ ! -f "$MANIFEST_PATH" ]; then
-            echo "Error: Deployment manifest not found at $MANIFEST_PATH"
+            echo "❌ Error: Deployment manifest not found at $MANIFEST_PATH"
             exit 1
           fi
-          echo "preprod manifest found"
-
-          if [ "$INFRA_BRANCH" = "main" ]; then
-            PROD_MANIFEST="infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml"
-            if [ ! -f "$PROD_MANIFEST" ]; then
-              echo "Error: prod manifest not found at $PROD_MANIFEST"
-              exit 1
-            fi
-            echo "prod manifest found"
-          fi
+          echo "✅ Deployment manifest found"
 
       - name: Update image tag in deployment
         env:
           COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
-          INFRA_BRANCH: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
         run: |
           SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
           IMAGE_TAG="sha-${SHORT_SHA}"
           FULL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
           FULL_IMAGE=$(echo "${FULL_IMAGE}" | tr '[:upper:]' '[:lower:]')
 
-          echo "Updating preprod deployment image to: ${FULL_IMAGE}"
+          echo "Updating deployment image to: ${FULL_IMAGE}"
           yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/preprod/mobile-web/deployment.yaml
 
-          if [ "$INFRA_BRANCH" = "main" ]; then
-            echo "Updating prod deployment image to: ${FULL_IMAGE}"
-            yq -i ".spec.template.spec.containers[0].image = \"${FULL_IMAGE}\"" infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml
-          fi
-
       - name: Verify update
-        env:
-          INFRA_BRANCH: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
         run: |
-          echo "Updated preprod manifest:"
+          echo "Updated deployment manifest:"
           yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/preprod/mobile-web/deployment.yaml
-          if [ "$INFRA_BRANCH" = "main" ]; then
-            echo "Updated prod manifest:"
-            yq '.spec.template.spec.containers[0].image' infrastructure/k8s/whispr/prod/mobile-web/deployment.yaml
-          fi
 
       - name: Commit and push changes
         working-directory: infrastructure
@@ -181,12 +158,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          FILES="k8s/whispr/preprod/mobile-web/deployment.yaml"
-          if [ "$INFRA_BRANCH" = "main" ]; then
-            FILES="$FILES k8s/whispr/prod/mobile-web/deployment.yaml"
-          fi
-
-          if git diff --quiet $FILES; then
+          if git diff --quiet k8s/whispr/preprod/mobile-web/deployment.yaml; then
             echo "No changes to commit"
             exit 0
           fi
@@ -194,12 +166,12 @@ jobs:
           SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            COMMIT_MSG="chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
+            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
           else
-            COMMIT_MSG="chore(deploy/mobile-web): update image to ${SHORT_SHA}"
+            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA}"
           fi
 
-          git add $FILES
+          git add k8s/whispr/preprod/mobile-web/deployment.yaml
           git commit -m "${COMMIT_MSG}"
 
           MAX_RETRIES=3

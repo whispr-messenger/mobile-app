@@ -3,7 +3,7 @@
  * Sorted by oldest first (FIFO), pull to refresh
  */
 
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,9 @@ export const AppealQueueScreen: React.FC = () => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const { appealQueue, loading, fetchAppealQueue } = useModerationStore();
+  const [activeTab, setActiveTab] = useState<
+    "all" | "sanction" | "blocked_image"
+  >("all");
 
   useEffect(() => {
     fetchAppealQueue();
@@ -37,9 +40,14 @@ export const AppealQueueScreen: React.FC = () => {
     fetchAppealQueue();
   }, [fetchAppealQueue]);
 
-  // Sort by oldest first (FIFO)
+  // Sort by oldest first (FIFO), then filter by active tab
   const sortedAppeals = [...appealQueue]
     .filter((a) => a.status === "pending" || a.status === "under_review")
+    .filter((a) => {
+      if (activeTab === "all") return true;
+      const t = a.type ?? "sanction";
+      return t === activeTab;
+    })
     .sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
@@ -82,6 +90,36 @@ export const AppealQueueScreen: React.FC = () => {
               File d'appels
             </Text>
             <View style={styles.placeholder} />
+          </View>
+
+          {/* Tabs */}
+          <View style={styles.tabsRow}>
+            {(
+              [
+                { key: "sanction", label: "Sanctions" },
+                { key: "blocked_image", label: "Images" },
+                { key: "all", label: "Tous" },
+              ] as const
+            ).map((t) => (
+              <TouchableOpacity
+                key={t.key}
+                style={[
+                  styles.tabBtn,
+                  activeTab === t.key && styles.tabBtnActive,
+                ]}
+                onPress={() => setActiveTab(t.key)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === t.key && styles.tabTextActive,
+                  ]}
+                >
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Info bar */}
@@ -204,5 +242,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
+  },
+  tabsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    gap: 8,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+  },
+  tabBtnActive: {
+    backgroundColor: colors.primary.main,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.7)",
+  },
+  tabTextActive: {
+    color: "#FFFFFF",
   },
 });
