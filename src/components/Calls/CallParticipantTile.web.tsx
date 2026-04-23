@@ -69,6 +69,11 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     aspectRatio: 3 / 4,
+    // Cap absolute size so a single-participant call on a wide desktop
+    // viewport does not blow up the tile beyond the grid and hide the
+    // controls bar behind it.
+    maxWidth: 320,
+    maxHeight: 420,
     backgroundColor: "#222",
     borderRadius: 12,
     overflow: "hidden",

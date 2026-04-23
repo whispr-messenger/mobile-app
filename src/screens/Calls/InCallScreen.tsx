@@ -125,14 +125,16 @@ export const InCallScreen: React.FC = () => {
         />
       </View>
 
-      <CallControls
-        muted={muted}
-        cameraOff={camOff}
-        onToggleMute={onToggleMute}
-        onToggleCamera={onToggleCamera}
-        onFlip={onFlip}
-        onEnd={onEnd}
-      />
+      <View style={styles.controlsDock}>
+        <CallControls
+          muted={muted}
+          cameraOff={camOff}
+          onToggleMute={onToggleMute}
+          onToggleCamera={onToggleCamera}
+          onFlip={onFlip}
+          onEnd={onEnd}
+        />
+      </View>
     </View>
   );
 };
@@ -141,7 +143,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
-    justifyContent: "space-between",
   },
   header: {
     paddingTop: 32,
@@ -173,6 +174,19 @@ const styles = StyleSheet.create({
   gridContent: {
     gap: 8,
     padding: 8,
+    // Reserve space at the bottom so the last tile is not hidden behind
+    // the absolutely-positioned controls dock.
+    paddingBottom: 120,
+  },
+  // Pin the control bar to the bottom of the viewport regardless of the
+  // natural grid height — FlatList with aspectRatio tiles otherwise pushes
+  // the bar off-screen on wide web viewports.
+  controlsDock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
   },
 });
 
