@@ -94,7 +94,12 @@ afterAll(() => {
 });
 
 // Import after mocks
-import { SocketConnection } from "./src/services/messaging/websocket";
+import {
+  SocketConnection,
+  getSharedSocket,
+  destroySharedSocket,
+  createSocket,
+} from "./src/services/messaging/websocket";
 
 // --- Helpers ---
 
@@ -577,5 +582,144 @@ describe("SocketConnection basics", () => {
     expect(handler).toHaveBeenCalledWith({ text: "hi" });
 
     socket.disconnect();
+  });
+});
+
+// ============================================================
+// Coverage: singleton helpers & edge-case branches
+// ============================================================
+
+describe("Singleton helpers", () => {
+  afterEach(() => {
+    destroySharedSocket();
+  });
+
+  it("getSharedSocket returns the same instance on repeated calls", () => {
+    const a = getSharedSocket();
+    const b = getSharedSocket();
+    expect(a).toBe(b);
+  });
+
+  it("destroySharedSocket disconnects and clears the singleton", () => {
+    const s = getSharedSocket();
+    s.connect("u1", "t1");
+    const ws = latestWs();
+    ws.simulateOpen();
+
+    destroySharedSocket();
+
+    expect(ws.close).toHaveBeenCalled();
+    // After destroy, getSharedSocket returns a fresh instance
+    const fresh = getSharedSocket();
+    expect(fresh).not.toBe(s);
+  });
+
+  it("destroySharedSocket is safe to call when no socket exists", () => {
+    // Should not throw
+    destroySharedSocket();
+    destroySharedSocket();
+  });
+
+  it("createSocket returns a new SocketConnection each time", () => {
+    const a = createSocket();
+    const b = createSocket();
+    expect(a).not.toBe(b);
+    expect(a).toBeInstanceOf(SocketConnection);
+  });
+});
+
+describe("Edge-case branches", () => {
+  let socket: SocketConnection;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    wsInstances = [];
+    mockEmitSessionExpired.mockClear();
+    mockGetAccessToken.mockReset();
+    mockIsTokenExpired.mockReset();
+    mockRefreshTokens.mockReset();
+    socket = new SocketConnection();
+  });
+
+  afterEach(() => {
+    socket.disconnect();
+    jest.useRealTimers();
+  });
+
+  it("pending topics are joined when the socket opens", () => {
+    // Create a channel and join BEFORE the socket is open → becomes pending
+    socket.connect("user-1", "tok");
+    const ws = latestWs();
+    // Socket is still CONNECTING — join should queue as pending
+    const ch = socket.channel("room:pending");
+    ch.join();
+
+    // Now open the socket — pending topic should be joined via sendJoin
+    ws.simulateOpen();
+
+    // The send calls include the pending topic join
+    const joinCalls = ws.send.mock.calls.filter((call: any[]) => {
+      const parsed = JSON.parse(call[0]);
+      return parsed[3] === "phx_join" && parsed[2] === "room:pending";
+    });
+    expect(joinCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("bad callback in onmessage is silently caught", () => {
+    const ws = connectAndOpen(socket);
+    const badCb = jest.fn(() => {
+      throw new Error("boom");
+    });
+    const goodCb = jest.fn();
+
+    const ch = socket.channel("room:1");
+    ch.join();
+    ch.on("msg", badCb);
+    ch.on("msg", goodCb);
+
+    ws.onmessage?.({
+      data: JSON.stringify([null, "1", "room:1", "msg", { x: 1 }]),
+    });
+
+    expect(badCb).toHaveBeenCalled();
+    expect(goodCb).toHaveBeenCalledWith({ x: 1 });
+  });
+
+  it("onclose sets disconnected when shouldReconnect is false", () => {
+    const ws = connectAndOpen(socket);
+
+    const stateChanges: string[] = [];
+    socket.addConnectionStateListener((s) => stateChanges.push(s));
+
+    // Call disconnect which sets shouldReconnect=false
+    socket.disconnect();
+
+    // State should end at disconnected (not reconnecting)
+    expect(socket.connectionState).toBe("disconnected");
+  });
+
+  it("onclose after disconnect goes to disconnected, not reconnecting", () => {
+    // Connect and open normally
+    const ws = connectAndOpen(socket);
+
+    // Reach into socket to set shouldReconnect = false without closing
+    // by calling disconnect which also fires close. Instead, we connect
+    // then the server closes the connection while shouldReconnect is false.
+    // To make shouldReconnect false before close: use the max-reconnect path.
+    // Simpler: connect, open, then externally set shouldReconnect via disconnect
+    // BUT disconnect also closes. So we must observe the state transition.
+
+    const states: string[] = [];
+    socket.addConnectionStateListener((s) => states.push(s));
+
+    // disconnect() sets shouldReconnect=false then calls socket.close()
+    // The mock close() doesn't fire onclose, so we manually fire it after
+    socket.disconnect();
+    // Manually trigger onclose as the mock doesn't
+    ws.onclose?.({ code: 1000, reason: "normal" });
+
+    // Should be disconnected, not reconnecting
+    expect(states).toContain("disconnected");
+    expect(states).not.toContain("reconnecting");
   });
 });
