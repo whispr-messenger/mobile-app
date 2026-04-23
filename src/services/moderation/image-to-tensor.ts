@@ -61,7 +61,29 @@ async function resizeToJpegBase64(
     );
   }
 
-  const result = await fn(uri, [{ resize: { width, height } }], {
+  // Probe original dimensions so we can center-crop to a square before
+  // resizing. Without this, portrait photos (e.g. 3024×4032 from the camera)
+  // get squashed into 1:1 224×224, which wrecks classifier confidence and
+  // was the root cause of camera-captured junk food slipping past the gate.
+  const probe = await fn(uri, [], {
+    compress: 1,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  const origW = Number(probe?.width) || 0;
+  const origH = Number(probe?.height) || 0;
+
+  const actions: unknown[] = [];
+  if (origW > 0 && origH > 0 && origW !== origH) {
+    const side = Math.min(origW, origH);
+    const originX = Math.floor((origW - side) / 2);
+    const originY = Math.floor((origH - side) / 2);
+    actions.push({
+      crop: { originX, originY, width: side, height: side },
+    });
+  }
+  actions.push({ resize: { width, height } });
+
+  const result = await fn(uri, actions, {
     compress: 1,
     format: ImageManipulator.SaveFormat.JPEG,
     base64: true,
@@ -107,7 +129,12 @@ async function decodeAndResizeOnWeb(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Failed to acquire 2D canvas context on web");
 
-  ctx.drawImage(img, 0, 0, width, height);
+  // Center-crop to a square before drawing into the target size so the
+  // classifier sees undistorted content on portrait/landscape inputs.
+  const side = Math.min(img.naturalWidth, img.naturalHeight) || 1;
+  const sx = Math.max(0, Math.floor((img.naturalWidth - side) / 2));
+  const sy = Math.max(0, Math.floor((img.naturalHeight - side) / 2));
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, width, height);
   const imageData = ctx.getImageData(0, 0, width, height);
   return imageData.data;
 }
