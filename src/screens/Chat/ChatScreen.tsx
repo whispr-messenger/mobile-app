@@ -68,6 +68,7 @@ import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
 import { gateChatImageBeforeSend } from "../../services/moderation";
+import { appealsAPI } from "../../services/moderation/moderationApi";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { BlockedImageAppealModal } from "../../components/Chat/BlockedImageAppealModal";
@@ -567,32 +568,24 @@ export const ChatScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
 
-  // Listen for admin decisions on blocked-image appeals.
+  // Applies an admin decision on a blocked-image appeal.
   // On approve: re-submit the original image bypassing the gate.
   // On reject: annotate the bubble so the user sees "Refusée par l'admin".
-  useEffect(() => {
-    if (!userId) return;
-    let socket: ReturnType<typeof getSharedSocket>;
-    try {
-      socket = getSharedSocket();
-    } catch {
-      return;
-    }
-    const channel = socket.channel(`user:${userId}`);
-    const onDecision = (data: any) => {
-      const messageTempId: string | undefined =
-        data?.messageTempId || data?.message_temp_id;
-      const decision: "approved" | "rejected" | undefined = data?.decision;
-      if (!messageTempId || !decision) return;
-
+  const applyBlockedImageDecision = useCallback(
+    (messageTempId: string, decision: "approved" | "rejected") => {
       const current =
         useModerationStore.getState().pendingAppeals[messageTempId];
+      if (!current || current.status !== "pending") return;
+
       handleAppealDecision({ messageTempId, decision });
 
-      if (decision === "approved" && current?.localUri) {
-        // Re-submit bypassing the gate, then cleanup.
+      // Prefer the base64 data URI when available (survives web logout) and
+      // fall back to the native file URI.
+      const replayUri = current?.localDataUri || current?.localUri;
+
+      if (decision === "approved" && replayUri) {
         handleSendMediaRef
-          .current(current.localUri, "image", undefined, undefined, {
+          .current(replayUri, "image", undefined, undefined, {
             skipGate: true,
           })
           .catch((err) =>
@@ -618,13 +611,91 @@ export const ChatScreen: React.FC = () => {
         );
         cleanupAppeal(messageTempId).catch(() => {});
       }
+    },
+    [cleanupAppeal, handleAppealDecision],
+  );
+
+  // WebSocket listener for admin decisions on blocked-image appeals.
+  useEffect(() => {
+    if (!userId) return;
+    let socket: ReturnType<typeof getSharedSocket>;
+    try {
+      socket = getSharedSocket();
+    } catch {
+      return;
+    }
+    const channel = socket.channel(`user:${userId}`);
+    const onDecision = (data: any) => {
+      const messageTempId: string | undefined =
+        data?.messageTempId || data?.message_temp_id;
+      const decision: "approved" | "rejected" | undefined = data?.decision;
+      if (!messageTempId || !decision) return;
+
+      applyBlockedImageDecision(messageTempId, decision);
     };
     channel.on("blocked_image_decision", onDecision);
+    // Phoenix only routes broadcasts to channels that have actually joined
+    // their topic. Without this, the backend `Endpoint.broadcast("user:<id>",
+    // "blocked_image_decision", ...)` never reaches the callback — which is
+    // exactly the WHISPR-1142 symptom.
+    channel.join().catch((err) => {
+      logger.warn("ChatScreen", "user channel join failed", err);
+    });
     return () => {
       channel.off("blocked_image_decision", onDecision);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, applyBlockedImageDecision]);
+
+  // Polling fallback: if the WebSocket event is ever missed (connection loss,
+  // backend hiccup, app relaunch before the broadcast lands), poll the user-
+  // service for the status of every pending appeal and apply the decision as
+  // if it had come over the socket. Runs once on mount and then every 10s
+  // while there is at least one pending appeal on this screen.
+  useEffect(() => {
+    if (!userId) return;
+
+    const statusToDecision = (
+      status: string,
+    ): "approved" | "rejected" | null =>
+      status === "accepted"
+        ? "approved"
+        : status === "rejected"
+          ? "rejected"
+          : null;
+
+    const pollOnce = async () => {
+      const pending = useModerationStore.getState().pendingAppeals;
+      const entries = Object.entries(pending).filter(
+        ([, v]) => v.status === "pending",
+      );
+      if (entries.length === 0) return;
+
+      await Promise.all(
+        entries.map(async ([messageTempId, entry]) => {
+          try {
+            const appeal = await appealsAPI.getAppeal(entry.appealId);
+            const decision = statusToDecision(appeal.status);
+            if (decision) {
+              applyBlockedImageDecision(messageTempId, decision);
+            }
+          } catch (err) {
+            logger.warn("ChatScreen", "appeal poll failed", {
+              appealId: entry.appealId,
+              err,
+            });
+          }
+        }),
+      );
+    };
+
+    // Kick off an immediate check so a decision that landed while the app was
+    // closed is picked up as soon as the chat opens.
+    pollOnce().catch(() => {});
+    const id = setInterval(() => {
+      pollOnce().catch(() => {});
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [userId, applyBlockedImageDecision]);
 
   // Check if the other user in a direct conversation is in our contacts
   useEffect(() => {
@@ -1579,9 +1650,19 @@ export const ChatScreen: React.FC = () => {
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
       if (isCurrentlyPinned) {
+        // Optimistically remove from the pinned bar so the banner disappears
+        // immediately, even if the refresh below races the server.
+        setPinnedMessages((prev) =>
+          prev.filter(
+            (m) => (m.messageId ?? m.message?.id) !== selectedMessage.id,
+          ),
+        );
         await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
       } else {
         await messagingAPI.pinMessage(conversationId, selectedMessage.id);
+        // Re-open the bar when the user just pinned a new message after
+        // having manually closed it.
+        setShowPinnedBar(true);
       }
 
       await loadPinnedMessages();
@@ -1951,9 +2032,22 @@ export const ChatScreen: React.FC = () => {
       colors={colors.background.gradient.app}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradientContainer}
+      // Web : la chaîne flex doit être complètement "min-height: 0" de haut
+      // en bas pour que la FlatList virtualisée puisse scroller. Sans ça les
+      // conteneurs parents refusent de laisser leur enfant rétrécir et la
+      // hauteur scrollable finit à 0.
+      style={[
+        styles.gradientContainer,
+        Platform.OS === "web" && { minHeight: 0, height: "100%" },
+      ]}
     >
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          Platform.OS === "web" && { minHeight: 0, height: "100%" },
+        ]}
+        edges={["top"]}
+      >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
           conversationName={
@@ -2017,53 +2111,64 @@ export const ChatScreen: React.FC = () => {
         {(() => {
           // Contenu partagé web / natif — extrait pour que le wrapper soit
           // branché conditionnellement sans dupliquer le JSX.
+          const messageList = (
+            <FlatList
+              ref={flatListRef}
+              data={messagesWithSeparators}
+              renderItem={renderItem}
+              keyExtractor={keyExtractor}
+              inverted
+              contentContainerStyle={styles.listContent}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={15}
+              windowSize={10}
+              onEndReached={loadMoreMessages}
+              onEndReachedThreshold={0.3}
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+              }}
+              viewabilityConfig={viewabilityConfig}
+              onViewableItemsChanged={handleViewableItemsChanged}
+              keyboardShouldPersistTaps="handled"
+              // Web : on absolute-positionne la FlatList à l'intérieur du
+              // wrapper `webListViewport` (qui est `position: relative`). Ça
+              // donne à la VirtualizedList une boîte de taille définie sans
+              // dépendre du flex layout, indispensable pour que Chrome accepte
+              // de scroller sur la molette quand `inverted` est actif.
+              style={
+                Platform.OS === "web" ? styles.webFlatListAbsolute : undefined
+              }
+              ListEmptyComponent={
+                !loading ? (
+                  <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
+                    <EmptyChatState />
+                  </View>
+                ) : null
+              }
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.loadingMore}>
+                    <ActivityIndicator
+                      size="small"
+                      color={themeColors.primary}
+                    />
+                  </View>
+                ) : null
+              }
+            />
+          );
+          // Sur web, on emballe la FlatList dans un viewport à overflow borné :
+          // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
+          // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
           const chatBody = (
             <>
-              <FlatList
-                ref={flatListRef}
-                data={messagesWithSeparators}
-                renderItem={renderItem}
-                keyExtractor={keyExtractor}
-                inverted
-                contentContainerStyle={styles.listContent}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                updateCellsBatchingPeriod={50}
-                initialNumToRender={15}
-                windowSize={10}
-                onEndReached={loadMoreMessages}
-                onEndReachedThreshold={0.3}
-                maintainVisibleContentPosition={{
-                  minIndexForVisible: 0,
-                }}
-                viewabilityConfig={viewabilityConfig}
-                onViewableItemsChanged={handleViewableItemsChanged}
-                keyboardShouldPersistTaps="handled"
-                // Web : sans flex:1/minHeight:0 explicite, la VirtualizedList
-                // react-native-web ne calcule pas bien la hauteur scrollable
-                // quand son parent est lui-même flex — résultat : aucun scroll
-                // et MessageInput poussé hors du viewport.
-                style={
-                  Platform.OS === "web" ? { flex: 1, minHeight: 0 } : undefined
-                }
-                ListEmptyComponent={
-                  !loading ? (
-                    <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
-                      <EmptyChatState />
-                    </View>
-                  ) : null
-                }
-                ListFooterComponent={
-                  loadingMore ? (
-                    <View style={styles.loadingMore}>
-                      <ActivityIndicator
-                        size="small"
-                        color={themeColors.primary}
-                      />
-                    </View>
-                  ) : null
-                }
-              />
+              {Platform.OS === "web" ? (
+                <View style={styles.webListViewport}>{messageList}</View>
+              ) : (
+                messageList
+              )}
               {typingUsers.length > 0 && (
                 <View style={styles.typingContainer}>
                   <TypingIndicator
@@ -2095,8 +2200,22 @@ export const ChatScreen: React.FC = () => {
           // Natif (iOS/Android) : comportement inchangé, KeyboardAvoidingView
           // reste nécessaire pour le clavier physique.
           if (Platform.OS === "web") {
+            // Web layout : on garde `overflow:hidden` sur un wrapper dédié
+            // autour de la FlatList (et plus sur le conteneur externe), pour
+            // borner le viewport de scroll sans capturer l'event wheel en
+            // amont. Mettre overflow:hidden sur le wrapper extérieur faisait
+            // que Chrome routait la molette vers cet élément non-scrollable,
+            // bloquant totalement le scroll sur l'inverted FlatList.
             return (
-              <View style={[styles.keyboardView, { minHeight: 0 }]}>
+              <View
+                style={[
+                  styles.keyboardView,
+                  {
+                    minHeight: 0,
+                    flexDirection: "column",
+                  },
+                ]}
+              >
                 {chatBody}
               </View>
             );
@@ -2342,6 +2461,26 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: 16,
+  },
+  webListViewport: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    // `position: relative` permet à la FlatList interne d'utiliser
+    // `position: absolute, inset: 0` pour s'imposer une hauteur définie : sans
+    // ça, `flex: 1, minHeight: 0` seul ne suffit pas à react-native-web pour
+    // donner une bordure de scroll à un VirtualizedList inversé. Conséquence :
+    // la ScrollView interne grandit avec le contenu et la molette n'a rien à
+    // scroller.
+    position: "relative",
+  },
+  webFlatListAbsolute: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 0,
   },
   loadingMore: {
     paddingVertical: 16,

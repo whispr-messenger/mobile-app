@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -23,11 +24,56 @@ import { TokenService } from "../../services/TokenService";
 import { isReachableUrl } from "../../utils";
 
 /**
- * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
- * The blob/thumbnail endpoints now return 200 JSON `{ url, expiresAt }`
- * (previously a 302 redirect). We fetch with Bearer, extract `url`, and
- * reject any URL pointing at internal cluster hostnames — the browser
- * cannot resolve those and they trigger Mixed Content on https pages.
+ * Fetch the media bytes through the authenticated `/blob?stream=1` proxy and
+ * turn them into something `<Image>` can render. On web we use a short-lived
+ * `blob:` URL; on native (Expo Go) we fall back to a `data:` URL because
+ * `blob:` URIs don't round-trip cleanly through React Native's <Image>.
+ */
+async function streamMediaToRenderableUri(
+  uri: string,
+  token: string | null,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    Accept: "application/octet-stream",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const separator = uri.includes("?") ? "&" : "?";
+  const response = await fetch(`${uri}${separator}stream=1`, { headers });
+  if (!response.ok) {
+    throw new Error(`stream failed: HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+
+  if (
+    Platform.OS === "web" &&
+    typeof URL !== "undefined" &&
+    typeof URL.createObjectURL === "function"
+  ) {
+    return URL.createObjectURL(blob);
+  }
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") resolve(result);
+      else reject(new Error("FileReader did not produce a data URL"));
+    };
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Resolve a media-service blob/thumbnail URL to something `<Image>` can
+ * render. Fast path: fetch `/blob`, extract the presigned `url`, and use it
+ * directly when the host is publicly reachable. Fallback: when the presigned
+ * URL is cluster-internal (typical when the backend is missing
+ * `S3_PUBLIC_ENDPOINT`), we re-fetch the same endpoint with `?stream=1` to
+ * stream the raw bytes through the API and turn them into a blob/data URI.
+ * That guarantees the image renders even when MinIO is not publicly reachable
+ * from the device.
  */
 function useResolvedMediaUrl(uri: string | undefined): {
   resolvedUri: string;
@@ -37,9 +83,23 @@ function useResolvedMediaUrl(uri: string | undefined): {
   const [resolvedUri, setResolvedUri] = useState(uri || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const revokeBlobUrl = () => {
+      const previous = blobUrlRef.current;
+      if (
+        previous &&
+        typeof URL !== "undefined" &&
+        typeof URL.revokeObjectURL === "function"
+      ) {
+        URL.revokeObjectURL(previous);
+      }
+      blobUrlRef.current = null;
+    };
+
     if (!uri) {
+      revokeBlobUrl();
       setResolvedUri("");
       return;
     }
@@ -50,6 +110,7 @@ function useResolvedMediaUrl(uri: string | undefined): {
       (uri.includes("/blob") || uri.includes("/thumbnail"));
 
     if (!needsAuth) {
+      revokeBlobUrl();
       setResolvedUri(uri);
       return;
     }
@@ -59,6 +120,7 @@ function useResolvedMediaUrl(uri: string | undefined): {
     setError(false);
 
     (async () => {
+      revokeBlobUrl();
       try {
         const token = await TokenService.getAccessToken();
         const headers: Record<string, string> = {};
@@ -84,10 +146,14 @@ function useResolvedMediaUrl(uri: string | undefined): {
         // 302 redirect. Parse JSON first; fall back to response.url for the
         // legacy 302 redirect contract.
         let presigned: string | null = null;
+        let urlExplicitlyNull = false;
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           try {
             const body = (await response.json()) as { url?: string | null };
+            if (body && "url" in body && body.url === null) {
+              urlExplicitlyNull = true;
+            }
             presigned = body?.url ?? null;
           } catch {
             presigned = null;
@@ -97,17 +163,41 @@ function useResolvedMediaUrl(uri: string | undefined): {
           presigned = response.url;
         }
 
+        // `/thumbnail` retourne `{ url: null }` quand aucune vignette n'est
+        // stockée — c'est légitime, pas une erreur. On laisse `resolvedUri`
+        // vide et on évite tout fallback réseau (qui aboutirait à un blob de
+        // JSON inutile et casserait l'affichage de l'image principale).
+        if (urlExplicitlyNull) {
+          setResolvedUri("");
+          return;
+        }
+
         if (isReachableUrl(presigned)) {
           setResolvedUri(presigned as string);
-        } else {
-          if (presigned) {
-            console.warn(
-              "[MediaMessage] Rejected unreachable media URL (cluster-internal):",
-              presigned,
-            );
-          }
-          setError(true);
+          return;
         }
+
+        if (presigned) {
+          console.warn(
+            "[MediaMessage] Presigned URL unreachable — streaming via API proxy:",
+            presigned,
+          );
+        }
+        const renderableUri = await streamMediaToRenderableUri(uri, token);
+        if (cancelled) {
+          if (
+            renderableUri.startsWith("blob:") &&
+            typeof URL !== "undefined" &&
+            typeof URL.revokeObjectURL === "function"
+          ) {
+            URL.revokeObjectURL(renderableUri);
+          }
+          return;
+        }
+        if (renderableUri.startsWith("blob:")) {
+          blobUrlRef.current = renderableUri;
+        }
+        setResolvedUri(renderableUri);
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
@@ -119,6 +209,7 @@ function useResolvedMediaUrl(uri: string | undefined): {
 
     return () => {
       cancelled = true;
+      revokeBlobUrl();
     };
   }, [uri]);
 
@@ -166,8 +257,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     loading: mainLoading,
     error: mainError,
   } = useResolvedMediaUrl(uri);
-  const { resolvedUri: resolvedThumbUri, error: thumbError } =
-    useResolvedMediaUrl(thumbnailUri || uri);
+  const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
+    thumbnailUri || uri,
+  );
 
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
@@ -217,7 +309,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   }, [showVideoPlayer, uri, type]);
 
   if (type === "image") {
-    const imageError = mainError || thumbError || !resolvedMainUri;
+    // Une thumbnail manquante ou en erreur ne doit jamais empêcher le rendu
+    // de l'image principale — on tombe simplement sur l'URI principale via
+    // `resolvedThumbUri || resolvedMainUri`. On exclut donc `thumbError` du
+    // calcul d'erreur global.
+    const imageError = mainError || !resolvedMainUri;
     return (
       <>
         <TouchableOpacity

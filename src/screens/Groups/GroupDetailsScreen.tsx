@@ -129,10 +129,14 @@ export const GroupDetailsScreen: React.FC = () => {
       setLoading(true);
       const results = await Promise.allSettled([
         groupsAPI.getGroupDetails(groupId, conversationKey),
-        groupsAPI.getGroupMembers(conversationKey),
-        groupsAPI.getGroupStats(conversationKey),
-        groupsAPI.getGroupLogs(conversationKey),
-        groupsAPI.getGroupSettings(conversationKey),
+        groupsAPI.getGroupMembers(groupId, {
+          conversationId: conversationKey,
+        }),
+        groupsAPI.getGroupStats(groupId, {
+          conversationId: conversationKey,
+        }),
+        groupsAPI.getGroupLogs(groupId),
+        groupsAPI.getGroupSettings(groupId),
       ]);
 
       const [detailsR, membersR, statsR, logsR, settingsR] = results;
@@ -259,7 +263,7 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLeaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await groupsAPI.leaveGroup(conversationKey, CURRENT_USER_ID);
+      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
       removeConversationLocal(conversationKey);
       refreshConversations().catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -274,7 +278,9 @@ export const GroupDetailsScreen: React.FC = () => {
     }
   }, [
     CURRENT_USER_ID,
+    conversationId,
     conversationKey,
+    groupId,
     isLastAdmin,
     navigation,
     refreshConversations,
@@ -285,7 +291,7 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setDeleting(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      await groupsAPI.deleteGroup(groupId);
+      await groupsAPI.deleteGroup(groupId, conversationId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Le groupe a été supprimé");
       navigation.navigate("ConversationsList");
@@ -304,8 +310,8 @@ export const GroupDetailsScreen: React.FC = () => {
       try {
         setLeaving(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await groupsAPI.transferAdmin(conversationKey, newAdminId);
-        await groupsAPI.leaveGroup(conversationKey, CURRENT_USER_ID);
+        await groupsAPI.transferAdmin(groupId, newAdminId, conversationId);
+        await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
         removeConversationLocal(conversationKey);
         refreshConversations().catch(() => {});
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -328,7 +334,9 @@ export const GroupDetailsScreen: React.FC = () => {
     },
     [
       CURRENT_USER_ID,
+      conversationId,
       conversationKey,
+      groupId,
       navigation,
       refreshConversations,
       removeConversationLocal,

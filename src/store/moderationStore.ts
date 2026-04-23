@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 
@@ -26,7 +27,18 @@ import { logger } from "../utils/logger";
 export interface PendingBlockedImageAppeal {
   appealId: string;
   status: "pending" | "approved" | "rejected";
+  /**
+   * Native file URI (file://…/blocked-appeals/<tempId>.jpg) or a blob/http URL.
+   * Survives process restarts on native because the file lives in
+   * FileSystem.cacheDirectory. On web, blob: URIs are revoked at logout/reload.
+   */
   localUri: string;
+  /**
+   * Full-size base64 data URI (web only). Persists in AsyncStorage so the image
+   * can be re-submitted after the user logs out and back in. Capped at ~5MB
+   * (post-resize) to keep AsyncStorage responsive.
+   */
+  localDataUri?: string;
 }
 
 interface ModerationState {
@@ -289,6 +301,46 @@ export const useModerationStore = create<ModerationState>()(
             evidence,
           });
 
+          // On web, blob: URIs are revoked at logout/reload, so we need a
+          // self-contained copy of the original image. Build a full-size
+          // base64 data URI (resized to a max of 1280px so we stay under a
+          // sensible AsyncStorage budget) that survives the session.
+          let localDataUri: string | undefined;
+          if (Platform.OS === "web") {
+            try {
+              const fullsize = await ImageManipulator.manipulateAsync(
+                imageUri,
+                [{ resize: { width: 1280 } }],
+                {
+                  compress: 0.8,
+                  format: ImageManipulator.SaveFormat.JPEG,
+                  base64: true,
+                },
+              );
+              if (fullsize.base64) {
+                const dataUri = `data:image/jpeg;base64,${fullsize.base64}`;
+                // Cap at ~5MB of base64 text to avoid choking AsyncStorage /
+                // IndexedDB. Above that threshold we give up on auto-retry
+                // and rely on the rejected message label.
+                if (dataUri.length <= 5 * 1024 * 1024) {
+                  localDataUri = dataUri;
+                } else {
+                  logger.warn(
+                    "moderation",
+                    "image too large for web persistence, skipping auto-retry payload",
+                    { size: dataUri.length },
+                  );
+                }
+              }
+            } catch (err) {
+              logger.warn(
+                "moderation",
+                "failed to build web-safe data URI for appeal",
+                err,
+              );
+            }
+          }
+
           set((state) => ({
             pendingAppeals: {
               ...state.pendingAppeals,
@@ -296,6 +348,7 @@ export const useModerationStore = create<ModerationState>()(
                 appealId: appeal.id,
                 status: "pending",
                 localUri: localPath,
+                ...(localDataUri ? { localDataUri } : {}),
               },
             },
           }));

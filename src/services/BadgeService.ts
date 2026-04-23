@@ -18,7 +18,6 @@ function loadNotifications(): ExpoNotificationsModule | null {
     return null;
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require("expo-notifications") as ExpoNotificationsModule;
     return mod;
   } catch {
