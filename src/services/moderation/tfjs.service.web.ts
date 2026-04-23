@@ -16,11 +16,9 @@ const MODEL_URLS: Record<ModerationModelVersion, string> = {
   v3: "/models/v3-tfjs/model.json",
 };
 
-type GraphOrLayers =
-  | Awaited<ReturnType<TF["loadGraphModel"]>>
-  | Awaited<ReturnType<TF["loadLayersModel"]>>;
+type LoadedModel = Awaited<ReturnType<TF["loadGraphModel"]>>;
 
-const models: Partial<Record<ModerationModelVersion, GraphOrLayers>> = {};
+const models: Partial<Record<ModerationModelVersion, LoadedModel>> = {};
 const loading: Partial<Record<ModerationModelVersion, Promise<void>>> = {};
 
 async function ensureModel(version: ModerationModelVersion): Promise<void> {
@@ -30,10 +28,7 @@ async function ensureModel(version: ModerationModelVersion): Promise<void> {
 
   const promise = (async () => {
     if (!tf) tf = await import("@tensorflow/tfjs");
-    models[version] =
-      version === "v3"
-        ? await tf.loadLayersModel(MODEL_URLS.v3)
-        : await tf.loadGraphModel(MODEL_URLS.v2);
+    models[version] = await tf.loadGraphModel(MODEL_URLS[version]);
   })();
 
   loading[version] = promise;
