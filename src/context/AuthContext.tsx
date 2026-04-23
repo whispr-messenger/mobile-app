@@ -9,6 +9,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthService } from "../services/AuthService";
 import { TokenService } from "../services/TokenService";
+import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
@@ -50,6 +51,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           userId: session?.userId ?? null,
           deviceId: session?.deviceId ?? null,
         });
+        if (session) {
+          void tokenRefreshScheduler.start();
+        }
       })
       .catch(() => {
         setState({
@@ -68,9 +72,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       userId,
       deviceId,
     });
+    void tokenRefreshScheduler.start();
   }, []);
 
   const signOut = useCallback(async () => {
+    // Stop the proactive refresh timer before tearing down the session so it
+    // doesn't fire a refresh against a dead session.
+    tokenRefreshScheduler.stop();
+
     // Tear down WebSocket before clearing auth state
     destroySharedSocket();
 
