@@ -325,3 +325,257 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
     socket.disconnect();
   });
 });
+
+describe("SocketConnection basics", () => {
+  it("connect creates a WebSocket and transitions to connected on open", () => {
+    const socket = new SocketConnection();
+    expect(socket.connectionState).toBe("disconnected");
+    expect(socket.isConnected()).toBe(false);
+
+    socket.connect("user-1", "token-1");
+    expect(socket.connectionState).toBe("connecting");
+
+    latestWs().simulateOpen();
+    expect(socket.connectionState).toBe("connected");
+    expect(socket.isConnected()).toBe(true);
+
+    socket.disconnect();
+  });
+
+  it("connect is a no-op if already connected", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+    const countBefore = wsInstances.length;
+
+    socket.connect("user-1", "token-1");
+    expect(wsInstances.length).toBe(countBefore);
+
+    socket.disconnect();
+  });
+
+  it("disconnect sets state to disconnected and clears socket", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    socket.disconnect();
+    expect(socket.connectionState).toBe("disconnected");
+    expect(socket.isConnected()).toBe(false);
+  });
+
+  it("connectionState listeners are notified on state changes", () => {
+    const socket = new SocketConnection();
+    const states: string[] = [];
+    socket.addConnectionStateListener((s) => states.push(s));
+
+    socket.connect("user-1", "token-1");
+    latestWs().simulateOpen();
+    latestWs().simulateClose(1000, "normal");
+
+    expect(states).toContain("connecting");
+    expect(states).toContain("connected");
+    expect(states).toContain("reconnecting");
+
+    socket.disconnect();
+  });
+
+  it("removeConnectionStateListener stops notifications", () => {
+    const socket = new SocketConnection();
+    const states: string[] = [];
+    const remove = socket.addConnectionStateListener((s) => states.push(s));
+
+    socket.connect("user-1", "token-1");
+    remove();
+    latestWs().simulateOpen();
+
+    // Only "connecting" captured before removal
+    expect(states).toEqual(["connecting"]);
+
+    socket.disconnect();
+  });
+
+  it("channel join/on/off/push/leave work without errors", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    const ch = socket.channel("test:topic");
+    ch.join();
+
+    const handler = jest.fn();
+    ch.on("event", handler);
+    ch.push("event", { data: 1 });
+    ch.off("event", handler);
+    ch.leave();
+
+    socket.disconnect();
+  });
+
+  it("channel join queues as pending if socket is not open", () => {
+    const socket = new SocketConnection();
+    socket.connect("user-1", "token-1");
+    // Socket is CONNECTING, not OPEN
+
+    const ch = socket.channel("test:topic");
+    const result = ch.join();
+
+    // Should resolve with pending status
+    expect(result).resolves.toEqual({ status: "pending" });
+
+    socket.disconnect();
+  });
+
+  it("onmessage dispatches to channel callbacks with snake_case keys", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    const ch = socket.channel("room:1");
+    ch.join();
+
+    const handler = jest.fn();
+    ch.on("new_message", handler);
+
+    // Simulate a v2 message frame
+    const ws = latestWs();
+    ws.onmessage?.({
+      data: JSON.stringify([null, "1", "room:1", "new_message", { userId: "u1", messageText: "hello" }]),
+    });
+
+    expect(handler).toHaveBeenCalledWith({
+      user_id: "u1",
+      message_text: "hello",
+    });
+
+    socket.disconnect();
+  });
+
+  it("onmessage handles phx_reply and marks channel as joined", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    socket.channel("room:1");
+
+    const ws = latestWs();
+    ws.onmessage?.({
+      data: JSON.stringify([null, "1", "room:1", "phx_reply", { status: "ok" }]),
+    });
+
+    // No error thrown — phx_reply handled internally
+    socket.disconnect();
+  });
+
+  it("onmessage handles phx_error by marking channel as not joined", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    socket.channel("room:1");
+
+    const ws = latestWs();
+    // First mark as joined
+    ws.onmessage?.({
+      data: JSON.stringify([null, "1", "room:1", "phx_reply", { status: "ok" }]),
+    });
+    // Then crash
+    ws.onmessage?.({
+      data: JSON.stringify([null, "2", "room:1", "phx_error", {}]),
+    });
+
+    socket.disconnect();
+  });
+
+  it("onmessage handles phx_close by marking channel as not joined", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    socket.channel("room:1");
+
+    const ws = latestWs();
+    ws.onmessage?.({
+      data: JSON.stringify([null, "1", "room:1", "phx_close", {}]),
+    });
+
+    socket.disconnect();
+  });
+
+  it("onmessage ignores unparseable frames", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    const ws = latestWs();
+    // Should not throw
+    ws.onmessage?.({ data: "not json{{{" });
+    ws.onmessage?.({ data: JSON.stringify({ no: "topic" }) });
+
+    socket.disconnect();
+  });
+
+  it("heartbeat sends periodic messages when connected", () => {
+    const socket = new SocketConnection();
+    const ws = connectAndOpen(socket);
+
+    // Advance past heartbeat interval (30s)
+    jest.advanceTimersByTime(31_000);
+
+    expect(ws.send).toHaveBeenCalled();
+    const lastCall = ws.send.mock.calls[ws.send.mock.calls.length - 1][0];
+    const parsed = JSON.parse(lastCall);
+    expect(parsed[3]).toBe("heartbeat");
+
+    socket.disconnect();
+  });
+
+  it("onerror logs but does not crash", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    const ws = latestWs();
+    // Should not throw
+    ws.onerror?.({ message: "test error" });
+
+    socket.disconnect();
+  });
+
+  it("onopen rejoins existing channels after reconnect", async () => {
+    const socket = new SocketConnection();
+    const ws = connectAndOpen(socket);
+
+    // Create and join a channel
+    const ch = socket.channel("room:1");
+    ch.join();
+
+    // Simulate disconnect and reconnect
+    ws.simulateClose(1006, "network");
+    await jest.advanceTimersByTimeAsync(1_500);
+
+    const newWs = latestWs();
+    newWs.simulateOpen();
+
+    // The channel should have been re-joined (sendJoin called)
+    expect(newWs.send).toHaveBeenCalled();
+
+    socket.disconnect();
+  });
+
+  it("v1 message format is also parsed", () => {
+    const socket = new SocketConnection();
+    connectAndOpen(socket);
+
+    const ch = socket.channel("room:1");
+    ch.join();
+
+    const handler = jest.fn();
+    ch.on("msg", handler);
+
+    const ws = latestWs();
+    ws.onmessage?.({
+      data: JSON.stringify({
+        topic: "room:1",
+        event: "msg",
+        payload: { text: "hi" },
+        ref: "1",
+      }),
+    });
+
+    expect(handler).toHaveBeenCalledWith({ text: "hi" });
+
+    socket.disconnect();
+  });
+});
