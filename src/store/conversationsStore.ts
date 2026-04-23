@@ -57,6 +57,7 @@ async function enrichSingleConversation(
       return {
         ...conv,
         display_name: userInfo.display_name,
+        username: (userInfo as any).username ?? conv.username,
         avatar_url: userInfo.avatar_url || conv.avatar_url,
         member_user_ids: memberIds,
       };
