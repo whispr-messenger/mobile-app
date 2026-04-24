@@ -20,6 +20,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useNavigation,
   useRoute,
@@ -83,6 +84,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProp<{ Profile: RouteParams }, "Profile">>();
   const params = route.params;
+  const insets = useSafeAreaInsets();
   // ProfileScreen params loaded
 
   // States
@@ -616,11 +618,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }));
   };
 
-  // Handle settings navigation
-  const handleSettingsPress = () => {
-    navigation.navigate("Settings");
-  };
-
   // Handle home navigation (ConversationsList)
   const handleHomePress = () => {
     navigation.navigate("ConversationsList");
@@ -687,7 +684,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           ]}
         >
           {/* Header */}
-          <View style={styles.header}>
+          <View
+            style={[styles.header, { paddingTop: insets.top + spacing.md }]}
+          >
             <TouchableOpacity
               onPress={handleBackPress}
               style={styles.backButton}
@@ -709,12 +708,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     color={colors.text.light}
                   />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleSettingsPress}
-                  style={styles.settingsButton}
-                >
-                  <Text style={styles.settingsButtonText}>⚙️</Text>
-                </TouchableOpacity>
+                {isOwnProfile && (
+                  <TouchableOpacity
+                    onPress={() => setIsEditing(true)}
+                    style={styles.settingsButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Modifier le profil"
+                  >
+                    <Ionicons
+                      name="pencil"
+                      size={22}
+                      color={colors.text.light}
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <TouchableOpacity
@@ -939,26 +946,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
 
             {/* Action Buttons */}
-            {isOwnProfile && (
+            {isOwnProfile && isEditing && (
               <View style={styles.actionButtons}>
-                {!isEditing ? (
-                  <Button
-                    title="Modifier le profil"
-                    variant="primary"
-                    size="large"
-                    onPress={() => setIsEditing(true)}
-                    fullWidth
-                  />
-                ) : (
-                  <Button
-                    title={loading ? "Sauvegarde" : "Sauvegarder"}
-                    variant="primary"
-                    size="large"
-                    onPress={handleSaveProfile}
-                    loading={loading}
-                    fullWidth
-                  />
-                )}
+                <Button
+                  title={loading ? "Sauvegarde" : "Sauvegarder"}
+                  variant="primary"
+                  size="large"
+                  onPress={handleSaveProfile}
+                  loading={loading}
+                  fullWidth
+                />
               </View>
             )}
           </ScrollView>
@@ -1062,9 +1059,6 @@ const styles = StyleSheet.create({
   settingsButton: {
     padding: spacing.sm,
   },
-  settingsButtonText: {
-    fontSize: typography.fontSize.lg,
-  },
   cancelButton: {
     padding: spacing.sm,
   },
@@ -1079,7 +1073,8 @@ const styles = StyleSheet.create({
   },
   profilePictureSection: {
     alignItems: "center",
-    paddingVertical: spacing.xxxl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl,
   },
   profilePictureContainer: {
     position: "relative",
@@ -1116,7 +1111,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   profileInfo: {
-    paddingBottom: spacing.xxxl,
+    paddingBottom: spacing.sm,
   },
   loadingRow: {
     flexDirection: "row",
@@ -1229,7 +1224,12 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.85)",
   },
   actionButtons: {
-    paddingBottom: spacing.xxxl,
+    paddingBottom: spacing.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   modalOverlay: {
     flex: 1,
