@@ -123,7 +123,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
 
         if (Platform.OS === "web") {
           onContactAdded();
-          handleClose();
+          setSelectedUser(null);
           Alert.alert("Succès", "Demande de contact envoyée");
         } else {
           Alert.alert("Succès", "Demande de contact envoyée", [
@@ -131,7 +131,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               text: "OK",
               onPress: () => {
                 onContactAdded();
-                handleClose();
+                setSelectedUser(null);
               },
             },
           ]);
@@ -148,7 +148,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             "Ce contact est déjà dans ta liste (ou une demande est en attente).",
           );
           onContactAdded();
-          handleClose();
+          setSelectedUser(null);
           return;
         }
         Alert.alert(
