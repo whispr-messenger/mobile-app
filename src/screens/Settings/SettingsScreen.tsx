@@ -546,13 +546,15 @@ export const SettingsScreen: React.FC = () => {
           {title}
         </Text>
       </View>
-      <View
-        style={[
-          styles.sectionContent,
-          { backgroundColor: themeColors.background.secondary },
-        ]}
-      >
-        {children}
+      <View style={styles.sectionShadow}>
+        <View
+          style={[
+            styles.sectionContent,
+            { backgroundColor: themeColors.background.secondary },
+          ]}
+        >
+          {children}
+        </View>
       </View>
     </View>
   );
@@ -600,6 +602,49 @@ export const SettingsScreen: React.FC = () => {
             {getLocalizedText("settings.title")}
           </Text>
         </View>
+
+        {/* Account Settings */}
+        <SettingSection
+          title={getLocalizedText("settings.account")}
+          icon="person-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.myProfile")}
+            subtitle={getLocalizedText("settings.myProfileSubtitle")}
+            onPress={() => navigation.navigate("Profile", {})}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+          <SettingItem
+            label={getLocalizedText("settings.logout")}
+            subtitle="Se déconnecter de votre compte"
+            onPress={handleLogout}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+          <SettingItem
+            label={getLocalizedText("settings.deleteAccount")}
+            subtitle="Fonctionnalité à venir"
+            onPress={handleDeleteAccount}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+        </SettingSection>
 
         {/* Privacy Section */}
         <SettingSection
@@ -1006,50 +1051,6 @@ export const SettingsScreen: React.FC = () => {
           )}
         </SettingSection>
 
-        {/* Account Settings */}
-        <SettingSection
-          title={getLocalizedText("settings.account")}
-          icon="person-outline"
-        >
-          <SettingItem
-            label={getLocalizedText("settings.myProfile")}
-            subtitle={getLocalizedText("settings.myProfileSubtitle")}
-            onPress={() => navigation.navigate("Profile", {})}
-            icon="person-circle-outline"
-            rightComponent={
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={themeColors.text.tertiary}
-              />
-            }
-          />
-          <SettingItem
-            label={getLocalizedText("settings.logout")}
-            subtitle="Se déconnecter de votre compte"
-            onPress={handleLogout}
-            rightComponent={
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={themeColors.text.tertiary}
-              />
-            }
-          />
-          <SettingItem
-            label={getLocalizedText("settings.deleteAccount")}
-            subtitle="Fonctionnalité à venir"
-            onPress={handleDeleteAccount}
-            rightComponent={
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={themeColors.text.tertiary}
-              />
-            }
-          />
-        </SettingSection>
-
         {/* Developer / Debug — stripped from production bundles */}
         {__DEV__ && (
           <SettingSection title="Debug" icon="bug-outline">
@@ -1226,6 +1227,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: "bold",
+  },
+  sectionShadow: {
+    borderRadius: 12,
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sectionContent: {
     borderRadius: 12,
