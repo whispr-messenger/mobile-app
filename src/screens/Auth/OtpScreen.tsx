@@ -22,6 +22,7 @@ import { TokenService } from "../../services/TokenService";
 import { SignalKeyService } from "../../services/SignalKeyService";
 import { SignalKeysService } from "../../services/SecurityService";
 import { UserService } from "../../services/UserService";
+import { profileSetupFlag } from "../../services/profileSetupFlag";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
@@ -183,6 +184,7 @@ export const OtpScreen: React.FC = () => {
         generateAndUploadSignalKeys();
 
         if (purpose === "register") {
+          await profileSetupFlag.markPending();
           navigation.reset({ index: 0, routes: [{ name: "ProfileSetup" }] });
         } else {
           navigation.reset({
