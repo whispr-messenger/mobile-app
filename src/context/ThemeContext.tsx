@@ -138,6 +138,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.takePhoto": "Prendre une photo",
     "auth.chooseFromLibrary": "Choisir depuis la bibliothèque",
     "auth.cancel": "Annuler",
+    "auth.skip": "Passer",
+    "auth.linkedAccount": "Compte associé :",
 
     // Profile
     "profile.title": "Profil",
@@ -366,6 +368,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.ok": "OK",
     "common.next": "Suivant",
     "common.retry": "Réessayer",
+    "common.optional": "optionnel",
     "common.copyError": "Impossible de copier dans le presse-papiers.",
   },
   en: {
@@ -437,6 +440,8 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.takePhoto": "Take a photo",
     "auth.chooseFromLibrary": "Choose from library",
     "auth.cancel": "Cancel",
+    "auth.skip": "Skip",
+    "auth.linkedAccount": "Linked account:",
 
     // Profile
     "profile.title": "Profile",
@@ -657,6 +662,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.ok": "OK",
     "common.next": "Next",
     "common.retry": "Retry",
+    "common.optional": "optional",
     "common.copyError": "Unable to copy to clipboard.",
   },
 };

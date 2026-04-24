@@ -1,9 +1,19 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { ProfileSetupScreen } from './src/screens/Auth/ProfileSetupScreen';
+import { profileSetupFlag } from './src/services/profileSetupFlag';
 
 const mockReset = jest.fn();
 const mockNavigate = jest.fn();
+
+jest.mock('./src/services/profileSetupFlag', () => ({
+  profileSetupFlag: {
+    get: jest.fn().mockResolvedValue(null),
+    markPending: jest.fn().mockResolvedValue(undefined),
+    markDone: jest.fn().mockResolvedValue(undefined),
+    clear: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ navigate: mockNavigate, goBack: jest.fn(), reset: mockReset }),
@@ -50,7 +60,7 @@ jest.mock('./src/components', () => ({
 jest.mock('./src/services/TokenService', () => ({
   TokenService: { getAccessToken: jest.fn().mockResolvedValue('tok'), decodeAccessToken: jest.fn().mockReturnValue({ sub: 'user1' }) },
 }));
-const mockGetProfile = jest.fn().mockResolvedValue({ success: true, data: { firstName: 'John', lastName: 'Doe', username: 'johndoe' } });
+const mockGetProfile = jest.fn().mockResolvedValue({ success: true, profile: { firstName: 'John', lastName: 'Doe', username: 'johndoe', phoneNumber: '+33612345678' } });
 const mockUpdateProfile = jest.fn().mockResolvedValue({ success: true });
 jest.mock('./src/services', () => ({
   UserService: {
@@ -81,7 +91,7 @@ describe('ProfileSetupScreen', () => {
     const { getByPlaceholderText } = render(<ProfileSetupScreen />);
     expect(getByPlaceholderText('auth.firstName')).toBeTruthy();
     expect(getByPlaceholderText('auth.lastName')).toBeTruthy();
-    expect(getByPlaceholderText('@username')).toBeTruthy();
+    expect(getByPlaceholderText('Pseudo')).toBeTruthy();
   });
 
   it('renders save button', () => {
@@ -91,13 +101,16 @@ describe('ProfileSetupScreen', () => {
 
   it('renders skip button', () => {
     const { getByText } = render(<ProfileSetupScreen />);
-    expect(getByText(/auth.cancel/)).toBeTruthy();
+    expect(getByText(/auth.skip/)).toBeTruthy();
   });
 
-  it('navigates to ConversationsList on skip', () => {
+  it('navigates to ConversationsList on skip and marks flag done', async () => {
     const { getByText } = render(<ProfileSetupScreen />);
-    fireEvent.press(getByText(/auth.cancel/));
-    expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'ConversationsList' }] });
+    fireEvent.press(getByText(/auth.skip/));
+    await waitFor(() => {
+      expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'ConversationsList' }] });
+    });
+    expect(profileSetupFlag.markDone).toHaveBeenCalled();
   });
 
   it('navigates to ConversationsList on successful save', async () => {
@@ -108,10 +121,35 @@ describe('ProfileSetupScreen', () => {
     });
     fireEvent.changeText(getByPlaceholderText('auth.firstName'), 'John');
     fireEvent.changeText(getByPlaceholderText('auth.lastName'), 'Doe');
-    fireEvent.changeText(getByPlaceholderText('@username'), 'johndoe');
+    fireEvent.changeText(getByPlaceholderText('Pseudo'), 'johndoe');
     fireEvent.press(getByText('common.save'));
     await waitFor(() => {
       expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'ConversationsList' }] });
+    });
+    expect(profileSetupFlag.markDone).toHaveBeenCalled();
+  });
+
+  it('saves with no fields filled without calling updateProfile', async () => {
+    const { getByText, queryByText } = render(<ProfileSetupScreen />);
+    await waitFor(() => {
+      expect(queryByText('Préparation de votre compte...')).toBeNull();
+    });
+    fireEvent.press(getByText('common.save'));
+    await waitFor(() => {
+      expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'ConversationsList' }] });
+    });
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it('saves with only firstName filled', async () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(<ProfileSetupScreen />);
+    await waitFor(() => {
+      expect(queryByText('Préparation de votre compte...')).toBeNull();
+    });
+    fireEvent.changeText(getByPlaceholderText('auth.firstName'), 'John');
+    fireEvent.press(getByText('common.save'));
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({ firstName: 'John' });
     });
   });
 });
