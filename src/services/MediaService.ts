@@ -257,10 +257,11 @@ export const MediaService = {
     const baseName = `${encodeURIComponent(id)}`;
     const tmpPath = `${cacheDir}${baseName}.tmp`;
 
-    const result = await FileSystem.downloadAsync(
+    const download = (url: string) =>
+      FileSystem.downloadAsync(url, tmpPath, { headers });
+
+    const result = await download(
       `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`,
-      tmpPath,
-      { headers },
     );
 
     if (result.status < 200 || result.status >= 300) {
@@ -300,8 +301,47 @@ export const MediaService = {
       await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
         () => {},
       );
-      if (url) return url;
-      throw new Error("Downloaded avatar is not an image");
+
+      try {
+        const streamed = await download(
+          `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob?stream=1`,
+        );
+        if (streamed.status < 200 || streamed.status >= 300) {
+          throw new Error(`HTTP ${streamed.status}`);
+        }
+
+        const streamedContentType =
+          (streamed as any)?.headers?.["Content-Type"] ??
+          (streamed as any)?.headers?.["content-type"] ??
+          "";
+
+        if (!streamedContentType.startsWith("image/")) {
+          await FileSystem.deleteAsync(streamed.uri, {
+            idempotent: true,
+          }).catch(() => {});
+          throw new Error(
+            `Streamed avatar has invalid content-type: ${streamedContentType}`,
+          );
+        }
+
+        const ext = streamedContentType.includes("png")
+          ? "png"
+          : streamedContentType.includes("webp")
+            ? "webp"
+            : streamedContentType.includes("heic") ||
+                streamedContentType.includes("heif")
+              ? "heic"
+              : "jpg";
+        const finalPath = `${cacheDir}${baseName}.${ext}`;
+        await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+          () => {},
+        );
+        await FileSystem.moveAsync({ from: streamed.uri, to: finalPath });
+        return finalPath;
+      } catch {
+        if (url) return url;
+        throw new Error("Downloaded avatar is not an image");
+      }
     }
 
     if (!contentType.startsWith("image/")) {
