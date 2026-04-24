@@ -3,18 +3,19 @@
  * Uses expo-av Audio.Sound for playback with play/pause and duration display.
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../theme/colors';
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { colors } from "../../theme/colors";
+import { useResolvedMediaUrl } from "../../hooks/useResolvedMediaUrl";
 
 // Import expo-av with error handling
 let AudioModule: any = null;
 try {
-  const expoAv = require('expo-av');
+  const expoAv = require("expo-av");
   AudioModule = expoAv.Audio;
 } catch (error) {
-  console.warn('[AudioMessage] expo-av not available:', error);
+  console.warn("[AudioMessage] expo-av not available:", error);
 }
 
 interface AudioMessageProps {
@@ -26,15 +27,24 @@ interface AudioMessageProps {
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSent = false }) => {
+export const AudioMessage: React.FC<AudioMessageProps> = ({
+  uri,
+  duration,
+  isSent = false,
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration || 0);
   const [isLoaded, setIsLoaded] = useState(false);
   const soundRef = useRef<any>(null);
+
+  // `/media/v1/:id/blob` returns `{ url, expiresAt }` JSON — not the raw
+  // audio bytes. Resolve it to a playable presigned URL (or a streamed
+  // `blob:` URL on web) before handing it to Audio.Sound.
+  const { resolvedUri } = useResolvedMediaUrl(uri);
 
   useEffect(() => {
     return () => {
@@ -46,8 +56,18 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSen
     };
   }, []);
 
+  // Unload any previously-loaded sound when the resolved URI changes so the
+  // next play reloads from the fresh source.
+  useEffect(() => {
+    if (soundRef.current) {
+      soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      setIsLoaded(false);
+    }
+  }, [resolvedUri]);
+
   const loadSound = useCallback(async () => {
-    if (!AudioModule || !uri) return null;
+    if (!AudioModule || !resolvedUri) return null;
 
     try {
       if (soundRef.current) {
@@ -55,7 +75,7 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSen
       }
 
       const { sound, status } = await AudioModule.Sound.createAsync(
-        { uri },
+        { uri: resolvedUri },
         { shouldPlay: false },
         onPlaybackStatusUpdate,
       );
@@ -67,13 +87,13 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSen
       setIsLoaded(true);
       return sound;
     } catch (error) {
-      console.error('[AudioMessage] Error loading sound:', error);
+      console.error("[AudioMessage] Error loading sound:", error);
       return null;
     }
-  }, [uri]);
+  }, [resolvedUri]);
 
   const onPlaybackStatusUpdate = useCallback((status: any) => {
-    if (!status || typeof status !== 'object') return;
+    if (!status || typeof status !== "object") return;
 
     if (status.isLoaded) {
       setCurrentPosition((status.positionMillis || 0) / 1000);
@@ -113,26 +133,37 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSen
         await sound.playAsync();
       }
     } catch (error) {
-      console.error('[AudioMessage] Error toggling playback:', error);
+      console.error("[AudioMessage] Error toggling playback:", error);
     }
   }, [isPlaying, isLoaded, loadSound]);
 
   const progress = totalDuration > 0 ? currentPosition / totalDuration : 0;
 
-  const textColor = isSent ? colors.text.light : 'rgba(255, 255, 255, 0.9)';
-  const secondaryColor = isSent ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.5)';
-  const trackBg = isSent ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.15)';
+  const textColor = isSent ? colors.text.light : "rgba(255, 255, 255, 0.9)";
+  const secondaryColor = isSent
+    ? "rgba(255, 255, 255, 0.7)"
+    : "rgba(255, 255, 255, 0.5)";
+  const trackBg = isSent
+    ? "rgba(255, 255, 255, 0.3)"
+    : "rgba(255, 255, 255, 0.15)";
   const trackFill = isSent ? colors.text.light : colors.primary.main;
 
   return (
     <View style={styles.container}>
       <TouchableOpacity
         onPress={handlePlayPause}
-        style={[styles.playButton, { backgroundColor: isSent ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.1)' }]}
+        style={[
+          styles.playButton,
+          {
+            backgroundColor: isSent
+              ? "rgba(255, 255, 255, 0.2)"
+              : "rgba(255, 255, 255, 0.1)",
+          },
+        ]}
         activeOpacity={0.7}
       >
         <Ionicons
-          name={isPlaying ? 'pause' : 'play'}
+          name={isPlaying ? "pause" : "play"}
           size={22}
           color={textColor}
           style={isPlaying ? undefined : { marginLeft: 2 }}
@@ -141,7 +172,15 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSen
 
       <View style={styles.trackContainer}>
         <View style={[styles.trackBackground, { backgroundColor: trackBg }]}>
-          <View style={[styles.trackFill, { backgroundColor: trackFill, width: `${Math.min(progress * 100, 100)}%` }]} />
+          <View
+            style={[
+              styles.trackFill,
+              {
+                backgroundColor: trackFill,
+                width: `${Math.min(progress * 100, 100)}%`,
+              },
+            ]}
+          />
         </View>
         <Text style={[styles.durationText, { color: secondaryColor }]}>
           {isPlaying || currentPosition > 0
@@ -150,15 +189,20 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration, isSen
         </Text>
       </View>
 
-      <Ionicons name="mic" size={16} color={secondaryColor} style={styles.micIcon} />
+      <Ionicons
+        name="mic"
+        size={16}
+        color={secondaryColor}
+        style={styles.micIcon}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     minWidth: 200,
     maxWidth: 250,
     paddingVertical: 4,
@@ -167,21 +211,21 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 10,
   },
   trackContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   trackBackground: {
     height: 4,
     borderRadius: 2,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   trackFill: {
-    height: '100%',
+    height: "100%",
     borderRadius: 2,
   },
   durationText: {
