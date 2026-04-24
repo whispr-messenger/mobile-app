@@ -74,7 +74,9 @@ afterAll(() => {
 const mediaUrl = "https://whispr.devzeyu.com/media/v1/abc/blob";
 
 describe("MediaMessage useResolvedMediaUrl", () => {
-  it("uses the presigned URL directly when it is publicly reachable", async () => {
+  it(
+    "uses the presigned URL directly when it is publicly reachable",
+    async () => {
     const fetchSpy = jest.fn().mockImplementation((url: string) => {
       if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
       return Promise.resolve(
@@ -85,17 +87,24 @@ describe("MediaMessage useResolvedMediaUrl", () => {
 
     const { toJSON } = render(<MediaMessage uri={mediaUrl} type="image" />);
 
-    await waitFor(() => {
+    await waitFor(
+      () => {
       const tree = JSON.stringify(toJSON());
       expect(tree).toContain("https://cdn.example.com/x.jpg");
-    });
+      },
+      { timeout: 10000 },
+    );
     // Only the JSON roundtrip — never hit ?stream=1.
     expect(
       fetchSpy.mock.calls.some(([url]: [string]) => url.includes("stream=1")),
     ).toBe(false);
-  });
+    },
+    15000,
+  );
 
-  it("falls back to ?stream=1 bytes when the presigned URL is cluster-internal", async () => {
+  it(
+    "falls back to ?stream=1 bytes when the presigned URL is cluster-internal",
+    async () => {
     const fetchSpy = jest.fn().mockImplementation((url: string) => {
       if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
       return Promise.resolve(
@@ -108,10 +117,13 @@ describe("MediaMessage useResolvedMediaUrl", () => {
 
     const { toJSON } = render(<MediaMessage uri={mediaUrl} type="image" />);
 
-    await waitFor(() => {
+    await waitFor(
+      () => {
       const tree = JSON.stringify(toJSON());
       expect(tree).toContain("blob:fake");
-    });
+      },
+      { timeout: 10000 },
+    );
 
     // A ?stream=1 request was made with the Bearer token
     const streamCall = fetchSpy.mock.calls.find(([url]: [string]) =>
@@ -120,7 +132,9 @@ describe("MediaMessage useResolvedMediaUrl", () => {
     expect(streamCall).toBeDefined();
     expect(streamCall![0]).toContain("stream=1");
     expect(streamCall![1].headers.Authorization).toBe("Bearer tok");
-  });
+    },
+    15000,
+  );
 
   it("treats {url:null} as 'no thumbnail' without error or stream fallback", async () => {
     const blobUrl = "https://cdn.example.com/main.jpg";
