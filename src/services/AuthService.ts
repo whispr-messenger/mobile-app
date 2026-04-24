@@ -1,6 +1,7 @@
 import { TokenService } from "./TokenService";
 import { DeviceService } from "./DeviceService";
 import { SignalKeyService } from "./SignalKeyService";
+import { NotificationService } from "./NotificationService";
 import { getApiBaseUrl } from "./apiBase";
 import { emitSessionExpired } from "./sessionEvents";
 import type {
@@ -98,6 +99,7 @@ export const AuthService = {
 
     await TokenService.saveTokens(tokens);
     sessionDead = false;
+    NotificationService.initPushRegistration().catch(() => {});
     return tokens;
   },
 
@@ -118,6 +120,7 @@ export const AuthService = {
 
     await TokenService.saveTokens(tokens);
     sessionDead = false;
+    NotificationService.initPushRegistration().catch(() => {});
     return tokens;
   },
 
@@ -175,6 +178,8 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
+    await NotificationService.unregisterDevice(deviceId).catch(() => {});
+    NotificationService.tearDownPushRegistration();
     await apiFetch("/logout", {
       method: "POST",
       token: token ?? undefined,
