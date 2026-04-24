@@ -30,6 +30,17 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   const effectiveUri = uri && /^https?:\/\//i.test(uri) ? uri : undefined;
 
+  React.useEffect(() => {
+    console.log(
+      "[PDP-DEBUG][Avatar] name:",
+      name,
+      "uri:",
+      uri,
+      "effectiveUri:",
+      effectiveUri,
+    );
+  }, [name, uri, effectiveUri]);
+
   const initials =
     name
       ?.split(" ")
@@ -57,7 +68,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           resizeMode="cover"
           onError={(error) => {
             console.log(
-              "[Avatar] Image load error:",
+              "[PDP-DEBUG][Avatar] Image load error:",
               effectiveUri,
               error.nativeEvent?.error,
             );

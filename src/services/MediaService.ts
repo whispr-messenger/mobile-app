@@ -158,6 +158,16 @@ export const MediaService = {
       });
     }
 
+    console.log(
+      "[PDP-DEBUG][MediaService] uploadMedia → POST",
+      `${getMediaBaseUrl()}/upload`,
+      {
+        context: meta?.context,
+        ownerId: meta?.ownerId,
+        fileName: file.name,
+        fileType: file.type,
+      },
+    );
     const response = await fetch(`${getMediaBaseUrl()}/upload`, {
       method: "POST",
       headers,
@@ -166,6 +176,11 @@ export const MediaService = {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      console.log(
+        "[PDP-DEBUG][MediaService] uploadMedia ← HTTP",
+        response.status,
+        body,
+      );
       const error = new Error(
         (body as { message?: string })?.message ??
           `Upload failed: HTTP ${response.status}`,
@@ -174,7 +189,15 @@ export const MediaService = {
       throw error;
     }
 
-    return normaliseUpload(await response.json());
+    const raw = await response.json();
+    console.log("[PDP-DEBUG][MediaService] uploadMedia ← 200 raw:", raw);
+    const normalised = normaliseUpload(raw);
+    console.log("[PDP-DEBUG][MediaService] uploadMedia normalised:", {
+      id: normalised.id,
+      url: normalised.url,
+      thumbnail_url: normalised.thumbnail_url,
+    });
+    return normalised;
   },
 
   /**
