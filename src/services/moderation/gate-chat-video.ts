@@ -1,4 +1,5 @@
 import * as VideoThumbnails from "expo-video-thumbnails";
+import { Platform } from "react-native";
 import { tfjsService } from "./tfjs.service";
 import { logger } from "../../utils/logger";
 import { getModerationModelVersion } from "./model-version";
@@ -16,6 +17,11 @@ import type { GateChatImageResult } from "./gate-chat-image";
 export async function gateChatVideoBeforeSend(
   uri: string,
 ): Promise<GateChatImageResult> {
+  // expo-video-thumbnails is a no-op on web that throws; skip video gating entirely.
+  if (Platform.OS === "web") {
+    return { ok: true };
+  }
+
   const version = await getModerationModelVersion();
   if (version !== "v3") {
     return { ok: true };
