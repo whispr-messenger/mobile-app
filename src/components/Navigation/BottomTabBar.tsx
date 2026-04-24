@@ -22,6 +22,8 @@ import { useConversationsStore } from "../../store/conversationsStore";
 const TEXT_LIGHT_COLOR = colors.text.light;
 const PRIMARY_MAIN_COLOR = colors.primary.main;
 const GRADIENT_APP_COLORS = colors.background.gradient.app;
+const GRADIENT_SAFE_AREA_COLOR =
+  GRADIENT_APP_COLORS[GRADIENT_APP_COLORS.length - 1] ?? colors.background.dark;
 
 interface TabItem {
   name: string;
@@ -188,6 +190,7 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
 const styles = StyleSheet.create({
   container: {
     borderTopWidth: 0,
+    backgroundColor: GRADIENT_SAFE_AREA_COLOR,
   },
   gradientBackground: {
     borderTopWidth: 1,
