@@ -24,6 +24,7 @@
     "@react-navigation/stack": "^7.4.8",
     "@tensorflow/tfjs": "^4.22.0",
     "@types/jpeg-js": "^0.3.0",
+    "@yudiel/react-qr-scanner": "^2.5.1",
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
     "expo-camera": "~17.0.10",
