@@ -5,6 +5,8 @@ import {
   type Participant,
   type RemoteVideoTrack,
   type LocalVideoTrack,
+  type RemoteAudioTrack,
+  type LocalAudioTrack,
 } from "livekit-client";
 
 interface Props {
@@ -26,6 +28,15 @@ export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
     | undefined;
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  const audioPublication = participant.getTrackPublication(
+    Track.Source.Microphone,
+  );
+  const audioTrack = audioPublication?.audioTrack as
+    | RemoteAudioTrack
+    | LocalAudioTrack
+    | undefined;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     const el = videoRef.current;
     if (!videoTrack || !el) return undefined;
@@ -34,6 +45,16 @@ export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
       videoTrack.detach(el);
     };
   }, [videoTrack]);
+
+  useEffect(() => {
+    if (participant.isLocal) return undefined;
+    const el = audioRef.current;
+    if (!audioTrack || !el) return undefined;
+    audioTrack.attach(el);
+    return () => {
+      audioTrack.detach(el);
+    };
+  }, [audioTrack, participant.isLocal]);
 
   return (
     <View style={styles.tile}>
@@ -61,6 +82,7 @@ export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
           </Text>
         </View>
       )}
+      {!participant.isLocal && <audio ref={audioRef} autoPlay />}
     </View>
   );
 };
