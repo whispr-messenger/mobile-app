@@ -32,31 +32,31 @@ describe("Avatar", () => {
     expect(getByText("?")).toBeTruthy();
   });
 
-  it("rejects a bare UUID and shows initials instead", () => {
-    const { getByText } = render(
+  it("accepts a bare UUID (media id) and renders an image", () => {
+    const { queryByText } = render(
       <Avatar uri="550e8400-e29b-41d4-a716-446655440000" name="Test User" />,
     );
-    expect(getByText("TU")).toBeTruthy();
+    expect(queryByText("TU")).toBeNull();
   });
 
-  it("rejects a relative media path and shows initials", () => {
-    const { getByText } = render(
+  it("accepts a relative media path and renders an image", () => {
+    const { queryByText } = render(
       <Avatar
         uri="/media/v1/public/550e8400-e29b-41d4-a716-446655440000"
         name="Test User"
       />,
     );
-    expect(getByText("TU")).toBeTruthy();
+    expect(queryByText("TU")).toBeNull();
   });
 
-  it("rejects a storage path and shows initials", () => {
-    const { getByText } = render(
+  it("accepts a storage path and renders an image", () => {
+    const { queryByText } = render(
       <Avatar
         uri="avatars/aaaa-bbbb-cccc/550e8400-e29b-41d4-a716-446655440000"
         name="Test User"
       />,
     );
-    expect(getByText("TU")).toBeTruthy();
+    expect(queryByText("TU")).toBeNull();
   });
 
   it("passes through a plain https URL unchanged", () => {
