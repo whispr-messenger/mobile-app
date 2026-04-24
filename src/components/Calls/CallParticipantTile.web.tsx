@@ -82,7 +82,9 @@ export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
           </Text>
         </View>
       )}
-      {!participant.isLocal && <audio ref={audioRef} autoPlay />}
+      {!participant.isLocal && (
+        <audio ref={audioRef} autoPlay style={{ display: "none" }} />
+      )}
     </View>
   );
 };

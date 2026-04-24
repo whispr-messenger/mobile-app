@@ -29,6 +29,9 @@ jest.mock('livekit-client', () => ({
     ParticipantDisconnected: 'participantDisconnected',
     TrackSubscribed: 'trackSubscribed',
     TrackUnsubscribed: 'trackUnsubscribed',
+    TrackMuted: 'trackMuted',
+    TrackUnmuted: 'trackUnmuted',
+    LocalTrackPublished: 'localTrackPublished',
   },
 }));
 
@@ -75,8 +78,8 @@ describe('InCallScreen', () => {
     };
     mockActive = { callId: 'c1', status: 'connected', room };
     const { unmount } = render(<InCallScreen />);
-    expect(room.on).toHaveBeenCalledTimes(4);
+    expect(room.on).toHaveBeenCalledTimes(7);
     unmount();
-    expect(room.off).toHaveBeenCalledTimes(4);
+    expect(room.off).toHaveBeenCalledTimes(7);
   });
 });
