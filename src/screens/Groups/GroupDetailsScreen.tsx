@@ -65,6 +65,36 @@ const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
 const AnimatedView = Animated.createAnimatedComponent(View);
 
+const isSelfDemotionBlocked = (
+  role: "admin" | "member",
+  targetUserId: string,
+  currentUserId: string,
+  isLastAdmin: boolean,
+): boolean =>
+  role === "member" && targetUserId === currentUserId && isLastAdmin;
+
+const getChangeRoleErrorMessage = (
+  error: { status?: number; message?: string } | null | undefined,
+): { title: string; message: string } => {
+  if (error?.status === 403) {
+    return {
+      title: "Non autorisé",
+      message: "Seul un administrateur peut modifier les rôles.",
+    };
+  }
+  if (error?.status === 404 || error?.status === 405) {
+    return {
+      title: "Fonctionnalité indisponible",
+      message:
+        "Le changement de rôle n'est pas encore disponible côté serveur.",
+    };
+  }
+  return {
+    title: "Erreur",
+    message: error?.message || "Impossible de changer le rôle",
+  };
+};
+
 type GroupDetailsScreenRouteProp = StackScreenProps<
   AuthStackParamList,
   "GroupDetails"
@@ -478,11 +508,13 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleChangeRole = useCallback(
     async (member: GroupMember, role: "admin" | "member") => {
-      // Anti-self-lock: sole admin trying to demote self
       if (
-        role === "member" &&
-        member.user_id === CURRENT_USER_ID &&
-        isLastAdmin
+        isSelfDemotionBlocked(
+          role,
+          member.user_id,
+          CURRENT_USER_ID,
+          isLastAdmin,
+        )
       ) {
         Alert.alert(
           "Action impossible",
@@ -503,22 +535,8 @@ export const GroupDetailsScreen: React.FC = () => {
         loadGroupData();
       } catch (error: any) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        if (error?.status === 403) {
-          Alert.alert(
-            "Non autorisé",
-            "Seul un administrateur peut modifier les rôles.",
-          );
-        } else if (error?.status === 404 || error?.status === 405) {
-          Alert.alert(
-            "Fonctionnalité indisponible",
-            "Le changement de rôle n'est pas encore disponible côté serveur.",
-          );
-        } else {
-          Alert.alert(
-            "Erreur",
-            error?.message || "Impossible de changer le rôle",
-          );
-        }
+        const { title, message } = getChangeRoleErrorMessage(error);
+        Alert.alert(title, message);
       } finally {
         setMemberActionLoading(false);
       }

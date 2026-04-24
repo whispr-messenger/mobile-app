@@ -69,19 +69,3 @@ export async function compressImage(
     return uri;
   }
 }
-
-/**
- * Get file size in bytes
- * @param uri - File URI
- * @returns File size in bytes or null if unable to determine
- */
-export async function getFileSize(_uri: string): Promise<number | null> {
-  try {
-    // For local files, we can't easily get size without FileSystem
-    // This is a placeholder - in production, use expo-file-system
-    return null;
-  } catch (error) {
-    console.error("[ImageCompression] Error getting file size:", error);
-    return null;
-  }
-}
