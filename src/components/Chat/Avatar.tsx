@@ -6,6 +6,8 @@ import React from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
+import { getApiBaseUrl } from "../../services/apiBase";
+import MediaService from "../../services/MediaService";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -27,19 +29,59 @@ export const Avatar: React.FC<AvatarProps> = ({
   isOnline = false,
 }) => {
   const [imageError, setImageError] = React.useState(false);
+  const [resolvedUri, setResolvedUri] = React.useState<string | undefined>(
+    undefined,
+  );
+  const triedAuthResolveRef = React.useRef(false);
 
-  const effectiveUri = uri && /^https?:\/\//i.test(uri) ? uri : undefined;
+  const effectiveCandidate = React.useMemo(() => {
+    const raw = typeof uri === "string" ? uri.trim() : "";
+    if (!raw) return { uri: undefined, mediaId: undefined };
 
-  React.useEffect(() => {
-    console.log(
-      "[PDP-DEBUG][Avatar] name:",
-      name,
-      "uri:",
-      uri,
-      "effectiveUri:",
-      effectiveUri,
+    if (raw.startsWith("file://") || raw.startsWith("data:")) {
+      return { uri: raw, mediaId: undefined };
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+      return { uri: raw, mediaId: undefined };
+    }
+
+    const publicMediaMatch = raw.match(
+      /^\/?media\/v1\/public\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
     );
-  }, [name, uri, effectiveUri]);
+    if (publicMediaMatch?.[1]) {
+      const base = getApiBaseUrl();
+      const id = publicMediaMatch[1];
+      return {
+        uri: `${base}/media/v1/${encodeURIComponent(id)}/blob`,
+        mediaId: id,
+      };
+    }
+
+    const uuidMatch = raw.match(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    if (uuidMatch) {
+      const base = getApiBaseUrl();
+      return {
+        uri: `${base}/media/v1/${encodeURIComponent(raw)}/blob`,
+        mediaId: raw,
+      };
+    }
+
+    const base = getApiBaseUrl();
+    if (raw.startsWith("/")) {
+      return { uri: `${base}${raw}`, mediaId: undefined };
+    }
+
+    if (raw.includes("/")) {
+      return { uri: `${base}/${raw.replace(/^\/+/, "")}`, mediaId: undefined };
+    }
+
+    return { uri: undefined, mediaId: undefined };
+  }, [uri]);
+
+  const effectiveUri = resolvedUri ?? effectiveCandidate.uri;
 
   const initials =
     name
@@ -52,9 +94,11 @@ export const Avatar: React.FC<AvatarProps> = ({
   // Reset error state when URI changes
   React.useEffect(() => {
     setImageError(false);
-  }, [effectiveUri]);
+    setResolvedUri(undefined);
+    triedAuthResolveRef.current = false;
+  }, [uri]);
 
-  const shouldShowImage = effectiveUri && !imageError;
+  const shouldShowImage = !!effectiveUri && !imageError;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -73,6 +117,42 @@ export const Avatar: React.FC<AvatarProps> = ({
               error.nativeEvent?.error,
             );
             setImageError(true);
+
+            if (triedAuthResolveRef.current) return;
+            triedAuthResolveRef.current = true;
+
+            const raw = typeof uri === "string" ? uri.trim() : "";
+            const directMediaId =
+              effectiveCandidate.mediaId ||
+              (raw.match(
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+              )
+                ? raw
+                : undefined);
+
+            const parsedFromUrl = (() => {
+              const candidate = effectiveUri ?? "";
+              const m = candidate.match(
+                /\/media\/v1\/(?:public\/)?([^/]+)(?:\/|$)/,
+              );
+              if (!m?.[1]) return undefined;
+              try {
+                return decodeURIComponent(m[1]);
+              } catch {
+                return m[1];
+              }
+            })();
+
+            const mediaId = directMediaId || parsedFromUrl;
+            if (!mediaId) return;
+
+            MediaService.downloadMediaToCacheFile(mediaId)
+              .then((localOrUrl) => {
+                if (!localOrUrl) return;
+                setResolvedUri(localOrUrl);
+                setImageError(false);
+              })
+              .catch(() => undefined);
           }}
         />
       ) : (
