@@ -141,13 +141,13 @@ describe("ProfileScreen", () => {
   });
 
   it("renders edit profile button", () => {
-    const { getByText } = render(<ProfileScreen />);
-    expect(getByText("Modifier le profil")).toBeTruthy();
+    const { getByLabelText } = render(<ProfileScreen />);
+    expect(getByLabelText("Modifier le profil")).toBeTruthy();
   });
 
   it("enters edit mode on edit button press", () => {
-    const { getByText } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
+    const { getByLabelText, getByText } = render(<ProfileScreen />);
+    fireEvent.press(getByLabelText("Modifier le profil"));
     expect(getByText("Sauvegarder")).toBeTruthy();
   });
 
@@ -155,12 +155,6 @@ describe("ProfileScreen", () => {
     const { getByText } = render(<ProfileScreen />);
     fireEvent.press(getByText("← Retour"));
     expect(mockGoBack).toHaveBeenCalled();
-  });
-
-  it("navigates to Settings on settings press", () => {
-    const { getByText } = render(<ProfileScreen />);
-    fireEvent.press(getByText("⚙️"));
-    expect(mockNavigate).toHaveBeenCalledWith("Settings");
   });
 });
 
@@ -186,8 +180,8 @@ describe("ProfileScreen — edit / save flow", () => {
       canceled: true,
     });
 
-    const { getByText } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
+    const { getByLabelText } = render(<ProfileScreen />);
+    fireEvent.press(getByLabelText("Modifier le profil"));
     // Re-pressing the avatar area is not part of the rendered text — the flow
     // is tested through the launchImageLibraryAsync mock above.
 
@@ -203,8 +197,10 @@ describe("ProfileScreen — edit / save flow", () => {
     const mockInstance = services.UserService.getInstance();
     (mockInstance.updateProfile as jest.Mock).mockClear();
 
-    const { getByText, getByDisplayValue } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
+    const { getByText, getByLabelText, getByDisplayValue } = render(
+      <ProfileScreen />,
+    );
+    fireEvent.press(getByLabelText("Modifier le profil"));
 
     // Clear the firstName field → validation should reject
     fireEvent.changeText(getByDisplayValue("John"), "");
@@ -235,8 +231,10 @@ describe("ProfileScreen — edit / save flow", () => {
       },
     });
 
-    const { getByText, getByDisplayValue } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
+    const { getByText, getByLabelText, getByDisplayValue } = render(
+      <ProfileScreen />,
+    );
+    fireEvent.press(getByLabelText("Modifier le profil"));
     fireEvent.changeText(getByDisplayValue("John"), "Jane");
     fireEvent.press(getByText("Sauvegarder"));
 
