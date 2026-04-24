@@ -107,6 +107,52 @@ type ChatScreenRouteProp = StackScreenProps<
 >["route"];
 type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
+const DEFAULT_MEDIA_CAPTION: Record<
+  "image" | "video" | "audio" | "file",
+  string
+> = {
+  image: "Photo",
+  video: "Vidéo",
+  audio: "Message vocal",
+  file: "Fichier",
+};
+
+const DEFAULT_MIME_BY_KIND: Record<
+  "image" | "video" | "audio" | "file",
+  string
+> = {
+  image: "image/jpeg",
+  video: "video/mp4",
+  audio: "audio/mp4",
+  file: "application/octet-stream",
+};
+
+const EXTENSION_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  avi: "video/x-msvideo",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  caf: "audio/x-caf",
+};
+
+const resolveMimeType = (
+  extension: string,
+  kind: "image" | "video" | "audio" | "file",
+): string => EXTENSION_TO_MIME[extension] ?? DEFAULT_MIME_BY_KIND[kind];
+
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation<ChatScreenNavigationProp>();
@@ -1025,48 +1071,12 @@ export const ChatScreen: React.FC = () => {
       sendTyping(conversationId, false);
 
       // Use caption if provided, otherwise use default text
-      const messageContent =
-        caption?.trim() ||
-        (type === "image"
-          ? "Photo"
-          : type === "video"
-            ? "Vidéo"
-            : type === "audio"
-              ? "Message vocal"
-              : "Fichier");
+      const messageContent = caption?.trim() || DEFAULT_MEDIA_CAPTION[type];
 
       // Derive filename and MIME type from the local URI
       const filename = uri.split("/").pop() || "media";
       const extension = filename.split(".").pop()?.toLowerCase() || "";
-      const mimeMap: Record<string, string> = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        heic: "image/heic",
-        mp4: "video/mp4",
-        mov: "video/quicktime",
-        avi: "video/x-msvideo",
-        pdf: "application/pdf",
-        doc: "application/msword",
-        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        m4a: "audio/mp4",
-        aac: "audio/aac",
-        mp3: "audio/mpeg",
-        wav: "audio/wav",
-        ogg: "audio/ogg",
-        caf: "audio/x-caf",
-      };
-      const mimeType =
-        mimeMap[extension] ||
-        (type === "image"
-          ? "image/jpeg"
-          : type === "video"
-            ? "video/mp4"
-            : type === "audio"
-              ? "audio/mp4"
-              : "application/octet-stream");
+      const mimeType = resolveMimeType(extension, type);
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
