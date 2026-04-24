@@ -37,6 +37,23 @@ try {
   console.warn("[MessageInput] expo-av not available for recording:", error);
 }
 
+// Derive a Safari-compatible MIME on web; keep HIGH_QUALITY preset on native.
+// expo-av's HIGH_QUALITY preset forces `audio/webm` on web, which iOS Safari
+// refuses with NotSupportedError. Safari (iOS + macOS) supports `audio/mp4`.
+export const buildRecordingOptions = () => {
+  const base = AudioModule?.RecordingOptionsPresets?.HIGH_QUALITY;
+  if (Platform.OS !== "web") return base;
+  const webMime =
+    typeof MediaRecorder !== "undefined" &&
+    MediaRecorder.isTypeSupported("audio/mp4")
+      ? "audio/mp4"
+      : "audio/webm";
+  return {
+    ...base,
+    web: { mimeType: webMime, bitsPerSecond: 128000 },
+  };
+};
+
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
   onSendMedia?: (
@@ -78,6 +95,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef<any>(null);
+  const recordingMimeRef = useRef<string | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
@@ -317,9 +335,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         playsInSilentModeIOS: true,
       });
 
-      const { recording } = await AudioModule.Recording.createAsync(
-        AudioModule.RecordingOptionsPresets.HIGH_QUALITY,
-      );
+      const options = buildRecordingOptions();
+      recordingMimeRef.current =
+        Platform.OS === "web" ? (options?.web?.mimeType ?? null) : null;
+      const { recording } = await AudioModule.Recording.createAsync(options);
       recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
@@ -368,7 +387,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSendMedia?.(uri, "audio", replyingTo?.id);
+
+      // On web the URI is a `blob:...uuid` with no extension; backends derive
+      // filenames from the URL path and reject blobs. Rewrap with a proper
+      // File so the resulting object URL carries a real name + MIME.
+      let finalUri = uri;
+      if (Platform.OS === "web" && uri.startsWith("blob:")) {
+        try {
+          const mime = recordingMimeRef.current || "audio/webm";
+          const ext = mime === "audio/mp4" ? "m4a" : "webm";
+          const fileName = `voice-${Date.now()}.${ext}`;
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const file = new File([blob], fileName, { type: mime });
+          finalUri = URL.createObjectURL(file);
+        } catch (rewrapError) {
+          console.warn(
+            "[MessageInput] Failed to rewrap blob, sending raw URI:",
+            rewrapError,
+          );
+        }
+      }
+      recordingMimeRef.current = null;
+
+      onSendMedia?.(finalUri, "audio", replyingTo?.id);
       if (replyingTo) {
         onCancelReply?.();
       }
@@ -390,6 +432,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
       await recordingRef.current.stopAndUnloadAsync();
       recordingRef.current = null;
+      recordingMimeRef.current = null;
       setIsRecording(false);
       setRecordingDuration(0);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -398,6 +441,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setIsRecording(false);
       setRecordingDuration(0);
       recordingRef.current = null;
+      recordingMimeRef.current = null;
     }
   }, []);
 
@@ -635,6 +679,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 onLongPress={startRecording}
                 delayLongPress={300}
                 activeOpacity={0.7}
+                style={
+                  // iOS Safari: block native context menu / text-selection
+                  // popup from stealing the long-press gesture.
+                  Platform.OS === "web"
+                    ? ({
+                        userSelect: "none",
+                        WebkitUserSelect: "none",
+                        WebkitTouchCallout: "none",
+                      } as any)
+                    : undefined
+                }
               >
                 <LinearGradient
                   colors={["#FFB07B", "#F04882"]}
