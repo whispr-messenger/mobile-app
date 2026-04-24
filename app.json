@@ -43,6 +43,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "whispr.test1702",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "RECORD_AUDIO",
         "CAMERA",
