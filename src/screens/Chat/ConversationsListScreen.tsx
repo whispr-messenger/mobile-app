@@ -177,10 +177,10 @@ export const ConversationsListScreen: React.FC = () => {
   }, [token, connectionState, conversationIdsKey, joinConversationChannel]);
 
   useEffect(() => {
+    if (!userId) return;
     fetchConversations();
     loadManuallyUnreadIds();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [fetchConversations, loadManuallyUnreadIds, userId]);
 
   // Refresh conversations when WebSocket reconnects to pick up messages
   // that were missed during the disconnection window
