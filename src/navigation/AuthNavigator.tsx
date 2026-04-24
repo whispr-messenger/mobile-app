@@ -46,7 +46,13 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
 import { useModerationStore } from "../store/moderationStore";
+import { useConversationsStore } from "../store/conversationsStore";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
+import { contactsAPI } from "../services/contacts/api";
+import { TokenService } from "../services/TokenService";
+import { UserService } from "../services/UserService";
+import { NotificationService } from "../services/NotificationService";
+import Constants from "expo-constants";
 import type { AuthPurpose } from "../types/auth";
 import type {
   Report,
@@ -144,7 +150,7 @@ export type AuthStackParamList = {
 const Stack = createStackNavigator<AuthStackParamList>();
 
 export const AuthNavigator: React.FC = () => {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, userId } = useAuth();
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
   const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
 
@@ -168,6 +174,39 @@ export const AuthNavigator: React.FC = () => {
       fetchMyRole();
     }
   }, [isAuthenticated, fetchMyRole]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    const preload = async () => {
+      const token = await TokenService.getAccessToken();
+      if (!token || cancelled) return;
+      await Promise.allSettled([
+        useConversationsStore.getState().fetchConversations(),
+        useConversationsStore.getState().loadManuallyUnreadIds(),
+        contactsAPI.getContacts(),
+        contactsAPI.getContactRequests(),
+        UserService.getInstance().getPrivacySettings(),
+        userId ? NotificationService.getSettings(userId) : Promise.resolve(),
+      ]);
+    };
+
+    preload().catch(() => {});
+    try {
+      require("../screens/Contacts/QRCodeScannerScreen");
+    } catch {}
+    if (Constants.appOwnership !== "expo") {
+      try {
+        require("../screens/Calls/CallsScreen");
+        require("../screens/Calls/IncomingCallScreen");
+        require("../screens/Calls/InCallScreen");
+        require("../screens/Calls/CallHistoryScreen");
+      } catch {}
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, userId]);
 
   const showSplash = isLoading || !splashMinElapsed;
 

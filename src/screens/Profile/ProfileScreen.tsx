@@ -115,6 +115,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     remoteUrl?: string;
   } | null>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
+  const lastLoadRef = useRef<{ userKey: string; at: number } | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -168,6 +169,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             pendingAvatar?.localUri || p.profilePicture || prev.profilePicture,
           createdAt: p.createdAt || prev.createdAt,
         }));
+        lastLoadRef.current = {
+          userKey: isOwnProfile ? "me" : viewedUserId,
+          at: Date.now(),
+        };
         setProfileLoaded(true);
         return;
       }
@@ -179,15 +184,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   }, [pendingAvatar?.localUri, isOwnProfile, viewedUserId]);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
-
   // Re-fetch profile from API every time the screen gains focus
   useFocusEffect(
     useCallback(() => {
+      const key = isOwnProfile ? "me" : viewedUserId;
+      const last = lastLoadRef.current;
+      if (last && last.userKey === key && Date.now() - last.at < 30_000) {
+        return;
+      }
       loadProfile();
-    }, [loadProfile]),
+    }, [isOwnProfile, loadProfile, viewedUserId]),
   );
 
   // Handle profile picture change

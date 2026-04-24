@@ -522,11 +522,11 @@ describe("contactsAPI blocking", () => {
 describe("contactsAPI auth headers", () => {
   it("omits Authorization when no access token is available", async () => {
     mockedToken.getAccessToken.mockResolvedValue(null);
-    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
 
-    await contactsAPI.getContacts();
-
-    const [, init] = mockFetch.mock.calls[0];
-    expect(init.headers?.Authorization).toBeUndefined();
+    await expect(contactsAPI.getContacts()).resolves.toEqual({
+      contacts: [],
+      total: 0,
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
