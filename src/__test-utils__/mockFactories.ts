@@ -56,6 +56,20 @@ export const makeSignalKeyServiceMock = () => ({
   },
 });
 
+export const makeNotificationServiceMock = () => ({
+  NotificationService: {
+    getBadge: jest.fn(),
+    getSettings: jest.fn(),
+    updateSettings: jest.fn(),
+    muteConversation: jest.fn(),
+    unmuteConversation: jest.fn(),
+    registerDevice: jest.fn().mockResolvedValue(undefined),
+    unregisterDevice: jest.fn().mockResolvedValue(undefined),
+    initPushRegistration: jest.fn().mockResolvedValue(undefined),
+    tearDownPushRegistration: jest.fn(),
+  },
+});
+
 export const makeSessionEventsMock = () => ({
   SESSION_EXPIRED_EVENT: "whispr.session.expired",
   emitSessionExpired: jest.fn(),
