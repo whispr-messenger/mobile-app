@@ -55,7 +55,7 @@ function isInternalClusterUrl(url: string): boolean {
  * proxy when a mediaId is available.
  */
 function resolveMediaUrl(
-  url: string | undefined,
+  url: string | null | undefined,
   mediaId?: string,
   kind: "blob" | "thumbnail" = "blob",
 ): string {
@@ -90,6 +90,77 @@ function resolveMediaUrl(
   }
   // Relative path from the API — prepend base URL
   return `${getApiBaseUrl()}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+/**
+ * Return false for messages that have nothing to display (no text, no media,
+ * not a tombstone). Keeps the main component free of a deeply-nested guard.
+ */
+function shouldRenderMessage(message: MessageWithRelations): boolean {
+  if (message.content) return true;
+  if (message.is_deleted) return true;
+  if (message.attachments && message.attachments.length > 0) return true;
+
+  const meta = message.metadata as
+    | { media_url?: string; media_id?: string }
+    | undefined;
+  const hasMetadataMedia =
+    message.message_type === "media" &&
+    !!meta &&
+    Boolean(meta.media_url || meta.media_id);
+  return hasMetadataMedia;
+}
+
+/**
+ * WebSocket-delivered media messages may arrive without an explicit
+ * attachments array — only a `metadata` blob. Synthesise a virtual
+ * attachment so the UI can render a preview immediately.
+ */
+function buildMetadataAttachment(message: MessageWithRelations) {
+  if (message.message_type !== "media" || !message.metadata) return null;
+  const meta = message.metadata as {
+    media_url?: string;
+    media_id?: string;
+    thumbnail_url?: string;
+    media_type?: "image" | "video" | "file" | "audio";
+    filename?: string;
+    size?: number;
+    mime_type?: string;
+    duration?: number;
+  };
+  if (!meta.media_url && !meta.media_id) return null;
+
+  const mediaId = meta.media_id;
+  const apiBase = getApiBaseUrl();
+  const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
+  const thumbFallback = mediaId
+    ? `${apiBase}/media/v1/${mediaId}/thumbnail`
+    : null;
+  const blobUrl =
+    blobFallback || (isReachableUrl(meta.media_url) ? meta.media_url : null);
+  const thumbUrl =
+    thumbFallback ||
+    (isReachableUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
+
+  return {
+    id: `synth-${message.id}`,
+    message_id: message.id,
+    media_id: mediaId || message.id,
+    media_type: (meta.media_type || "image") as
+      | "image"
+      | "video"
+      | "file"
+      | "audio",
+    metadata: {
+      filename: meta.filename,
+      size: meta.size,
+      mime_type: meta.mime_type,
+      media_url: blobUrl,
+      thumbnail_url: thumbUrl,
+      duration: meta.duration,
+    },
+    created_at: message.sent_at,
+  };
 }
 
 interface MessageBubbleProps {
@@ -144,72 +215,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const themeColors = getThemeColors();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
-  // Safety check — also allow media messages that carry metadata (no attachments yet)
-  const hasMetadataMedia =
-    message?.message_type === "media" &&
-    message?.metadata &&
-    ((message.metadata as any).media_url || (message.metadata as any).media_id);
-  if (
-    !message ||
-    (!message.content &&
-      !message.is_deleted &&
-      !hasMetadataMedia &&
-      (!message.attachments || message.attachments.length === 0))
-  ) {
+  if (!message || !shouldRenderMessage(message)) {
     return null;
   }
 
-  // Check if message has media attachments.
-  // When a message arrives via WebSocket it may only carry metadata (no attachments array),
-  // so we synthesize a virtual attachment from message.metadata to display the preview.
   const hasExplicitAttachments =
     message.attachments && message.attachments.length > 0;
-
-  const metadataAttachment = (() => {
-    if (
-      hasExplicitAttachments ||
-      message.message_type !== "media" ||
-      !message.metadata
-    ) {
-      return null;
-    }
-    const meta = message.metadata as any;
-    if (!meta.media_url && !meta.media_id) return null;
-
-    // Always prefer the media-service /blob proxy when we have a mediaId —
-    // stored URLs may carry the internal cluster hostname
-    // (minio.minio.svc.cluster.local) which the browser cannot resolve and
-    // would also trigger Mixed Content over https. Only fall back to the raw
-    // URL when no mediaId is available (legacy metadata).
-    const mediaId = meta.media_id;
-    const apiBase = getApiBaseUrl();
-    const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
-    const thumbFallback = mediaId
-      ? `${apiBase}/media/v1/${mediaId}/thumbnail`
-      : null;
-    const blobUrl =
-      blobFallback || (isReachableUrl(meta.media_url) ? meta.media_url : null);
-    const thumbUrl =
-      thumbFallback ||
-      (isReachableUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
-
-    return {
-      id: `synth-${message.id}`,
-      message_id: message.id,
-      media_id: mediaId || message.id,
-      media_type:
-        meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
-      metadata: {
-        filename: meta.filename,
-        size: meta.size,
-        mime_type: meta.mime_type,
-        media_url: blobUrl,
-        thumbnail_url: thumbUrl,
-        duration: meta.duration,
-      },
-      created_at: message.sent_at,
-    };
-  })();
+  const metadataAttachment = hasExplicitAttachments
+    ? null
+    : buildMetadataAttachment(message);
 
   const hasMedia = hasExplicitAttachments || metadataAttachment !== null;
   const firstAttachment = hasExplicitAttachments

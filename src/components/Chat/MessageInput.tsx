@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { formatUsername } from "../../utils";
+import { detectMention } from "../../utils/mentions";
 import {
   View,
   TextInput,
@@ -93,47 +94,37 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [editingMessage, replyingTo]);
 
-  const handleTextChange = useCallback(
+  const updateMentionState = useCallback(
     (newText: string) => {
-      setText(newText);
-      const trimmed = newText.trim();
-
-      // Check for @ mentions (only in groups)
-      if (conversationType === "group" && members.length > 0) {
-        const lastAtIndex = newText.lastIndexOf("@");
-        const cursorPos = newText.length;
-
-        if (lastAtIndex !== -1) {
-          // Check if @ is followed by space or is at the end
-          const afterAt = newText.substring(lastAtIndex + 1);
-          const spaceIndex = afterAt.indexOf(" ");
-
-          if (spaceIndex === -1 || spaceIndex === afterAt.length - 1) {
-            // We're in a mention
-            const query =
-              spaceIndex === -1 ? afterAt : afterAt.substring(0, spaceIndex);
-            setMentionQuery(query.toLowerCase());
-            setMentionStartIndex(lastAtIndex);
-            setShowMentions(true);
-          } else {
-            setShowMentions(false);
-          }
-        } else {
-          setShowMentions(false);
-        }
+      const detection = detectMention(
+        newText,
+        conversationType,
+        members.length,
+      );
+      if (detection) {
+        setMentionQuery(detection.query);
+        setMentionStartIndex(detection.startIndex);
+        setShowMentions(true);
+      } else if (conversationType === "group" && members.length > 0) {
+        // Only clear mentions when we're in a group — matches the previous
+        // behaviour which only toggled mentions in that branch.
+        setShowMentions(false);
       }
+    },
+    [conversationType, members.length],
+  );
 
+  const updateTypingState = useCallback(
+    (trimmed: string) => {
       if (trimmed.length > 0 && !isTypingRef.current) {
         onTyping?.(true);
         isTypingRef.current = true;
       }
-
       if (trimmed.length === 0 && isTypingRef.current) {
         onTyping?.(false);
         isTypingRef.current = false;
       }
 
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -146,7 +137,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         }, 3000);
       }
     },
-    [onTyping, conversationType, members],
+    [onTyping],
+  );
+
+  const handleTextChange = useCallback(
+    (newText: string) => {
+      setText(newText);
+      updateMentionState(newText);
+      updateTypingState(newText.trim());
+    },
+    [updateMentionState, updateTypingState],
   );
 
   const handleMentionSelect = useCallback(

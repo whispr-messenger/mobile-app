@@ -43,6 +43,7 @@ import {
   getFavoriteIds,
   toggleFavorite,
 } from "../../services/contacts/favorites";
+import { filterAndSortContacts } from "../../utils/contactsFilter";
 
 declare module "@expo/vector-icons";
 
@@ -239,66 +240,11 @@ export const ContactsScreen: React.FC = () => {
   }, []);
 
   // Filtered and sorted contacts
-  const filteredContacts = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    let list = [...contacts];
-
-    if (showFavoritesOnly) {
-      list = list.filter((contact) => contact.is_favorite);
-    }
-
-    if (query) {
-      list = list.filter((contact) => {
-        const fields = [
-          contact.nickname,
-          contact.contact_user?.username,
-          contact.contact_user?.first_name,
-          contact.contact_user?.last_name,
-          contact.contact_user?.phone_number,
-        ]
-          .filter(Boolean)
-          .map((v) => String(v).toLowerCase());
-        return fields.some((v) => v.includes(query));
-      });
-    }
-
-    const byName = (a: Contact, b: Contact) => {
-      const left = (a.nickname ?? a.contact_user?.username ?? "").toLowerCase();
-      const right = (
-        b.nickname ??
-        b.contact_user?.username ??
-        ""
-      ).toLowerCase();
-      return left.localeCompare(right, "fr");
-    };
-
-    if (sortBy === "added_at") {
-      list.sort(
-        (a, b) =>
-          new Date(b.added_at).getTime() - new Date(a.added_at).getTime(),
-      );
-      return list;
-    }
-
-    if (sortBy === "last_seen") {
-      list.sort(
-        (a, b) =>
-          new Date(b.contact_user?.last_seen ?? 0).getTime() -
-          new Date(a.contact_user?.last_seen ?? 0).getTime(),
-      );
-      return list;
-    }
-
-    if (sortBy === "favorites") {
-      list.sort(
-        (a, b) => Number(b.is_favorite) - Number(a.is_favorite) || byName(a, b),
-      );
-      return list;
-    }
-
-    list.sort(byName);
-    return list;
-  }, [contacts, searchQuery, showFavoritesOnly, sortBy]);
+  const filteredContacts = useMemo(
+    () =>
+      filterAndSortContacts(contacts, searchQuery, sortBy, showFavoritesOnly),
+    [contacts, searchQuery, showFavoritesOnly, sortBy],
+  );
 
   const pendingRequests = useMemo(() => {
     if (!userId) {

@@ -26,6 +26,30 @@ interface TextSegment {
   type: "normal" | "bold" | "italic" | "code";
 }
 
+// Ordered by priority: code > bold > italic.
+const MARKDOWN_MATCHERS: Array<{
+  regex: RegExp;
+  type: Exclude<TextSegment["type"], "normal">;
+}> = [
+  { regex: /^`([^`]+)`/, type: "code" },
+  { regex: /^\*\*([^*]+)\*\*/, type: "bold" },
+  { regex: /^\*([^*]+)\*/, type: "italic" },
+];
+
+const matchNextDelimiter = (
+  text: string,
+  index: number,
+): { type: TextSegment["type"]; content: string; length: number } | null => {
+  const slice = text.substring(index);
+  for (const { regex, type } of MARKDOWN_MATCHERS) {
+    const match = slice.match(regex);
+    if (match) {
+      return { type, content: match[1], length: match[0].length };
+    }
+  }
+  return null;
+};
+
 /**
  * Parse markdown text into segments
  */
@@ -34,52 +58,26 @@ const parseMarkdown = (text: string): TextSegment[] => {
   let currentIndex = 0;
   let currentText = "";
 
+  const flushNormal = () => {
+    if (currentText) {
+      segments.push({ text: currentText, type: "normal" });
+      currentText = "";
+    }
+  };
+
   while (currentIndex < text.length) {
-    // Check for code blocks (backticks) - highest priority
-    const codeMatch = text.substring(currentIndex).match(/^`([^`]+)`/);
-    if (codeMatch) {
-      if (currentText) {
-        segments.push({ text: currentText, type: "normal" });
-        currentText = "";
-      }
-      segments.push({ text: codeMatch[1], type: "code" });
-      currentIndex += codeMatch[0].length;
+    const matched = matchNextDelimiter(text, currentIndex);
+    if (matched) {
+      flushNormal();
+      segments.push({ text: matched.content, type: matched.type });
+      currentIndex += matched.length;
       continue;
     }
-
-    // Check for bold (**text**)
-    const boldMatch = text.substring(currentIndex).match(/^\*\*([^*]+)\*\*/);
-    if (boldMatch) {
-      if (currentText) {
-        segments.push({ text: currentText, type: "normal" });
-        currentText = "";
-      }
-      segments.push({ text: boldMatch[1], type: "bold" });
-      currentIndex += boldMatch[0].length;
-      continue;
-    }
-
-    // Check for italic (*text*)
-    const italicMatch = text.substring(currentIndex).match(/^\*([^*]+)\*/);
-    if (italicMatch) {
-      if (currentText) {
-        segments.push({ text: currentText, type: "normal" });
-        currentText = "";
-      }
-      segments.push({ text: italicMatch[1], type: "italic" });
-      currentIndex += italicMatch[0].length;
-      continue;
-    }
-
-    // Regular character
     currentText += text[currentIndex];
     currentIndex++;
   }
 
-  if (currentText) {
-    segments.push({ text: currentText, type: "normal" });
-  }
-
+  flushNormal();
   return segments;
 };
 
