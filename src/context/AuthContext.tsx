@@ -9,6 +9,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthService } from "../services/AuthService";
 import { TokenService } from "../services/TokenService";
+import { profileSetupFlag } from "../services/profileSetupFlag";
 import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
@@ -88,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     usePresenceStore.getState().reset();
     await cacheService.clearCache();
     await AsyncStorage.removeItem("@whispr/manually_unread_ids");
+    await profileSetupFlag.clear();
 
     if (state.deviceId && state.userId) {
       await AuthService.logout(state.deviceId, state.userId);
