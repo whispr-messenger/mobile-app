@@ -118,24 +118,16 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       }
 
       try {
-        setAddingContactId(user.user.id);
-        await contactsAPI.sendContactRequest(user.user.id);
+        const targetUserId = user.user.id;
+        setAddingContactId(targetUserId);
+        await contactsAPI.sendContactRequest(targetUserId);
 
-        if (Platform.OS === "web") {
-          onContactAdded();
-          setSelectedUser(null);
-          Alert.alert("Succès", "Demande de contact envoyée");
-        } else {
-          Alert.alert("Succès", "Demande de contact envoyée", [
-            {
-              text: "OK",
-              onPress: () => {
-                onContactAdded();
-                setSelectedUser(null);
-              },
-            },
-          ]);
-        }
+        onContactAdded();
+        setSearchResults((prev) =>
+          prev.filter((result) => result.user.id !== targetUserId),
+        );
+        setSelectedUser(null);
+        Alert.alert("Succès", "Demande de contact envoyée");
       } catch (error: any) {
         console.error("[AddContactModal] Error adding contact:", error);
         const status = (error?.status as number) ?? 0;
@@ -148,6 +140,9 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
             "Ce contact est déjà dans ta liste (ou une demande est en attente).",
           );
           onContactAdded();
+          setSearchResults((prev) =>
+            prev.filter((result) => result.user.id !== user.user.id),
+          );
           setSelectedUser(null);
           return;
         }
