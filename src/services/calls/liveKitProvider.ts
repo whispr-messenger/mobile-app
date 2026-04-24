@@ -34,16 +34,30 @@ export class CallsLiveKit {
   }
 
   async flipCamera(): Promise<void> {
-    // React Native (@livekit/react-native-webrtc) exposes a private
-    // _switchCamera() on the underlying MediaStreamTrack. Call it on the
-    // currently published video track, if any.
-    const videoTrack = this.room?.localParticipant.getTrackPublication(
-      "camera" as any,
-    )?.track;
-    const mediaTrack = videoTrack?.mediaStreamTrack as
-      | { _switchCamera?: () => void }
-      | undefined;
-    mediaTrack?._switchCamera?.();
+    if (!this.room) return;
+    const pub = this.room.localParticipant.getTrackPublication("camera" as any);
+    const track = pub?.track;
+    if (!track) return;
+
+    const mediaTrack = track.mediaStreamTrack as unknown as {
+      _switchCamera?: () => void;
+      getSettings?: () => MediaTrackSettings;
+    };
+
+    // Native path (@livekit/react-native-webrtc provides _switchCamera)
+    if (typeof mediaTrack._switchCamera === "function") {
+      mediaTrack._switchCamera();
+      return;
+    }
+
+    // Web path: read current facingMode, toggle, republish the camera track
+    const current = mediaTrack.getSettings?.().facingMode;
+    const next: "user" | "environment" =
+      current === "user" ? "environment" : "user";
+    await this.room.localParticipant.setCameraEnabled(false);
+    await this.room.localParticipant.setCameraEnabled(true, {
+      facingMode: next,
+    });
   }
 
   disconnect(): void {
