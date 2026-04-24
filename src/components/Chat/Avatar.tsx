@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
 import { getApiBaseUrl } from "../../services/apiBase";
-import MediaService from "../../services/MediaService";
+import { TokenService } from "../../services/TokenService";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -19,6 +19,65 @@ interface AvatarProps {
   size?: number;
   showOnlineBadge?: boolean;
   isOnline?: boolean;
+}
+
+async function streamMediaToRenderableUri(
+  uri: string,
+  token: string | null,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    Accept: "application/octet-stream",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const separator = uri.includes("?") ? "&" : "?";
+  const response = await fetch(`${uri}${separator}stream=1`, { headers });
+  if (!response.ok) {
+    throw new Error(`stream failed: HTTP ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") resolve(result);
+      else reject(new Error("FileReader did not produce a data URL"));
+    };
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function extractMediaIdFromUri(raw: string): {
+  mediaId: string | undefined;
+  kind: "blob" | "thumbnail";
+} {
+  const mediaMatch = raw.match(
+    /\/media\/v1\/(?:public\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(blob|thumbnail)(?:\?.*)?$/i,
+  );
+  if (mediaMatch?.[1]) {
+    return {
+      mediaId: mediaMatch[1],
+      kind: (mediaMatch?.[2] as "blob" | "thumbnail") || "blob",
+    };
+  }
+
+  const uuidMatch = raw.match(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  );
+  if (uuidMatch) return { mediaId: raw, kind: "blob" };
+
+  const looksLikeMinioAvatar =
+    /minio/i.test(raw) || /\/avatars\//i.test(raw) || /whispr-media/i.test(raw);
+  if (looksLikeMinioAvatar) {
+    const trailingUuid = raw.match(
+      /\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?.*)?$/i,
+    );
+    if (trailingUuid?.[1]) return { mediaId: trailingUuid[1], kind: "blob" };
+  }
+
+  return { mediaId: undefined, kind: "blob" };
 }
 
 export const Avatar: React.FC<AvatarProps> = ({
@@ -43,6 +102,14 @@ export const Avatar: React.FC<AvatarProps> = ({
     }
 
     if (/^https?:\/\//i.test(raw)) {
+      const base = getApiBaseUrl();
+      const extracted = extractMediaIdFromUri(raw);
+      if (extracted.mediaId) {
+        return {
+          uri: `${base}/media/v1/${encodeURIComponent(extracted.mediaId)}/${extracted.kind}`,
+          mediaId: extracted.mediaId,
+        };
+      }
       return { uri: raw, mediaId: undefined };
     }
 
@@ -146,10 +213,15 @@ export const Avatar: React.FC<AvatarProps> = ({
             const mediaId = directMediaId || parsedFromUrl;
             if (!mediaId) return;
 
-            MediaService.downloadMediaToCacheFile(mediaId)
-              .then((localOrUrl) => {
-                if (!localOrUrl) return;
-                setResolvedUri(localOrUrl);
+            TokenService.getAccessToken()
+              .then((token) =>
+                streamMediaToRenderableUri(
+                  `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`,
+                  token,
+                ),
+              )
+              .then((dataUrl) => {
+                setResolvedUri(dataUrl);
                 setImageError(false);
               })
               .catch(() => undefined);
