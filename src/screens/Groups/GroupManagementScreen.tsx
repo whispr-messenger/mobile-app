@@ -421,11 +421,10 @@ export const GroupManagementScreen: React.FC = () => {
   );
 
   const handleAddMembers = useCallback(() => {
-    if (!isAdmin) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowAddMembersModal(true);
     loadAvailableContacts();
-  }, [isAdmin]);
+  }, []);
 
   const loadAvailableContacts = useCallback(async () => {
     try {
