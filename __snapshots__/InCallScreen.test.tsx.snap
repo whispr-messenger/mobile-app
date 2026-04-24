@@ -6,34 +6,78 @@ exports[`InCallScreen matches snapshot when no active call 1`] = `
     {
       "backgroundColor": "#000",
       "flex": 1,
+      "justifyContent": "space-between",
     }
   }
 >
-  <RCTScrollView
-    contentContainerStyle={
+  <View
+    style={
       {
-        "gap": 8,
-        "padding": 8,
+        "alignItems": "center",
+        "backgroundColor": "rgba(0,0,0,0.4)",
+        "paddingBottom": 16,
+        "paddingHorizontal": 16,
+        "paddingTop": 32,
       }
     }
-    data={[]}
-    getItem={[Function]}
-    getItemCount={[Function]}
-    keyExtractor={[Function]}
-    onContentSizeChange={[Function]}
-    onLayout={[Function]}
-    onMomentumScrollBegin={[Function]}
-    onMomentumScrollEnd={[Function]}
-    onScroll={[Function]}
-    onScrollBeginDrag={[Function]}
-    onScrollEndDrag={[Function]}
-    removeClippedSubviews={false}
-    renderItem={[Function]}
-    scrollEventThrottle={0.0001}
-    stickyHeaderIndices={[]}
-    viewabilityConfigCallbackPairs={[]}
   >
-    <View />
-  </RCTScrollView>
+    <Text
+      style={
+        {
+          "color": "#fff",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 18,
+        }
+      }
+    >
+      Appel en cours…
+    </Text>
+    <Text
+      style={
+        {
+          "color": "#bbb",
+          "fontSize": 13,
+          "marginTop": 4,
+        }
+      }
+    >
+      En attente que le destinataire décroche
+    </Text>
+  </View>
+  <View
+    style={
+      {
+        "flex": 1,
+        "minHeight": 0,
+      }
+    }
+  >
+    <RCTScrollView
+      contentContainerStyle={
+        {
+          "gap": 8,
+          "padding": 8,
+        }
+      }
+      data={[]}
+      getItem={[Function]}
+      getItemCount={[Function]}
+      keyExtractor={[Function]}
+      onContentSizeChange={[Function]}
+      onLayout={[Function]}
+      onMomentumScrollBegin={[Function]}
+      onMomentumScrollEnd={[Function]}
+      onScroll={[Function]}
+      onScrollBeginDrag={[Function]}
+      onScrollEndDrag={[Function]}
+      removeClippedSubviews={false}
+      renderItem={[Function]}
+      scrollEventThrottle={0.0001}
+      stickyHeaderIndices={[]}
+      viewabilityConfigCallbackPairs={[]}
+    >
+      <View />
+    </RCTScrollView>
+  </View>
 </View>
 `;
