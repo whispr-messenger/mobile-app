@@ -66,4 +66,14 @@ export const TokenService = {
     if (!payload) return true;
     return Date.now() / 1000 >= payload.exp - 60;
   },
+
+  // Time (ms) until the token should be proactively refreshed. Fires before
+  // the 60s `isTokenExpired` buffer so the next HTTP call never hits 401.
+  // Returns 0 when the token is already within the refresh window.
+  msUntilProactiveRefresh(token: string, leadTimeSeconds = 120): number {
+    const payload = decodeJwtPayload(token);
+    if (!payload) return 0;
+    const refreshAtMs = (payload.exp - leadTimeSeconds) * 1000;
+    return Math.max(0, refreshAtMs - Date.now());
+  },
 };

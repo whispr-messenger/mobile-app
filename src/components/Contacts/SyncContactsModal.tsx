@@ -61,57 +61,62 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
     }
   }, [visible]);
 
+  const openAppSettingsAndClose = async () => {
+    try {
+      if (Platform.OS === "ios") {
+        await Linking.openURL("app-settings:");
+      } else {
+        await Linking.openSettings();
+      }
+    } catch (error) {
+      console.error("[SyncContactsModal] Error opening settings:", error);
+      Alert.alert("Erreur", "Impossible d'ouvrir les paramètres");
+    }
+    onClose();
+  };
+
+  const showDeniedPermissionAlert = () => {
+    Alert.alert(
+      "Permission refusée",
+      "L'accès aux contacts a été refusé. Pour activer la synchronisation, allez dans les paramètres de l'application et autorisez l'accès aux contacts.",
+      [
+        { text: "Annuler", style: "cancel", onPress: onClose },
+        { text: "Ouvrir les paramètres", onPress: openAppSettingsAndClose },
+      ],
+    );
+  };
+
+  // Returns true once permission is granted, false if the user declines.
+  const ensureContactsPermission = async (): Promise<boolean> => {
+    const { status: currentStatus } = await Contacts.getPermissionsAsync();
+
+    if (currentStatus === "denied") {
+      showDeniedPermissionAlert();
+      return false;
+    }
+
+    if (currentStatus === "granted") {
+      return true;
+    }
+
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission requise",
+        "L'accès aux contacts est nécessaire pour synchroniser vos contacts.",
+        [{ text: "OK", onPress: onClose }],
+      );
+      return false;
+    }
+    return true;
+  };
+
   const requestPermissionAndLoad = async () => {
     try {
       setLoading(true);
 
-      // Check current permission status first
-      const { status: currentStatus } = await Contacts.getPermissionsAsync();
-
-      // If permission was denied, don't ask again
-      if (currentStatus === "denied") {
-        Alert.alert(
-          "Permission refusée",
-          "L'accès aux contacts a été refusé. Pour activer la synchronisation, allez dans les paramètres de l'application et autorisez l'accès aux contacts.",
-          [
-            { text: "Annuler", style: "cancel", onPress: onClose },
-            {
-              text: "Ouvrir les paramètres",
-              onPress: async () => {
-                try {
-                  if (Platform.OS === "ios") {
-                    await Linking.openURL("app-settings:");
-                  } else {
-                    await Linking.openSettings();
-                  }
-                } catch (error) {
-                  console.error(
-                    "[SyncContactsModal] Error opening settings:",
-                    error,
-                  );
-                  Alert.alert("Erreur", "Impossible d'ouvrir les paramètres");
-                }
-                onClose();
-              },
-            },
-          ],
-        );
-        return;
-      }
-
-      // Request permission only if not already granted
-      if (currentStatus !== "granted") {
-        const { status } = await Contacts.requestPermissionsAsync();
-
-        if (status !== "granted") {
-          Alert.alert(
-            "Permission requise",
-            "L'accès aux contacts est nécessaire pour synchroniser vos contacts.",
-            [{ text: "OK", onPress: onClose }],
-          );
-          return;
-        }
-      }
+      const granted = await ensureContactsPermission();
+      if (!granted) return;
 
       // Load contacts
       const { data } = await Contacts.getContactsAsync({

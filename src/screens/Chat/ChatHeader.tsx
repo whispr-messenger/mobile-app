@@ -49,7 +49,13 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
       <TouchableOpacity
-        onPress={() => navigation.goBack()}
+        onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            (navigation as any).navigate("ConversationsList");
+          }
+        }}
         style={styles.backButton}
       >
         <Ionicons

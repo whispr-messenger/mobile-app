@@ -385,72 +385,85 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       }),
     ]).start();
 
-    try {
-      let avatarMediaId = pendingAvatar?.mediaId;
-      let avatarRemoteUrl = pendingAvatar?.remoteUrl;
+    // Upload a pending avatar (if any) and return the resulting media id/url.
+    // Returns null when the save should abort early (timeout, not-ready, user cancel).
+    const uploadPendingAvatarIfNeeded = async (): Promise<{
+      mediaId: string | undefined;
+      remoteUrl: string | undefined;
+    } | null> => {
+      let mediaId = pendingAvatar?.mediaId;
+      let remoteUrl = pendingAvatar?.remoteUrl;
 
-      if (pendingAvatar?.localUri && !avatarMediaId) {
-        const localUri = pendingAvatar.localUri;
-        const fileName = localUri.split("/").pop() || "avatar.jpg";
-        const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
-
-        const uploadPromise = MediaService.uploadMedia(
-          { uri: localUri, name: fileName, type: fileType },
-          undefined,
-          {
-            context: "avatar",
-            ownerId: currentUserId || profile.id || undefined,
-          },
-        );
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Upload timeout")), 15000),
-        );
-        const uploadResult = await Promise.race([
-          uploadPromise,
-          timeoutPromise,
-        ]);
-
-        if (abortController.signal.aborted) return;
-
-        try {
-          await waitForMediaAvailable(uploadResult.id, abortController.signal);
-        } catch {
-          Alert.alert(
-            "Erreur",
-            "La photo n'est pas encore disponible côté serveur. Réessayez dans quelques secondes.",
-          );
-          setLoading(false);
-          return;
-        }
-
-        avatarMediaId = uploadResult.id;
-        avatarRemoteUrl = uploadResult.url;
-        setPendingAvatar({
-          localUri,
-          mediaId: avatarMediaId,
-          remoteUrl: avatarRemoteUrl,
-        });
-        setProfile((prev) => ({ ...prev, profilePicture: avatarMediaId }));
-        if (currentUserId) {
-          await AsyncStorage.setItem(pendingAvatarKey, avatarMediaId);
-        }
+      if (!pendingAvatar?.localUri || mediaId) {
+        return { mediaId, remoteUrl };
       }
+
+      const localUri = pendingAvatar.localUri;
+      const fileName = localUri.split("/").pop() || "avatar.jpg";
+      const fileType = fileName.endsWith(".png") ? "image/png" : "image/jpeg";
+
+      const uploadPromise = MediaService.uploadMedia(
+        { uri: localUri, name: fileName, type: fileType },
+        undefined,
+        {
+          context: "avatar",
+          ownerId: currentUserId || profile.id || undefined,
+        },
+      );
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Upload timeout")), 15000),
+      );
+      const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+
+      if (abortController.signal.aborted) return null;
+
+      try {
+        await waitForMediaAvailable(uploadResult.id, abortController.signal);
+      } catch {
+        Alert.alert(
+          "Erreur",
+          "La photo n'est pas encore disponible côté serveur. Réessayez dans quelques secondes.",
+        );
+        setLoading(false);
+        return null;
+      }
+
+      mediaId = uploadResult.id;
+      remoteUrl = uploadResult.url;
+      setPendingAvatar({ localUri, mediaId, remoteUrl });
+      setProfile((prev) => ({ ...prev, profilePicture: mediaId }));
+      if (currentUserId) {
+        await AsyncStorage.setItem(pendingAvatarKey, mediaId);
+      }
+      return { mediaId, remoteUrl };
+    };
+
+    const buildUpdatePayload = (
+      avatarMediaId: string | undefined,
+    ): UpdateProfileRequest => {
+      const payload: UpdateProfileRequest = {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        biography: profile.biography,
+      };
+      if (avatarMediaId) payload.avatarMediaId = avatarMediaId;
+      if (!usernameError && normalizedUsername.length >= 3) {
+        payload.username = normalizedUsername;
+      }
+      return payload;
+    };
+
+    try {
+      const uploadResult = await uploadPendingAvatarIfNeeded();
+      if (uploadResult === null) return;
+      const { mediaId: avatarMediaId, remoteUrl: avatarRemoteUrl } =
+        uploadResult;
 
       // Check if save was cancelled
       if (abortController.signal.aborted) return;
 
       const service = UserService.getInstance();
-      const updateData: UpdateProfileRequest = {
-        firstName: profile.firstName,
-        lastName: profile.lastName,
-        biography: profile.biography,
-      };
-      if (avatarMediaId) {
-        updateData.avatarMediaId = avatarMediaId;
-      }
-      if (!usernameError && normalizedUsername.length >= 3) {
-        updateData.username = normalizedUsername;
-      }
+      const updateData = buildUpdatePayload(avatarMediaId);
       const tryUpdate = () => service.updateProfile(updateData);
       let res = await tryUpdate();
       if (!res.success && avatarMediaId && isMediaNotFound(res.message)) {

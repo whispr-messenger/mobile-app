@@ -75,13 +75,27 @@ async function streamMediaToRenderableUri(
  * That guarantees the image renders even when MinIO is not publicly reachable
  * from the device.
  */
+function uriNeedsAuthResolution(uri: string | undefined): boolean {
+  return (
+    !!uri &&
+    uri.includes("/media/v1/") &&
+    (uri.includes("/blob") || uri.includes("/thumbnail"))
+  );
+}
+
 function useResolvedMediaUrl(uri: string | undefined): {
   resolvedUri: string;
   loading: boolean;
   error: boolean;
 } {
-  const [resolvedUri, setResolvedUri] = useState(uri || "");
-  const [loading, setLoading] = useState(false);
+  // Start empty when the URI requires a Bearer token — otherwise React Native's
+  // <Image> renders the raw `/media/v1/<id>/thumbnail` URL before the effect
+  // can swap in a presigned one, producing a flood of unauthenticated GETs
+  // that the gateway answers with 401.
+  const [resolvedUri, setResolvedUri] = useState(
+    uriNeedsAuthResolution(uri) ? "" : uri || "",
+  );
+  const [loading, setLoading] = useState(uriNeedsAuthResolution(uri));
   const [error, setError] = useState(false);
   const blobUrlRef = useRef<string | null>(null);
 
@@ -101,21 +115,19 @@ function useResolvedMediaUrl(uri: string | undefined): {
     if (!uri) {
       revokeBlobUrl();
       setResolvedUri("");
+      setLoading(false);
       return;
     }
 
-    // Only resolve blob/thumbnail endpoints that need auth
-    const needsAuth =
-      uri.includes("/media/v1/") &&
-      (uri.includes("/blob") || uri.includes("/thumbnail"));
-
-    if (!needsAuth) {
+    if (!uriNeedsAuthResolution(uri)) {
       revokeBlobUrl();
       setResolvedUri(uri);
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
+    setResolvedUri("");
     setLoading(true);
     setError(false);
 

@@ -30,6 +30,12 @@ import {
   NotificationSettings,
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+import {
+  DEFAULT_MODERATION_MODEL,
+  getModerationModelVersion,
+  setModerationModelVersion,
+  type ModerationModelVersion,
+} from "../../services/moderation";
 
 const PRIVACY_ALERT_TITLE: Record<string, string> = {
   profilePhoto: "Photo de profil",
@@ -65,6 +71,10 @@ export const SettingsScreen: React.FC = () => {
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showFontSizeModal, setShowFontSizeModal] = useState(false);
+  const [showModerationModelModal, setShowModerationModelModal] =
+    useState(false);
+  const [moderationModel, setModerationModel] =
+    useState<ModerationModelVersion>(DEFAULT_MODERATION_MODEL);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [selectedPrivacyItem, setSelectedPrivacyItem] = useState<string | null>(
     null,
@@ -295,6 +305,12 @@ export const SettingsScreen: React.FC = () => {
 
     loadSettings();
     fetchMyRole();
+
+    if (__DEV__) {
+      getModerationModelVersion()
+        .then((v) => setModerationModel(v))
+        .catch(() => setModerationModel(DEFAULT_MODERATION_MODEL));
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (category: string, key: string, value: boolean) => {
@@ -1038,6 +1054,17 @@ export const SettingsScreen: React.FC = () => {
         {__DEV__ && (
           <SettingSection title="Debug" icon="bug-outline">
             <SettingItem
+              label="Modèle de modération"
+              subtitle="Bascule entre le modèle v2 (EfficientNet 9-classes) et v3 (MobileNetV3 binary, avec gate vidéo)"
+              value={
+                moderationModel === "v3"
+                  ? "v3 · MobileNetV3 binary"
+                  : "v2 · EfficientNet 9-classes"
+              }
+              onPress={() => setShowModerationModelModal(true)}
+              icon="cube-outline"
+            />
+            <SettingItem
               label="Moderation Test"
               subtitle="Run the on-device TFJS image gate"
               onPress={() => navigation.navigate("ModerationTest")}
@@ -1083,6 +1110,31 @@ export const SettingsScreen: React.FC = () => {
         cancelLabel={getLocalizedText("common.cancel")}
         layout="auto"
       />
+
+      {__DEV__ && (
+        <SettingsChoiceAlert
+          visible={showModerationModelModal}
+          onClose={() => setShowModerationModelModal(false)}
+          title="Modèle de modération"
+          options={[
+            { label: "v2 · EfficientNet 9-classes", value: "v2" },
+            { label: "v3 · MobileNetV3 binary (+ vidéo)", value: "v3" },
+          ]}
+          selectedValue={moderationModel}
+          onSelect={async (value) => {
+            const next = value as ModerationModelVersion;
+            setModerationModel(next);
+            setShowModerationModelModal(false);
+            try {
+              await setModerationModelVersion(next);
+            } catch (e) {
+              console.warn("Failed to persist moderation model", e);
+            }
+          }}
+          cancelLabel={getLocalizedText("common.cancel")}
+          layout="vertical"
+        />
+      )}
 
       <SettingsChoiceAlert
         visible={showFontSizeModal}
