@@ -47,6 +47,7 @@ import { useAuth } from "../context/AuthContext";
 import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
 import { useModerationStore } from "../store/moderationStore";
 import { useConversationsStore } from "../store/conversationsStore";
+import { profileSetupFlag } from "../services/profileSetupFlag";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
 import { contactsAPI } from "../services/contacts/api";
 import { TokenService } from "../services/TokenService";
@@ -152,6 +153,9 @@ const Stack = createStackNavigator<AuthStackParamList>();
 export const AuthNavigator: React.FC = () => {
   const { isLoading, isAuthenticated, userId } = useAuth();
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+  const [profileSetupPending, setProfileSetupPending] = useState<
+    boolean | null
+  >(null);
   const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
 
   // WHISPR-1060: drain any offline-queued messages left over from a
@@ -165,6 +169,25 @@ export const AuthNavigator: React.FC = () => {
     const t = setTimeout(() => setSplashMinElapsed(true), SPLASH_MIN_MS);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfileSetupPending(false);
+      return;
+    }
+    let cancelled = false;
+    profileSetupFlag
+      .get()
+      .then((flag) => {
+        if (!cancelled) setProfileSetupPending(flag === "0");
+      })
+      .catch(() => {
+        if (!cancelled) setProfileSetupPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   // WHISPR-929: load the current user's moderation role as soon as the app
   // enters its authenticated tree so every screen (not just Settings) can
@@ -208,15 +231,22 @@ export const AuthNavigator: React.FC = () => {
     };
   }, [isAuthenticated, userId]);
 
-  const showSplash = isLoading || !splashMinElapsed;
+  const showSplash =
+    isLoading || !splashMinElapsed || profileSetupPending === null;
 
   if (showSplash) {
     return <SplashScreen />;
   }
 
+  const initialRouteName = !isAuthenticated
+    ? "Welcome"
+    : profileSetupPending
+      ? "ProfileSetup"
+      : "ConversationsList";
+
   return (
     <Stack.Navigator
-      initialRouteName={isAuthenticated ? "ConversationsList" : "Welcome"}
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
