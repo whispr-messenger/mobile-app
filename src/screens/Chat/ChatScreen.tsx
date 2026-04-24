@@ -67,7 +67,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { SchedulingService } from "../../services/SchedulingService";
-import { gateChatImageBeforeSend } from "../../services/moderation";
+import {
+  gateChatImageBeforeSend,
+  gateChatVideoBeforeSend,
+} from "../../services/moderation";
 import { appealsAPI } from "../../services/moderation/moderationApi";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
@@ -103,6 +106,52 @@ type ChatScreenRouteProp = StackScreenProps<
   "Chat"
 >["route"];
 type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
+
+const DEFAULT_MEDIA_CAPTION: Record<
+  "image" | "video" | "audio" | "file",
+  string
+> = {
+  image: "Photo",
+  video: "Vidéo",
+  audio: "Message vocal",
+  file: "Fichier",
+};
+
+const DEFAULT_MIME_BY_KIND: Record<
+  "image" | "video" | "audio" | "file",
+  string
+> = {
+  image: "image/jpeg",
+  video: "video/mp4",
+  audio: "audio/mp4",
+  file: "application/octet-stream",
+};
+
+const EXTENSION_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  avi: "video/x-msvideo",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  caf: "audio/x-caf",
+};
+
+const resolveMimeType = (
+  extension: string,
+  kind: "image" | "video" | "audio" | "file",
+): string => EXTENSION_TO_MIME[extension] ?? DEFAULT_MIME_BY_KIND[kind];
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
@@ -1022,48 +1071,12 @@ export const ChatScreen: React.FC = () => {
       sendTyping(conversationId, false);
 
       // Use caption if provided, otherwise use default text
-      const messageContent =
-        caption?.trim() ||
-        (type === "image"
-          ? "Photo"
-          : type === "video"
-            ? "Vidéo"
-            : type === "audio"
-              ? "Message vocal"
-              : "Fichier");
+      const messageContent = caption?.trim() || DEFAULT_MEDIA_CAPTION[type];
 
       // Derive filename and MIME type from the local URI
       const filename = uri.split("/").pop() || "media";
       const extension = filename.split(".").pop()?.toLowerCase() || "";
-      const mimeMap: Record<string, string> = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        heic: "image/heic",
-        mp4: "video/mp4",
-        mov: "video/quicktime",
-        avi: "video/x-msvideo",
-        pdf: "application/pdf",
-        doc: "application/msword",
-        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        m4a: "audio/mp4",
-        aac: "audio/aac",
-        mp3: "audio/mpeg",
-        wav: "audio/wav",
-        ogg: "audio/ogg",
-        caf: "audio/x-caf",
-      };
-      const mimeType =
-        mimeMap[extension] ||
-        (type === "image"
-          ? "image/jpeg"
-          : type === "video"
-            ? "video/mp4"
-            : type === "audio"
-              ? "audio/mp4"
-              : "application/octet-stream");
+      const mimeType = resolveMimeType(extension, type);
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
@@ -1110,9 +1123,14 @@ export const ChatScreen: React.FC = () => {
       }, 100);
 
       try {
-        // Gate check: block inappropriate images before upload
-        if (type === "image" && !opts?.skipGate) {
-          const gateResult = await gateChatImageBeforeSend(uri);
+        // Gate check: block inappropriate images / videos before upload.
+        // gateChatVideoBeforeSend is a no-op when the selected moderation
+        // model is v2 (which has no video training signal).
+        if ((type === "image" || type === "video") && !opts?.skipGate) {
+          const gateResult =
+            type === "image"
+              ? await gateChatImageBeforeSend(uri)
+              : await gateChatVideoBeforeSend(uri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";
@@ -1200,7 +1218,7 @@ export const ChatScreen: React.FC = () => {
         let memberIds = [...new Set(rawMemberIds)]
           .filter(Boolean)
           .filter((id) => id !== userId);
-        if (memberIds.length === 0 && conversation?.type === "group") {
+        if (memberIds.length === 0) {
           try {
             const members =
               await messagingAPI.getConversationMembers(conversationId);

@@ -192,6 +192,12 @@ export const SecurityKeysScreen: React.FC = () => {
     setToast({ visible: true, message, type });
   };
 
+  const confirmDisconnectDevice = (device: ConnectedDevice) => {
+    triggerHaptic("medium");
+    setDevices((prev) => prev.filter((d) => d.id !== device.id));
+    showToast(getLocalizedText("security.deviceDisconnected"), "success");
+  };
+
   const handleDisconnectDevice = (device: ConnectedDevice) => {
     if (device.isCurrent) {
       triggerHaptic("medium");
@@ -211,14 +217,7 @@ export const SecurityKeysScreen: React.FC = () => {
         {
           text: getLocalizedText("security.disconnect"),
           style: "destructive",
-          onPress: () => {
-            triggerHaptic("medium");
-            setDevices((prev) => prev.filter((d) => d.id !== device.id));
-            showToast(
-              getLocalizedText("security.deviceDisconnected"),
-              "success",
-            );
-          },
+          onPress: () => confirmDisconnectDevice(device),
         },
       ],
       { cancelable: true },
