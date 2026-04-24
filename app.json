@@ -61,6 +61,13 @@
         {
           "cameraPermission": "Whispr utilise la caméra pour scanner les QR codes et ajouter des contacts."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
       ]
     ]
   }
