@@ -6,6 +6,9 @@ jest.mock("./src/services/TokenService", () =>
 jest.mock("./src/services/AuthService", () =>
   require("./src/__test-utils__/mockFactories").makeAuthServiceMock(),
 );
+jest.mock("./src/services/DeviceService", () =>
+  require("./src/__test-utils__/mockFactories").makeDeviceServiceMock(),
+);
 jest.mock("./src/services/apiBase", () =>
   require("./src/__test-utils__/mockFactories").makeApiBaseMock(
     "https://api.test",
@@ -107,6 +110,41 @@ describe("NotificationService.unmuteConversation", () => {
     expect(url).toBe(
       "https://api.test/notification/api/conversations/c-1/mute",
     );
+    expect(init.method).toBe("DELETE");
+  });
+});
+
+describe("NotificationService.registerDevice / unregisterDevice", () => {
+  it("POSTs the token with device_id, platform, app_version", async () => {
+    const mockedDevice = require("./src/services/DeviceService")
+      .DeviceService as any;
+    mockedDevice.getOrCreateDeviceId.mockResolvedValue("dev-xyz");
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
+
+    await NotificationService.registerDevice({
+      token: "fcm-tok",
+      platform: "android",
+      appVersion: "1.2.3",
+    });
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://api.test/notification/api/v1/devices");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({
+      device_id: "dev-xyz",
+      fcm_token: "fcm-tok",
+      platform: "android",
+      app_version: "1.2.3",
+    });
+  });
+
+  it("DELETEs /api/v1/devices/:deviceId", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
+
+    await NotificationService.unregisterDevice("dev-1/2");
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://api.test/notification/api/v1/devices/dev-1%2F2");
     expect(init.method).toBe("DELETE");
   });
 });
