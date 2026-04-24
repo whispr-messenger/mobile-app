@@ -344,6 +344,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   // Handle profile update
   const handleSaveProfile = async () => {
+    if (!isOwnProfile) return;
     const firstNameError = validateField("firstName", profile.firstName);
     const lastNameError = validateField("lastName", profile.lastName);
     const normalizedUsername = normalizeUsername(profile.username);
@@ -736,7 +737,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <TouchableOpacity
                 onPress={() => setShowImagePicker(true)}
                 style={styles.profilePictureContainer}
-                disabled={!isEditing}
+                disabled={!isEditing || !isOwnProfile}
               >
                 <Avatar
                   uri={profile.profilePicture}
@@ -932,26 +933,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </View>
 
             {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              {!isEditing ? (
-                <Button
-                  title="Modifier le profil"
-                  variant="primary"
-                  size="large"
-                  onPress={() => setIsEditing(true)}
-                  fullWidth
-                />
-              ) : (
-                <Button
-                  title={loading ? "Sauvegarde..." : "Sauvegarder"}
-                  variant="primary"
-                  size="large"
-                  onPress={handleSaveProfile}
-                  loading={loading}
-                  fullWidth
-                />
-              )}
-            </View>
+            {isOwnProfile && (
+              <View style={styles.actionButtons}>
+                {!isEditing ? (
+                  <Button
+                    title="Modifier le profil"
+                    variant="primary"
+                    size="large"
+                    onPress={() => setIsEditing(true)}
+                    fullWidth
+                  />
+                ) : (
+                  <Button
+                    title={loading ? "Sauvegarde..." : "Sauvegarder"}
+                    variant="primary"
+                    size="large"
+                    onPress={handleSaveProfile}
+                    loading={loading}
+                    fullWidth
+                  />
+                )}
+              </View>
+            )}
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
