@@ -1,5 +1,5 @@
 import React from "react";
-import { render, waitFor } from "@testing-library/react-native";
+import { render, waitFor, fireEvent } from "@testing-library/react-native";
 import { GroupDetailsScreen } from "./src/screens/Groups/GroupDetailsScreen";
 import { groupsAPI } from "./src/services/groups/api";
 
@@ -204,6 +204,41 @@ describe("GroupDetailsScreen", () => {
     const { toJSON } = render(<GroupDetailsScreen />);
     await waitFor(() => {
       expect(toJSON()).toBeTruthy();
+    });
+  });
+
+  it("renders 'Ajouter un membre' for a non-admin member (WHISPR-1169)", async () => {
+    mockedGroupsAPI.getGroupMembers.mockResolvedValue({
+      members: [
+        {
+          id: "user1",
+          user_id: "user1",
+          display_name: "Me",
+          role: "member",
+          joined_at: "2024-01-01T00:00:00Z",
+          is_active: true,
+        },
+        {
+          id: "user2",
+          user_id: "user2",
+          display_name: "Admin Other",
+          role: "admin",
+          joined_at: "2024-01-01T00:00:00Z",
+          is_active: true,
+        },
+      ],
+      total: 2,
+    } as any);
+
+    const { getByText, getAllByText } = render(<GroupDetailsScreen />);
+    await waitFor(() => {
+      expect(getAllByText("Test Group").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.press(getByText("Membres"));
+
+    await waitFor(() => {
+      expect(getByText("Ajouter un membre")).toBeTruthy();
     });
   });
 });
