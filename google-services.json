@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1085727058614",
+    "project_id": "whispr-perso-test",
+    "storage_bucket": "whispr-perso-test.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085727058614:android:79a9a36197e241610c9417",
+        "android_client_info": {
+          "package_name": "whispr.test1702"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8ATDzu88tJNlX2uzlSLzO6cwWxMEgSfQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
