@@ -40,12 +40,18 @@ export const InCallScreen: React.FC = () => {
     room.on(RoomEvent.ParticipantDisconnected, sync);
     room.on(RoomEvent.TrackSubscribed, sync);
     room.on(RoomEvent.TrackUnsubscribed, sync);
+    room.on(RoomEvent.TrackMuted, sync);
+    room.on(RoomEvent.TrackUnmuted, sync);
+    room.on(RoomEvent.LocalTrackPublished, sync);
 
     return () => {
       room.off(RoomEvent.ParticipantConnected, sync);
       room.off(RoomEvent.ParticipantDisconnected, sync);
       room.off(RoomEvent.TrackSubscribed, sync);
       room.off(RoomEvent.TrackUnsubscribed, sync);
+      room.off(RoomEvent.TrackMuted, sync);
+      room.off(RoomEvent.TrackUnmuted, sync);
+      room.off(RoomEvent.LocalTrackPublished, sync);
     };
   }, [active, connectedAt]);
 

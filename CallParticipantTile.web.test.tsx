@@ -56,6 +56,11 @@ const renderInDom = (ui: React.ReactElement) => {
   });
   return {
     container,
+    rerender: (next: React.ReactElement) => {
+      act(() => {
+        root.render(next);
+      });
+    },
     unmount: () => {
       act(() => {
         root.unmount();
@@ -114,5 +119,28 @@ describe("CallParticipantTile (web)", () => {
     expect(audioTrack.attach).not.toHaveBeenCalled();
     unmount();
     expect(audioTrack.detach).not.toHaveBeenCalled();
+  });
+
+  it("attaches audio on rerender when the track appears after mount", () => {
+    const pWithoutTrack = makeParticipant({
+      identity: "dave",
+      isLocal: false,
+    });
+    const audioTrack: MockTrack = { attach: jest.fn(), detach: jest.fn() };
+    const pWithTrack = makeParticipant({
+      identity: "dave",
+      isLocal: false,
+      audioTrack,
+    });
+
+    const { rerender, unmount } = renderInDom(
+      <CallParticipantTile participant={pWithoutTrack as any} />,
+    );
+    expect(audioTrack.attach).not.toHaveBeenCalled();
+
+    rerender(<CallParticipantTile participant={pWithTrack as any} />);
+    expect(audioTrack.attach).toHaveBeenCalledTimes(1);
+
+    unmount();
   });
 });
