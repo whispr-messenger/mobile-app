@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import { ProfileScreen } from "./src/screens/Profile/ProfileScreen";
+import { MyProfileScreen } from "./src/screens/Profile/MyProfileScreen";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -11,19 +11,14 @@ jest.mock("@react-navigation/native", () => ({
     goBack: mockGoBack,
     reset: jest.fn(),
   }),
-  useRoute: () => ({
-    params: {
-      firstName: "John",
-      lastName: "Doe",
-      username: "johndoe",
-      phoneNumber: "+33612345678",
-      biography: "",
-    },
-  }),
+  useRoute: () => ({ params: {} }),
   useFocusEffect: (cb: () => void | (() => void)) => {
     const React = require("react");
     React.useEffect(() => cb(), []);
   },
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
@@ -40,15 +35,11 @@ jest.mock("expo-image-picker", () => ({
   MediaTypeOptions: { Images: "Images" },
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+jest.mock("./src/components/Chat/Avatar", () => ({
+  Avatar: () => null,
+}));
 jest.mock("./src/context/AuthContext", () => ({
-  useAuth: () => ({
-    isAuthenticated: true,
-    isLoading: false,
-    userId: "user1",
-    deviceId: "dev1",
-    signIn: jest.fn(),
-    signOut: jest.fn(),
-  }),
+  useAuth: () => ({ userId: "user-123" }),
 }));
 jest.mock("./src/components", () => ({
   Logo: () => null,
@@ -63,24 +54,30 @@ jest.mock("./src/components", () => ({
 }));
 jest.mock("./src/services", () => {
   const singleton = {
-    getProfile: jest.fn().mockResolvedValue({ success: false }),
+    getProfile: jest.fn().mockResolvedValue({
+      success: true,
+      profile: {
+        id: "user-123",
+        firstName: "John",
+        lastName: "Doe",
+        username: "johndoe",
+        phoneNumber: "+33612345678",
+        biography: "",
+      },
+    }),
+    getUserProfile: jest.fn(),
     updateProfile: jest.fn().mockResolvedValue({ success: true }),
   };
-  return {
-    UserService: { getInstance: () => singleton },
-  };
+  return { UserService: { getInstance: () => singleton } };
 });
 jest.mock("./src/services/MediaService", () => ({
   MediaService: {
     uploadMedia: jest
       .fn()
       .mockResolvedValue({ id: "media-1", url: "https://cdn.test/img.jpg" }),
+    getMediaMetadata: jest.fn().mockResolvedValue({ id: "media-1" }),
   },
 }));
-jest.mock("./src/context/AuthContext", () => ({
-  useAuth: () => ({ userId: "user-123" }),
-}));
-// ProfileScreen uses colors.background.gradient.app from theme/colors (not theme)
 jest.mock("./src/theme/colors", () => ({
   colors: {
     background: {
@@ -127,95 +124,57 @@ jest.mock("./src/theme", () => ({
   shadows: {},
 }));
 
-describe("ProfileScreen", () => {
+describe("MyProfileScreen", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("renders profile header", () => {
-    const { getByText } = render(<ProfileScreen />);
+    const { getByText } = render(<MyProfileScreen />);
     expect(getByText("Profil")).toBeTruthy();
   });
 
-  it("renders user name from route params", () => {
-    const { getByText } = render(<ProfileScreen />);
-    expect(getByText("John Doe")).toBeTruthy();
-  });
-
-  it("renders edit profile button", () => {
-    const { getByText } = render(<ProfileScreen />);
-    expect(getByText("Modifier le profil")).toBeTruthy();
-  });
-
-  it("enters edit mode on edit button press", () => {
-    const { getByText } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
-    expect(getByText("Sauvegarder")).toBeTruthy();
+  it("loads and renders profile data from UserService.getProfile", async () => {
+    const { getByText } = render(<MyProfileScreen />);
+    await waitFor(() => expect(getByText("John Doe")).toBeTruthy());
   });
 
   it("navigates back on back press when not editing", () => {
-    const { getByText } = render(<ProfileScreen />);
+    const { getByText } = render(<MyProfileScreen />);
     fireEvent.press(getByText("← Retour"));
     expect(mockGoBack).toHaveBeenCalled();
   });
 
-  it("navigates to Settings on settings press", () => {
-    const { getByText } = render(<ProfileScreen />);
-    fireEvent.press(getByText("⚙️"));
-    expect(mockNavigate).toHaveBeenCalledWith("Settings");
+  it("enters edit mode and exposes a Save button", async () => {
+    const { getByLabelText, getByText } = render(<MyProfileScreen />);
+    fireEvent.press(getByLabelText("Modifier le profil"));
+    await waitFor(() => expect(getByText("Sauvegarder")).toBeTruthy());
   });
 });
 
-// ---------------------------------------------------------------------------
-// Handler-level tests (Sprint 3)
-// ---------------------------------------------------------------------------
-
-describe("ProfileScreen — edit / save flow", () => {
+describe("MyProfileScreen — save flow", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  const pickerMock = require("expo-image-picker") as {
-    requestMediaLibraryPermissionsAsync: jest.Mock;
-    launchImageLibraryAsync: jest.Mock;
-    requestCameraPermissionsAsync: jest.Mock;
-    launchCameraAsync: jest.Mock;
-  };
-
-  it("keeps the profile picture untouched when the image picker is cancelled", async () => {
-    pickerMock.requestMediaLibraryPermissionsAsync.mockResolvedValueOnce({
-      status: "granted",
-    });
-    pickerMock.launchImageLibraryAsync.mockResolvedValueOnce({
-      canceled: true,
-    });
-
-    const { getByText } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
-    // Re-pressing the avatar area is not part of the rendered text — the flow
-    // is tested through the launchImageLibraryAsync mock above.
-
-    await waitFor(() => {
-      expect(pickerMock.requestMediaLibraryPermissionsAsync).not.toThrow();
-    });
-  });
-
-  it("aborts the save when a required field becomes invalid", async () => {
+  it("aborts the save when a required field becomes empty", async () => {
     const services = require("./src/services") as {
       UserService: { getInstance: () => { updateProfile: jest.Mock } };
     };
     const mockInstance = services.UserService.getInstance();
     (mockInstance.updateProfile as jest.Mock).mockClear();
 
-    const { getByText, getByDisplayValue } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
+    const { getByLabelText, getByText, getByDisplayValue } = render(
+      <MyProfileScreen />,
+    );
+    await waitFor(() => expect(getByText("John Doe")).toBeTruthy());
 
-    // Clear the firstName field → validation should reject
+    fireEvent.press(getByLabelText("Modifier le profil"));
     fireEvent.changeText(getByDisplayValue("John"), "");
     fireEvent.press(getByText("Sauvegarder"));
 
-    await waitFor(() => {
-      expect(mockInstance.updateProfile).not.toHaveBeenCalled();
-    });
+    await waitFor(() =>
+      expect(mockInstance.updateProfile).not.toHaveBeenCalled(),
+    );
   });
 
-  it("calls UserService.updateProfile when the save flow succeeds", async () => {
+  it("calls UserService.updateProfile on a successful save", async () => {
     const services = require("./src/services") as {
       UserService: {
         getInstance: () => {
@@ -235,8 +194,12 @@ describe("ProfileScreen — edit / save flow", () => {
       },
     });
 
-    const { getByText, getByDisplayValue } = render(<ProfileScreen />);
-    fireEvent.press(getByText("Modifier le profil"));
+    const { getByLabelText, getByText, getByDisplayValue } = render(
+      <MyProfileScreen />,
+    );
+    await waitFor(() => expect(getByText("John Doe")).toBeTruthy());
+
+    fireEvent.press(getByLabelText("Modifier le profil"));
     fireEvent.changeText(getByDisplayValue("John"), "Jane");
     fireEvent.press(getByText("Sauvegarder"));
 

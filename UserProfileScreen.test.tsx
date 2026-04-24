@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import { ProfileScreen } from "./src/screens/Profile/ProfileScreen";
+import { UserProfileScreen } from "./src/screens/Profile/UserProfileScreen";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -11,46 +11,25 @@ jest.mock("@react-navigation/native", () => ({
     goBack: mockGoBack,
     reset: jest.fn(),
   }),
-  useRoute: () => ({
-    params: { userId: "other-user-456" },
-  }),
+  useRoute: () => ({ params: { userId: "other-user-456" } }),
   useFocusEffect: (cb: () => void | (() => void)) => {
     const React = require("react");
     React.useEffect(() => cb(), []);
   },
 }));
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
-jest.mock("expo-image-picker", () => ({
-  requestMediaLibraryPermissionsAsync: jest
-    .fn()
-    .mockResolvedValue({ status: "granted" }),
-  requestCameraPermissionsAsync: jest
-    .fn()
-    .mockResolvedValue({ status: "granted" }),
-  launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true }),
-  launchCameraAsync: jest.fn().mockResolvedValue({ canceled: true }),
-  MediaTypeOptions: { Images: "Images" },
-}));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/context/AuthContext", () => ({
-  useAuth: () => ({ userId: "current-user-123" }),
-}));
-jest.mock("./src/components", () => ({
-  Logo: () => null,
-  Button: ({ title, onPress, disabled }: any) => {
-    const { TouchableOpacity, Text } = require("react-native");
-    return (
-      <TouchableOpacity onPress={onPress} disabled={disabled}>
-        <Text>{title}</Text>
-      </TouchableOpacity>
-    );
-  },
+jest.mock("./src/components/Chat/Avatar", () => ({
+  Avatar: () => null,
 }));
 jest.mock("./src/services", () => {
   const singleton = {
-    getProfile: jest.fn().mockResolvedValue({ success: false }),
+    getProfile: jest.fn(),
     getUserProfile: jest.fn().mockResolvedValue({
       success: true,
       profile: {
@@ -58,21 +37,13 @@ jest.mock("./src/services", () => {
         firstName: "Alice",
         lastName: "Martin",
         username: "alice",
-        phoneNumber: "+33611112222",
         biography: "Bio d'Alice",
       },
     }),
-    updateProfile: jest.fn().mockResolvedValue({ success: true }),
+    updateProfile: jest.fn(),
   };
   return { UserService: { getInstance: () => singleton } };
 });
-jest.mock("./src/services/MediaService", () => ({
-  MediaService: {
-    uploadMedia: jest
-      .fn()
-      .mockResolvedValue({ id: "media-1", url: "https://cdn.test/img.jpg" }),
-  },
-}));
 jest.mock("./src/theme/colors", () => ({
   colors: {
     background: {
@@ -119,31 +90,50 @@ jest.mock("./src/theme", () => ({
   shadows: {},
 }));
 
-describe("ProfileScreen — viewing another user", () => {
+describe("UserProfileScreen", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("hides the 'Modifier le profil' button when viewing another user", async () => {
-    const { queryByText, getByText } = render(<ProfileScreen />);
-    await waitFor(() => expect(getByText("Alice Martin")).toBeTruthy());
-    expect(queryByText("Modifier le profil")).toBeNull();
-    expect(queryByText("Sauvegarder")).toBeNull();
-  });
-
-  it("never calls updateProfile when viewing another user", async () => {
+  it("calls getUserProfile with the route userId", async () => {
     const services = require("./src/services") as {
       UserService: {
-        getInstance: () => {
-          updateProfile: jest.Mock;
-          getUserProfile: jest.Mock;
-        };
+        getInstance: () => { getUserProfile: jest.Mock };
       };
     };
     const instance = services.UserService.getInstance();
 
-    const { getByText } = render(<ProfileScreen />);
+    const { getByText } = render(<UserProfileScreen />);
+    await waitFor(() => expect(getByText("Alice Martin")).toBeTruthy());
+    expect(instance.getUserProfile).toHaveBeenCalledWith("other-user-456");
+  });
+
+  it("does not render an edit pencil nor a Save button", async () => {
+    const { queryByLabelText, queryByText, getByText } = render(
+      <UserProfileScreen />,
+    );
     await waitFor(() => expect(getByText("Alice Martin")).toBeTruthy());
 
-    expect(instance.getUserProfile).toHaveBeenCalledWith("other-user-456");
+    expect(queryByLabelText("Modifier le profil")).toBeNull();
+    expect(queryByText("Sauvegarder")).toBeNull();
+  });
+
+  it("does not render the phone number field", async () => {
+    const { queryByText, getByText } = render(<UserProfileScreen />);
+    await waitFor(() => expect(getByText("Alice Martin")).toBeTruthy());
+
+    expect(queryByText("Numéro de téléphone")).toBeNull();
+  });
+
+  it("never calls updateProfile", async () => {
+    const services = require("./src/services") as {
+      UserService: {
+        getInstance: () => { updateProfile: jest.Mock };
+      };
+    };
+    const instance = services.UserService.getInstance();
+
+    const { getByText } = render(<UserProfileScreen />);
+    await waitFor(() => expect(getByText("Alice Martin")).toBeTruthy());
+
     expect(instance.updateProfile).not.toHaveBeenCalled();
   });
 });

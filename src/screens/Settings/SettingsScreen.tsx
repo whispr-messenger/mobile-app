@@ -611,7 +611,7 @@ export const SettingsScreen: React.FC = () => {
           <SettingItem
             label={getLocalizedText("settings.myProfile")}
             subtitle={getLocalizedText("settings.myProfileSubtitle")}
-            onPress={() => navigation.navigate("Profile", {})}
+            onPress={() => navigation.navigate("MyProfile")}
             rightComponent={
               <Ionicons
                 name="chevron-forward"

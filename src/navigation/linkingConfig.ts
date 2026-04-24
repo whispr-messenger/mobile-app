@@ -43,7 +43,7 @@ export const linkingConfig: LinkingOptions<LinkingParamList> = {
       // whispr://group/<groupId>
       GroupDetails: "group/:groupId",
       // whispr://profile/<userId>
-      Profile: "profile/:userId",
+      UserProfile: "profile/:userId",
       // whispr://settings — support both cases since some notifications and
       // email links shipped with the capitalised `Settings` path (WHISPR-1115).
       Settings: {
