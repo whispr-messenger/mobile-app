@@ -30,6 +30,9 @@ beforeEach(() => {
   jest.doMock("./src/services/SignalKeyService", () =>
     require("./src/__test-utils__/mockFactories").makeSignalKeyServiceMock(),
   );
+  jest.doMock("./src/services/NotificationService", () =>
+    require("./src/__test-utils__/mockFactories").makeNotificationServiceMock(),
+  );
   jest.doMock("./src/services/sessionEvents", () =>
     require("./src/__test-utils__/mockFactories").makeSessionEventsMock(),
   );
