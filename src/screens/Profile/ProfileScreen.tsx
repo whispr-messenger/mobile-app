@@ -768,7 +768,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               {!profileLoaded ? (
                 <View style={styles.loadingRow}>
                   <ActivityIndicator color="rgba(255,255,255,0.8)" />
-                  <Text style={styles.loadingText}>Chargement du profil…</Text>
+                  <Text style={styles.loadingText}>Chargement du profil</Text>
                 </View>
               ) : profileLoadError ? (
                 <Text style={styles.loadErrorText}>{profileLoadError}</Text>
@@ -951,7 +951,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   />
                 ) : (
                   <Button
-                    title={loading ? "Sauvegarde..." : "Sauvegarder"}
+                    title={loading ? "Sauvegarde" : "Sauvegarder"}
                     variant="primary"
                     size="large"
                     onPress={handleSaveProfile}
