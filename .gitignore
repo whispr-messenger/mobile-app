@@ -49,3 +49,5 @@ AGENTS.md
 .home/
 .expo-home/
 .cache/
+
+coverage
