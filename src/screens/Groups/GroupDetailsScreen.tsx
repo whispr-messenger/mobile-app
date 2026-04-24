@@ -823,35 +823,33 @@ export const GroupDetailsScreen: React.FC = () => {
             {stats && stats.adminCount > 1 ? "s" : ""}
           </Text>
         </View>
-        {isAdmin && (
-          <TouchableOpacity
+        <TouchableOpacity
+          style={[
+            styles.addMemberButton,
+            { backgroundColor: withOpacity(colors.primary.main, 0.15) },
+          ]}
+          onPress={openAddMemberModal}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Ajouter un membre"
+        >
+          <View
             style={[
-              styles.addMemberButton,
-              { backgroundColor: withOpacity(colors.primary.main, 0.15) },
+              styles.addMemberIcon,
+              { backgroundColor: colors.primary.main },
             ]}
-            onPress={openAddMemberModal}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Ajouter un membre"
           >
-            <View
-              style={[
-                styles.addMemberIcon,
-                { backgroundColor: colors.primary.main },
-              ]}
-            >
-              <Ionicons name="person-add" size={18} color={colors.text.light} />
-            </View>
-            <Text style={[styles.addMemberText, { color: colors.text.light }]}>
-              Ajouter un membre
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={withOpacity(colors.text.light, 0.5)}
-            />
-          </TouchableOpacity>
-        )}
+            <Ionicons name="person-add" size={18} color={colors.text.light} />
+          </View>
+          <Text style={[styles.addMemberText, { color: colors.text.light }]}>
+            Ajouter un membre
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={withOpacity(colors.text.light, 0.5)}
+          />
+        </TouchableOpacity>
         {members.map((member, index) => (
           <AnimatedTouchableOpacity
             key={member.id}
