@@ -71,6 +71,7 @@ export const ContactsScreen: React.FC = () => {
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? "";
   const [token, setToken] = useState<string>("");
+  const lastRefreshAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (!userId) {
@@ -116,6 +117,7 @@ export const ContactsScreen: React.FC = () => {
 
   const refreshAll = useCallback(async () => {
     await Promise.all([loadContacts(), loadContactRequests()]);
+    lastRefreshAtRef.current = Date.now();
   }, [loadContacts, loadContactRequests]);
 
   useWebSocket({
@@ -133,20 +135,19 @@ export const ContactsScreen: React.FC = () => {
     },
   });
 
-  useEffect(() => {
-    loadContacts();
-    loadContactRequests();
-  }, [loadContacts, loadContactRequests]);
-
   useFocusEffect(
     useCallback(() => {
-      if (!userId || !token) return undefined;
-      void refreshAll();
-      const interval = setInterval(() => {
+      if (!userId) return undefined;
+      if (Date.now() - lastRefreshAtRef.current > 30_000) {
         void refreshAll();
-      }, 10000);
+      }
+      const interval = setInterval(() => {
+        if (Date.now() - lastRefreshAtRef.current > 30_000) {
+          void refreshAll();
+        }
+      }, 30_000);
       return () => clearInterval(interval);
-    }, [userId, token, refreshAll]),
+    }, [userId, refreshAll]),
   );
   // Handle refresh
   const handleRefresh = useCallback(async () => {
@@ -523,7 +524,7 @@ export const ContactsScreen: React.FC = () => {
             <Text
               style={[styles.emptyText, { color: themeColors.text.secondary }]}
             >
-              Chargement des demandes...
+              Chargement
             </Text>
           </View>
         ) : pendingRequests.length > 0 ? (
@@ -616,7 +617,7 @@ export const ContactsScreen: React.FC = () => {
             <Text
               style={[styles.emptyText, { color: themeColors.text.secondary }]}
             >
-              Chargement...
+              Chargement
             </Text>
           </View>
         ) : filteredContacts.length === 0 ? (
