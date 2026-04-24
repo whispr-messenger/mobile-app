@@ -18,7 +18,9 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 
 import { offlineQueue, type QueuedMessage } from "./src/services/offlineQueue";
 
-const makeMessage = (overrides: Partial<QueuedMessage> = {}): QueuedMessage => ({
+const makeMessage = (
+  overrides: Partial<QueuedMessage> = {},
+): QueuedMessage => ({
   id: `temp-${overrides.client_random ?? Date.now()}`,
   conversation_id: "conv-1",
   content: "hello",
@@ -56,9 +58,15 @@ describe("offlineQueue.drainAll (WHISPR-1060)", () => {
   });
 
   it("keeps failed messages in the queue and reports the counts", async () => {
-    await offlineQueue.enqueue(makeMessage({ client_random: 21, content: "ok-1" }));
-    await offlineQueue.enqueue(makeMessage({ client_random: 22, content: "boom" }));
-    await offlineQueue.enqueue(makeMessage({ client_random: 23, content: "ok-3" }));
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 21, content: "ok-1" }),
+    );
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 22, content: "boom" }),
+    );
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 23, content: "ok-3" }),
+    );
     const sendFn = jest.fn(async (m: QueuedMessage) => {
       if (m.content === "boom") throw new Error("network");
     });
@@ -94,5 +102,85 @@ describe("offlineQueue.drainAll (WHISPR-1060)", () => {
     await offlineQueue.drainAll(sendFn);
 
     expect(sendFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("offlineQueue.getAll", () => {
+  it("returns an empty array when nothing is persisted", async () => {
+    await expect(offlineQueue.getAll()).resolves.toEqual([]);
+  });
+
+  it("returns parsed messages when storage has data", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 101 }));
+    await expect(offlineQueue.getAll()).resolves.toHaveLength(1);
+  });
+
+  it("returns an empty array when persisted JSON is corrupted", async () => {
+    storage["whispr.offline.message.queue"] = "not-json";
+    await expect(offlineQueue.getAll()).resolves.toEqual([]);
+  });
+});
+
+describe("offlineQueue.enqueue", () => {
+  it("appends a new message", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 201 }));
+    await offlineQueue.enqueue(makeMessage({ client_random: 202 }));
+    const all = await offlineQueue.getAll();
+    expect(all.map((m) => m.client_random)).toEqual([201, 202]);
+  });
+
+  it("deduplicates by client_random", async () => {
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 300, content: "first" }),
+    );
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 300, content: "second" }),
+    );
+    const all = await offlineQueue.getAll();
+    expect(all).toHaveLength(1);
+    expect(all[0].content).toBe("first");
+  });
+});
+
+describe("offlineQueue.remove", () => {
+  it("removes the matching message", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 401 }));
+    await offlineQueue.enqueue(makeMessage({ client_random: 402 }));
+    await offlineQueue.remove(401);
+    const all = await offlineQueue.getAll();
+    expect(all.map((m) => m.client_random)).toEqual([402]);
+  });
+
+  it("is a no-op when the message is not in the queue", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 501 }));
+    await offlineQueue.remove(999);
+    const all = await offlineQueue.getAll();
+    expect(all.map((m) => m.client_random)).toEqual([501]);
+  });
+});
+
+describe("offlineQueue.clearAll", () => {
+  it("empties the queue entirely", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 601 }));
+    await offlineQueue.enqueue(makeMessage({ client_random: 602 }));
+    await offlineQueue.clearAll();
+    await expect(offlineQueue.getAll()).resolves.toEqual([]);
+  });
+});
+
+describe("offlineQueue.getForConversation", () => {
+  it("filters by conversation_id", async () => {
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 701, conversation_id: "conv-a" }),
+    );
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 702, conversation_id: "conv-b" }),
+    );
+    await offlineQueue.enqueue(
+      makeMessage({ client_random: 703, conversation_id: "conv-a" }),
+    );
+
+    const result = await offlineQueue.getForConversation("conv-a");
+    expect(result.map((m) => m.client_random)).toEqual([701, 703]);
   });
 });
