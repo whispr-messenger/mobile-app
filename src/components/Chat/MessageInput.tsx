@@ -14,6 +14,7 @@ import {
   Alert,
   FlatList,
   ScrollView,
+  NativeModules,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,20 +29,30 @@ import { Avatar } from "./Avatar";
 import { CameraCapture, CameraCaptureResult } from "./CameraCapture";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
 
-// Import expo-av for audio recording
 let AudioModule: any = null;
-try {
-  const expoAv = require("expo-av");
-  AudioModule = expoAv.Audio;
-} catch (error) {
-  console.warn("[MessageInput] expo-av not available for recording:", error);
+let triedLoadingAudioModule = false;
+
+function getAudioModule(): any | null {
+  if (AudioModule) return AudioModule;
+  if (triedLoadingAudioModule) return null;
+  triedLoadingAudioModule = true;
+  const native = NativeModules as Record<string, unknown>;
+  if (!native?.ExponentAV) return null;
+  try {
+    const expoAv = require("expo-av");
+    AudioModule = expoAv.Audio;
+    return AudioModule;
+  } catch (error) {
+    console.warn("[MessageInput] expo-av not available for recording:", error);
+    return null;
+  }
 }
 
 // Derive a Safari-compatible MIME on web; keep HIGH_QUALITY preset on native.
 // expo-av's HIGH_QUALITY preset forces `audio/webm` on web, which iOS Safari
 // refuses with NotSupportedError. Safari (iOS + macOS) supports `audio/mp4`.
 export const buildRecordingOptions = () => {
-  const base = AudioModule?.RecordingOptionsPresets?.HIGH_QUALITY;
+  const base = getAudioModule()?.RecordingOptionsPresets?.HIGH_QUALITY;
   if (Platform.OS !== "web") return base;
   const webMime =
     typeof MediaRecorder !== "undefined" &&
@@ -315,13 +326,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, []);
 
   const startRecording = useCallback(async () => {
-    if (!AudioModule) {
+    const audioModule = getAudioModule();
+    if (!audioModule) {
       Alert.alert("Erreur", "L'enregistrement audio n'est pas disponible.");
       return;
     }
 
     try {
-      const permission = await AudioModule.requestPermissionsAsync();
+      const permission = await audioModule.requestPermissionsAsync();
       if (permission.status !== "granted") {
         Alert.alert(
           "Permission requise",
@@ -330,7 +342,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      await AudioModule.setAudioModeAsync({
+      await audioModule.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
@@ -338,7 +350,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       const options = buildRecordingOptions();
       recordingMimeRef.current =
         Platform.OS === "web" ? (options?.web?.mimeType ?? null) : null;
-      const { recording } = await AudioModule.Recording.createAsync(options);
+      const { recording } = await audioModule.Recording.createAsync(options);
       recordingRef.current = recording;
       setIsRecording(true);
       setRecordingDuration(0);
@@ -365,9 +377,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       await recordingRef.current.stopAndUnloadAsync();
-      await AudioModule.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      const audioModule = getAudioModule();
+      if (audioModule) {
+        await audioModule.setAudioModeAsync({
+          allowsRecordingIOS: false,
+        });
+      }
 
       const uri = recordingRef.current.getURI();
       const status = await recordingRef.current.getStatusAsync();

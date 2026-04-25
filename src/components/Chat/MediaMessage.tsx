@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  NativeModules,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -249,15 +250,25 @@ function useResolvedMediaUrl(uri: string | undefined): {
   return { resolvedUri, loading, error };
 }
 
-// Import expo-av avec gestion d'erreur
 let Video: any = null;
 let ResizeMode: any = null;
-try {
-  const expoAv = require("expo-av");
-  Video = expoAv.Video;
-  ResizeMode = expoAv.ResizeMode;
-} catch (error) {
-  console.warn("[MediaMessage] expo-av not available, using fallback:", error);
+let triedLoadingExpoAvVideo = false;
+
+function ensureExpoAvVideoLoaded(): void {
+  if (Video || triedLoadingExpoAvVideo) return;
+  triedLoadingExpoAvVideo = true;
+  const native = NativeModules as Record<string, unknown>;
+  if (!native?.ExponentAV) return;
+  try {
+    const expoAv = require("expo-av");
+    Video = expoAv.Video;
+    ResizeMode = expoAv.ResizeMode;
+  } catch (error) {
+    console.warn(
+      "[MediaMessage] expo-av not available, using fallback:",
+      error,
+    );
+  }
 }
 
 interface MediaMessageProps {
@@ -275,6 +286,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   size,
   thumbnailUri,
 }) => {
+  ensureExpoAvVideoLoaded();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const [showFullImage, setShowFullImage] = useState(false);
