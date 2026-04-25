@@ -883,15 +883,44 @@ export const groupsAPI = {
     userId?: string,
     conversationId?: string,
   ): Promise<void> {
-    const memberId = userId ?? (await getOwnerId());
+    const currentUserId = await getOwnerId();
+    const memberId = userId ?? currentUserId;
     const convId = conversationId ?? groupId;
+    const headers = await getAuthHeaders();
+
+    // Backend contract: leaving your own group membership must use
+    // POST /conversations/:id/leave (DELETE members/:id is for admin removal).
+    if (memberId === currentUserId) {
+      const leaveResponse = await fetch(
+        `${MESSAGING_API_URL}/conversations/${encodeURIComponent(convId)}/leave`,
+        {
+          method: "POST",
+          headers,
+        },
+      );
+
+      if (leaveResponse.ok || leaveResponse.status === 204) {
+        return;
+      }
+
+      // Compatibility fallback for older backends still expecting DELETE.
+      if (![404, 405].includes(leaveResponse.status)) {
+        const body = await leaveResponse.json().catch(() => ({}));
+        const raw =
+          (body as { error?: string; message?: string })?.error ??
+          (body as { message?: string })?.message ??
+          `HTTP ${leaveResponse.status}`;
+        const err = new Error(raw) as Error & { status: number };
+        err.status = leaveResponse.status;
+        throw err;
+      }
+    }
+
     const response = await fetch(
       `${MESSAGING_API_URL}/conversations/${encodeURIComponent(convId)}/members/${encodeURIComponent(memberId)}`,
       {
         method: "DELETE",
-        headers: {
-          ...(await getAuthHeaders()),
-        },
+        headers,
       },
     );
 

@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
 import Constants from "expo-constants";
 import { AuthService } from "./AuthService";
 import { TokenService } from "./TokenService";
@@ -20,6 +20,12 @@ type ExpoNotificationsModule = {
 
 function loadExpoNotifications(): ExpoNotificationsModule | null {
   if (Platform.OS !== "ios" && Platform.OS !== "android") return null;
+  const native = NativeModules as Record<string, unknown>;
+  const hasNotificationsNative =
+    Boolean(native?.ExpoPushTokenManager) ||
+    Boolean(native?.ExpoNotificationsEmitter) ||
+    Boolean(native?.ExpoBadgeModule);
+  if (!hasNotificationsNative) return null;
   try {
     return require("expo-notifications") as ExpoNotificationsModule;
   } catch {

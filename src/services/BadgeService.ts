@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
 
 /**
  * BadgeService — pilote le badge de l'icône d'app (APNs sur iOS, laucher sur
@@ -13,8 +13,24 @@ type ExpoNotificationsModule = {
   getBadgeCountAsync: () => Promise<number>;
 };
 
+let warnedMissingNotificationsNative = false;
+
 function loadNotifications(): ExpoNotificationsModule | null {
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
+    return null;
+  }
+  const native = NativeModules as Record<string, unknown>;
+  const hasNotificationsNative =
+    Boolean(native?.ExpoPushTokenManager) ||
+    Boolean(native?.ExpoNotificationsEmitter) ||
+    Boolean(native?.ExpoBadgeModule);
+  if (!hasNotificationsNative) {
+    if (!warnedMissingNotificationsNative) {
+      warnedMissingNotificationsNative = true;
+      console.warn(
+        "[BadgeService] Expo notifications native modules missing — badge skipped. Rebuild dev client with expo-notifications plugin.",
+      );
+    }
     return null;
   }
   try {
