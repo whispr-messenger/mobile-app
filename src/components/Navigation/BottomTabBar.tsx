@@ -52,15 +52,12 @@ type Props = {
 };
 
 export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
-  const conversations = useConversationsStore((s) => s.conversations);
-  const chatsUnread = React.useMemo(
-    () =>
-      conversations.reduce(
-        (sum, c) =>
-          sum + (typeof c.unread_count === "number" ? c.unread_count : 0),
-        0,
-      ),
-    [conversations],
+  const chatsUnread = useConversationsStore((s) =>
+    s.conversations.reduce(
+      (sum, c) =>
+        sum + (typeof c.unread_count === "number" ? c.unread_count : 0),
+      0,
+    ),
   );
   const unreadCounts = { chats: chatsUnread };
 
@@ -74,21 +71,26 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
     return currentRouteName === tabRoute;
   };
 
-  if (!tabs.some((t) => t.route === currentRouteName)) {
-    return null;
-  }
+  const visible = tabs.some((t) => t.route === currentRouteName);
 
   const Wrapper = Platform.OS === "web" ? View : SafeAreaView;
   const wrapperProps =
     Platform.OS === "web" ? {} : { edges: ["bottom"] as const };
 
   return (
-    <Wrapper {...wrapperProps} style={styles.container}>
+    <Wrapper
+      {...wrapperProps}
+      style={[styles.container, !visible ? styles.containerHidden : null]}
+      pointerEvents={visible ? "auto" : "none"}
+    >
       <LinearGradient
         colors={GRADIENT_APP_COLORS}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradientBackground}
+        style={[
+          styles.gradientBackground,
+          !visible ? styles.gradientBackgroundHidden : null,
+        ]}
       >
         <View
           style={[
@@ -192,8 +194,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     backgroundColor: GRADIENT_SAFE_AREA_COLOR,
   },
+  containerHidden: {
+    height: 0,
+    paddingBottom: 0,
+    opacity: 0,
+    overflow: "hidden",
+  },
   gradientBackground: {
     borderTopWidth: 1,
+  },
+  gradientBackgroundHidden: {
+    borderTopWidth: 0,
   },
   tabBar: {
     flexDirection: "row",
