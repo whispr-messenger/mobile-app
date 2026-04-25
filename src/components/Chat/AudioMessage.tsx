@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   NativeModules,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
@@ -21,9 +22,13 @@ let triedLoadingAudioModule = false;
 function getAudioModule(): any | null {
   if (AudioModule) return AudioModule;
   if (triedLoadingAudioModule) return null;
-  triedLoadingAudioModule = true;
   const native = NativeModules as Record<string, unknown>;
-  if (!native?.ExponentAV) return null;
+  const shouldAttemptLoad =
+    Platform.OS === "web" ||
+    process.env.NODE_ENV === "test" ||
+    Boolean(native?.ExponentAV);
+  if (!shouldAttemptLoad) return null;
+  triedLoadingAudioModule = true;
   try {
     const expoAv = require("expo-av");
     AudioModule = expoAv.Audio;
