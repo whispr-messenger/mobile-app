@@ -1070,6 +1070,7 @@ export const GroupManagementScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100vh" as any, minHeight: 0 } : {}),
   },
   header: {
     flexDirection: "row",
@@ -1099,6 +1100,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0, overflow: "auto" as any } : {}),
   },
   scrollContent: {
     paddingBottom: 32,
