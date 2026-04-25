@@ -18,6 +18,7 @@ import {
   Modal,
   TextInput,
   FlatList,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -2158,9 +2159,11 @@ export const GroupDetailsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100vh" as any } : {}),
   },
   container: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100%", minHeight: 0 } : {}),
   },
   header: {
     flexDirection: "row",
@@ -2195,6 +2198,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0, overflow: "auto" as any } : {}),
   },
   groupInfoSection: {
     alignItems: "center",
