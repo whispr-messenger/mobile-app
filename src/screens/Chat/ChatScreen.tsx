@@ -66,6 +66,7 @@ import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
+import { resolveConversationMemberIds } from "../../utils/resolveMembers";
 import { SchedulingService } from "../../services/SchedulingService";
 import {
   gateChatImageBeforeSend,
@@ -1165,6 +1166,27 @@ export const ChatScreen: React.FC = () => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       }, 100);
 
+      // Kick off the authoritative member fetch in parallel with the upload.
+      // RLS on media-service requires the recipient to be in shared_with, so
+      // we MUST have the right IDs before calling shareMedia. Starting this
+      // fetch now hides the network round-trip behind upload latency.
+      // Wrap into a settled-result promise so a rejection is never an
+      // unhandled rejection if we exit early (gate block, upload error).
+      const membersFetchSettled: Promise<{
+        ok: boolean;
+        value?: Array<{ id: string }>;
+      }> = messagingAPI
+        .getConversationMembers(conversationId)
+        .then((value) => ({ ok: true, value }))
+        .catch((err) => {
+          logger.warn(
+            "ChatScreen.handleSendMedia",
+            "getConversationMembers failed; will fall back to in-memory IDs",
+            err,
+          );
+          return { ok: false };
+        });
+
       try {
         // Gate check: block inappropriate images / videos before upload.
         // gateChatVideoBeforeSend is a no-op when the selected moderation
@@ -1248,36 +1270,82 @@ export const ChatScreen: React.FC = () => {
           ),
         );
 
-        // 2. Share media with all conversation participants so they can access it
-        const rawMemberIds: string[] = [
-          ...(conversation?.member_user_ids ?? []),
-          ...(allConversations.find((c) => c.id === conversationId)
-            ?.member_user_ids ?? []),
-          ...(conversation?.members?.map(
-            (m: { user_id: string }) => m.user_id,
-          ) ?? []),
-          ...conversationMembers.map((m) => m.id),
-        ];
-        let memberIds = [...new Set(rawMemberIds)]
-          .filter(Boolean)
-          .filter((id) => id !== userId);
+        // 2. Share media with all conversation participants so they can access it.
+        // The fetch was started before upload (see membersFetchSettled above)
+        // so it has either already resolved or is about to.
+        const fetchPromise: Promise<Array<{ id: string }>> =
+          membersFetchSettled.then((r) => {
+            if (!r.ok || !r.value) {
+              throw new Error("getConversationMembers failed");
+            }
+            return r.value;
+          });
+        const { memberIds } = await resolveConversationMemberIds(
+          {
+            conversation,
+            allConversations,
+            conversationMembers,
+            conversationId,
+          },
+          fetchPromise,
+          {
+            selfId: userId,
+            fetchMembers: (id) => messagingAPI.getConversationMembers(id),
+          },
+        );
+
         if (memberIds.length === 0) {
-          try {
-            const members =
-              await messagingAPI.getConversationMembers(conversationId);
-            memberIds = members.map((m) => m.id).filter((id) => id !== userId);
-          } catch (err) {
-            console.warn("[ChatScreen] getConversationMembers failed:", err);
-          }
-        }
-        if (memberIds.length > 0) {
-          await MediaService.shareMedia(uploadResult.id, memberIds).catch(
-            (err) =>
-              console.warn(
-                "[ChatScreen] shareMedia failed (non-blocking):",
-                err,
-              ),
+          // No recipients found anywhere — surface this to the user, the
+          // recipient will not be able to open the media without a share.
+          logger.error(
+            "ChatScreen.handleSendMedia",
+            "No recipients resolved for conversation, media will be inaccessible",
+            { conversationId, mediaId: uploadResult.id },
           );
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === tempMessageId
+                ? {
+                    ...msg,
+                    metadata: {
+                      ...(msg.metadata || {}),
+                      shareWarning: true,
+                    },
+                  }
+                : msg,
+            ),
+          );
+          showAlert(
+            "Partage du média",
+            "Impossible de partager le média avec les destinataires. Ils ne pourront peut-être pas l'ouvrir.",
+          );
+        } else {
+          try {
+            await MediaService.shareMediaWithRetry(uploadResult.id, memberIds);
+          } catch (err) {
+            logger.error(
+              "ChatScreen.handleSendMedia",
+              "shareMedia failed after retries",
+              err,
+            );
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === tempMessageId
+                  ? {
+                      ...msg,
+                      metadata: {
+                        ...(msg.metadata || {}),
+                        shareWarning: true,
+                      },
+                    }
+                  : msg,
+              ),
+            );
+            showAlert(
+              "Partage du média",
+              "Le média a été envoyé mais le partage a échoué. Le destinataire pourrait ne pas pouvoir l'ouvrir.",
+            );
+          }
         }
 
         // 3. Send message via messaging-service with remote media URLs
