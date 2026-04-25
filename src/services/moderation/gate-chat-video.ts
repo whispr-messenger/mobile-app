@@ -1,9 +1,26 @@
-import * as VideoThumbnails from "expo-video-thumbnails";
-import { Platform } from "react-native";
+import { NativeModules, Platform } from "react-native";
 import { tfjsService } from "./tfjs.service";
 import { logger } from "../../utils/logger";
 import { getModerationModelVersion } from "./model-version";
 import type { GateChatImageResult } from "./gate-chat-image";
+
+type ExpoVideoThumbnailsModule = {
+  getThumbnailAsync: (
+    uri: string,
+    options: { time: number; quality: number },
+  ) => Promise<{ uri: string }>;
+};
+
+function loadVideoThumbnails(): ExpoVideoThumbnailsModule | null {
+  if (Platform.OS === "web") return null;
+  const native = NativeModules as Record<string, unknown>;
+  if (!native?.ExpoVideoThumbnails) return null;
+  try {
+    return require("expo-video-thumbnails") as ExpoVideoThumbnailsModule;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * On-device TFJS video check before sending a chat video. Only active when
@@ -17,8 +34,14 @@ import type { GateChatImageResult } from "./gate-chat-image";
 export async function gateChatVideoBeforeSend(
   uri: string,
 ): Promise<GateChatImageResult> {
-  // expo-video-thumbnails is a no-op on web that throws; skip video gating entirely.
-  if (Platform.OS === "web") {
+  // expo-video-thumbnails is native-only. If not available in this dev client,
+  // skip video gating to avoid runtime crashes at app startup.
+  const videoThumbnails = loadVideoThumbnails();
+  if (!videoThumbnails) {
+    logger.warn(
+      "moderation",
+      "expo-video-thumbnails native module unavailable. Skipping video gate.",
+    );
     return { ok: true };
   }
 
@@ -29,7 +52,7 @@ export async function gateChatVideoBeforeSend(
 
   let thumbnailUri: string;
   try {
-    const thumb = await VideoThumbnails.getThumbnailAsync(uri, {
+    const thumb = await videoThumbnails.getThumbnailAsync(uri, {
       time: 0,
       quality: 1,
     });

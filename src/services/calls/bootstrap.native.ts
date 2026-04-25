@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { NativeModules } from "react-native";
 
 declare const require: (path: string) => any;
 
@@ -15,7 +16,27 @@ const isExpoGo =
   executionEnvironment === "storeClient" || appOwnership === "expo";
 
 if (!isExpoGo) {
-  const livekit =
-    require("@livekit/react-native") as typeof import("@livekit/react-native");
-  livekit.registerGlobals();
+  try {
+    // Dev clients can be launched before native modules are linked/rebuilt.
+    // In this case registerGlobals() would throw (NativeEventEmitter null).
+    const hasWebRtcNative =
+      Boolean((NativeModules as Record<string, unknown>)?.WebRTCModule) ||
+      Boolean(
+        (NativeModules as Record<string, unknown>)?.LivekitReactNativeWebRTC,
+      );
+    if (!hasWebRtcNative) {
+      console.warn(
+        "[calls/bootstrap] WebRTC native module missing — skipping LiveKit registerGlobals. Rebuild the iOS/Android dev client (e.g. `npx expo run:ios`) after adding @livekit/react-native-webrtc.",
+      );
+    } else {
+      const livekit =
+        require("@livekit/react-native") as typeof import("@livekit/react-native");
+      livekit.registerGlobals();
+    }
+  } catch (error) {
+    console.warn(
+      "[calls/bootstrap] registerGlobals failed — continuing without LiveKit globals:",
+      error,
+    );
+  }
 }

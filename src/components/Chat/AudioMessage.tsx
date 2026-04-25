@@ -4,18 +4,34 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
+  NativeModules,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../theme/colors";
 import { useResolvedMediaUrl } from "../../hooks/useResolvedMediaUrl";
 
-// Import expo-av with error handling
 let AudioModule: any = null;
-try {
-  const expoAv = require("expo-av");
-  AudioModule = expoAv.Audio;
-} catch (error) {
-  console.warn("[AudioMessage] expo-av not available:", error);
+let triedLoadingAudioModule = false;
+
+function getAudioModule(): any | null {
+  if (AudioModule) return AudioModule;
+  if (triedLoadingAudioModule) return null;
+  triedLoadingAudioModule = true;
+  const native = NativeModules as Record<string, unknown>;
+  if (!native?.ExponentAV) return null;
+  try {
+    const expoAv = require("expo-av");
+    AudioModule = expoAv.Audio;
+    return AudioModule;
+  } catch (error) {
+    console.warn("[AudioMessage] expo-av not available:", error);
+    return null;
+  }
 }
 
 interface AudioMessageProps {
@@ -67,14 +83,15 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
   }, [resolvedUri]);
 
   const loadSound = useCallback(async () => {
-    if (!AudioModule || !resolvedUri) return null;
+    const audioModule = getAudioModule();
+    if (!audioModule || !resolvedUri) return null;
 
     try {
       if (soundRef.current) {
         await soundRef.current.unloadAsync().catch(() => {});
       }
 
-      const { sound, status } = await AudioModule.Sound.createAsync(
+      const { sound, status } = await audioModule.Sound.createAsync(
         { uri: resolvedUri },
         { shouldPlay: false },
         onPlaybackStatusUpdate,
@@ -112,11 +129,12 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
   }, []);
 
   const handlePlayPause = useCallback(async () => {
-    if (!AudioModule) return;
+    const audioModule = getAudioModule();
+    if (!audioModule) return;
 
     try {
       // Configure audio mode for playback
-      await AudioModule.setAudioModeAsync({
+      await audioModule.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
       });
