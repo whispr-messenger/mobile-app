@@ -35,7 +35,7 @@ export const CallHistoryScreen: React.FC = () => {
       renderItem={({ item }) => (
         <View style={styles.row}>
           <Text style={styles.title}>
-            {item.type === "video" ? "Video" : "Audio"} -{" "}
+            {item.type === "video" ? "Vidéo" : "Audio"} -{" "}
             {statusLabel(item.status)}
           </Text>
           <Text style={styles.sub}>
@@ -43,7 +43,7 @@ export const CallHistoryScreen: React.FC = () => {
           </Text>
           {item.duration_seconds != null && (
             <Text style={styles.sub}>
-              Duree: {formatDuration(item.duration_seconds)}
+              Durée : {formatDuration(item.duration_seconds)}
             </Text>
           )}
         </View>
@@ -56,10 +56,10 @@ export const CallHistoryScreen: React.FC = () => {
 const STATUS_LABELS: Record<CallStatus, string> = {
   ringing: "Sonnerie",
   connected: "En cours",
-  ended: "Termine",
-  missed: "Manque",
-  declined: "Refuse",
-  failed: "Echec",
+  ended: "Terminé",
+  missed: "Manqué",
+  declined: "Refusé",
+  failed: "Échec",
 };
 
 function statusLabel(s: string): string {

@@ -12,7 +12,7 @@ exports[`CallControls matches snapshot (default state) 1`] = `
   }
 >
   <View
-    accessibilityLabel="Mute"
+    accessibilityLabel="Couper micro"
     accessibilityRole="button"
     accessibilityState={
       {
@@ -60,11 +60,11 @@ exports[`CallControls matches snapshot (default state) 1`] = `
         }
       }
     >
-      Mute
+      Couper micro
     </Text>
   </View>
   <View
-    accessibilityLabel="Cam off"
+    accessibilityLabel="Couper caméra"
     accessibilityRole="button"
     accessibilityState={
       {
@@ -112,11 +112,11 @@ exports[`CallControls matches snapshot (default state) 1`] = `
         }
       }
     >
-      Cam off
+      Couper caméra
     </Text>
   </View>
   <View
-    accessibilityLabel="Flip"
+    accessibilityLabel="Pivoter"
     accessibilityRole="button"
     accessibilityState={
       {
@@ -164,11 +164,11 @@ exports[`CallControls matches snapshot (default state) 1`] = `
         }
       }
     >
-      Flip
+      Pivoter
     </Text>
   </View>
   <View
-    accessibilityLabel="End"
+    accessibilityLabel="Raccrocher"
     accessibilityRole="button"
     accessibilityState={
       {
@@ -216,7 +216,7 @@ exports[`CallControls matches snapshot (default state) 1`] = `
         }
       }
     >
-      End
+      Raccrocher
     </Text>
   </View>
 </View>
