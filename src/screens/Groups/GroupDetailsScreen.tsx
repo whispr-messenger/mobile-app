@@ -432,6 +432,20 @@ export const GroupDetailsScreen: React.FC = () => {
     ]);
   }, [updateGroupSetting]);
 
+  const openContentFilterSelector = useCallback(() => {
+    Alert.alert("Filtre de contenu", "Choisissez l'etat du filtre", [
+      {
+        text: "Activer",
+        onPress: () => updateGroupSetting({ content_filter_enabled: true }),
+      },
+      {
+        text: "Desactiver",
+        onPress: () => updateGroupSetting({ content_filter_enabled: false }),
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }, [updateGroupSetting]);
+
   const handleTransferAndLeave = useCallback(
     async (newAdminId: string) => {
       try {
@@ -1384,11 +1398,7 @@ export const GroupDetailsScreen: React.FC = () => {
             style={styles.settingItem}
             disabled={!isAdmin || savingSettings}
             activeOpacity={isAdmin ? 0.7 : 1}
-            onPress={() =>
-              updateGroupSetting({
-                content_filter_enabled: !settings?.content_filter_enabled,
-              })
-            }
+            onPress={openContentFilterSelector}
           >
             <View style={styles.settingInfo}>
               <Ionicons
