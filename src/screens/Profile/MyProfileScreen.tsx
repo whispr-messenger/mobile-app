@@ -1,10 +1,9 @@
 /**
- * ProfileScreen - User Profile Management
- * WHISPR-132: Implement ProfileScreen with user profile management
+ * MyProfileScreen - Édition du profil de l'utilisateur connecté.
+ * Séparé de UserProfileScreen (consultation d'un profil tiers) — WHISPR-1189.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { formatUsername, normalizeUsername } from "../../utils";
 import {
   View,
   Text,
@@ -20,32 +19,25 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  useNavigation,
-  useRoute,
-  useFocusEffect,
-  type RouteProp,
-} from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { Logo, Button } from "../../components";
-import { Avatar } from "../../components/Chat/Avatar";
+import { Button } from "../../components";
 import {
-  colors,
-  spacing,
-  typography,
-  borderRadius,
-  shadows,
-} from "../../theme";
+  ProfileHeader,
+  ProfilePictureBlock,
+  ProfileFieldRow,
+  StatusChip,
+} from "../../components/Profile";
+import { formatUsername, normalizeUsername } from "../../utils";
+import { colors, spacing, typography, borderRadius } from "../../theme";
 import { UserService } from "../../services";
 import type { UpdateProfileRequest } from "../../services/UserService";
 import { MediaService } from "../../services/MediaService";
 import { useAuth } from "../../context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Types
 interface UserProfile {
   id: string;
   firstName: string;
@@ -59,43 +51,22 @@ interface UserProfile {
   createdAt?: string;
 }
 
-interface ProfileScreenProps {
-  userId?: string;
-  token?: string;
-}
+type NavigationProp = StackNavigationProp<any, "MyProfile">;
 
-type NavigationProp = StackNavigationProp<any, "Profile">;
-type RouteParams = {
-  userId?: string;
-  token?: string;
-  firstName?: string;
-  lastName?: string;
-  username?: string;
-  phoneNumber?: string;
-  biography?: string;
-  profilePicture?: string;
-};
+const isMediaNotFound = (message?: string) =>
+  typeof message === "string" && /media not found/i.test(message);
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({
-  userId,
-  token,
-}) => {
+export const MyProfileScreen: React.FC = () => {
   const { userId: currentUserId } = useAuth();
   const navigation = useNavigation<NavigationProp>();
-  const route = useRoute<RouteProp<{ Profile: RouteParams }, "Profile">>();
-  const params = route.params;
-  const insets = useSafeAreaInsets();
-  // ProfileScreen params loaded
 
-  // States
   const [profile, setProfile] = useState<UserProfile>({
-    id: params?.userId || userId || currentUserId || "",
-    firstName: params?.firstName || "",
-    lastName: params?.lastName || "",
-    username: params?.username || "",
-    phoneNumber: params?.phoneNumber || "",
-    biography: params?.biography || "",
-    profilePicture: params?.profilePicture,
+    id: currentUserId || "",
+    firstName: "",
+    lastName: "",
+    username: "",
+    phoneNumber: "",
+    biography: "",
     isOnline: true,
     lastSeen: "Maintenant",
     createdAt: "",
@@ -117,7 +88,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     remoteUrl?: string;
   } | null>(null);
   const saveAbortRef = useRef<AbortController | null>(null);
-  const lastLoadRef = useRef<{ userKey: string; at: number } | null>(null);
+  const lastLoadAt = useRef<number | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -138,25 +109,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       }),
     ]).start();
 
-    // Cleanup: cancel any pending save on unmount
     return () => {
       if (saveAbortRef.current) {
         saveAbortRef.current.abort();
         saveAbortRef.current = null;
       }
     };
-  }, []);
-
-  const viewedUserId = params?.userId || userId || "";
-  const isOwnProfile = !viewedUserId || viewedUserId === currentUserId;
+  }, [fadeAnim, slideAnim]);
 
   const loadProfile = useCallback(async () => {
     try {
       setProfileLoadError(null);
       const service = UserService.getInstance();
-      const res = isOwnProfile
-        ? await service.getProfile()
-        : await service.getUserProfile(viewedUserId);
+      const res = await service.getProfile();
       if (res.success && res.profile) {
         const p = res.profile;
         setProfile((prev) => ({
@@ -171,10 +136,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             pendingAvatar?.localUri || p.profilePicture || prev.profilePicture,
           createdAt: p.createdAt || prev.createdAt,
         }));
-        lastLoadRef.current = {
-          userKey: isOwnProfile ? "me" : viewedUserId,
-          at: Date.now(),
-        };
+        lastLoadAt.current = Date.now();
         setProfileLoaded(true);
         return;
       }
@@ -184,21 +146,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setProfileLoadError(e?.message || "Impossible de récupérer le profil");
       setProfileLoaded(true);
     }
-  }, [pendingAvatar?.localUri, isOwnProfile, viewedUserId]);
+  }, [pendingAvatar?.localUri]);
 
-  // Re-fetch profile from API every time the screen gains focus
   useFocusEffect(
     useCallback(() => {
-      const key = isOwnProfile ? "me" : viewedUserId;
-      const last = lastLoadRef.current;
-      if (last && last.userKey === key && Date.now() - last.at < 30_000) {
-        return;
-      }
+      const last = lastLoadAt.current;
+      if (last && Date.now() - last < 30_000) return;
       loadProfile();
-    }, [isOwnProfile, loadProfile, viewedUserId]),
+    }, [loadProfile]),
   );
 
-  // Handle profile picture change
   const handleImagePicker = async () => {
     try {
       const { status } =
@@ -220,10 +177,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
-        setProfile((prev) => ({
-          ...prev,
-          profilePicture: uri,
-        }));
+        setProfile((prev) => ({ ...prev, profilePicture: uri }));
         setPendingAvatar({ localUri: uri });
         setShowImagePicker(false);
       }
@@ -233,7 +187,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Handle camera capture
   const handleCameraCapture = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -253,10 +206,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       if (!result.canceled && result.assets[0]) {
         const uri = result.assets[0].uri;
-        setProfile((prev) => ({
-          ...prev,
-          profilePicture: uri,
-        }));
+        setProfile((prev) => ({ ...prev, profilePicture: uri }));
         setPendingAvatar({ localUri: uri });
         setShowImagePicker(false);
       }
@@ -266,7 +216,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Cancel any pending save operation
   const cancelSave = useCallback(() => {
     if (saveAbortRef.current) {
       saveAbortRef.current.abort();
@@ -278,9 +227,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const pendingAvatarKey = currentUserId
     ? `@whispr/pending_avatar_media_id:${currentUserId}`
     : "@whispr/pending_avatar_media_id:unknown";
-
-  const isMediaNotFound = (message?: string) =>
-    typeof message === "string" && /media not found/i.test(message);
 
   const waitForMediaAvailable = async (
     mediaId: string,
@@ -350,37 +296,66 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }, [finalizePendingAvatar]),
   );
 
-  // Handle profile update
+  const validateField = (
+    field: keyof UserProfile,
+    value: string | null | undefined,
+  ): string | null => {
+    const v = value || "";
+    switch (field) {
+      case "firstName":
+      case "lastName":
+        if (!v.trim()) return "Ce champ est obligatoire";
+        if (v.trim().length < 2) return "Minimum 2 caractères";
+        if (v.trim().length > 50) return "Maximum 50 caractères";
+        return null;
+
+      case "username":
+        if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
+        if (v.trim().length < 3) return "Minimum 3 caractères";
+        if (v.trim().length > 20) return "Maximum 20 caractères";
+        if (!/^[a-z0-9_]+$/.test(v.trim()))
+          return "Seuls minuscules, chiffres et _ autorisés";
+        return null;
+
+      case "biography":
+        if (v.length > 500) return "Maximum 500 caractères";
+        return null;
+
+      default:
+        return null;
+    }
+  };
+
+  const handleFieldChange = (field: keyof UserProfile, value: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field as keyof typeof prev]) return prev;
+      return { ...prev, [field]: undefined };
+    });
+    setProfile((prev) => ({ ...prev, [field]: value }));
+  };
+
   const handleSaveProfile = async () => {
-    if (!isOwnProfile) return;
     const firstNameError = validateField("firstName", profile.firstName);
     const lastNameError = validateField("lastName", profile.lastName);
     const normalizedUsername = normalizeUsername(profile.username);
     const usernameError = normalizedUsername
       ? validateField("username", normalizedUsername)
       : null;
-
-    // phoneNumber is read-only from registration — skip validation on save
-
     const bioError = validateField("biography", profile.biography);
-    const nextErrors = {
+    setFieldErrors({
       firstName: firstNameError ?? undefined,
       lastName: lastNameError ?? undefined,
       username: usernameError ?? undefined,
       biography: bioError ?? undefined,
-    };
-    setFieldErrors(nextErrors);
+    });
     if (firstNameError || lastNameError || bioError) return;
 
-    // Abort any previous pending save
     cancelSave();
-
     const abortController = new AbortController();
     saveAbortRef.current = abortController;
 
     setLoading(true);
 
-    // Animation feedback
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 0.95,
@@ -394,8 +369,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       }),
     ]).start();
 
-    // Upload a pending avatar (if any) and return the resulting media id/url.
-    // Returns null when the save should abort early (timeout, not-ready, user cancel).
     const uploadPendingAvatarIfNeeded = async (): Promise<{
       mediaId: string | undefined;
       remoteUrl: string | undefined;
@@ -403,9 +376,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       let mediaId = pendingAvatar?.mediaId;
       let remoteUrl = pendingAvatar?.remoteUrl;
 
-      if (!pendingAvatar?.localUri || mediaId) {
-        return { mediaId, remoteUrl };
-      }
+      if (!pendingAvatar?.localUri || mediaId) return { mediaId, remoteUrl };
 
       const localUri = pendingAvatar.localUri;
       const fileName = localUri.split("/").pop() || "avatar.jpg";
@@ -468,7 +439,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       const { mediaId: avatarMediaId, remoteUrl: avatarRemoteUrl } =
         uploadResult;
 
-      // Check if save was cancelled
       if (abortController.signal.aborted) return;
 
       const service = UserService.getInstance();
@@ -479,13 +449,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         try {
           await waitForMediaAvailable(avatarMediaId, abortController.signal);
         } catch {
-          // ignore, we'll still retry once below
+          // ignore
         }
         await new Promise((r) => setTimeout(r, 650));
         res = await tryUpdate();
       }
 
-      // Check if save was cancelled while updating profile
       if (abortController.signal.aborted) return;
 
       if (!res.success) {
@@ -550,7 +519,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      // If save was cancelled, exit silently
       if (abortController.signal.aborted) return;
       Alert.alert(
         "Erreur",
@@ -564,69 +532,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Validation functions
-  const validateField = (
-    field: keyof UserProfile,
-    value: string | null | undefined,
-  ): string | null => {
-    const v = value || "";
-    switch (field) {
-      case "firstName":
-      case "lastName":
-        if (!v.trim()) return "Ce champ est obligatoire";
-        if (v.trim().length < 2) return "Minimum 2 caractères";
-        if (v.trim().length > 50) return "Maximum 50 caractères";
-        return null;
+  const handleHomePress = () => navigation.navigate("ConversationsList");
 
-      case "username":
-        if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
-        if (v.trim().length < 3) return "Minimum 3 caractères";
-        if (v.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-z0-9_]+$/.test(v.trim()))
-          return "Seuls minuscules, chiffres et _ autorisés";
-        return null;
-
-      case "phoneNumber":
-        if (!v.trim()) return "Le numéro de téléphone est obligatoire";
-        const cleanNumber = v.replace(/\s/g, "");
-        // Validation format international E.164: +[code pays][numéro]
-        // Exemples: +33123456789, +1234567890, +86123456789
-        if (!/^\+[1-9]\d{1,14}$/.test(cleanNumber))
-          return "Format international invalide (ex: +33 1 23 45 67 89)";
-        if (cleanNumber.length < 8 || cleanNumber.length > 16)
-          return "Numéro trop court ou trop long (8-16 chiffres)";
-        return null;
-
-      case "biography":
-        if (v.length > 500) return "Maximum 500 caractères";
-        return null;
-
-      default:
-        return null;
-    }
-  };
-
-  // Handle field change (validation is done on save only)
-  const handleFieldChange = (field: keyof UserProfile, value: string) => {
-    setFieldErrors((prev) => {
-      if (!prev[field as keyof typeof prev]) return prev;
-      return { ...prev, [field]: undefined };
-    });
-    setProfile((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
-
-  // Handle home navigation (ConversationsList)
-  const handleHomePress = () => {
-    navigation.navigate("ConversationsList");
-  };
-
-  // Handle back navigation
   const handleBackPress = () => {
     if (loading) {
-      // Cancel any in-progress save and allow navigation
       Alert.alert(
         "Sauvegarde en cours",
         "Voulez-vous annuler la sauvegarde et quitter ?",
@@ -663,6 +572,32 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
+  const rightActions = !isEditing ? (
+    <>
+      <TouchableOpacity onPress={handleHomePress} style={styles.iconButton}>
+        <Ionicons name="chatbubbles" size={24} color={colors.text.light} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => setIsEditing(true)}
+        style={styles.iconButton}
+        accessibilityRole="button"
+        accessibilityLabel="Modifier le profil"
+      >
+        <Ionicons name="pencil" size={22} color={colors.text.light} />
+      </TouchableOpacity>
+    </>
+  ) : (
+    <TouchableOpacity
+      onPress={() => {
+        cancelSave();
+        setIsEditing(false);
+      }}
+      style={styles.iconButton}
+    >
+      <Text style={styles.cancelButtonText}>Annuler</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <LinearGradient
       colors={colors.background.gradient.app}
@@ -683,94 +618,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             },
           ]}
         >
-          {/* Header */}
-          <View
-            style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-          >
-            <TouchableOpacity
-              onPress={handleBackPress}
-              style={styles.backButton}
-            >
-              <Text style={styles.backButtonText}>← Retour</Text>
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>Profil</Text>
-
-            {!isEditing ? (
-              <View style={styles.headerActions}>
-                <TouchableOpacity
-                  onPress={handleHomePress}
-                  style={styles.homeButton}
-                >
-                  <Ionicons
-                    name="chatbubbles"
-                    size={24}
-                    color={colors.text.light}
-                  />
-                </TouchableOpacity>
-                {isOwnProfile && (
-                  <TouchableOpacity
-                    onPress={() => setIsEditing(true)}
-                    style={styles.settingsButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="Modifier le profil"
-                  >
-                    <Ionicons
-                      name="pencil"
-                      size={22}
-                      color={colors.text.light}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => {
-                  cancelSave();
-                  setIsEditing(false);
-                }}
-                style={styles.cancelButton}
-              >
-                <Text style={styles.cancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <ProfileHeader
+            title="Profil"
+            onBack={handleBackPress}
+            rightActions={rightActions}
+          />
 
           <ScrollView
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
           >
-            {/* Profile Picture Section */}
-            <Animated.View
-              style={[
-                styles.profilePictureSection,
-                { transform: [{ scale: scaleAnim }] },
-              ]}
-            >
-              <TouchableOpacity
-                onPress={() => setShowImagePicker(true)}
-                style={styles.profilePictureContainer}
-                disabled={!isEditing || !isOwnProfile}
-              >
-                <Avatar
-                  uri={profile.profilePicture}
-                  name={`${profile.firstName} ${profile.lastName}`.trim()}
-                  size={120}
-                />
+            <ProfilePictureBlock
+              uri={profile.profilePicture}
+              name={`${profile.firstName} ${profile.lastName}`.trim()}
+              editable={isEditing}
+              onPress={() => setShowImagePicker(true)}
+              label={isEditing ? "Appuyez pour changer" : "Photo de profil"}
+              scaleAnim={scaleAnim}
+            />
 
-                {isEditing && (
-                  <View style={styles.editOverlay}>
-                    <Ionicons name="camera" size={18} color="#333" />
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <Text style={styles.profilePictureLabel}>
-                {isEditing ? "Appuyez pour changer" : "Photo de profil"}
-              </Text>
-            </Animated.View>
-
-            {/* Profile Information */}
             <View style={styles.profileInfo}>
               {!profileLoaded ? (
                 <View style={styles.loadingRow}>
@@ -780,10 +646,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               ) : profileLoadError ? (
                 <Text style={styles.loadErrorText}>{profileLoadError}</Text>
               ) : null}
-              {/* Name Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Nom complet</Text>
-                {isEditing ? (
+
+              {isEditing ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Nom complet</Text>
                   <View style={styles.nameInputsContainer}>
                     <TextInput
                       style={[styles.input, styles.nameInput]}
@@ -804,149 +670,103 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       placeholderTextColor="rgba(255,255,255,0.5)"
                     />
                   </View>
-                ) : (
-                  <Text style={styles.sectionValue}>
-                    {profile.firstName || profile.lastName
+                </View>
+              ) : (
+                <ProfileFieldRow
+                  label="Nom complet"
+                  value={
+                    profile.firstName || profile.lastName
                       ? `${profile.firstName} ${profile.lastName}`.trim()
-                      : "—"}
-                  </Text>
-                )}
-              </View>
+                      : undefined
+                  }
+                />
+              )}
 
-              {/* Username Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Nom d'utilisateur</Text>
-                {isEditing ? (
-                  <>
-                    <TextInput
-                      style={styles.input}
-                      value={profile.username}
-                      onChangeText={(text) =>
-                        handleFieldChange("username", normalizeUsername(text))
-                      }
-                      placeholder="@nomdutilisateur"
-                      placeholderTextColor={colors.text.placeholder}
-                      autoCapitalize="none"
-                    />
-                    {!!fieldErrors.username && (
-                      <Text style={styles.fieldErrorText}>
-                        {fieldErrors.username}
-                      </Text>
-                    )}
-                    {!fieldErrors.username && (
-                      <Text style={styles.fieldHelperText}>
-                        Seuls minuscules, chiffres et _ (auto-corrigé)
-                      </Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={styles.sectionValue}>
-                    {profile.username ? formatUsername(profile.username) : "—"}
-                  </Text>
-                )}
-              </View>
-
-              {/* Phone Number Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Numéro de téléphone</Text>
-                {isEditing ? (
+              {isEditing ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Nom d'utilisateur</Text>
                   <TextInput
                     style={styles.input}
-                    value={profile.phoneNumber}
-                    placeholder="+33 07 12 34 56 78"
+                    value={profile.username}
+                    onChangeText={(text) =>
+                      handleFieldChange("username", normalizeUsername(text))
+                    }
+                    placeholder="@nomdutilisateur"
                     placeholderTextColor={colors.text.placeholder}
-                    keyboardType="phone-pad"
-                    editable={false}
+                    autoCapitalize="none"
                   />
-                ) : (
-                  <Text style={styles.sectionValue}>
-                    {profile.phoneNumber || "—"}
-                  </Text>
-                )}
-              </View>
-
-              {/* Biography Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Biographie</Text>
-                {isEditing ? (
-                  <>
-                    <TextInput
-                      style={[styles.input, styles.biographyInput]}
-                      value={profile.biography}
-                      onChangeText={(text) =>
-                        handleFieldChange("biography", text)
-                      }
-                      placeholder="Parlez-nous de vous..."
-                      placeholderTextColor={colors.text.placeholder}
-                      multiline
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                      maxLength={500}
-                    />
-                    <Text style={styles.characterCount}>
-                      {(profile.biography || "").length}/500 caractères
+                  {!!fieldErrors.username && (
+                    <Text style={styles.fieldErrorText}>
+                      {fieldErrors.username}
                     </Text>
-                  </>
-                ) : (
-                  <Text style={styles.sectionValue}>
-                    {profile.biography || "—"}
-                  </Text>
-                )}
-              </View>
+                  )}
+                  {!fieldErrors.username && (
+                    <Text style={styles.fieldHelperText}>
+                      Seuls minuscules, chiffres et _ (auto-corrigé)
+                    </Text>
+                  )}
+                </View>
+              ) : (
+                <ProfileFieldRow
+                  label="Nom d'utilisateur"
+                  value={
+                    profile.username
+                      ? formatUsername(profile.username)
+                      : undefined
+                  }
+                />
+              )}
 
-              {/* Status Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Statut</Text>
-                <View
-                  style={[
-                    styles.statusChip,
-                    profile.isOnline
-                      ? styles.statusChipOnline
-                      : styles.statusChipOffline,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.statusDotSmall,
-                      {
-                        backgroundColor: profile.isOnline
-                          ? colors.status.online
-                          : colors.status.offline,
-                      },
-                    ]}
+              <ProfileFieldRow
+                label="Numéro de téléphone"
+                value={profile.phoneNumber}
+              />
+
+              {isEditing ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Biographie</Text>
+                  <TextInput
+                    style={[styles.input, styles.biographyInput]}
+                    value={profile.biography}
+                    onChangeText={(text) =>
+                      handleFieldChange("biography", text)
+                    }
+                    placeholder="Parlez-nous de vous..."
+                    placeholderTextColor={colors.text.placeholder}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                    maxLength={500}
                   />
-                  <Text
-                    style={[
-                      styles.statusText,
-                      profile.isOnline
-                        ? styles.statusTextOnline
-                        : styles.statusTextOffline,
-                    ]}
-                  >
-                    {profile.isOnline
-                      ? "Actif maintenant"
-                      : `Hors ligne - ${profile.lastSeen}`}
+                  <Text style={styles.characterCount}>
+                    {(profile.biography || "").length}/500 caractères
                   </Text>
                 </View>
-              </View>
+              ) : (
+                <ProfileFieldRow label="Biographie" value={profile.biography} />
+              )}
 
-              {/* Member Since Section */}
+              <StatusChip
+                isOnline={profile.isOnline}
+                lastSeen={profile.lastSeen}
+              />
+
               {profile.createdAt && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Membre depuis</Text>
-                  <Text style={styles.sectionValue}>
-                    {new Date(profile.createdAt).toLocaleDateString("fr-FR", {
+                <ProfileFieldRow
+                  label="Membre depuis"
+                  value={new Date(profile.createdAt).toLocaleDateString(
+                    "fr-FR",
+                    {
                       day: "2-digit",
                       month: "long",
                       year: "numeric",
-                    })}
-                  </Text>
-                </View>
+                    },
+                  )}
+                />
               )}
             </View>
 
-            {/* Action Buttons */}
-            {isOwnProfile && isEditing && (
+            {isEditing && (
               <View style={styles.actionButtons}>
                 <Button
                   title={loading ? "Sauvegarde" : "Sauvegarder"}
@@ -962,7 +782,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </Animated.View>
       </KeyboardAvoidingView>
 
-      {/* Alerte centrée (style iOS) pour changer la photo */}
       <Modal
         visible={showImagePicker}
         transparent
@@ -1016,52 +835,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxxl,
-    paddingBottom: spacing.lg,
-    backgroundColor: "transparent",
-    borderBottomWidth: 0,
-  },
-  backButton: {
-    padding: spacing.sm,
-  },
-  backButtonText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.light,
-    fontWeight: typography.fontWeight.medium,
-  },
-  headerTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.light,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  homeButton: {
-    padding: spacing.sm,
-  },
-  settingsButton: {
-    padding: spacing.sm,
-  },
-  cancelButton: {
-    padding: spacing.sm,
-  },
+  container: { flex: 1 },
+  keyboardView: { flex: 1 },
+  content: { flex: 1 },
+  iconButton: { padding: spacing.sm },
   cancelButtonText: {
     fontSize: typography.fontSize.base,
     color: colors.ui.error,
@@ -1070,45 +847,6 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-  },
-  profilePictureSection: {
-    alignItems: "center",
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xxxl,
-  },
-  profilePictureContainer: {
-    position: "relative",
-    marginBottom: spacing.md,
-  },
-  profilePicture: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
-  },
-  editOverlay: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary.main,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: colors.background.primary,
-  },
-  editOverlayText: {
-    fontSize: typography.fontSize.md,
-  },
-  profilePictureLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.light,
-    textAlign: "center",
-    opacity: 0.9,
   },
   profileInfo: {
     paddingBottom: spacing.sm,
@@ -1128,9 +866,7 @@ const styles = StyleSheet.create({
     color: colors.ui.error,
     marginBottom: spacing.lg,
   },
-  section: {
-    marginBottom: spacing.xl,
-  },
+  section: { marginBottom: spacing.xl },
   sectionLabel: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semiBold,
@@ -1138,13 +874,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-  },
-  sectionValue: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text.light,
-    lineHeight: 20,
-    marginBottom: spacing.sm,
   },
   nameInputsContainer: {
     flexDirection: "row",
@@ -1166,20 +895,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  fieldErrorText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.ui.error,
-    marginTop: spacing.xs,
-  },
-  fieldHelperText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.text.secondary,
-    marginTop: spacing.xs,
-    opacity: 0.7,
-  },
-  nameInput: {
-    flex: 1,
-  },
+  nameInput: { flex: 1 },
   biographyInput: {
     height: 100,
     textAlignVertical: "top",
@@ -1192,36 +908,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     opacity: 0.7,
   },
-  statusChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 999,
-    borderWidth: 0,
+  fieldErrorText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.ui.error,
+    marginTop: spacing.xs,
   },
-  statusChipOnline: {
-    backgroundColor: "rgba(33, 192, 4, 0.18)",
-  },
-  statusChipOffline: {
-    backgroundColor: "rgba(142, 142, 147, 0.18)",
-  },
-  statusDotSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: spacing.sm,
-  },
-  statusText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-  },
-  statusTextOnline: {
-    color: colors.text.light,
-  },
-  statusTextOffline: {
-    color: "rgba(255,255,255,0.85)",
+  fieldHelperText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+    opacity: 0.7,
   },
   actionButtons: {
     paddingBottom: spacing.lg,
@@ -1230,134 +926,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-    alignItems: "stretch",
-  },
-  sheet: {
-    backgroundColor: colors.background.primary,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
-  sheetGrabber: {
-    alignSelf: "center",
-    width: 48,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "rgba(0,0,0,0.2)",
-    marginBottom: spacing.lg,
-  },
-  sheetTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.primary,
-    textAlign: "center",
-    marginBottom: spacing.lg,
-  },
-  sheetOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background.secondary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.md,
-  },
-  optionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.md,
-  },
-  optionIconText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.primary,
-  },
-  optionTextContainer: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semiBold,
-    color: colors.text.primary,
-  },
-  optionSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  optionChevron: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
-    paddingHorizontal: spacing.sm,
-  },
-  sheetCancel: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: colors.ui.border,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    alignItems: "center",
-  },
-  sheetCancelText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.primary,
-  },
-  floatingOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  backdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  floatingMenu: {
-    width: "86%",
-    backgroundColor: colors.background.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  floatingTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semiBold,
-    color: colors.text.primary,
-    textAlign: "center",
-    marginBottom: spacing.sm,
-  },
-  floatingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-  },
-  floatingIcon: {
-    marginRight: spacing.md,
-  },
-  floatingItemText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.primary,
-  },
-  floatingCancel: {
-    fontSize: typography.fontSize.base,
-    color: colors.ui.error,
   },
   alertOverlay: {
     flex: 1,
@@ -1397,9 +965,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.md,
   },
-  alertIcon: {
-    marginRight: spacing.md,
-  },
+  alertIcon: { marginRight: spacing.md },
   alertActionText: {
     fontSize: typography.fontSize.base,
     color: colors.text.primary,
@@ -1408,7 +974,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     alignItems: "center",
     paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     borderTopColor: "#E5E5EA",
   },
   alertCancelText: {
@@ -1418,4 +984,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileScreen;
+export default MyProfileScreen;

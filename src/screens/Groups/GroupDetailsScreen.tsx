@@ -973,12 +973,13 @@ export const GroupDetailsScreen: React.FC = () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
                 () => {},
               );
-              navigation.navigate("Profile", {
-                userId:
-                  member.user_id === CURRENT_USER_ID
-                    ? CURRENT_USER_ID
-                    : member.user_id,
-              });
+              if (member.user_id === CURRENT_USER_ID) {
+                navigation.navigate("MyProfile");
+              } else {
+                navigation.navigate("UserProfile", {
+                  userId: member.user_id,
+                });
+              }
             }}
             accessibilityRole="button"
             accessibilityLabel={`Ouvrir le profil de ${
