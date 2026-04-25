@@ -219,11 +219,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return null;
   }
 
+  // Tombstoned messages must never expose their media (audio/video/image).
+  // Attachments and metadata may still be present in the payload after a
+  // delete, but the bubble must show only "[Message supprimé]" — no
+  // playable / viewable surface. Without this guard, a deleted voice
+  // message keeps its play button and remains audible via the resolved
+  // presigned URL — a P0 data-integrity bug.
+  const isTombstoned = !!message.is_deleted;
+
   const hasExplicitAttachments =
-    message.attachments && message.attachments.length > 0;
-  const metadataAttachment = hasExplicitAttachments
-    ? null
-    : buildMetadataAttachment(message);
+    !isTombstoned &&
+    !!message.attachments &&
+    message.attachments.length > 0;
+  const metadataAttachment =
+    isTombstoned || hasExplicitAttachments
+      ? null
+      : buildMetadataAttachment(message);
 
   const hasMedia = hasExplicitAttachments || metadataAttachment !== null;
   const firstAttachment = hasExplicitAttachments
@@ -237,7 +248,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     ["Photo", "Vidéo", "Fichier", "Message vocal"].includes(message.content);
 
   const displayContent =
-    message.is_deleted && message.delete_for_everyone
+    isTombstoned
       ? "[Message supprimé]"
       : hasMedia && isDefaultMediaText
         ? "" // Don't show default text for media without caption
@@ -439,7 +450,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </>
           ) : null}
           {displayContent ? (
-            message.is_deleted && message.delete_for_everyone ? (
+            isTombstoned ? (
               <Text style={[styles.sentText, styles.deletedText]}>
                 {displayContent}
               </Text>
@@ -540,7 +551,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </>
         ) : null}
         {displayContent ? (
-          message.is_deleted && message.delete_for_everyone ? (
+          isTombstoned ? (
             <Text
               style={[
                 styles.receivedText,
