@@ -27,6 +27,7 @@ export interface ActiveCall {
   status: CallStatus;
   liveKitUrl: string;
   liveKitToken: string;
+  type: CallType;
   room: Room | null;
 }
 
@@ -57,16 +58,31 @@ export const useCallsStore = create<CallsState>((set, get) => ({
 
   initiate: async (conversationId, type, participants) => {
     const resp = await callsApi.initiate(conversationId, type, participants);
-    const room = await getCallsLiveKit().connect({
+    const provider = getCallsLiveKit();
+    const room = await provider.connect({
       url: resp.livekit_url,
       token: resp.livekit_token,
     });
+    // Publish local tracks immediately so mute/flip/camera controls have
+    // something to act on. Without this, setMicrophoneEnabled(false) is a
+    // no-op (no published track) and the user thinks the button is broken.
+    try {
+      await provider.enableMic(true);
+      if (type === "video") {
+        await provider.enableCamera(true);
+      }
+    } catch (err) {
+      // Permission denied or device unavailable — keep the call going so the
+      // user still sees the UI, the controls will toggle on retry.
+      console.warn("Failed to publish local tracks", err);
+    }
     set({
       active: {
         callId: resp.call_id,
         status: resp.status,
         liveKitUrl: resp.livekit_url,
         liveKitToken: resp.livekit_token,
+        type,
         room,
       },
     });
@@ -76,16 +92,26 @@ export const useCallsStore = create<CallsState>((set, get) => ({
     const inc = get().incoming;
     if (!inc) return;
     const resp = await callsApi.accept(inc.callId);
-    const room = await getCallsLiveKit().connect({
+    const provider = getCallsLiveKit();
+    const room = await provider.connect({
       url: resp.livekit_url,
       token: resp.livekit_token,
     });
+    try {
+      await provider.enableMic(true);
+      if (inc.type === "video") {
+        await provider.enableCamera(true);
+      }
+    } catch (err) {
+      console.warn("Failed to publish local tracks", err);
+    }
     set({
       active: {
         callId: inc.callId,
         status: "connected",
         liveKitUrl: resp.livekit_url,
         liveKitToken: resp.livekit_token,
+        type: inc.type,
         room,
       },
       incoming: null,
