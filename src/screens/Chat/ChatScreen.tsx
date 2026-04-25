@@ -302,6 +302,11 @@ export const ChatScreen: React.FC = () => {
                     // WebSocket echo doesn't carry them (server Message has no
                     // attachments array).
                     attachments: message.attachments || m.attachments,
+                    // Preserve the populated reply_to (full Message object) we
+                    // built optimistically — the WS echo only ships reply_to_id
+                    // so spreading it would erase the reply preview until the
+                    // next full reload.
+                    reply_to: message.reply_to || m.reply_to,
                     status: message.status || ("sent" as const),
                   }
                 : m,
@@ -341,6 +346,10 @@ export const ChatScreen: React.FC = () => {
               ...message,
               // Preserve attachments from the optimistic message
               attachments: message.attachments || existing.attachments,
+              // Same as the duplicate-id branch above: keep the populated
+              // reply_to object so the reply preview doesn't disappear when
+              // the server echo arrives.
+              reply_to: message.reply_to || existing.reply_to,
               status: message.status || ("sent" as const),
             };
             return newMessages;
@@ -389,7 +398,14 @@ export const ChatScreen: React.FC = () => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === message.id
-              ? { ...msg, ...message, edited_at: message.edited_at }
+              ? {
+                  ...msg,
+                  ...message,
+                  edited_at: message.edited_at,
+                  // Edit echoes ship reply_to_id only — keep the populated
+                  // reply_to from the existing message so the preview survives.
+                  reply_to: message.reply_to || msg.reply_to,
+                }
               : msg,
           ),
         );
@@ -859,22 +875,37 @@ export const ChatScreen: React.FC = () => {
                 // Ignore errors for attachments
               }
 
-              // Find reply_to message if exists (search in current batch only)
-              let replyTo: Message | undefined;
-              if (msg.reply_to_id) {
-                // Search in current batch
-                replyTo = data.find((m) => m.id === msg.reply_to_id);
-              }
-
+              // reply_to is resolved against the full merged list below so
+              // replies whose parent lives in a different page or is already
+              // in state still render their preview. Only the parent id is
+              // kept here.
               return {
                 ...msg,
                 status,
                 reactions,
                 attachments,
-                reply_to: replyTo,
+                reply_to: undefined,
               } as MessageWithRelations;
             }),
         );
+
+        // Resolve reply_to against both the freshly fetched batch and the
+        // already-loaded messages so paginated history (older batch arrives
+        // later) doesn't drop the reply preview.
+        const resolveReplies = (
+          batch: MessageWithRelations[],
+          pool: MessageWithRelations[],
+        ): MessageWithRelations[] => {
+          if (batch.length === 0) return batch;
+          const lookup = new Map<string, Message>();
+          for (const m of pool) lookup.set(m.id, m);
+          for (const m of batch) lookup.set(m.id, m);
+          return batch.map((m) =>
+            m.reply_to_id && !m.reply_to
+              ? { ...m, reply_to: lookup.get(m.reply_to_id) }
+              : m,
+          );
+        };
 
         if (before) {
           // Loading older messages — merge, deduplicate and re-sort desc
@@ -884,7 +915,20 @@ export const ChatScreen: React.FC = () => {
             const deduped = messagesWithRelations.filter(
               (m) => !existingIds.has(m.id),
             );
-            return [...prev, ...deduped].sort(
+            const withReplies = resolveReplies(deduped, prev);
+            // Some already-loaded newer messages may reply to a message that
+            // just arrived in this older batch — resolve those too so the
+            // preview appears on scroll up.
+            const newIds = new Set(withReplies.map((m) => m.id));
+            const updatedPrev = prev.map((m) =>
+              m.reply_to_id && !m.reply_to && newIds.has(m.reply_to_id)
+                ? {
+                    ...m,
+                    reply_to: withReplies.find((n) => n.id === m.reply_to_id),
+                  }
+                : m,
+            );
+            return [...updatedPrev, ...withReplies].sort(
               (a, b) =>
                 new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
             );
@@ -894,12 +938,11 @@ export const ChatScreen: React.FC = () => {
           // Initial load — merge with any messages already received via WS
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const merged = [...prev];
-            for (const msg of messagesWithRelations) {
-              if (!existingIds.has(msg.id)) {
-                merged.push(msg);
-              }
-            }
+            const newcomers = messagesWithRelations.filter(
+              (m) => !existingIds.has(m.id),
+            );
+            const withReplies = resolveReplies(newcomers, prev);
+            const merged = [...prev, ...withReplies];
             return merged.sort(
               (a, b) =>
                 new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),

@@ -17,47 +17,47 @@ describe('CallControls', () => {
     expect(toJSON()).toMatchSnapshot();
   });
 
-  it('shows "Mute" label when unmuted and "Unmute" when muted', () => {
+  it('shows French mic label depending on muted state', () => {
     const props = makeProps();
     const { getByText, rerender } = render(<CallControls {...props} />);
-    expect(getByText('Mute')).toBeTruthy();
+    expect(getByText('Couper micro')).toBeTruthy();
     rerender(<CallControls {...props} muted />);
-    expect(getByText('Unmute')).toBeTruthy();
+    expect(getByText('Activer micro')).toBeTruthy();
   });
 
-  it('shows "Cam off" label when camera on and "Cam on" when camera off', () => {
+  it('shows French camera label depending on cameraOff state', () => {
     const props = makeProps();
     const { getByText, rerender } = render(<CallControls {...props} />);
-    expect(getByText('Cam off')).toBeTruthy();
+    expect(getByText('Couper caméra')).toBeTruthy();
     rerender(<CallControls {...props} cameraOff />);
-    expect(getByText('Cam on')).toBeTruthy();
+    expect(getByText('Activer caméra')).toBeTruthy();
   });
 
-  it('fires onToggleMute when Mute button is pressed', () => {
+  it('fires onToggleMute when mic button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Mute'));
+    fireEvent.press(getByLabelText('Couper micro'));
     expect(props.onToggleMute).toHaveBeenCalledTimes(1);
   });
 
-  it('fires onToggleCamera when Cam button is pressed', () => {
+  it('fires onToggleCamera when camera button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Cam off'));
+    fireEvent.press(getByLabelText('Couper caméra'));
     expect(props.onToggleCamera).toHaveBeenCalledTimes(1);
   });
 
-  it('fires onFlip when Flip button is pressed', () => {
+  it('fires onFlip when flip button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Flip'));
+    fireEvent.press(getByLabelText('Pivoter'));
     expect(props.onFlip).toHaveBeenCalledTimes(1);
   });
 
-  it('fires onEnd when End button is pressed', () => {
+  it('fires onEnd when end button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('End'));
+    fireEvent.press(getByLabelText('Raccrocher'));
     expect(props.onEnd).toHaveBeenCalledTimes(1);
   });
 });

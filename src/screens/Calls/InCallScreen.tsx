@@ -62,6 +62,19 @@ export const InCallScreen: React.FC = () => {
     return () => clearInterval(id);
   }, [connectedAt]);
 
+  // Safety net: if the user navigates away (system back, tab close, etc.)
+  // without pressing the end button, end the call so the room is disconnected
+  // and tracks are released. Otherwise the mic/camera stay on in the
+  // background.
+  useEffect(() => {
+    return () => {
+      if (useCallsStore.getState().active) {
+        end().catch((err) => console.error("Failed to cleanup call", err));
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onToggleMute = useCallback(async () => {
     const next = !muted;
     await callsLiveKit.enableMic(!next);
