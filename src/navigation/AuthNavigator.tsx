@@ -5,7 +5,8 @@ import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
 import { OtpScreen } from "../screens/Auth/OtpScreen";
 import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
-import { ProfileScreen } from "../screens/Profile/ProfileScreen";
+import { MyProfileScreen } from "../screens/Profile/MyProfileScreen";
+import { UserProfileScreen } from "../screens/Profile/UserProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
 import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
 import { DevicesScreen } from "../screens/Settings/DevicesScreen";
@@ -76,16 +77,8 @@ export type AuthStackParamList = {
     demoCode?: string;
   };
   ProfileSetup: undefined;
-  Profile: {
-    userId?: string;
-    token?: string;
-    firstName?: string;
-    lastName?: string;
-    phoneNumber?: string;
-    profilePicture?: string;
-    username?: string;
-    biography?: string;
-  };
+  MyProfile: undefined;
+  UserProfile: { userId: string };
   Settings: undefined;
   AboutContent: undefined;
   SecurityKeys: undefined;
@@ -290,7 +283,8 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="PhoneInput" component={PhoneInputScreen} />
       <Stack.Screen name="Otp" component={OtpScreen} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}

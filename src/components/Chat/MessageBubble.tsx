@@ -228,9 +228,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isTombstoned = !!message.is_deleted;
 
   const hasExplicitAttachments =
-    !isTombstoned &&
-    !!message.attachments &&
-    message.attachments.length > 0;
+    !isTombstoned && !!message.attachments && message.attachments.length > 0;
   const metadataAttachment =
     isTombstoned || hasExplicitAttachments
       ? null
@@ -247,12 +245,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     message.content &&
     ["Photo", "Vidéo", "Fichier", "Message vocal"].includes(message.content);
 
-  const displayContent =
-    isTombstoned
-      ? "[Message supprimé]"
-      : hasMedia && isDefaultMediaText
-        ? "" // Don't show default text for media without caption
-        : message.content || "";
+  const displayContent = isTombstoned
+    ? "[Message supprimé]"
+    : hasMedia && isDefaultMediaText
+      ? "" // Don't show default text for media without caption
+      : message.content || "";
 
   const handleLongPress = () => {
     if (Platform.OS !== "web") {
