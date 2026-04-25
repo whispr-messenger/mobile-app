@@ -161,7 +161,9 @@ export class UserService {
   }
 
   /**
-   * Get current user profile
+   * Get current user profile.
+   * Uses GET /profile/me which returns the full profile (including
+   * phoneNumber) without privacy masking — see WHISPR-1188.
    */
   async getProfile(): Promise<{
     success: boolean;
@@ -169,10 +171,8 @@ export class UserService {
     message?: string;
   }> {
     try {
-      console.log(
-        "[PDP-DEBUG][UserService] getProfile → GET /profile/{userId}",
-      );
-      const response = await this.authFetch("/profile/{userId}");
+      console.log("[PDP-DEBUG][UserService] getProfile → GET /profile/me");
+      const response = await this.authFetch("/profile/me");
 
       if (!response.ok) {
         console.log(
