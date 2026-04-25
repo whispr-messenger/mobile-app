@@ -869,20 +869,53 @@ export const messagingAPI = {
       );
     }
 
-    const response = await authenticatedFetch(`${API_BASE_URL}/conversations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "direct",
-        user_ids: [currentUserId, otherUserId],
-      }),
-    });
+    const payloads: Array<Record<string, unknown>> = [
+      // Preferred contract on current backend: current user comes from auth,
+      // only the target participant is provided explicitly.
+      { type: "direct", other_user_id: otherUserId },
+      // Compatibility fallback for legacy revisions still expecting user_ids.
+      { type: "direct", user_ids: [currentUserId, otherUserId] },
+    ];
 
-    if (!response.ok) {
-      throw httpError("Failed to create direct conversation", response);
+    let lastResponse: Response | null = null;
+    for (let i = 0; i < payloads.length; i++) {
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/conversations`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payloads[i]),
+        },
+      );
+
+      if (response.ok) {
+        return unwrap(response);
+      }
+
+      lastResponse = response;
+
+      // 400/404/405 generally indicate payload shape mismatch — try fallback.
+      if (
+        i < payloads.length - 1 &&
+        [400, 404, 405].includes(response.status)
+      ) {
+        continue;
+      }
+      break;
     }
 
-    return unwrap(response);
+    if (!lastResponse) {
+      throw new Error("Failed to create direct conversation");
+    }
+
+    const body = await lastResponse.json().catch(() => ({}));
+    const message =
+      (body as { message?: string; error?: string })?.message ||
+      (body as { error?: string })?.error ||
+      `Failed to create direct conversation (${lastResponse.status})`;
+    const err = new Error(message) as Error & { status: number };
+    err.status = lastResponse.status;
+    throw err;
   },
 
   async createGroupConversation(
