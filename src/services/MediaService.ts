@@ -413,6 +413,46 @@ export const MediaService = {
       },
     );
   },
+
+  /**
+   * Same as shareMedia but retries up to `maxAttempts` times on failure
+   * with exponential backoff (default 1s, 2s). Recipients cannot view
+   * media until shared_with contains their user ID, so a transient
+   * network blip during this PATCH would leave the media unreadable
+   * for the recipient until the next retry — surface failures clearly
+   * after exhaustion.
+   */
+  async shareMediaWithRetry(
+    id: string,
+    userIds: string[],
+    options: {
+      maxAttempts?: number;
+      initialDelayMs?: number;
+      sleep?: (ms: number) => Promise<void>;
+    } = {},
+  ): Promise<void> {
+    if (!userIds.length) return;
+    const maxAttempts = options.maxAttempts ?? 3;
+    const initialDelayMs = options.initialDelayMs ?? 1000;
+    const sleep =
+      options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await MediaService.shareMedia(id, userIds);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxAttempts) {
+          await sleep(initialDelayMs * Math.pow(2, attempt - 1));
+        }
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("shareMedia failed after retries");
+  },
 };
 
 export default MediaService;
