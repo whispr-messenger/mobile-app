@@ -24,8 +24,14 @@ export const CallControls: React.FC<Props> = ({
 }) => {
   return (
     <View style={styles.bar}>
-      <Ctrl label={muted ? "Activer micro" : "Couper micro"} onPress={onToggleMute} />
-      <Ctrl label={cameraOff ? "Activer caméra" : "Couper caméra"} onPress={onToggleCamera} />
+      <Ctrl
+        label={muted ? "Activer micro" : "Couper micro"}
+        onPress={onToggleMute}
+      />
+      <Ctrl
+        label={cameraOff ? "Activer caméra" : "Couper caméra"}
+        onPress={onToggleCamera}
+      />
       <Ctrl label="Pivoter" onPress={onFlip} />
       <Ctrl label="Raccrocher" danger onPress={onEnd} />
     </View>

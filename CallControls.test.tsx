@@ -17,7 +17,7 @@ describe('CallControls', () => {
     expect(toJSON()).toMatchSnapshot();
   });
 
-  it('shows "Couper micro" label when unmuted and "Activer micro" when muted', () => {
+  it('shows French mic label depending on muted state', () => {
     const props = makeProps();
     const { getByText, rerender } = render(<CallControls {...props} />);
     expect(getByText('Couper micro')).toBeTruthy();
@@ -25,7 +25,7 @@ describe('CallControls', () => {
     expect(getByText('Activer micro')).toBeTruthy();
   });
 
-  it('shows "Couper caméra" label when camera on and "Activer caméra" when camera off', () => {
+  it('shows French camera label depending on cameraOff state', () => {
     const props = makeProps();
     const { getByText, rerender } = render(<CallControls {...props} />);
     expect(getByText('Couper caméra')).toBeTruthy();
@@ -33,7 +33,7 @@ describe('CallControls', () => {
     expect(getByText('Activer caméra')).toBeTruthy();
   });
 
-  it('fires onToggleMute when mute button is pressed', () => {
+  it('fires onToggleMute when mic button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
     fireEvent.press(getByLabelText('Couper micro'));
@@ -54,7 +54,7 @@ describe('CallControls', () => {
     expect(props.onFlip).toHaveBeenCalledTimes(1);
   });
 
-  it('fires onEnd when hangup button is pressed', () => {
+  it('fires onEnd when end button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
     fireEvent.press(getByLabelText('Raccrocher'));
