@@ -2,11 +2,11 @@
  * ReplyPreview - Preview of the message being replied to
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
-import { Message } from '../../types/messaging';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
+import { Message } from "../../types/messaging";
 
 interface ReplyPreviewProps {
   replyTo: Message;
@@ -14,15 +14,27 @@ interface ReplyPreviewProps {
   onPress?: () => void;
 }
 
-export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, currentUserId, onPress }) => {
+export const ReplyPreview: React.FC<ReplyPreviewProps> = ({
+  replyTo,
+  currentUserId,
+  onPress,
+}) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
+  // Media-only messages (photo, vocal, etc.) can ship with empty/missing
+  // content. Fall back to a sensible placeholder so we never call .length on
+  // undefined and the bubble keeps showing the reply context after reload.
+  const rawContent = replyTo.content ?? "";
+  const placeholderForMedia =
+    replyTo.message_type === "media" && !rawContent
+      ? "Pièce jointe"
+      : rawContent;
   const content = replyTo.is_deleted
-    ? '[Message supprimé]'
-    : replyTo.content.length > 50
-    ? replyTo.content.substring(0, 50) + '...'
-    : replyTo.content;
+    ? "[Message supprimé]"
+    : placeholderForMedia.length > 50
+      ? placeholderForMedia.substring(0, 50) + "..."
+      : placeholderForMedia;
 
   return (
     <TouchableOpacity
@@ -32,7 +44,7 @@ export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, currentUser
         styles.container,
         {
           borderLeftColor: themeColors.primary,
-          backgroundColor: 'rgba(26, 31, 58, 0.4)',
+          backgroundColor: "rgba(26, 31, 58, 0.4)",
         },
       ]}
     >
@@ -40,7 +52,9 @@ export const ReplyPreview: React.FC<ReplyPreviewProps> = ({ replyTo, currentUser
         style={[styles.senderName, { color: themeColors.primary }]}
         numberOfLines={1}
       >
-        {replyTo.sender_id === currentUserId ? 'Vous' : ((replyTo as any).sender_name || 'Contact')}
+        {replyTo.sender_id === currentUserId
+          ? "Vous"
+          : (replyTo as any).sender_name || "Contact"}
       </Text>
       <Text
         style={[styles.content, { color: themeColors.text.secondary }]}
@@ -62,11 +76,10 @@ const styles = StyleSheet.create({
   },
   senderName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   content: {
     fontSize: 13,
   },
 });
-
