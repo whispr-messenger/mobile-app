@@ -103,7 +103,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Mute</Text>
+              <Text style={styles.actionText}>Muet</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -164,7 +164,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Pin</Text>
+              <Text style={styles.actionText}>Épingler</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -183,7 +183,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Unread</Text>
+              <Text style={styles.actionText}>Non lu</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
