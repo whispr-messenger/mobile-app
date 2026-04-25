@@ -14,7 +14,9 @@ import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
+import { useModerationStore } from "../store/moderationStore";
 import { cacheService } from "../services/messaging/cache";
+import { offlineQueue } from "../services/offlineQueue";
 import { onSessionExpired } from "../services/sessionEvents";
 import { useBadgeSync } from "../hooks/useBadgeSync";
 
@@ -87,7 +89,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // Reset stores and caches to prevent data leaking between users
     useConversationsStore.getState().reset();
     usePresenceStore.getState().reset();
+    useModerationStore.getState().reset();
     await cacheService.clearCache();
+    await offlineQueue.clearAll();
     await AsyncStorage.removeItem("@whispr/manually_unread_ids");
     await profileSetupFlag.clear();
 
@@ -96,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       await TokenService.clearTokens();
     }
+    // Drop the per-device Signal identity private key — it is bound to the
+    // session that just ended and must not leak into the next account.
+    await TokenService.clearIdentityPrivateKey();
     setState({
       isAuthenticated: false,
       isLoading: false,
