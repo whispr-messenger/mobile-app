@@ -21,6 +21,20 @@ interface AvatarProps {
   isOnline?: boolean;
 }
 
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") resolve(result);
+      else reject(new Error("FileReader did not produce a data URL"));
+    };
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function streamMediaToRenderableUri(
   uri: string,
   token: string | null,
@@ -35,18 +49,24 @@ async function streamMediaToRenderableUri(
     throw new Error(`stream failed: HTTP ${response.status}`);
   }
 
-  const blob = await response.blob();
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result === "string") resolve(result);
-      else reject(new Error("FileReader did not produce a data URL"));
-    };
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("FileReader failed"));
-    reader.readAsDataURL(blob);
-  });
+  // Some media-service deployments return a presigned URL JSON envelope
+  // ({ url, expiresAt }) instead of the raw binary, even with stream=1 +
+  // Accept: octet-stream. Detect this and follow the URL.
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = await response.json().catch(() => null as any);
+    const followUrl = typeof data?.url === "string" ? data.url : undefined;
+    if (!followUrl) {
+      throw new Error("stream returned JSON without a usable url");
+    }
+    const followed = await fetch(followUrl);
+    if (!followed.ok) {
+      throw new Error(`presigned fetch failed: HTTP ${followed.status}`);
+    }
+    return await blobToDataUrl(await followed.blob());
+  }
+
+  return await blobToDataUrl(await response.blob());
 }
 
 function extractMediaIdFromUri(raw: string): {
