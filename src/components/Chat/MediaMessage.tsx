@@ -23,11 +23,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { TokenService } from "../../services/TokenService";
 import { isReachableUrl } from "../../utils";
 
+function uriNeedsAuthResolution(uri: string | undefined): boolean {
+  return (
+    !!uri &&
+    uri.includes("/media/v1/") &&
+    (uri.includes("/blob") || uri.includes("/thumbnail"))
+  );
+}
+
 /**
- * Fetch the media bytes through the authenticated `/blob?stream=1` proxy and
- * turn them into something `<Image>` can render. On web we use a short-lived
- * `blob:` URL; on native (Expo Go) we fall back to a `data:` URL because
- * `blob:` URIs don't round-trip cleanly through React Native's <Image>.
+ * Stream the raw bytes through `?stream=1` with a Bearer token and turn the
+ * response into a renderable URI. Used as a fallback when the presigned URL
+ * returned by the media-service points at an internal hostname the device
+ * cannot reach (typical when `S3_PUBLIC_ENDPOINT` is not configured).
  */
 async function streamMediaToRenderableUri(
   uri: string,
@@ -66,38 +74,32 @@ async function streamMediaToRenderableUri(
 }
 
 /**
- * Resolve a media-service blob/thumbnail URL to something `<Image>` can
- * render. Fast path: fetch `/blob`, extract the presigned `url`, and use it
- * directly when the host is publicly reachable. Fallback: when the presigned
- * URL is cluster-internal (typical when the backend is missing
- * `S3_PUBLIC_ENDPOINT`), we re-fetch the same endpoint with `?stream=1` to
- * stream the raw bytes through the API and turn them into a blob/data URI.
- * That guarantees the image renders even when MinIO is not publicly reachable
- * from the device.
+ * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
+ * The blob/thumbnail endpoints return 200 JSON `{ url, expiresAt }`. We
+ * fetch with Bearer, extract `url`, and reject any URL pointing at internal
+ * cluster hostnames. When the presigned URL is unreachable we fall back to
+ * streaming the raw bytes via `?stream=1` so previews still render.
+ *
+ * The hook also tracks `expiresAt` and automatically re-resolves when the
+ * presigned URL is about to expire (60s buffer).
  */
-function uriNeedsAuthResolution(uri: string | undefined): boolean {
-  return (
-    !!uri &&
-    uri.includes("/media/v1/") &&
-    (uri.includes("/blob") || uri.includes("/thumbnail"))
-  );
-}
-
 function useResolvedMediaUrl(uri: string | undefined): {
   resolvedUri: string;
   loading: boolean;
   error: boolean;
 } {
-  // Start empty when the URI requires a Bearer token — otherwise React Native's
-  // <Image> renders the raw `/media/v1/<id>/thumbnail` URL before the effect
-  // can swap in a presigned one, producing a flood of unauthenticated GETs
-  // that the gateway answers with 401.
+  // Guard initial render: when the URI requires auth, never seed the state
+  // with the raw `/media/v1/.../blob` URL — RN's <Image> would issue an
+  // unauthenticated GET that the gateway answers with 401, producing the
+  // 401 floods Tudy reported.
   const [resolvedUri, setResolvedUri] = useState(
     uriNeedsAuthResolution(uri) ? "" : uri || "",
   );
   const [loading, setLoading] = useState(uriNeedsAuthResolution(uri));
   const [error, setError] = useState(false);
   const blobUrlRef = useRef<string | null>(null);
+  // Bumped to force a re-resolve when the presigned URL expires.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     const revokeBlobUrl = () => {
@@ -127,6 +129,7 @@ function useResolvedMediaUrl(uri: string | undefined): {
     }
 
     let cancelled = false;
+    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
     setResolvedUri("");
     setLoading(true);
     setError(false);
@@ -153,39 +156,55 @@ function useResolvedMediaUrl(uri: string | undefined): {
           return;
         }
 
-        // New contract (media-service deploy/preprod ≥ cedf7f9b):
-        // `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON, not a
-        // 302 redirect. Parse JSON first; fall back to response.url for the
-        // legacy 302 redirect contract.
+        // Contract: `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON.
+        // Fall back to response.url for the legacy 302 redirect contract.
         let presigned: string | null = null;
         let urlExplicitlyNull = false;
+        let expiresAtMs: number | null = null;
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           try {
-            const body = (await response.json()) as { url?: string | null };
+            const body = (await response.json()) as {
+              url?: string | null;
+              expiresAt?: string | null;
+            };
             if (body && "url" in body && body.url === null) {
               urlExplicitlyNull = true;
             }
             presigned = body?.url ?? null;
+            if (typeof body?.expiresAt === "string") {
+              const parsed = Date.parse(body.expiresAt);
+              if (!Number.isNaN(parsed)) expiresAtMs = parsed;
+            }
           } catch {
             presigned = null;
           }
         } else if (response.url && response.url !== uri) {
-          // Legacy: fetch followed a 302 — response.url is the presigned URL
           presigned = response.url;
         }
 
-        // `/thumbnail` retourne `{ url: null }` quand aucune vignette n'est
-        // stockée — c'est légitime, pas une erreur. On laisse `resolvedUri`
-        // vide et on évite tout fallback réseau (qui aboutirait à un blob de
-        // JSON inutile et casserait l'affichage de l'image principale).
+        // `/thumbnail` returning `{ url: null }` means no thumbnail stored —
+        // legitimate, not an error. Leave resolvedUri empty without falling
+        // back to streaming (which would download a JSON blob and break the
+        // image).
         if (urlExplicitlyNull) {
           setResolvedUri("");
           return;
         }
 
+        const scheduleRefresh = () => {
+          if (!expiresAtMs) return;
+          // Refresh 60s before expiry, never sooner than 5s from now.
+          const now = Date.now();
+          const refreshIn = Math.max(5_000, expiresAtMs - now - 60_000);
+          expiryTimer = setTimeout(() => {
+            if (!cancelled) setRefreshTick((t) => t + 1);
+          }, refreshIn);
+        };
+
         if (isReachableUrl(presigned)) {
           setResolvedUri(presigned as string);
+          scheduleRefresh();
           return;
         }
 
@@ -210,6 +229,7 @@ function useResolvedMediaUrl(uri: string | undefined): {
           blobUrlRef.current = renderableUri;
         }
         setResolvedUri(renderableUri);
+        scheduleRefresh();
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
@@ -221,9 +241,10 @@ function useResolvedMediaUrl(uri: string | undefined): {
 
     return () => {
       cancelled = true;
+      if (expiryTimer) clearTimeout(expiryTimer);
       revokeBlobUrl();
     };
-  }, [uri]);
+  }, [uri, refreshTick]);
 
   return { resolvedUri, loading, error };
 }
@@ -264,11 +285,8 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [thumbnailError, setThumbnailError] = useState(false);
 
   // Resolve blob/thumbnail URLs to fresh presigned URLs
-  const {
-    resolvedUri: resolvedMainUri,
-    loading: mainLoading,
-    error: mainError,
-  } = useResolvedMediaUrl(uri);
+  const { resolvedUri: resolvedMainUri, loading: mainLoading } =
+    useResolvedMediaUrl(uri);
   const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
     thumbnailUri || uri,
   );
@@ -293,12 +311,20 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         try {
           // Load video first
           try {
-            await playerVideoRef.current.loadAsync({
+            const loadResult = await playerVideoRef.current.loadAsync({
               uri: resolvedMainUri,
             });
+            console.log(
+              "[MediaMessage] Video preloaded",
+              loadResult ? "with status" : "no status",
+            );
 
             // Play immediately after load
-            await playerVideoRef.current.playAsync();
+            const playResult = await playerVideoRef.current.playAsync();
+            console.log(
+              "[MediaMessage] Video playing",
+              playResult ? "with status" : "no status",
+            );
           } catch (loadError: any) {
             console.error(
               "[MediaMessage] Error in loadAsync/playAsync:",
@@ -321,18 +347,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   }, [showVideoPlayer, uri, type]);
 
   if (type === "image") {
-    // Une thumbnail manquante ou en erreur ne doit jamais empêcher le rendu
-    // de l'image principale — on tombe simplement sur l'URI principale via
-    // `resolvedThumbUri || resolvedMainUri`. On exclut donc `thumbError` du
-    // calcul d'erreur global.
-    const imageError = mainError || !resolvedMainUri;
     return (
       <>
         <TouchableOpacity
           onPress={() => setShowFullImage(true)}
           activeOpacity={0.9}
           style={styles.imageContainer}
-          disabled={imageError || mainLoading}
         >
           {mainLoading ? (
             <View
@@ -346,31 +366,6 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               ]}
             >
               <ActivityIndicator size="small" color={colors.primary.main} />
-            </View>
-          ) : imageError ? (
-            <View
-              style={[
-                styles.image,
-                {
-                  justifyContent: "center",
-                  alignItems: "center",
-                  backgroundColor: withOpacity(colors.ui.error, 0.15),
-                },
-              ]}
-            >
-              <Ionicons
-                name="alert-circle-outline"
-                size={22}
-                color={withOpacity(colors.text.light, 0.9)}
-              />
-              <Text
-                style={[
-                  styles.errorText,
-                  { color: withOpacity(colors.text.light, 0.9) },
-                ]}
-              >
-                Échec du chargement
-              </Text>
             </View>
           ) : (
             <Image
@@ -446,10 +441,12 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Video with thumbnail and player
   const handleVideoPress = async () => {
+    console.log("[MediaMessage] Video pressed, opening player");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (!Video) {
       // Fallback: ouvrir dans le lecteur natif
+      console.log("[MediaMessage] expo-av not available, opening with Linking");
       try {
         const supported = await Linking.canOpenURL(uri);
         if (supported) {
@@ -468,6 +465,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   };
 
   const handleCloseVideo = () => {
+    console.log("[MediaMessage] Closing video player");
     if (playerVideoRef.current && Video) {
       try {
         playerVideoRef.current
@@ -503,12 +501,21 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             onLoad={(status: any) => {
               // Silently ignore null or invalid status to prevent crashes
               if (!status || typeof status !== "object" || status === null) {
+                console.log(
+                  "[MediaMessage] Video thumbnail loaded (null status, ignoring)",
+                );
                 return;
               }
               try {
+                console.log(
+                  "[MediaMessage] Video thumbnail loaded successfully",
+                );
                 setThumbnailError(false);
-              } catch {
+              } catch (error: any) {
                 // Silently ignore errors
+                console.log(
+                  "[MediaMessage] Thumbnail load completed (status may be null, ignoring)",
+                );
               }
             }}
             onError={(error: any) => {
@@ -629,15 +636,24 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       );
                     }
                   }}
-                  onLoadStart={() => {}}
+                  onLoadStart={() => {
+                    console.log("[MediaMessage] Video load started");
+                  }}
                   onLoad={(status: any) => {
                     // Completely ignore null/undefined status to prevent crashes
                     if (status == null || typeof status !== "object") {
+                      console.log(
+                        "[MediaMessage] Video loaded (null/undefined status, ignoring)",
+                      );
                       return;
                     }
                     try {
                       // Safely access properties with optional chaining
                       const isLoaded = status?.isLoaded === true;
+                      console.log(
+                        "[MediaMessage] Video loaded, auto-playing",
+                        isLoaded,
+                      );
                       if (status) {
                         setVideoStatus(status);
                       }
@@ -719,11 +735,6 @@ const styles = StyleSheet.create({
     minHeight: 150,
     aspectRatio: 4 / 3,
     borderRadius: 12,
-  },
-  errorText: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: "600",
   },
   fullImageOverlay: {
     flex: 1,
