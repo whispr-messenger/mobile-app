@@ -675,10 +675,13 @@ export const SettingsScreen: React.FC = () => {
               screen was already registered in AuthNavigator but unreachable
               from the settings UI. */}
           <SettingItem
-            label={getLocalizedText("settings.blockedUsers") || "Blocked users"}
+            label={
+              getLocalizedText("settings.blockedUsers") ||
+              "Utilisateurs bloqués"
+            }
             subtitle={
               getLocalizedText("settings.blockedUsersSubtitle") ||
-              "View and unblock users you've blocked"
+              "Voir et débloquer les utilisateurs que vous avez bloqués"
             }
             onPress={() => navigation.navigate("BlockedUsers")}
             icon="ban-outline"
@@ -826,7 +829,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Read receipts
+                  Accusés de lecture
                 </Text>
                 <Text
                   style={[
@@ -837,7 +840,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Confirm message reading
+                  Confirmer la lecture des messages
                 </Text>
               </View>
             </View>
@@ -865,7 +868,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Typing indicator
+                  Indicateur de saisie
                 </Text>
                 <Text
                   style={[
@@ -876,7 +879,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Show 'typing'
+                  Afficher « en train d'écrire »
                 </Text>
               </View>
             </View>
@@ -950,17 +953,17 @@ export const SettingsScreen: React.FC = () => {
           icon="lock-closed-outline"
         >
           <SettingItem
-            label="Security Keys"
-            subtitle="Manage your encryption keys and devices"
+            label="Clés de sécurité"
+            subtitle="Gérer vos clés de chiffrement et vos appareils"
             onPress={() => navigation.navigate("SecurityKeys")}
             icon="key-outline"
           />
           {/* WHISPR-1055: session management — list connected devices + revoke. */}
           <SettingItem
-            label={getLocalizedText("devices.title") || "My devices"}
+            label={getLocalizedText("devices.title") || "Mes appareils"}
             subtitle={
               getLocalizedText("devices.subtitle") ||
-              "View and sign out active sessions"
+              "Voir et déconnecter les sessions actives"
             }
             onPress={() => navigation.navigate("Devices")}
             icon="phone-portrait-outline"
@@ -983,7 +986,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Biometric authentication
+                  Authentification biométrique
                 </Text>
                 <Text
                   style={[
@@ -994,7 +997,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Unlock with fingerprint/face
+                  Déverrouiller avec l'empreinte ou le visage
                 </Text>
               </View>
             </View>
@@ -1014,23 +1017,23 @@ export const SettingsScreen: React.FC = () => {
 
         {/* Moderation Section */}
         <SettingSection
-          title={getLocalizedText("settings.moderation") || "Moderation"}
+          title={getLocalizedText("settings.moderation") || "Modération"}
           icon="flag-outline"
         >
           <SettingItem
-            label={getLocalizedText("settings.myReports") || "My Reports"}
+            label={getLocalizedText("settings.myReports") || "Mes signalements"}
             subtitle={
               getLocalizedText("settings.myReportsSubtitle") ||
-              "History of your reports"
+              "Historique de vos signalements"
             }
             onPress={() => navigation.navigate("ReportHistory")}
             icon="document-text-outline"
           />
           <SettingItem
-            label={getLocalizedText("settings.mySanctions") || "My Sanctions"}
+            label={getLocalizedText("settings.mySanctions") || "Mes sanctions"}
             subtitle={
               getLocalizedText("settings.mySanctionsSubtitle") ||
-              "View your sanctions"
+              "Voir vos sanctions"
             }
             onPress={() => navigation.navigate("MySanctions")}
             icon="alert-circle-outline"
@@ -1039,11 +1042,11 @@ export const SettingsScreen: React.FC = () => {
             <SettingItem
               label={
                 getLocalizedText("settings.moderationDashboard") ||
-                "Moderation Dashboard"
+                "Tableau de modération"
               }
               subtitle={
                 getLocalizedText("settings.moderationDashboardSubtitle") ||
-                "Moderation management"
+                "Gestion de la modération"
               }
               onPress={() => navigation.navigate("ModerationDashboard")}
               icon="shield-outline"
