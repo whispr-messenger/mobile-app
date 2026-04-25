@@ -24,10 +24,10 @@ export const CallControls: React.FC<Props> = ({
 }) => {
   return (
     <View style={styles.bar}>
-      <Ctrl label={muted ? "Unmute" : "Mute"} onPress={onToggleMute} />
-      <Ctrl label={cameraOff ? "Cam on" : "Cam off"} onPress={onToggleCamera} />
-      <Ctrl label="Flip" onPress={onFlip} />
-      <Ctrl label="End" danger onPress={onEnd} />
+      <Ctrl label={muted ? "Activer micro" : "Couper micro"} onPress={onToggleMute} />
+      <Ctrl label={cameraOff ? "Activer caméra" : "Couper caméra"} onPress={onToggleCamera} />
+      <Ctrl label="Pivoter" onPress={onFlip} />
+      <Ctrl label="Raccrocher" danger onPress={onEnd} />
     </View>
   );
 };

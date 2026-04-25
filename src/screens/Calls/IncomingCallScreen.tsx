@@ -46,7 +46,7 @@ export const IncomingCallScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>
-        Appel {incoming.type === "video" ? "video" : "audio"} entrant
+        Appel {incoming.type === "video" ? "vidéo" : "audio"} entrant
       </Text>
       <Text style={styles.caller} numberOfLines={1}>
         {incoming.initiatorId}
