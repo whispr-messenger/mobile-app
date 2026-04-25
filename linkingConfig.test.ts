@@ -6,7 +6,10 @@
  * drop a screen or change a URL path.
  */
 
-import { DEEP_LINK_PREFIXES, linkingConfig } from "./src/navigation/linkingConfig";
+import {
+  DEEP_LINK_PREFIXES,
+  linkingConfig,
+} from "./src/navigation/linkingConfig";
 
 describe("linkingConfig", () => {
   it("exposes the whispr:// scheme", () => {
@@ -18,7 +21,7 @@ describe("linkingConfig", () => {
     expect(linkingConfig.config?.screens).toMatchObject({
       Chat: "conversation/:conversationId",
       GroupDetails: "group/:groupId",
-      Profile: "profile/:userId",
+      UserProfile: "profile/:userId",
     });
   });
 
@@ -26,7 +29,7 @@ describe("linkingConfig", () => {
     const screens = linkingConfig.config?.screens as Record<string, any>;
     expect(screens.Chat).toMatch(/^conversation\/:conversationId$/);
     expect(screens.GroupDetails).toMatch(/^group\/:groupId$/);
-    expect(screens.Profile).toMatch(/^profile\/:userId$/);
+    expect(screens.UserProfile).toMatch(/^profile\/:userId$/);
   });
 
   it("maps the Settings screen and its capitalised alias (WHISPR-1115)", () => {
