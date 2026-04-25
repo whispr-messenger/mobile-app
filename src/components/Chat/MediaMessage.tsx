@@ -285,8 +285,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const [thumbnailError, setThumbnailError] = useState(false);
 
   // Resolve blob/thumbnail URLs to fresh presigned URLs
-  const { resolvedUri: resolvedMainUri, loading: mainLoading } =
-    useResolvedMediaUrl(uri);
+  const {
+    resolvedUri: resolvedMainUri,
+    loading: mainLoading,
+    error: mainError,
+  } = useResolvedMediaUrl(uri);
   const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
     thumbnailUri || uri,
   );
@@ -366,6 +369,21 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
               ]}
             >
               <ActivityIndicator size="small" color={colors.primary.main} />
+            </View>
+          ) : mainError ? (
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(26, 31, 58, 0.4)",
+                },
+              ]}
+            >
+              <Text style={{ color: colors.text.light }}>
+                Échec du chargement
+              </Text>
             </View>
           ) : (
             <Image
