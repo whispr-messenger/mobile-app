@@ -322,30 +322,45 @@ function extractGroupSettingsFromConversation(conv: any): GroupSettings {
     conv?.metadata && typeof conv.metadata === "object"
       ? (conv.metadata as Record<string, unknown>)
       : {};
+  const groupSettingsCandidate =
+    (metadata.group_settings as unknown) ??
+    (metadata.groupSettings as unknown) ??
+    (conv?.group_settings as unknown) ??
+    (conv?.groupSettings as unknown);
   const groupSettingsRaw =
-    metadata.group_settings && typeof metadata.group_settings === "object"
-      ? (metadata.group_settings as Record<string, unknown>)
+    groupSettingsCandidate && typeof groupSettingsCandidate === "object"
+      ? (groupSettingsCandidate as Record<string, unknown>)
       : {};
 
   const messagePermission =
     normalizePermission(groupSettingsRaw.message_permission) ??
+    normalizePermission(groupSettingsRaw.messagePermission) ??
     normalizePermission(metadata.message_permission) ??
+    normalizePermission(metadata.messagePermission) ??
     DEFAULT_GROUP_SETTINGS.message_permission;
   const mediaPermission =
     normalizePermission(groupSettingsRaw.media_permission) ??
+    normalizePermission(groupSettingsRaw.mediaPermission) ??
     normalizePermission(metadata.media_permission) ??
+    normalizePermission(metadata.mediaPermission) ??
     DEFAULT_GROUP_SETTINGS.media_permission;
   const mentionPermission =
     normalizePermission(groupSettingsRaw.mention_permission) ??
+    normalizePermission(groupSettingsRaw.mentionPermission) ??
     normalizePermission(metadata.mention_permission) ??
+    normalizePermission(metadata.mentionPermission) ??
     DEFAULT_GROUP_SETTINGS.mention_permission;
   const addMembersPermission =
     normalizePermission(groupSettingsRaw.add_members_permission) ??
+    normalizePermission(groupSettingsRaw.addMembersPermission) ??
     normalizePermission(metadata.add_members_permission) ??
+    normalizePermission(metadata.addMembersPermission) ??
     DEFAULT_GROUP_SETTINGS.add_members_permission;
   const moderationLevel =
     normalizeModerationLevel(groupSettingsRaw.moderation_level) ??
+    normalizeModerationLevel(groupSettingsRaw.moderationLevel) ??
     normalizeModerationLevel(metadata.moderation_level) ??
+    normalizeModerationLevel(metadata.moderationLevel) ??
     DEFAULT_GROUP_SETTINGS.moderation_level;
 
   return {
@@ -357,15 +372,27 @@ function extractGroupSettingsFromConversation(conv: any): GroupSettings {
     content_filter_enabled: toBool(
       groupSettingsRaw.content_filter_enabled,
       toBool(
-        metadata.content_filter_enabled,
-        DEFAULT_GROUP_SETTINGS.content_filter_enabled,
+        groupSettingsRaw.contentFilterEnabled,
+        toBool(
+          metadata.content_filter_enabled,
+          toBool(
+            metadata.contentFilterEnabled,
+            DEFAULT_GROUP_SETTINGS.content_filter_enabled,
+          ),
+        ),
       ),
     ),
     join_approval_required: toBool(
       groupSettingsRaw.join_approval_required,
       toBool(
-        metadata.join_approval_required,
-        DEFAULT_GROUP_SETTINGS.join_approval_required,
+        groupSettingsRaw.joinApprovalRequired,
+        toBool(
+          metadata.join_approval_required,
+          toBool(
+            metadata.joinApprovalRequired,
+            DEFAULT_GROUP_SETTINGS.join_approval_required,
+          ),
+        ),
       ),
     ),
   };
