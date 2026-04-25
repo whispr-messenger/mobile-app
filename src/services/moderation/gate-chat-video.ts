@@ -13,6 +13,13 @@ type ExpoVideoThumbnailsModule = {
 
 function loadVideoThumbnails(): ExpoVideoThumbnailsModule | null {
   if (Platform.OS === "web") return null;
+  if (process.env.NODE_ENV === "test") {
+    try {
+      return require("expo-video-thumbnails") as ExpoVideoThumbnailsModule;
+    } catch {
+      return null;
+    }
+  }
   const native = NativeModules as Record<string, unknown>;
   if (!native?.ExpoVideoThumbnails) return null;
   try {
