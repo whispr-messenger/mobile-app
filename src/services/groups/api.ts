@@ -281,6 +281,123 @@ function membersFromConversationPayload(conv: any): RawConversationMember[] {
   return conv.members as RawConversationMember[];
 }
 
+const DEFAULT_GROUP_SETTINGS: GroupSettings = {
+  message_permission: "all_members",
+  media_permission: "all_members",
+  mention_permission: "all_members",
+  add_members_permission: "admins_only",
+  moderation_level: "light",
+  content_filter_enabled: false,
+  join_approval_required: false,
+};
+
+function normalizePermission(
+  value: unknown,
+): "all_members" | "moderators_plus" | "admins_only" | undefined {
+  if (
+    value === "all_members" ||
+    value === "moderators_plus" ||
+    value === "admins_only"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeModerationLevel(
+  value: unknown,
+): "light" | "medium" | "strict" | undefined {
+  if (value === "light" || value === "medium" || value === "strict") {
+    return value;
+  }
+  return undefined;
+}
+
+function toBool(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function extractGroupSettingsFromConversation(conv: any): GroupSettings {
+  const metadata =
+    conv?.metadata && typeof conv.metadata === "object"
+      ? (conv.metadata as Record<string, unknown>)
+      : {};
+  const groupSettingsCandidate =
+    (metadata.group_settings as unknown) ??
+    (metadata.groupSettings as unknown) ??
+    (conv?.group_settings as unknown) ??
+    (conv?.groupSettings as unknown);
+  const groupSettingsRaw =
+    groupSettingsCandidate && typeof groupSettingsCandidate === "object"
+      ? (groupSettingsCandidate as Record<string, unknown>)
+      : {};
+
+  const messagePermission =
+    normalizePermission(groupSettingsRaw.message_permission) ??
+    normalizePermission(groupSettingsRaw.messagePermission) ??
+    normalizePermission(metadata.message_permission) ??
+    normalizePermission(metadata.messagePermission) ??
+    DEFAULT_GROUP_SETTINGS.message_permission;
+  const mediaPermission =
+    normalizePermission(groupSettingsRaw.media_permission) ??
+    normalizePermission(groupSettingsRaw.mediaPermission) ??
+    normalizePermission(metadata.media_permission) ??
+    normalizePermission(metadata.mediaPermission) ??
+    DEFAULT_GROUP_SETTINGS.media_permission;
+  const mentionPermission =
+    normalizePermission(groupSettingsRaw.mention_permission) ??
+    normalizePermission(groupSettingsRaw.mentionPermission) ??
+    normalizePermission(metadata.mention_permission) ??
+    normalizePermission(metadata.mentionPermission) ??
+    DEFAULT_GROUP_SETTINGS.mention_permission;
+  const addMembersPermission =
+    normalizePermission(groupSettingsRaw.add_members_permission) ??
+    normalizePermission(groupSettingsRaw.addMembersPermission) ??
+    normalizePermission(metadata.add_members_permission) ??
+    normalizePermission(metadata.addMembersPermission) ??
+    DEFAULT_GROUP_SETTINGS.add_members_permission;
+  const moderationLevel =
+    normalizeModerationLevel(groupSettingsRaw.moderation_level) ??
+    normalizeModerationLevel(groupSettingsRaw.moderationLevel) ??
+    normalizeModerationLevel(metadata.moderation_level) ??
+    normalizeModerationLevel(metadata.moderationLevel) ??
+    DEFAULT_GROUP_SETTINGS.moderation_level;
+
+  return {
+    message_permission: messagePermission,
+    media_permission: mediaPermission,
+    mention_permission: mentionPermission,
+    add_members_permission: addMembersPermission,
+    moderation_level: moderationLevel,
+    content_filter_enabled: toBool(
+      groupSettingsRaw.content_filter_enabled,
+      toBool(
+        groupSettingsRaw.contentFilterEnabled,
+        toBool(
+          metadata.content_filter_enabled,
+          toBool(
+            metadata.contentFilterEnabled,
+            DEFAULT_GROUP_SETTINGS.content_filter_enabled,
+          ),
+        ),
+      ),
+    ),
+    join_approval_required: toBool(
+      groupSettingsRaw.join_approval_required,
+      toBool(
+        groupSettingsRaw.joinApprovalRequired,
+        toBool(
+          metadata.join_approval_required,
+          toBool(
+            metadata.joinApprovalRequired,
+            DEFAULT_GROUP_SETTINGS.join_approval_required,
+          ),
+        ),
+      ),
+    ),
+  };
+}
+
 function mapMessagingConversationToGroupDetails(
   conv: any,
   routeGroupId: string,
@@ -686,17 +803,70 @@ export const groupsAPI = {
    * group_settings table (permissions, moderation level, join approval).
    * Until then we return the app defaults so the settings screen is usable.
    */
-  async getGroupSettings(groupId: string): Promise<GroupSettings> {
-    void groupId;
-    return {
-      message_permission: "all_members",
-      media_permission: "all_members",
-      mention_permission: "all_members",
-      add_members_permission: "admins_only",
-      moderation_level: "light",
-      content_filter_enabled: false,
-      join_approval_required: false,
+  async getGroupSettings(
+    groupId: string,
+    params?: { conversationId?: string },
+  ): Promise<GroupSettings> {
+    const headers = await getAuthHeaders();
+    const convId = params?.conversationId ?? groupId;
+    const conv = await fetchMessagingConversationPayload(convId, headers);
+    if (!conv) {
+      return { ...DEFAULT_GROUP_SETTINGS };
+    }
+    return extractGroupSettingsFromConversation(conv);
+  },
+
+  async updateGroupSettings(
+    groupId: string,
+    updates: Partial<GroupSettings>,
+    params?: { conversationId?: string },
+  ): Promise<GroupSettings> {
+    const headers = await getAuthHeaders();
+    const convId = params?.conversationId ?? groupId;
+    const conv = await fetchMessagingConversationPayload(convId, headers);
+    if (!conv) {
+      throw new Error("Impossible de charger la conversation du groupe");
+    }
+
+    const current = extractGroupSettingsFromConversation(conv);
+    const mergedSettings: GroupSettings = {
+      ...current,
+      ...updates,
     };
+
+    const metadata =
+      conv.metadata && typeof conv.metadata === "object"
+        ? (conv.metadata as Record<string, unknown>)
+        : {};
+
+    const res = await fetch(
+      `${MESSAGING_API_URL}/conversations/${encodeURIComponent(convId)}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify({
+          metadata: {
+            ...metadata,
+            group_settings: mergedSettings,
+          },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `Impossible de mettre a jour les parametres (${res.status})${text ? `: ${text}` : ""}`,
+      );
+    }
+
+    const updated = await fetchMessagingConversationPayload(convId, headers);
+    return updated
+      ? extractGroupSettingsFromConversation(updated)
+      : mergedSettings;
   },
 
   /**
