@@ -329,6 +329,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, []);
 
+  // Pre-warm mic permission on web so the long-press doesn't trigger the
+  // browser permission prompt synchronously (which freezes the tap UI).
+  // On web getUserMedia permission is sticky per-origin once granted.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const audioModule = getAudioModule();
+    if (!audioModule?.requestPermissionsAsync) return;
+    audioModule.requestPermissionsAsync().catch(() => {});
+  }, []);
+
   const startRecording = useCallback(async () => {
     const audioModule = getAudioModule();
     if (!audioModule) {
@@ -336,9 +346,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       return;
     }
 
+    // Flip UI to "Recording" immediately so the user gets instant feedback.
+    // Reverted in the catch block on failure.
+    setIsRecording(true);
+    setRecordingDuration(0);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     try {
       const permission = await audioModule.requestPermissionsAsync();
       if (permission.status !== "granted") {
+        setIsRecording(false);
         Alert.alert(
           "Permission requise",
           "Nous avons besoin de votre permission pour enregistrer des messages vocaux.",
@@ -346,19 +363,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      await audioModule.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      // Defer setAudioModeAsync so it doesn't block the render of the
+      // recording UI on iOS Safari (the call can be slow).
+      setTimeout(() => {
+        audioModule
+          .setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          })
+          .catch((err: unknown) => {
+            console.warn("[MessageInput] setAudioModeAsync failed:", err);
+          });
+      }, 0);
 
       const options = buildRecordingOptions();
       recordingMimeRef.current =
         Platform.OS === "web" ? (options?.web?.mimeType ?? null) : null;
       const { recording } = await audioModule.Recording.createAsync(options);
       recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Start duration timer
       const startTime = Date.now();
@@ -367,6 +389,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }, 1000);
     } catch (error: any) {
       console.error("[MessageInput] Error starting recording:", error);
+      setIsRecording(false);
+      setRecordingDuration(0);
       Alert.alert("Erreur", "Impossible de démarrer l'enregistrement.");
     }
   }, []);
@@ -696,7 +720,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <TouchableOpacity
                 onPress={handleMicPress}
                 onLongPress={startRecording}
-                delayLongPress={300}
+                delayLongPress={Platform.OS === "web" ? 200 : 300}
                 activeOpacity={0.7}
                 style={
                   // iOS Safari: block native context menu / text-selection
