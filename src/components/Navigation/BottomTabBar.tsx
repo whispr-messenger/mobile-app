@@ -147,6 +147,17 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
                       style={styles.tab}
                       onPress={() => handleTabPress(tab.route)}
                       activeOpacity={0.7}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={
+                        badgeCount > 0
+                          ? `${tab.name}, ${badgeCount} ${
+                              badgeCount > 1
+                                ? "messages non lus"
+                                : "message non lu"
+                            }`
+                          : tab.name
+                      }
                     >
                       <View style={styles.iconContainer}>
                         {tab.useLogo ? (

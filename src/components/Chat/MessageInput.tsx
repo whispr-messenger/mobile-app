@@ -522,6 +522,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <TouchableOpacity
             onPress={replyingTo ? onCancelReply : onCancelEdit}
             style={styles.cancelReplyButton}
+            accessibilityRole="button"
+            accessibilityLabel={
+              replyingTo ? "Annuler la réponse" : "Annuler la modification"
+            }
           >
             <Ionicons
               name="close"
@@ -538,6 +542,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               onPress={cancelRecording}
               style={styles.attachButton}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Annuler l'enregistrement vocal"
             >
               <Ionicons
                 name="trash-outline"
@@ -551,7 +557,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 {formatRecordingTime(recordingDuration)}
               </Text>
             </View>
-            <TouchableOpacity onPress={stopRecording} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={stopRecording}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer le message vocal"
+            >
               <LinearGradient
                 colors={["#FFB07B", "#F04882"]}
                 start={{ x: 0, y: 0 }}
@@ -570,6 +581,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onPress={handleOpenCamera}
                   style={styles.attachButton}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Prendre une photo"
                 >
                   <Ionicons
                     name="camera-outline"
@@ -581,6 +594,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onPress={handlePickImage}
                   style={styles.attachButton}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Joindre une image"
                 >
                   <Ionicons
                     name="image-outline"
@@ -592,6 +607,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onPress={handleOpenEmojiPicker}
                   style={styles.attachButton}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
                   accessibilityLabel="Ouvrir le clavier emoji"
                 >
                   <Ionicons
@@ -667,6 +683,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                             style={styles.mentionItem}
                             onPress={() => handleMentionSelect(member)}
                             activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Mentionner ${member.display_name}`}
                           >
                             <Avatar
                               size={32}
@@ -706,6 +724,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 onLongPress={handleLongPressSend}
                 delayLongPress={500}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  editingMessage
+                    ? "Enregistrer la modification"
+                    : "Envoyer le message"
+                }
+                accessibilityHint="Maintenir pour programmer l'envoi"
               >
                 <LinearGradient
                   colors={["#FFB07B", "#F04882"]}
@@ -722,6 +747,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 onLongPress={startRecording}
                 delayLongPress={Platform.OS === "web" ? 200 : 300}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Enregistrer un message vocal"
+                accessibilityHint="Maintenir pour démarrer l'enregistrement"
                 style={
                   // iOS Safari: block native context menu / text-selection
                   // popup from stealing the long-press gesture.
