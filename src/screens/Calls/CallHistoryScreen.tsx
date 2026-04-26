@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Text, FlatList, StyleSheet, RefreshControl, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { callsApi } from "../../services/calls/callsApi";
 import type { Call, CallStatus } from "../../types/calls";
+import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 
 /**
  * List of past calls for the current user. Pull-to-refresh rehydrates
@@ -10,6 +12,7 @@ import type { Call, CallStatus } from "../../types/calls";
 export const CallHistoryScreen: React.FC = () => {
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,6 +35,9 @@ export const CallHistoryScreen: React.FC = () => {
       data={calls}
       keyExtractor={(c) => c.id}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+      contentContainerStyle={{
+        paddingBottom: insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE,
+      }}
       renderItem={({ item }) => (
         <View style={styles.row}>
           <Text style={styles.title}>
