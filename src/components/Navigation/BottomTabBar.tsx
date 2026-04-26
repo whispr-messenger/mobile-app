@@ -8,10 +8,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { navigate } from "../../navigation/navigationRef";
@@ -22,14 +21,10 @@ import { useConversationsStore } from "../../store/conversationsStore";
 const TEXT_LIGHT_COLOR = colors.text.light;
 const PRIMARY_MAIN_COLOR = colors.primary.main;
 const GRADIENT_APP_COLORS = colors.background.gradient.app;
-const GRADIENT_SAFE_AREA_COLOR =
-  GRADIENT_APP_COLORS[GRADIENT_APP_COLORS.length - 1] ?? colors.background.dark;
 
 interface TabItem {
   name: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  useLogo?: boolean;
-  logoVariant?: "single" | "double";
+  icon: keyof typeof Ionicons.glyphMap;
   route: string;
   badgeKey?: "chats";
 }
@@ -39,12 +34,11 @@ const tabs: TabItem[] = [
   { name: "Appels", icon: "call-outline", route: "Calls" },
   {
     name: "Discussions",
-    useLogo: true,
-    logoVariant: "double",
+    icon: "chatbubble-ellipses-outline",
     route: "ConversationsList",
     badgeKey: "chats",
   },
-  { name: "Réglages", useLogo: true, logoVariant: "single", route: "Settings" },
+  { name: "Réglages", icon: "settings-outline", route: "Settings" },
 ];
 
 type Props = {
@@ -73,13 +67,11 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
 
   const visible = tabs.some((t) => t.route === currentRouteName);
 
-  const Wrapper = Platform.OS === "web" ? View : SafeAreaView;
-  const wrapperProps =
-    Platform.OS === "web" ? {} : { edges: ["bottom"] as const };
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === "web" ? 0 : insets.bottom;
 
   return (
-    <Wrapper
-      {...wrapperProps}
+    <View
       style={[styles.container, !visible ? styles.containerHidden : null]}
       pointerEvents={visible ? "auto" : "none"}
     >
@@ -89,6 +81,7 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
         end={{ x: 1, y: 1 }}
         style={[
           styles.gradientBackground,
+          { paddingBottom: visible ? bottomInset : 0 },
           !visible ? styles.gradientBackgroundHidden : null,
         ]}
       >
@@ -115,64 +108,35 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
                 activeOpacity={0.7}
               >
                 <View style={styles.iconContainer}>
-                  {tab.useLogo ? (
-                    <View style={styles.logoContainer}>
-                      {tab.logoVariant === "double" ? (
-                        <View style={styles.doubleLogoContainer}>
-                          <View style={styles.logoBack}>
-                            <Image
-                              source={require("../../../assets/images/logo-icon.png")}
-                              style={styles.logoImageBack}
-                              resizeMode="contain"
-                            />
-                          </View>
-                          <View style={styles.logoFront}>
-                            <Image
-                              source={require("../../../assets/images/logo-icon.png")}
-                              style={styles.logoImageFront}
-                              resizeMode="contain"
-                            />
-                            {badgeCount > 0 && (
-                              <View
-                                style={[
-                                  styles.badge,
-                                  {
-                                    backgroundColor: PRIMARY_MAIN_COLOR,
-                                    borderColor: "transparent",
-                                  },
-                                ]}
-                              >
-                                <Text style={styles.badgeText}>
-                                  {badgeCount > 99 ? "99+" : String(badgeCount)}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                      ) : (
-                        <Image
-                          source={require("../../../assets/images/logo-icon.png")}
-                          style={styles.logoImage}
-                          resizeMode="contain"
-                        />
-                      )}
+                  <Ionicons
+                    name={tab.icon}
+                    size={24}
+                    color={
+                      active ? TEXT_LIGHT_COLOR : "rgba(255, 255, 255, 0.6)"
+                    }
+                  />
+                  {badgeCount > 0 && (
+                    <View
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor: PRIMARY_MAIN_COLOR,
+                          borderColor: "transparent",
+                        },
+                      ]}
+                    >
+                      <Text style={styles.badgeText}>
+                        {badgeCount > 99 ? "99+" : String(badgeCount)}
+                      </Text>
                     </View>
-                  ) : tab.icon ? (
-                    <Ionicons
-                      name={tab.icon}
-                      size={24}
-                      color={
-                        active ? PRIMARY_MAIN_COLOR : "rgba(255, 255, 255, 0.6)"
-                      }
-                    />
-                  ) : null}
+                  )}
                 </View>
                 <Text
                   style={[
                     styles.tabLabel,
                     {
                       color: active
-                        ? PRIMARY_MAIN_COLOR
+                        ? TEXT_LIGHT_COLOR
                         : "rgba(255, 255, 255, 0.7)",
                       fontWeight: active ? "600" : "500",
                     },
@@ -185,14 +149,13 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
           })}
         </View>
       </LinearGradient>
-    </Wrapper>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     borderTopWidth: 0,
-    backgroundColor: GRADIENT_SAFE_AREA_COLOR,
   },
   containerHidden: {
     height: 0,
@@ -227,51 +190,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logoContainer: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  logoImage: {
-    width: 24,
-    height: 24,
-    tintColor: undefined,
-  },
-  doubleLogoContainer: {
-    width: 48,
-    height: 32,
-    position: "relative",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  logoBack: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    zIndex: 1,
-  },
-  logoFront: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    zIndex: 2,
-  },
-  logoImageBack: {
-    width: 28,
-    height: 28,
-    opacity: 0.7,
-  },
-  logoImageFront: {
-    width: 28,
-    height: 28,
-  },
   badge: {
     position: "absolute",
-    top: -2,
-    right: -2,
+    top: 0,
+    right: 8,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
