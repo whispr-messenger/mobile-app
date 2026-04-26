@@ -92,12 +92,25 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   acceptIncoming: async () => {
     const inc = get().incoming;
     if (!inc) return;
-    const resp = await callsApi.accept(inc.callId);
+    // WHISPR-1200 : on tague chaque étape pour que la couche UI puisse
+    // distinguer un échec API (call introuvable, droits, etc.) d'un échec
+    // LiveKit (URL injoignable, token invalide, WebRTC non supporté).
+    let resp;
+    try {
+      resp = await callsApi.accept(inc.callId);
+    } catch (err) {
+      throw new Error(`accept-api: ${(err as Error).message}`);
+    }
     const provider = getCallsLiveKit();
-    const room = await provider.connect({
-      url: resp.livekit_url,
-      token: resp.livekit_token,
-    });
+    let room;
+    try {
+      room = await provider.connect({
+        url: resp.livekit_url,
+        token: resp.livekit_token,
+      });
+    } catch (err) {
+      throw new Error(`livekit-connect: ${(err as Error).message}`);
+    }
     try {
       await provider.enableMic(true);
       if (inc.type === "video") {
