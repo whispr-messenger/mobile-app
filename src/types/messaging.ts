@@ -29,6 +29,8 @@ export interface Conversation {
   is_archived?: boolean; // Frontend local state
   avatar_url?: string; // For direct conversations (other user) or groups
   display_name?: string; // Computed display name
+  username?: string; // Other user's @handle (direct convs) — used as fallback label
+  phone_number?: string; // Other user's phone (direct convs) — final fallback label
   member_user_ids?: string[]; // For direct conversations - to resolve display names
 }
 
@@ -49,6 +51,7 @@ export interface Message {
   conversation_id: string;
   sender_id: string;
   reply_to_id?: string;
+  forwarded_from_id?: string;
   message_type: MessageType;
   content: string; // Decrypted content for display
   metadata: Record<string, any>;
@@ -57,7 +60,7 @@ export interface Message {
   edited_at?: string;
   is_deleted: boolean;
   delete_for_everyone?: boolean;
-  status?: "sending" | "sent" | "delivered" | "read" | "failed";
+  status?: "sending" | "queued" | "sent" | "delivered" | "read" | "failed";
   reply_to?: Message; // Populated reply chain
 }
 
@@ -71,7 +74,7 @@ export interface DeliveryStatus {
 }
 
 export interface MessageWithStatus extends Message {
-  status: "sending" | "sent" | "delivered" | "read" | "failed";
+  status: "sending" | "queued" | "sent" | "delivered" | "read" | "failed";
   delivery_statuses?: DeliveryStatus[];
 }
 

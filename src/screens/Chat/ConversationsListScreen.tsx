@@ -27,7 +27,6 @@ import { TokenService } from "../../services/TokenService";
 import { SwipeableConversationItem } from "../../components/Chat/SwipeableConversationItem";
 import { EmptyState } from "../../components/Chat/EmptyState";
 import { ConversationSkeleton } from "../../components/Chat/SkeletonLoader";
-import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
 import { NewConversationModal } from "../../components/Chat/NewConversationModal";
 import { useTheme } from "../../context/ThemeContext";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
@@ -143,7 +142,7 @@ export const ConversationsListScreen: React.FC = () => {
     token,
     onNewMessage: (message: Message) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      applyNewMessage(message);
+      applyNewMessage(message, userId);
     },
     onConversationUpdate: (conversation: Conversation) => {
       applyConversationUpdate(conversation);
@@ -178,10 +177,10 @@ export const ConversationsListScreen: React.FC = () => {
   }, [token, connectionState, conversationIdsKey, joinConversationChannel]);
 
   useEffect(() => {
+    if (!userId) return;
     fetchConversations();
     loadManuallyUnreadIds();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [fetchConversations, loadManuallyUnreadIds, userId]);
 
   // Refresh conversations when WebSocket reconnects to pick up messages
   // that were missed during the disconnection window
@@ -240,13 +239,13 @@ export const ConversationsListScreen: React.FC = () => {
       setEditMode(false);
       setToast({
         visible: true,
-        message: `${count} conversation${count > 1 ? "s" : ""} deleted`,
+        message: `${count} conversation${count > 1 ? "s" : ""} supprimée${count > 1 ? "s" : ""}`,
         type: "success",
       });
     } catch {
       setToast({
         visible: true,
-        message: "Unable to delete conversations",
+        message: "Impossible de supprimer les conversations",
         type: "error",
       });
     }
@@ -260,7 +259,7 @@ export const ConversationsListScreen: React.FC = () => {
     setEditMode(false);
     setToast({
       visible: true,
-      message: `${count} conversation${count > 1 ? "s" : ""} archived`,
+      message: `${count} conversation${count > 1 ? "s" : ""} archivée${count > 1 ? "s" : ""}`,
       type: "success",
     });
   }, [selectedConversations, archiveConversation]);
@@ -273,7 +272,7 @@ export const ConversationsListScreen: React.FC = () => {
       } catch {
         setToast({
           visible: true,
-          message: "Unable to delete conversation",
+          message: "Impossible de supprimer la conversation",
           type: "error",
         });
       }
@@ -289,7 +288,7 @@ export const ConversationsListScreen: React.FC = () => {
       } catch {
         setToast({
           visible: true,
-          message: "Unable to update mute status",
+          message: "Impossible de mettre à jour le mode silencieux",
           type: "error",
         });
       }
@@ -303,7 +302,7 @@ export const ConversationsListScreen: React.FC = () => {
       markAsUnread(conversationId);
       setToast({
         visible: true,
-        message: "Conversation marked as unread",
+        message: "Conversation marquée comme non lue",
         type: "info",
       });
     },
@@ -444,7 +443,7 @@ export const ConversationsListScreen: React.FC = () => {
             style={styles.headerButton}
           >
             <Text style={[styles.editButton, { color: colors.text.light }]}>
-              {editMode ? "Cancel" : "Edit"}
+              {editMode ? "Annuler" : "Modifier"}
             </Text>
           </TouchableOpacity>
           <Text
@@ -488,7 +487,7 @@ export const ConversationsListScreen: React.FC = () => {
             />
             <TextInput
               style={[styles.searchInput, { color: colors.text.light }]}
-              placeholder="Search for messages or users"
+              placeholder="Rechercher des messages ou utilisateurs"
               placeholderTextColor="rgba(255, 255, 255, 0.6)"
               value={searchQuery}
               onChangeText={(text) => {
@@ -554,7 +553,7 @@ export const ConversationsListScreen: React.FC = () => {
                 size={24}
                 color={colors.ui.error}
               />
-              <Text style={styles.editActionText}>Delete</Text>
+              <Text style={styles.editActionText}>Supprimer</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.editActionButton}
@@ -565,7 +564,7 @@ export const ConversationsListScreen: React.FC = () => {
                 size={24}
                 color={colors.secondary.main}
               />
-              <Text style={styles.editActionText}>Archive</Text>
+              <Text style={styles.editActionText}>Archiver</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.editActionButton}
@@ -584,8 +583,8 @@ export const ConversationsListScreen: React.FC = () => {
               <Text style={styles.editActionText}>
                 {selectedConversations.size ===
                 filteredAndSortedConversations.length
-                  ? "Deselect All"
-                  : "Select All"}
+                  ? "Tout désélectionner"
+                  : "Tout sélectionner"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -597,7 +596,6 @@ export const ConversationsListScreen: React.FC = () => {
           type={toast.type}
           onHide={() => setToast({ ...toast, visible: false })}
         />
-        <BottomTabBar />
       </SafeAreaView>
 
       <NewConversationModal

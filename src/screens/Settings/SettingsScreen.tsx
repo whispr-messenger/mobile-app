@@ -23,20 +23,35 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
-import { useModerationStore } from "../../store/moderationStore";
+import { useIsStaff, useModerationStore } from "../../store/moderationStore";
 import { UserService, PrivacySettings } from "../../services/UserService";
 import {
   NotificationService,
   NotificationSettings,
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+import {
+  DEFAULT_MODERATION_MODEL,
+  getModerationModelVersion,
+  setModerationModelVersion,
+  type ModerationModelVersion,
+} from "../../services/moderation";
 
 const PRIVACY_ALERT_TITLE: Record<string, string> = {
-  profilePhoto: "Profile photo",
-  firstName: "First name",
-  lastName: "Last name",
-  biography: "Biography",
+  profilePhoto: "Photo de profil",
+  firstName: "Prénom",
+  lastName: "Nom",
+  biography: "Biographie",
 };
+
+const PRIVACY_VALUE_LABELS: Record<string, string> = {
+  Everyone: "Tout le monde",
+  Contacts: "Mes contacts",
+  Nobody: "Personne",
+};
+
+const translatePrivacyValue = (value: string | undefined): string =>
+  value ? (PRIVACY_VALUE_LABELS[value] ?? value) : "";
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
@@ -49,12 +64,17 @@ export const SettingsScreen: React.FC = () => {
   } = useTheme();
   const themeColors = getThemeColors();
   const { signOut, userId } = useAuth();
-  const { isModerator, isAdmin, fetchMyRole } = useModerationStore();
+  const { fetchMyRole } = useModerationStore();
+  const isStaff = useIsStaff();
   const insets = useSafeAreaInsets();
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showFontSizeModal, setShowFontSizeModal] = useState(false);
+  const [showModerationModelModal, setShowModerationModelModal] =
+    useState(false);
+  const [moderationModel, setModerationModel] =
+    useState<ModerationModelVersion>(DEFAULT_MODERATION_MODEL);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [selectedPrivacyItem, setSelectedPrivacyItem] = useState<string | null>(
     null,
@@ -285,6 +305,12 @@ export const SettingsScreen: React.FC = () => {
 
     loadSettings();
     fetchMyRole();
+
+    if (__DEV__) {
+      getModerationModelVersion()
+        .then((v) => setModerationModel(v))
+        .catch(() => setModerationModel(DEFAULT_MODERATION_MODEL));
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (category: string, key: string, value: boolean) => {
@@ -390,7 +416,7 @@ export const SettingsScreen: React.FC = () => {
             await signOut();
             navigation.reset({
               index: 0,
-              routes: [{ name: "Welcome" as never }],
+              routes: [{ name: "Welcome" }],
             });
           },
         },
@@ -432,6 +458,8 @@ export const SettingsScreen: React.FC = () => {
       ]}
       onPress={onPress}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${label}. ${subtitle}` : label}
     >
       <View style={styles.settingItemLeft}>
         {icon && (
@@ -518,13 +546,15 @@ export const SettingsScreen: React.FC = () => {
           {title}
         </Text>
       </View>
-      <View
-        style={[
-          styles.sectionContent,
-          { backgroundColor: themeColors.background.secondary },
-        ]}
-      >
-        {children}
+      <View style={styles.sectionShadow}>
+        <View
+          style={[
+            styles.sectionContent,
+            { backgroundColor: themeColors.background.secondary },
+          ]}
+        >
+          {children}
+        </View>
       </View>
     </View>
   );
@@ -550,6 +580,9 @@ export const SettingsScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            accessibilityHint="Ferme les réglages"
           >
             <Ionicons
               name="arrow-back"
@@ -570,30 +603,88 @@ export const SettingsScreen: React.FC = () => {
           </Text>
         </View>
 
+        {/* Account Settings */}
+        <SettingSection
+          title={getLocalizedText("settings.account")}
+          icon="person-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.myProfile")}
+            subtitle={getLocalizedText("settings.myProfileSubtitle")}
+            onPress={() => navigation.navigate("MyProfile")}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+          <SettingItem
+            label={getLocalizedText("settings.logout")}
+            subtitle="Se déconnecter de votre compte"
+            onPress={handleLogout}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+          <SettingItem
+            label={getLocalizedText("settings.deleteAccount")}
+            subtitle="Fonctionnalité à venir"
+            onPress={handleDeleteAccount}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+        </SettingSection>
+
         {/* Privacy Section */}
         <SettingSection
           title={getLocalizedText("settings.privacy")}
           icon="shield-outline"
         >
           <SettingItem
-            label="Profile photo"
-            value={privacySettings.profilePhoto}
+            label="Photo de profil"
+            value={translatePrivacyValue(privacySettings.profilePhoto)}
             onPress={() => handlePrivacyItemPress("profilePhoto")}
           />
           <SettingItem
-            label="First name"
-            value={privacySettings.firstName}
+            label="Prénom"
+            value={translatePrivacyValue(privacySettings.firstName)}
             onPress={() => handlePrivacyItemPress("firstName")}
           />
           <SettingItem
-            label="Last name"
-            value={privacySettings.lastName}
+            label="Nom"
+            value={translatePrivacyValue(privacySettings.lastName)}
             onPress={() => handlePrivacyItemPress("lastName")}
           />
           <SettingItem
-            label="Biography"
-            value={privacySettings.biography}
+            label="Biographie"
+            value={translatePrivacyValue(privacySettings.biography)}
             onPress={() => handlePrivacyItemPress("biography")}
+          />
+          {/* WHISPR-1056: entry point to the BlockedUsersScreen — the
+              screen was already registered in AuthNavigator but unreachable
+              from the settings UI. */}
+          <SettingItem
+            label={
+              getLocalizedText("settings.blockedUsers") ||
+              "Utilisateurs bloqués"
+            }
+            subtitle={
+              getLocalizedText("settings.blockedUsersSubtitle") ||
+              "Voir et débloquer les utilisateurs que vous avez bloqués"
+            }
+            onPress={() => navigation.navigate("BlockedUsers")}
+            icon="ban-outline"
           />
         </SettingSection>
 
@@ -625,7 +716,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Receive notifications
+                  Recevoir les notifications
                 </Text>
               </View>
             </View>
@@ -653,7 +744,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Sound
+                  Son
                 </Text>
                 <Text
                   style={[
@@ -664,7 +755,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Notification sound
+                  Son de notification
                 </Text>
               </View>
             </View>
@@ -703,7 +794,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Mention notifications
+                  Notifications de mention
                 </Text>
               </View>
             </View>
@@ -738,7 +829,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Read receipts
+                  Accusés de lecture
                 </Text>
                 <Text
                   style={[
@@ -749,7 +840,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Confirm message reading
+                  Confirmer la lecture des messages
                 </Text>
               </View>
             </View>
@@ -777,7 +868,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Typing indicator
+                  Indicateur de saisie
                 </Text>
                 <Text
                   style={[
@@ -788,7 +879,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Show 'typing'
+                  Afficher « en train d'écrire »
                 </Text>
               </View>
             </View>
@@ -862,15 +953,25 @@ export const SettingsScreen: React.FC = () => {
           icon="lock-closed-outline"
         >
           <SettingItem
-            label="Security Keys"
-            subtitle="Manage your encryption keys and devices"
-            onPress={() => navigation.navigate("SecurityKeys" as never)}
+            label="Clés de sécurité"
+            subtitle="Gérer vos clés de chiffrement et vos appareils"
+            onPress={() => navigation.navigate("SecurityKeys")}
             icon="key-outline"
+          />
+          {/* WHISPR-1055: session management — list connected devices + revoke. */}
+          <SettingItem
+            label={getLocalizedText("devices.title") || "Mes appareils"}
+            subtitle={
+              getLocalizedText("devices.subtitle") ||
+              "Voir et déconnecter les sessions actives"
+            }
+            onPress={() => navigation.navigate("Devices")}
+            icon="phone-portrait-outline"
           />
           <SettingItem
             label={getLocalizedText("twoFactor.title")}
             subtitle={getLocalizedText("twoFactor.authenticationSubtitle")}
-            onPress={() => navigation.navigate("TwoFactorAuth" as never)}
+            onPress={() => navigation.navigate("TwoFactorAuth")}
             icon="shield-checkmark-outline"
           />
           <View style={styles.settingItem}>
@@ -885,7 +986,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Biometric authentication
+                  Authentification biométrique
                 </Text>
                 <Text
                   style={[
@@ -896,7 +997,7 @@ export const SettingsScreen: React.FC = () => {
                     },
                   ]}
                 >
-                  Unlock with fingerprint/face
+                  Déverrouiller avec l'empreinte ou le visage
                 </Text>
               </View>
             </View>
@@ -916,96 +1017,61 @@ export const SettingsScreen: React.FC = () => {
 
         {/* Moderation Section */}
         <SettingSection
-          title={getLocalizedText("settings.moderation") || "Moderation"}
+          title={getLocalizedText("settings.moderation") || "Modération"}
           icon="flag-outline"
         >
           <SettingItem
-            label={getLocalizedText("settings.myReports") || "My Reports"}
+            label={getLocalizedText("settings.myReports") || "Mes signalements"}
             subtitle={
               getLocalizedText("settings.myReportsSubtitle") ||
-              "History of your reports"
+              "Historique de vos signalements"
             }
-            onPress={() => navigation.navigate("ReportHistory" as never)}
+            onPress={() => navigation.navigate("ReportHistory")}
             icon="document-text-outline"
           />
           <SettingItem
-            label={getLocalizedText("settings.mySanctions") || "My Sanctions"}
+            label={getLocalizedText("settings.mySanctions") || "Mes sanctions"}
             subtitle={
               getLocalizedText("settings.mySanctionsSubtitle") ||
-              "View your sanctions"
+              "Voir vos sanctions"
             }
-            onPress={() => navigation.navigate("ReportHistory" as never)}
+            onPress={() => navigation.navigate("MySanctions")}
             icon="alert-circle-outline"
           />
-          {(isAdmin || isModerator) && (
+          {isStaff && (
             <SettingItem
               label={
                 getLocalizedText("settings.moderationDashboard") ||
-                "Moderation Dashboard"
+                "Tableau de modération"
               }
               subtitle={
                 getLocalizedText("settings.moderationDashboardSubtitle") ||
-                "Moderation management"
+                "Gestion de la modération"
               }
-              onPress={() =>
-                navigation.navigate("ModerationDashboard" as never)
-              }
+              onPress={() => navigation.navigate("ModerationDashboard")}
               icon="shield-outline"
             />
           )}
-        </SettingSection>
-
-        {/* Account Settings */}
-        <SettingSection
-          title={getLocalizedText("settings.account")}
-          icon="person-outline"
-        >
-          <SettingItem
-            label={getLocalizedText("settings.myProfile")}
-            subtitle={getLocalizedText("settings.myProfileSubtitle")}
-            onPress={() => navigation.navigate("Profile", {})}
-            icon="person-circle-outline"
-            rightComponent={
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={themeColors.text.tertiary}
-              />
-            }
-          />
-          <SettingItem
-            label={getLocalizedText("settings.logout")}
-            subtitle="Log out of your account"
-            onPress={handleLogout}
-            rightComponent={
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={themeColors.text.tertiary}
-              />
-            }
-          />
-          <SettingItem
-            label={getLocalizedText("settings.deleteAccount")}
-            subtitle="Fonctionnalité à venir"
-            onPress={handleDeleteAccount}
-            rightComponent={
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={themeColors.text.tertiary}
-              />
-            }
-          />
         </SettingSection>
 
         {/* Developer / Debug — stripped from production bundles */}
         {__DEV__ && (
           <SettingSection title="Debug" icon="bug-outline">
             <SettingItem
+              label="Modèle de modération"
+              subtitle="Bascule entre le modèle v2 (EfficientNet 9-classes) et v3 (MobileNetV3 binary, avec gate vidéo)"
+              value={
+                moderationModel === "v3"
+                  ? "v3 · MobileNetV3 binary"
+                  : "v2 · EfficientNet 9-classes"
+              }
+              onPress={() => setShowModerationModelModal(true)}
+              icon="cube-outline"
+            />
+            <SettingItem
               label="Moderation Test"
               subtitle="Run the on-device TFJS image gate"
-              onPress={() => navigation.navigate("ModerationTest" as never)}
+              onPress={() => navigation.navigate("ModerationTest")}
               icon="image-outline"
               rightComponent={
                 <Ionicons
@@ -1049,6 +1115,31 @@ export const SettingsScreen: React.FC = () => {
         layout="auto"
       />
 
+      {__DEV__ && (
+        <SettingsChoiceAlert
+          visible={showModerationModelModal}
+          onClose={() => setShowModerationModelModal(false)}
+          title="Modèle de modération"
+          options={[
+            { label: "v2 · EfficientNet 9-classes", value: "v2" },
+            { label: "v3 · MobileNetV3 binary (+ vidéo)", value: "v3" },
+          ]}
+          selectedValue={moderationModel}
+          onSelect={async (value) => {
+            const next = value as ModerationModelVersion;
+            setModerationModel(next);
+            setShowModerationModelModal(false);
+            try {
+              await setModerationModelVersion(next);
+            } catch (e) {
+              console.warn("Failed to persist moderation model", e);
+            }
+          }}
+          cancelLabel={getLocalizedText("common.cancel")}
+          layout="vertical"
+        />
+      )}
+
       <SettingsChoiceAlert
         visible={showFontSizeModal}
         onClose={() => setShowFontSizeModal(false)}
@@ -1084,9 +1175,9 @@ export const SettingsScreen: React.FC = () => {
             PRIVACY_ALERT_TITLE[selectedPrivacyItem] ?? selectedPrivacyItem
           }
           options={[
-            { label: "Everyone", value: "Everyone" },
-            { label: "Contacts", value: "Contacts" },
-            { label: "Nobody", value: "Nobody" },
+            { label: "Tout le monde", value: "Everyone" },
+            { label: "Mes contacts", value: "Contacts" },
+            { label: "Personne", value: "Nobody" },
           ]}
           selectedValue={
             privacySettings[
@@ -1139,6 +1230,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: "bold",
+  },
+  sectionShadow: {
+    borderRadius: 12,
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sectionContent: {
     borderRadius: 12,

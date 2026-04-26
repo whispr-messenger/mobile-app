@@ -30,7 +30,10 @@
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSMicrophoneUsageDescription": "Whispr a besoin du micro pour les appels voix et video.",
+        "NSCameraUsageDescription": "Whispr a besoin de la camera pour les appels video.",
+        "UIBackgroundModes": ["voip", "audio"]
       }
     },
     "android": {
@@ -39,7 +42,14 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.Whispr_Frontend"
+      "package": "whispr.test1702",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -50,6 +60,13 @@
         "expo-camera",
         {
           "cameraPermission": "Whispr utilise la caméra pour scanner les QR codes et ajouter des contacts."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
         }
       ]
     ]

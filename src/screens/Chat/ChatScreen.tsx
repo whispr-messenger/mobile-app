@@ -50,6 +50,7 @@ import { MessageActionsMenu } from "../../components/Chat/MessageActionsMenu";
 import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
+import { useCallsStore } from "../../store/callsStore";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -65,8 +66,13 @@ import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
+import { resolveConversationMemberIds } from "../../utils/resolveMembers";
 import { SchedulingService } from "../../services/SchedulingService";
-import { gateChatImageBeforeSend } from "../../services/moderation";
+import {
+  gateChatImageBeforeSend,
+  gateChatVideoBeforeSend,
+} from "../../services/moderation";
+import { appealsAPI } from "../../services/moderation/moderationApi";
 import { ScheduleDateTimePicker } from "../../components/Chat/ScheduleDateTimePicker";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { BlockedImageAppealModal } from "../../components/Chat/BlockedImageAppealModal";
@@ -88,11 +94,65 @@ function showAlert(title: string, message: string): void {
   }
 }
 
+// WHISPR-1074: FlatList items are either messages or date separators.
+// Centralising the union + guard removes the `(item as any).type === "date"`
+// casts sprinkled through the render paths.
+type DateSeparatorItem = { type: "date"; date: Date; id: string };
+type ChatListItem = MessageWithRelations | DateSeparatorItem;
+const isDateSeparator = (item: ChatListItem): item is DateSeparatorItem =>
+  (item as DateSeparatorItem).type === "date";
+
 type ChatScreenRouteProp = StackScreenProps<
   AuthStackParamList,
   "Chat"
 >["route"];
 type ChatScreenNavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
+
+const DEFAULT_MEDIA_CAPTION: Record<
+  "image" | "video" | "audio" | "file",
+  string
+> = {
+  image: "Photo",
+  video: "Vidéo",
+  audio: "Message vocal",
+  file: "Fichier",
+};
+
+const DEFAULT_MIME_BY_KIND: Record<
+  "image" | "video" | "audio" | "file",
+  string
+> = {
+  image: "image/jpeg",
+  video: "video/mp4",
+  audio: "audio/mp4",
+  file: "application/octet-stream",
+};
+
+const EXTENSION_TO_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  avi: "video/x-msvideo",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  caf: "audio/x-caf",
+};
+
+const resolveMimeType = (
+  extension: string,
+  kind: "image" | "video" | "audio" | "file",
+): string => EXTENSION_TO_MIME[extension] ?? DEFAULT_MIME_BY_KIND[kind];
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
@@ -188,7 +248,7 @@ export const ChatScreen: React.FC = () => {
       isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
     },
   ).current;
-  const { getThemeColors } = useTheme();
+  const { getThemeColors, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
 
   const { userId: rawUserId } = useAuth();
@@ -224,7 +284,13 @@ export const ChatScreen: React.FC = () => {
         return next;
       });
     },
-    onNewMessage: (message: Message) => {
+    onNewMessage: (incoming: Message) => {
+      // WHISPR-1074: the socket may ship the enriched form (attachments,
+      // status, delivery_statuses). The hook types the payload as the base
+      // Message so we widen once here and drop the per-field `as any`
+      // casts below. Missing fields stay undefined and the `||` fallbacks
+      // still kick in, so behaviour is unchanged.
+      const message = incoming as MessageWithRelations;
       if (message.conversation_id === conversationId) {
         setMessages((prev) => {
           // Check if message already exists (avoid duplicates)
@@ -236,10 +302,13 @@ export const ChatScreen: React.FC = () => {
                     // Preserve attachments from the optimistic message when the
                     // WebSocket echo doesn't carry them (server Message has no
                     // attachments array).
-                    attachments:
-                      (message as any).attachments ||
-                      (m as MessageWithRelations).attachments,
-                    status: (message as any).status || ("sent" as const),
+                    attachments: message.attachments || m.attachments,
+                    // Preserve the populated reply_to (full Message object) we
+                    // built optimistically — the WS echo only ships reply_to_id
+                    // so spreading it would erase the reply preview until the
+                    // next full reload.
+                    reply_to: message.reply_to || m.reply_to,
+                    status: message.status || ("sent" as const),
                   }
                 : m,
             );
@@ -254,13 +323,11 @@ export const ChatScreen: React.FC = () => {
             optimisticByClientRandom === -1 && message.sender_id === userId
               ? prev.findIndex((m) => {
                   if (!m.id.startsWith("temp-")) return false;
-                  if ((m as any).status !== "sending") return false;
-                  if ((m as any).message_type !== (message as any).message_type)
-                    return false;
-                  if ((m as any).content !== (message as any).content)
-                    return false;
-                  const a = new Date((m as any).sent_at).getTime();
-                  const b = new Date((message as any).sent_at).getTime();
+                  if (m.status !== "sending") return false;
+                  if (m.message_type !== message.message_type) return false;
+                  if (m.content !== message.content) return false;
+                  const a = new Date(m.sent_at).getTime();
+                  const b = new Date(message.sent_at).getTime();
                   return (
                     Number.isFinite(a) &&
                     Number.isFinite(b) &&
@@ -274,22 +341,24 @@ export const ChatScreen: React.FC = () => {
               : optimisticByHeuristic;
 
           if (optimisticMessageIndex !== -1) {
-            const existing = prev[
-              optimisticMessageIndex
-            ] as MessageWithRelations;
+            const existing = prev[optimisticMessageIndex];
             const newMessages = [...prev];
             newMessages[optimisticMessageIndex] = {
               ...message,
               // Preserve attachments from the optimistic message
-              attachments: (message as any).attachments || existing.attachments,
-              status: (message as any).status || ("sent" as const),
+              attachments: message.attachments || existing.attachments,
+              // Same as the duplicate-id branch above: keep the populated
+              // reply_to object so the reply preview doesn't disappear when
+              // the server echo arrives.
+              reply_to: message.reply_to || existing.reply_to,
+              status: message.status || ("sent" as const),
             };
             return newMessages;
           }
           return [
             {
               ...message,
-              status: (message as any).status || ("sent" as const),
+              status: message.status || ("sent" as const),
             },
             ...prev,
           ];
@@ -330,7 +399,14 @@ export const ChatScreen: React.FC = () => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === message.id
-              ? { ...msg, ...message, edited_at: message.edited_at }
+              ? {
+                  ...msg,
+                  ...message,
+                  edited_at: message.edited_at,
+                  // Edit echoes ship reply_to_id only — keep the populated
+                  // reply_to from the existing message so the preview survives.
+                  reply_to: message.reply_to || msg.reply_to,
+                }
               : msg,
           ),
         );
@@ -457,7 +533,10 @@ export const ChatScreen: React.FC = () => {
             setMessages((prev) =>
               prev.map((m) =>
                 m.client_random === queued.client_random
-                  ? { ...(sent as any), status: "sent" }
+                  ? {
+                      ...(sent as MessageWithRelations),
+                      status: "sent" as const,
+                    }
                   : m,
               ),
             );
@@ -555,32 +634,24 @@ export const ChatScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
 
-  // Listen for admin decisions on blocked-image appeals.
+  // Applies an admin decision on a blocked-image appeal.
   // On approve: re-submit the original image bypassing the gate.
   // On reject: annotate the bubble so the user sees "Refusée par l'admin".
-  useEffect(() => {
-    if (!userId) return;
-    let socket: ReturnType<typeof getSharedSocket>;
-    try {
-      socket = getSharedSocket();
-    } catch {
-      return;
-    }
-    const channel = socket.channel(`user:${userId}`);
-    const onDecision = (data: any) => {
-      const messageTempId: string | undefined =
-        data?.messageTempId || data?.message_temp_id;
-      const decision: "approved" | "rejected" | undefined = data?.decision;
-      if (!messageTempId || !decision) return;
-
+  const applyBlockedImageDecision = useCallback(
+    (messageTempId: string, decision: "approved" | "rejected") => {
       const current =
         useModerationStore.getState().pendingAppeals[messageTempId];
+      if (!current || current.status !== "pending") return;
+
       handleAppealDecision({ messageTempId, decision });
 
-      if (decision === "approved" && current?.localUri) {
-        // Re-submit bypassing the gate, then cleanup.
+      // Prefer the base64 data URI when available (survives web logout) and
+      // fall back to the native file URI.
+      const replayUri = current?.localDataUri || current?.localUri;
+
+      if (decision === "approved" && replayUri) {
         handleSendMediaRef
-          .current(current.localUri, "image", undefined, undefined, {
+          .current(replayUri, "image", undefined, undefined, {
             skipGate: true,
           })
           .catch((err) =>
@@ -598,7 +669,7 @@ export const ChatScreen: React.FC = () => {
                   metadata: {
                     ...(m.metadata || {}),
                     appealRejected: true,
-                  } as any,
+                  },
                   content: "Refusée par l'admin",
                 }
               : m,
@@ -606,13 +677,91 @@ export const ChatScreen: React.FC = () => {
         );
         cleanupAppeal(messageTempId).catch(() => {});
       }
+    },
+    [cleanupAppeal, handleAppealDecision],
+  );
+
+  // WebSocket listener for admin decisions on blocked-image appeals.
+  useEffect(() => {
+    if (!userId) return;
+    let socket: ReturnType<typeof getSharedSocket>;
+    try {
+      socket = getSharedSocket();
+    } catch {
+      return;
+    }
+    const channel = socket.channel(`user:${userId}`);
+    const onDecision = (data: any) => {
+      const messageTempId: string | undefined =
+        data?.messageTempId || data?.message_temp_id;
+      const decision: "approved" | "rejected" | undefined = data?.decision;
+      if (!messageTempId || !decision) return;
+
+      applyBlockedImageDecision(messageTempId, decision);
     };
     channel.on("blocked_image_decision", onDecision);
+    // Phoenix only routes broadcasts to channels that have actually joined
+    // their topic. Without this, the backend `Endpoint.broadcast("user:<id>",
+    // "blocked_image_decision", ...)` never reaches the callback — which is
+    // exactly the WHISPR-1142 symptom.
+    channel.join().catch((err) => {
+      logger.warn("ChatScreen", "user channel join failed", err);
+    });
     return () => {
       channel.off("blocked_image_decision", onDecision);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, applyBlockedImageDecision]);
+
+  // Polling fallback: if the WebSocket event is ever missed (connection loss,
+  // backend hiccup, app relaunch before the broadcast lands), poll the user-
+  // service for the status of every pending appeal and apply the decision as
+  // if it had come over the socket. Runs once on mount and then every 10s
+  // while there is at least one pending appeal on this screen.
+  useEffect(() => {
+    if (!userId) return;
+
+    const statusToDecision = (
+      status: string,
+    ): "approved" | "rejected" | null =>
+      status === "accepted"
+        ? "approved"
+        : status === "rejected"
+          ? "rejected"
+          : null;
+
+    const pollOnce = async () => {
+      const pending = useModerationStore.getState().pendingAppeals;
+      const entries = Object.entries(pending).filter(
+        ([, v]) => v.status === "pending",
+      );
+      if (entries.length === 0) return;
+
+      await Promise.all(
+        entries.map(async ([messageTempId, entry]) => {
+          try {
+            const appeal = await appealsAPI.getAppeal(entry.appealId);
+            const decision = statusToDecision(appeal.status);
+            if (decision) {
+              applyBlockedImageDecision(messageTempId, decision);
+            }
+          } catch (err) {
+            logger.warn("ChatScreen", "appeal poll failed", {
+              appealId: entry.appealId,
+              err,
+            });
+          }
+        }),
+      );
+    };
+
+    // Kick off an immediate check so a decision that landed while the app was
+    // closed is picked up as soon as the chat opens.
+    pollOnce().catch(() => {});
+    const id = setInterval(() => {
+      pollOnce().catch(() => {});
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [userId, applyBlockedImageDecision]);
 
   // Check if the other user in a direct conversation is in our contacts
   useEffect(() => {
@@ -649,7 +798,10 @@ export const ChatScreen: React.FC = () => {
     try {
       setAddingContact(true);
       await contactsAPI.sendContactRequest(otherUserId);
-      showAlert("Demande envoyée", "Votre demande de contact a été envoyée.");
+      showAlert(
+        getLocalizedText("chat.requestSentTitle"),
+        getLocalizedText("chat.requestSentMessage"),
+      );
       setIsOtherUserContact(null); // Hide banner after sending
     } catch (error: any) {
       showAlert(
@@ -687,17 +839,18 @@ export const ChatScreen: React.FC = () => {
                   msg.message_type === "system"),
             ) // Include all message types
             .map(async (msg) => {
+              // WHISPR-1074: the backend may ship the enriched shape
+              // (delivery_statuses + status). Widen once instead of
+              // per-field casts below.
+              const enriched = msg as MessageWithRelations;
               // Derive delivery status: prefer explicit status, then check delivery_statuses array
-              let status: "sending" | "sent" | "delivered" | "read" | "failed" =
-                (msg as any)?.status || ("sent" as const);
-              if (
-                status === "sent" &&
-                (msg as any)?.delivery_statuses?.length
-              ) {
-                const ds = (msg as any).delivery_statuses;
-                if (ds.some((d: any) => d.read_at)) {
+              let status: NonNullable<MessageWithRelations["status"]> =
+                enriched.status || ("sent" as const);
+              if (status === "sent" && enriched.delivery_statuses?.length) {
+                const ds = enriched.delivery_statuses;
+                if (ds.some((d) => d.read_at)) {
                   status = "read";
-                } else if (ds.some((d: any) => d.delivered_at)) {
+                } else if (ds.some((d) => d.delivered_at)) {
                   status = "delivered";
                 }
               }
@@ -723,22 +876,37 @@ export const ChatScreen: React.FC = () => {
                 // Ignore errors for attachments
               }
 
-              // Find reply_to message if exists (search in current batch only)
-              let replyTo: Message | undefined;
-              if (msg.reply_to_id) {
-                // Search in current batch
-                replyTo = data.find((m) => m.id === msg.reply_to_id);
-              }
-
+              // reply_to is resolved against the full merged list below so
+              // replies whose parent lives in a different page or is already
+              // in state still render their preview. Only the parent id is
+              // kept here.
               return {
                 ...msg,
                 status,
                 reactions,
                 attachments,
-                reply_to: replyTo,
+                reply_to: undefined,
               } as MessageWithRelations;
             }),
         );
+
+        // Resolve reply_to against both the freshly fetched batch and the
+        // already-loaded messages so paginated history (older batch arrives
+        // later) doesn't drop the reply preview.
+        const resolveReplies = (
+          batch: MessageWithRelations[],
+          pool: MessageWithRelations[],
+        ): MessageWithRelations[] => {
+          if (batch.length === 0) return batch;
+          const lookup = new Map<string, Message>();
+          for (const m of pool) lookup.set(m.id, m);
+          for (const m of batch) lookup.set(m.id, m);
+          return batch.map((m) =>
+            m.reply_to_id && !m.reply_to
+              ? { ...m, reply_to: lookup.get(m.reply_to_id) }
+              : m,
+          );
+        };
 
         if (before) {
           // Loading older messages — merge, deduplicate and re-sort desc
@@ -748,7 +916,20 @@ export const ChatScreen: React.FC = () => {
             const deduped = messagesWithRelations.filter(
               (m) => !existingIds.has(m.id),
             );
-            return [...prev, ...deduped].sort(
+            const withReplies = resolveReplies(deduped, prev);
+            // Some already-loaded newer messages may reply to a message that
+            // just arrived in this older batch — resolve those too so the
+            // preview appears on scroll up.
+            const newIds = new Set(withReplies.map((m) => m.id));
+            const updatedPrev = prev.map((m) =>
+              m.reply_to_id && !m.reply_to && newIds.has(m.reply_to_id)
+                ? {
+                    ...m,
+                    reply_to: withReplies.find((n) => n.id === m.reply_to_id),
+                  }
+                : m,
+            );
+            return [...updatedPrev, ...withReplies].sort(
               (a, b) =>
                 new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
             );
@@ -758,12 +939,11 @@ export const ChatScreen: React.FC = () => {
           // Initial load — merge with any messages already received via WS
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const merged = [...prev];
-            for (const msg of messagesWithRelations) {
-              if (!existingIds.has(msg.id)) {
-                merged.push(msg);
-              }
-            }
+            const newcomers = messagesWithRelations.filter(
+              (m) => !existingIds.has(m.id),
+            );
+            const withReplies = resolveReplies(newcomers, prev);
+            const merged = [...prev, ...withReplies];
             return merged.sort(
               (a, b) =>
                 new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
@@ -820,7 +1000,10 @@ export const ChatScreen: React.FC = () => {
           setEditingMessage(null);
         } catch (error) {
           logger.error("ChatScreen", "Error editing message", error);
-          Alert.alert("Erreur", "Impossible de modifier le message");
+          Alert.alert(
+            getLocalizedText("notif.error"),
+            getLocalizedText("chat.errorEditMessage"),
+          );
           setEditingMessage(null);
         }
         return;
@@ -865,7 +1048,7 @@ export const ChatScreen: React.FC = () => {
         await offlineQueue.enqueue(queued);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === tempMessage.id ? { ...m, status: "queued" as any } : m,
+            m.id === tempMessage.id ? { ...m, status: "queued" as const } : m,
           ),
         );
         return;
@@ -888,8 +1071,8 @@ export const ChatScreen: React.FC = () => {
               m.client_random === tempMessage.client_random
             ) {
               const updated: MessageWithRelations = {
-                ...(sent as any),
-                status: "sent",
+                ...(sent as MessageWithRelations),
+                status: "sent" as const,
                 reply_to: tempMessage.reply_to,
               };
               return updated;
@@ -932,48 +1115,12 @@ export const ChatScreen: React.FC = () => {
       sendTyping(conversationId, false);
 
       // Use caption if provided, otherwise use default text
-      const messageContent =
-        caption?.trim() ||
-        (type === "image"
-          ? "Photo"
-          : type === "video"
-            ? "Vidéo"
-            : type === "audio"
-              ? "Message vocal"
-              : "Fichier");
+      const messageContent = caption?.trim() || DEFAULT_MEDIA_CAPTION[type];
 
       // Derive filename and MIME type from the local URI
       const filename = uri.split("/").pop() || "media";
       const extension = filename.split(".").pop()?.toLowerCase() || "";
-      const mimeMap: Record<string, string> = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        png: "image/png",
-        gif: "image/gif",
-        webp: "image/webp",
-        heic: "image/heic",
-        mp4: "video/mp4",
-        mov: "video/quicktime",
-        avi: "video/x-msvideo",
-        pdf: "application/pdf",
-        doc: "application/msword",
-        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        m4a: "audio/mp4",
-        aac: "audio/aac",
-        mp3: "audio/mpeg",
-        wav: "audio/wav",
-        ogg: "audio/ogg",
-        caf: "audio/x-caf",
-      };
-      const mimeType =
-        mimeMap[extension] ||
-        (type === "image"
-          ? "image/jpeg"
-          : type === "video"
-            ? "video/mp4"
-            : type === "audio"
-              ? "audio/mp4"
-              : "application/octet-stream");
+      const mimeType = resolveMimeType(extension, type);
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
@@ -1019,10 +1166,36 @@ export const ChatScreen: React.FC = () => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       }, 100);
 
+      // Kick off the authoritative member fetch in parallel with the upload.
+      // RLS on media-service requires the recipient to be in shared_with, so
+      // we MUST have the right IDs before calling shareMedia. Starting this
+      // fetch now hides the network round-trip behind upload latency.
+      // Wrap into a settled-result promise so a rejection is never an
+      // unhandled rejection if we exit early (gate block, upload error).
+      const membersFetchSettled: Promise<{
+        ok: boolean;
+        value?: Array<{ id: string }>;
+      }> = messagingAPI
+        .getConversationMembers(conversationId)
+        .then((value) => ({ ok: true, value }))
+        .catch((err) => {
+          logger.warn(
+            "ChatScreen.handleSendMedia",
+            "getConversationMembers failed; will fall back to in-memory IDs",
+            err,
+          );
+          return { ok: false };
+        });
+
       try {
-        // Gate check: block inappropriate images before upload
-        if (type === "image" && !opts?.skipGate) {
-          const gateResult = await gateChatImageBeforeSend(uri);
+        // Gate check: block inappropriate images / videos before upload.
+        // gateChatVideoBeforeSend is a no-op when the selected moderation
+        // model is v2 (which has no video training signal).
+        if ((type === "image" || type === "video") && !opts?.skipGate) {
+          const gateResult =
+            type === "image"
+              ? await gateChatImageBeforeSend(uri)
+              : await gateChatVideoBeforeSend(uri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";
@@ -1041,7 +1214,7 @@ export const ChatScreen: React.FC = () => {
                         blockReason: blockedReason,
                         scores: gateResult.scores,
                         localUri: uri,
-                      } as any,
+                      },
                     }
                   : m,
               ),
@@ -1059,17 +1232,9 @@ export const ChatScreen: React.FC = () => {
         }
 
         // 1. Upload file to media-service
-        console.log("[ChatScreen] Uploading media to media-service:", filename);
         const uploadResult = await MediaService.uploadMedia(
           { uri, name: filename, type: mimeType },
-          (percent) => {
-            console.log(`[ChatScreen] Upload progress: ${percent}%`);
-          },
-        );
-        console.log(
-          "[ChatScreen] Media uploaded:",
-          uploadResult.id,
-          uploadResult.url,
+          (percent) => {},
         );
 
         // Build metadata with the remote URLs from the upload result
@@ -1105,27 +1270,82 @@ export const ChatScreen: React.FC = () => {
           ),
         );
 
-        // 2. Share media with all conversation participants so they can access it
-        const rawMemberIds: string[] = [
-          ...(conversation?.member_user_ids ?? []),
-          ...(allConversations.find((c) => c.id === conversationId)
-            ?.member_user_ids ?? []),
-          ...(conversation?.members?.map(
-            (m: { user_id: string }) => m.user_id,
-          ) ?? []),
-          ...conversationMembers.map((m) => m.id),
-        ];
-        const memberIds = [...new Set(rawMemberIds)]
-          .filter(Boolean)
-          .filter((id) => id !== userId);
-        if (memberIds.length > 0) {
-          await MediaService.shareMedia(uploadResult.id, memberIds).catch(
-            (err) =>
-              console.warn(
-                "[ChatScreen] shareMedia failed (non-blocking):",
-                err,
-              ),
+        // 2. Share media with all conversation participants so they can access it.
+        // The fetch was started before upload (see membersFetchSettled above)
+        // so it has either already resolved or is about to.
+        const fetchPromise: Promise<Array<{ id: string }>> =
+          membersFetchSettled.then((r) => {
+            if (!r.ok || !r.value) {
+              throw new Error("getConversationMembers failed");
+            }
+            return r.value;
+          });
+        const { memberIds } = await resolveConversationMemberIds(
+          {
+            conversation,
+            allConversations,
+            conversationMembers,
+            conversationId,
+          },
+          fetchPromise,
+          {
+            selfId: userId,
+            fetchMembers: (id) => messagingAPI.getConversationMembers(id),
+          },
+        );
+
+        if (memberIds.length === 0) {
+          // No recipients found anywhere — surface this to the user, the
+          // recipient will not be able to open the media without a share.
+          logger.error(
+            "ChatScreen.handleSendMedia",
+            "No recipients resolved for conversation, media will be inaccessible",
+            { conversationId, mediaId: uploadResult.id },
           );
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === tempMessageId
+                ? {
+                    ...msg,
+                    metadata: {
+                      ...(msg.metadata || {}),
+                      shareWarning: true,
+                    },
+                  }
+                : msg,
+            ),
+          );
+          showAlert(
+            "Partage du média",
+            "Impossible de partager le média avec les destinataires. Ils ne pourront peut-être pas l'ouvrir.",
+          );
+        } else {
+          try {
+            await MediaService.shareMediaWithRetry(uploadResult.id, memberIds);
+          } catch (err) {
+            logger.error(
+              "ChatScreen.handleSendMedia",
+              "shareMedia failed after retries",
+              err,
+            );
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === tempMessageId
+                  ? {
+                      ...msg,
+                      metadata: {
+                        ...(msg.metadata || {}),
+                        shareWarning: true,
+                      },
+                    }
+                  : msg,
+              ),
+            );
+            showAlert(
+              "Partage du média",
+              "Le média a été envoyé mais le partage a échoué. Le destinataire pourrait ne pas pouvoir l'ouvrir.",
+            );
+          }
         }
 
         // 3. Send message via messaging-service with remote media URLs
@@ -1186,7 +1406,15 @@ export const ChatScreen: React.FC = () => {
         );
       }
     },
-    [conversationId, userId, sendTyping, replyingTo],
+    [
+      conversationId,
+      userId,
+      sendTyping,
+      replyingTo,
+      conversation,
+      allConversations,
+      conversationMembers,
+    ],
   );
 
   // Keep ref in sync so the WebSocket listener always calls the latest version
@@ -1221,7 +1449,10 @@ export const ChatScreen: React.FC = () => {
         );
       } catch (error) {
         logger.error("ChatScreen", "Error scheduling message", error);
-        Alert.alert("Erreur", "Impossible de programmer le message.");
+        Alert.alert(
+          getLocalizedText("notif.error"),
+          getLocalizedText("chat.errorScheduleMessage"),
+        );
       }
       setScheduleMessageText("");
     },
@@ -1231,6 +1462,24 @@ export const ChatScreen: React.FC = () => {
   const handleScheduledPress = useCallback(() => {
     navigation.navigate("ScheduledMessages", { conversationId });
   }, [navigation, conversationId]);
+
+  const handleInitiateCall = useCallback(
+    async (type: "audio" | "video") => {
+      if (!conversation) return;
+      const memberIds: string[] =
+        conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
+      const participantIds = memberIds.filter((id) => id && id !== userId);
+      try {
+        await useCallsStore
+          .getState()
+          .initiate(conversationId, type, participantIds);
+        navigation.navigate("InCall");
+      } catch (err) {
+        console.error("Failed to initiate call", err);
+      }
+    },
+    [conversation, conversationMembers, conversationId, userId, navigation],
+  );
 
   const resolveReactorDisplayName = useCallback(
     (uid: string) => {
@@ -1317,9 +1566,7 @@ export const ChatScreen: React.FC = () => {
     // In an inverted list, index 0 renders at the bottom, so we need
     // date separators to appear AFTER (higher index = visually above)
     // the last message of each date group.
-    const result: Array<
-      MessageWithRelations | { type: "date"; date: Date; id: string }
-    > = [];
+    const result: Array<ChatListItem> = [];
 
     messages.forEach((message, index) => {
       const messageDate = new Date(message.sent_at);
@@ -1339,7 +1586,7 @@ export const ChatScreen: React.FC = () => {
           type: "date",
           date: messageDate,
           id: `date-${dateKey}`,
-        } as any);
+        });
       }
     });
 
@@ -1370,9 +1617,7 @@ export const ChatScreen: React.FC = () => {
   const scrollToMessage = useCallback(
     (messageId: string) => {
       const index = messagesWithSeparators.findIndex(
-        (item) =>
-          !(item as any).type &&
-          (item as MessageWithRelations).id === messageId,
+        (item) => !isDateSeparator(item) && item.id === messageId,
       );
 
       if (index !== -1 && flatListRef.current) {
@@ -1431,31 +1676,26 @@ export const ChatScreen: React.FC = () => {
   }, [selectedMessage]);
 
   const handleForwardSelect = useCallback(
-    async (targetConversationId: string) => {
-      if (!forwardingMessage) return;
+    async (targetConversationIds: string[]) => {
+      if (!forwardingMessage || targetConversationIds.length === 0) return;
 
       setForwardSending(true);
       try {
-        await messagingAPI.sendMessage(targetConversationId, {
-          content: forwardingMessage.content,
-          message_type: forwardingMessage.message_type,
-          client_random: Math.floor(Math.random() * 1000000),
-          metadata: {
-            forwarded: true,
-            original_sender: forwardingMessage.sender_id,
-            original_timestamp: forwardingMessage.sent_at,
-          },
-        });
+        await messagingAPI.forwardMessage(
+          forwardingMessage.id,
+          targetConversationIds,
+        );
         setShowForwardModal(false);
         setForwardingMessage(null);
         setForwardSending(false);
 
-        // Navigate to the target conversation so the user sees the forwarded
-        // message immediately. Using `push` creates a new stack entry so the
-        // back button returns to the original conversation.
-        navigation.push("Chat", {
-          conversationId: targetConversationId,
-        });
+        // If forwarded to a single target, navigate there so the user sees
+        // the forwarded message. For multi-select stay in place.
+        if (targetConversationIds.length === 1) {
+          navigation.push("Chat", {
+            conversationId: targetConversationIds[0],
+          });
+        }
       } catch (error) {
         logger.error("ChatScreen", "Error forwarding message", error);
         setForwardSending(false);
@@ -1505,7 +1745,10 @@ export const ChatScreen: React.FC = () => {
         await loadPinnedMessages();
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
-        Alert.alert("Erreur", "Impossible de supprimer le message");
+        Alert.alert(
+          getLocalizedText("notif.error"),
+          getLocalizedText("chat.errorDeleteMessage"),
+        );
       }
     },
     [selectedMessage, conversationId, loadPinnedMessages],
@@ -1536,9 +1779,19 @@ export const ChatScreen: React.FC = () => {
       const action = isCurrentlyPinned ? "unpin" : "pin";
 
       if (isCurrentlyPinned) {
+        // Optimistically remove from the pinned bar so the banner disappears
+        // immediately, even if the refresh below races the server.
+        setPinnedMessages((prev) =>
+          prev.filter(
+            (m) => (m.messageId ?? m.message?.id) !== selectedMessage.id,
+          ),
+        );
         await messagingAPI.unpinMessage(conversationId, selectedMessage.id);
       } else {
         await messagingAPI.pinMessage(conversationId, selectedMessage.id);
+        // Re-open the bar when the user just pinned a new message after
+        // having manually closed it.
+        setShowPinnedBar(true);
       }
 
       await loadPinnedMessages();
@@ -1609,10 +1862,13 @@ export const ChatScreen: React.FC = () => {
           // Server returned results — map them to MessageWithRelations
           results = apiResults
             .filter((msg) => msg.message_type !== "system" && !msg.is_deleted)
-            .map((msg) => ({
-              ...msg,
-              status: (msg as any).status || ("sent" as const),
-            }));
+            .map((msg) => {
+              const enriched = msg as MessageWithRelations;
+              return {
+                ...enriched,
+                status: enriched.status || ("sent" as const),
+              };
+            });
         } else {
           // Fallback: client-side search on loaded messages
           results = messages.filter((msg) => {
@@ -1629,9 +1885,7 @@ export const ChatScreen: React.FC = () => {
         if (results.length > 0 && flatListRef.current) {
           setTimeout(() => {
             const firstResultIndex = messagesWithSeparators.findIndex(
-              (item) =>
-                !(item as any).type &&
-                (item as MessageWithRelations).id === results[0].id,
+              (item) => !isDateSeparator(item) && item.id === results[0].id,
             );
 
             if (firstResultIndex !== -1 && flatListRef.current) {
@@ -1677,9 +1931,7 @@ export const ChatScreen: React.FC = () => {
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
-          (item) =>
-            !(item as any).type &&
-            (item as MessageWithRelations).id === result.id,
+          (item) => !isDateSeparator(item) && item.id === result.id,
         );
         if (resultIndex !== -1 && flatListRef.current) {
           try {
@@ -1721,9 +1973,7 @@ export const ChatScreen: React.FC = () => {
           return;
         }
         const resultIndex = messagesWithSeparators.findIndex(
-          (item) =>
-            !(item as any).type &&
-            (item as MessageWithRelations).id === result.id,
+          (item) => !isDateSeparator(item) && item.id === result.id,
         );
         if (resultIndex !== -1 && flatListRef.current) {
           try {
@@ -1772,10 +2022,7 @@ export const ChatScreen: React.FC = () => {
     if (conversation?.type === "group") {
       // Ensure modal is closed before navigating
       setShowInfoModal(false);
-      const groupId =
-        conversation.external_group_id ||
-        conversation.metadata?.group_id ||
-        conversation.id;
+      const groupId = conversation.id;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       // Use setTimeout to ensure modal is closed before navigation
       setTimeout(() => {
@@ -1791,19 +2038,13 @@ export const ChatScreen: React.FC = () => {
   }, [conversation, navigation]);
 
   const renderItem = useCallback(
-    ({
-      item,
-      index,
-    }: {
-      item: MessageWithRelations | { type: "date"; date: Date; id: string };
-      index: number;
-    }) => {
+    ({ item, index }: { item: ChatListItem; index: number }) => {
       // Check if it's a date separator
-      if ((item as any).type === "date") {
-        return <DateSeparator date={(item as any).date} />;
+      if (isDateSeparator(item)) {
+        return <DateSeparator date={item.date} />;
       }
 
-      const message = item as MessageWithRelations;
+      const message = item;
 
       // Handle system messages
       if (message.message_type === "system") {
@@ -1834,9 +2075,9 @@ export const ChatScreen: React.FC = () => {
         const prev = messagesWithSeparators[index + 1];
         if (
           prev &&
-          (prev as any).type !== "date" &&
-          (prev as MessageWithRelations).sender_id === message.sender_id &&
-          (prev as MessageWithRelations).message_type !== "system"
+          !isDateSeparator(prev) &&
+          prev.sender_id === message.sender_id &&
+          prev.message_type !== "system"
         ) {
           isConsecutive = true;
         }
@@ -1860,7 +2101,8 @@ export const ChatScreen: React.FC = () => {
           searchQuery={searchQuery}
           pendingAppeal={pendingAppeals[message.id]}
           onContest={(m) => {
-            const meta = (m.metadata || {}) as any;
+            // metadata is already Record<string, any>; no cast needed
+            const meta = m.metadata || {};
             setAppealModal({
               visible: true,
               imageUri: meta.localUri || "",
@@ -1889,23 +2131,52 @@ export const ChatScreen: React.FC = () => {
   );
 
   const keyExtractor = useCallback(
-    (item: MessageWithRelations | { type: "date"; date: Date; id: string }) => {
-      if ((item as any).type === "date") {
-        return (item as any).id;
-      }
-      return (item as MessageWithRelations).id;
-    },
+    (item: ChatListItem) => (isDateSeparator(item) ? item.id : item.id),
     [],
   );
+
+  const headerAvatarUrl = useMemo(() => {
+    if (!conversation) return undefined;
+
+    if (conversation.type === "direct") {
+      const other = conversationMembers.find((m) => m.id && m.id !== userId);
+      return other?.avatar_url || conversation.avatar_url;
+    }
+
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation, conversationMembers, userId]);
 
   return (
     <LinearGradient
       colors={colors.background.gradient.app}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradientContainer}
+      // Web : la chaîne flex doit être complètement "min-height: 0" de haut
+      // en bas pour que la FlatList virtualisée puisse scroller. Sans ça les
+      // conteneurs parents refusent de laisser leur enfant rétrécir et la
+      // hauteur scrollable finit à 0.
+      style={[
+        styles.gradientContainer,
+        Platform.OS === "web" && { minHeight: 0, height: "100%" },
+      ]}
     >
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          Platform.OS === "web" && { minHeight: 0, height: "100%" },
+        ]}
+        edges={["top"]}
+      >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
           conversationName={
@@ -1913,7 +2184,7 @@ export const ChatScreen: React.FC = () => {
               ? getConversationDisplayName(conversation)
               : "Conversation"
           }
-          avatarUrl={conversation?.avatar_url}
+          avatarUrl={headerAvatarUrl}
           conversationType={conversation?.type || "direct"}
           groupAvatars={
             conversation?.type === "group"
@@ -1932,6 +2203,8 @@ export const ChatScreen: React.FC = () => {
           onSearchPress={() => setShowSearch(true)}
           onInfoPress={handleInfoPress}
           onScheduledPress={handleScheduledPress}
+          onAudioCallPress={() => handleInitiateCall("audio")}
+          onVideoCallPress={() => handleInitiateCall("video")}
         />
         {isOtherUserContact === false && (
           <View style={styles.notContactBanner}>
@@ -1964,68 +2237,128 @@ export const ChatScreen: React.FC = () => {
             onClose={() => setShowPinnedBar(false)}
           />
         )}
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        >
-          <FlatList
-            ref={flatListRef}
-            data={messagesWithSeparators}
-            renderItem={renderItem}
-            keyExtractor={keyExtractor}
-            inverted
-            contentContainerStyle={styles.listContent}
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            initialNumToRender={15}
-            windowSize={10}
-            onEndReached={loadMoreMessages}
-            onEndReachedThreshold={0.3}
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 0,
-            }}
-            viewabilityConfig={viewabilityConfig}
-            onViewableItemsChanged={handleViewableItemsChanged}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              !loading ? (
-                <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
-                  <EmptyChatState />
+        {(() => {
+          // Contenu partagé web / natif — extrait pour que le wrapper soit
+          // branché conditionnellement sans dupliquer le JSX.
+          const messageList = (
+            <FlatList
+              ref={flatListRef}
+              data={messagesWithSeparators}
+              renderItem={renderItem}
+              keyExtractor={keyExtractor}
+              inverted
+              contentContainerStyle={styles.listContent}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={15}
+              windowSize={10}
+              onEndReached={loadMoreMessages}
+              onEndReachedThreshold={0.3}
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+              }}
+              viewabilityConfig={viewabilityConfig}
+              onViewableItemsChanged={handleViewableItemsChanged}
+              keyboardShouldPersistTaps="handled"
+              // Web : on absolute-positionne la FlatList à l'intérieur du
+              // wrapper `webListViewport` (qui est `position: relative`). Ça
+              // donne à la VirtualizedList une boîte de taille définie sans
+              // dépendre du flex layout, indispensable pour que Chrome accepte
+              // de scroller sur la molette quand `inverted` est actif.
+              style={
+                Platform.OS === "web" ? styles.webFlatListAbsolute : undefined
+              }
+              ListEmptyComponent={
+                !loading ? (
+                  <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
+                    <EmptyChatState />
+                  </View>
+                ) : null
+              }
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.loadingMore}>
+                    <ActivityIndicator
+                      size="small"
+                      color={themeColors.primary}
+                    />
+                  </View>
+                ) : null
+              }
+            />
+          );
+          // Sur web, on emballe la FlatList dans un viewport à overflow borné :
+          // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
+          // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
+          const chatBody = (
+            <>
+              {Platform.OS === "web" ? (
+                <View style={styles.webListViewport}>{messageList}</View>
+              ) : (
+                messageList
+              )}
+              {typingUsers.length > 0 && (
+                <View style={styles.typingContainer}>
+                  <TypingIndicator
+                    userNames={typingUsers.map(
+                      (id) => typingUsersNames[id] || "Quelqu'un",
+                    )}
+                  />
                 </View>
-              ) : null
-            }
-            ListFooterComponent={
-              loadingMore ? (
-                <View style={styles.loadingMore}>
-                  <ActivityIndicator size="small" color={themeColors.primary} />
-                </View>
-              ) : null
-            }
-          />
-          {typingUsers.length > 0 && (
-            <View style={styles.typingContainer}>
-              <TypingIndicator
-                userNames={typingUsers.map(
-                  (id) => typingUsersNames[id] || "Quelqu'un",
-                )}
+              )}
+              <MessageInput
+                onSend={handleSendMessage}
+                onSendMedia={handleSendMedia}
+                onScheduleSend={handleScheduleSend}
+                onTyping={(typing) => sendTyping(conversationId, typing)}
+                replyingTo={replyingTo}
+                onCancelReply={() => setReplyingTo(null)}
+                editingMessage={editingMessage}
+                onCancelEdit={() => setEditingMessage(null)}
+                conversationType={conversation?.type || "direct"}
+                members={conversationMembers}
               />
-            </View>
-          )}
-          <MessageInput
-            onSend={handleSendMessage}
-            onSendMedia={handleSendMedia}
-            onScheduleSend={handleScheduleSend}
-            onTyping={(typing) => sendTyping(conversationId, typing)}
-            replyingTo={replyingTo}
-            onCancelReply={() => setReplyingTo(null)}
-            editingMessage={editingMessage}
-            onCancelEdit={() => setEditingMessage(null)}
-            conversationType={conversation?.type || "direct"}
-            members={conversationMembers}
-          />
-        </KeyboardAvoidingView>
+            </>
+          );
+
+          // Web : KeyboardAvoidingView (behavior="height") recalcule la hauteur
+          // en fonction du clavier virtuel inexistant en navigateur, ce qui
+          // finit par réduire le container à 0 px → MessageInput invisible et
+          // chat non scrollable. On remplace par un simple View flex:1.
+          // Natif (iOS/Android) : comportement inchangé, KeyboardAvoidingView
+          // reste nécessaire pour le clavier physique.
+          if (Platform.OS === "web") {
+            // Web layout : on garde `overflow:hidden` sur un wrapper dédié
+            // autour de la FlatList (et plus sur le conteneur externe), pour
+            // borner le viewport de scroll sans capturer l'event wheel en
+            // amont. Mettre overflow:hidden sur le wrapper extérieur faisait
+            // que Chrome routait la molette vers cet élément non-scrollable,
+            // bloquant totalement le scroll sur l'inverted FlatList.
+            return (
+              <View
+                style={[
+                  styles.keyboardView,
+                  {
+                    minHeight: 0,
+                    flexDirection: "column",
+                  },
+                ]}
+              >
+                {chatBody}
+              </View>
+            );
+          }
+          return (
+            <KeyboardAvoidingView
+              style={styles.keyboardView}
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+            >
+              {chatBody}
+            </KeyboardAvoidingView>
+          );
+        })()}
         <MessageActionsMenu
           visible={showActionsMenu}
           message={selectedMessage}
@@ -2257,6 +2590,26 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: 16,
+  },
+  webListViewport: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    // `position: relative` permet à la FlatList interne d'utiliser
+    // `position: absolute, inset: 0` pour s'imposer une hauteur définie : sans
+    // ça, `flex: 1, minHeight: 0` seul ne suffit pas à react-native-web pour
+    // donner une bordure de scroll à un VirtualizedList inversé. Conséquence :
+    // la ScrollView interne grandit avec le contenu et la molette n'a rien à
+    // scroller.
+    position: "relative",
+  },
+  webFlatListAbsolute: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    minHeight: 0,
   },
   loadingMore: {
     paddingVertical: 16,

@@ -518,4 +518,82 @@ describe("createBlockedImageAppeal", () => {
     expect(caught?.message).toBe("Server error");
     expect(useModerationStore.getState().error).toBe("Server error");
   });
+
+  it("falls back to the original imageUri when copyAsync fails", async () => {
+    const FS = jest.requireMock("expo-file-system") as {
+      copyAsync: jest.Mock;
+      getInfoAsync: jest.Mock;
+    };
+    FS.copyAsync.mockRejectedValueOnce(new Error("EIO"));
+    mockCreateAppeal.mockResolvedValue({ id: "appeal-99" });
+
+    await act(async () => {
+      await useModerationStore.getState().createBlockedImageAppeal({
+        imageUri: "file:///photos/broken.jpg",
+        reason: "ok",
+        conversationId: "c-1",
+        messageTempId: "temp-copy-fail",
+      });
+    });
+
+    const pending =
+      useModerationStore.getState().pendingAppeals["temp-copy-fail"];
+    expect(pending?.localUri).toBe("file:///photos/broken.jpg");
+  });
+
+  it("retries makeDirectoryAsync when getInfoAsync throws", async () => {
+    const FS = jest.requireMock("expo-file-system") as {
+      getInfoAsync: jest.Mock;
+      makeDirectoryAsync: jest.Mock;
+    };
+    FS.getInfoAsync.mockRejectedValueOnce(new Error("stat failed"));
+    FS.makeDirectoryAsync.mockResolvedValueOnce(undefined);
+    mockCreateAppeal.mockResolvedValue({ id: "appeal-100" });
+
+    await act(async () => {
+      await useModerationStore.getState().createBlockedImageAppeal({
+        imageUri: "file:///photos/retry.jpg",
+        reason: "ok",
+        conversationId: "c-1",
+        messageTempId: "temp-mkdir-retry",
+      });
+    });
+
+    expect(FS.makeDirectoryAsync).toHaveBeenCalled();
+    expect(
+      useModerationStore.getState().pendingAppeals["temp-mkdir-retry"],
+    ).toBeDefined();
+  });
+});
+
+describe("cleanupAppeal edge case", () => {
+  it("still removes the entry when deleteAsync throws", async () => {
+    const FS = jest.requireMock("expo-file-system") as {
+      deleteAsync: jest.Mock;
+    };
+    FS.deleteAsync.mockRejectedValueOnce(new Error("not found"));
+
+    // Pre-populate a pending appeal with a localUri
+    act(() => {
+      useModerationStore.setState((state) => ({
+        pendingAppeals: {
+          ...state.pendingAppeals,
+          "temp-broken": {
+            appealId: "a-1",
+            status: "pending",
+            localUri: "file:///cache/blocked-appeals/temp-broken.jpg",
+            createdAt: Date.now(),
+          } as any,
+        },
+      }));
+    });
+
+    await act(async () => {
+      await useModerationStore.getState().cleanupAppeal("temp-broken");
+    });
+
+    expect(
+      useModerationStore.getState().pendingAppeals["temp-broken"],
+    ).toBeUndefined();
+  });
 });

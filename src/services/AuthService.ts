@@ -1,6 +1,7 @@
 import { TokenService } from "./TokenService";
 import { DeviceService } from "./DeviceService";
 import { SignalKeyService } from "./SignalKeyService";
+import { NotificationService } from "./NotificationService";
 import { getApiBaseUrl } from "./apiBase";
 import { emitSessionExpired } from "./sessionEvents";
 import type {
@@ -98,6 +99,7 @@ export const AuthService = {
 
     await TokenService.saveTokens(tokens);
     sessionDead = false;
+    NotificationService.initPushRegistration().catch(() => {});
     return tokens;
   },
 
@@ -118,6 +120,7 @@ export const AuthService = {
 
     await TokenService.saveTokens(tokens);
     sessionDead = false;
+    NotificationService.initPushRegistration().catch(() => {});
     return tokens;
   },
 
@@ -175,6 +178,8 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
+    await NotificationService.unregisterDevice(deviceId).catch(() => {});
+    NotificationService.tearDownPushRegistration();
     await apiFetch("/logout", {
       method: "POST",
       token: token ?? undefined,
@@ -205,13 +210,18 @@ export const AuthService = {
       }
     }
 
-    // Validate with a network call (GET /auth/device)
+    // Validate with a network call (GET /auth/device).
+    // Bound the request: without a timeout, a hanging network on app boot
+    // keeps the splash screen forever (validateSession never resolves).
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await fetch(`${getApiBaseUrl()}/auth/v1/device`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "x-device-type": "mobile",
         },
+        signal: controller.signal,
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -221,8 +231,11 @@ export const AuthService = {
 
       return AuthService._extractSession(token);
     } catch {
-      // Network error — trust the token locally
+      // Network error or timeout — trust the token locally rather than
+      // bouncing the user to the login screen on a flaky connection.
       return AuthService._extractSession(token);
+    } finally {
+      clearTimeout(timeoutId);
     }
   },
 

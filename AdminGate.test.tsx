@@ -20,6 +20,8 @@ jest.mock('./src/store/moderationStore', () => ({
     }
     return mockStoreState;
   },
+  // WHISPR-1075: AdminGate now reads through the shared selector hook
+  useIsStaff: () => mockStoreState.isAdmin || mockStoreState.isModerator,
 }));
 
 jest.mock('@expo/vector-icons', () => ({

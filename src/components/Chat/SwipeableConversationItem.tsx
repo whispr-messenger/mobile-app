@@ -84,7 +84,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Archive</Text>
+              <Text style={styles.actionText}>Archiver</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -103,7 +103,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Mute</Text>
+              <Text style={styles.actionText}>Muet</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -122,7 +122,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Delete</Text>
+              <Text style={styles.actionText}>Supprimer</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -164,7 +164,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Pin</Text>
+              <Text style={styles.actionText}>Épingler</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -183,7 +183,7 @@ export const SwipeableConversationItem: React.FC<
                 size={20}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Unread</Text>
+              <Text style={styles.actionText}>Non lu</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -191,7 +191,7 @@ export const SwipeableConversationItem: React.FC<
     );
   };
 
-  if (!editMode) {
+  if (editMode) {
     return (
       <ConversationItem
         conversation={conversation}

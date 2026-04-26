@@ -6,6 +6,8 @@ import React from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
+import { getApiBaseUrl } from "../../services/apiBase";
+import { TokenService } from "../../services/TokenService";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -19,6 +21,164 @@ interface AvatarProps {
   isOnline?: boolean;
 }
 
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") resolve(result);
+      else reject(new Error("FileReader did not produce a data URL"));
+    };
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function streamMediaToRenderableUri(
+  uri: string,
+  token: string | null,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    Accept: "application/octet-stream",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const separator = uri.includes("?") ? "&" : "?";
+  const response = await fetch(`${uri}${separator}stream=1`, { headers });
+  if (!response.ok) {
+    const err = new Error(`stream failed: HTTP ${response.status}`);
+    (err as Error & { status?: number }).status = response.status;
+    throw err;
+  }
+
+  // Some media-service deployments return a presigned URL JSON envelope
+  // ({ url, expiresAt }) instead of the raw binary, even with stream=1 +
+  // Accept: octet-stream. Detect this and follow the URL.
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = await response.json().catch(() => null as any);
+    const followUrl = typeof data?.url === "string" ? data.url : undefined;
+    if (!followUrl) {
+      throw new Error("stream returned JSON without a usable url");
+    }
+    const followed = await fetch(followUrl);
+    if (!followed.ok) {
+      throw new Error(`presigned fetch failed: HTTP ${followed.status}`);
+    }
+    return await blobToDataUrl(await followed.blob());
+  }
+
+  return await blobToDataUrl(await response.blob());
+}
+
+// Module-level resolver: shares a single dataUrl per mediaId across every
+// Avatar instance in the app, deduplicates concurrent fetches, throttles
+// concurrency, and retries on transient failures (429 / network).
+//
+// Concurrency is capped to stay comfortably under the media-service short
+// throttle (WHISPR-1192 raised it to 30 req/s on /blob and /thumbnail), and
+// we still keep dedup + cache so the same mediaId is never fetched twice.
+const resolvedCache = new Map<string, string>();
+const inflightCache = new Map<string, Promise<string>>();
+const fetchQueue: Array<() => void> = [];
+let activeFetches = 0;
+const MAX_CONCURRENT_AVATAR_FETCHES = 8;
+
+function acquireFetchSlot(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const tryAcquire = () => {
+      if (activeFetches < MAX_CONCURRENT_AVATAR_FETCHES) {
+        activeFetches += 1;
+        resolve();
+      } else {
+        fetchQueue.push(tryAcquire);
+      }
+    };
+    tryAcquire();
+  });
+}
+
+function releaseFetchSlot(): void {
+  activeFetches -= 1;
+  const next = fetchQueue.shift();
+  if (next) next();
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function resolveAvatarDataUrl(mediaId: string): Promise<string> {
+  const cached = resolvedCache.get(mediaId);
+  if (cached) return cached;
+
+  const inflight = inflightCache.get(mediaId);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const url = `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`;
+    const maxAttempts = 4;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      await acquireFetchSlot();
+      try {
+        const token = await TokenService.getAccessToken();
+        const dataUrl = await streamMediaToRenderableUri(url, token);
+        resolvedCache.set(mediaId, dataUrl);
+        return dataUrl;
+      } catch (err) {
+        const status = (err as Error & { status?: number })?.status;
+        const retryable =
+          status === 429 || status === 503 || status === undefined;
+        if (!retryable || attempt === maxAttempts) {
+          throw err;
+        }
+        const delay = Math.min(1000, 100 * 2 ** (attempt - 1));
+        await sleep(delay);
+      } finally {
+        releaseFetchSlot();
+      }
+    }
+    throw new Error("unreachable");
+  })();
+
+  inflightCache.set(mediaId, promise);
+  try {
+    return await promise;
+  } finally {
+    inflightCache.delete(mediaId);
+  }
+}
+
+function extractMediaIdFromUri(raw: string): {
+  mediaId: string | undefined;
+  kind: "blob" | "thumbnail";
+} {
+  const mediaMatch = raw.match(
+    /\/media\/v1\/(?:public\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(blob|thumbnail)(?:\?.*)?$/i,
+  );
+  if (mediaMatch?.[1]) {
+    return {
+      mediaId: mediaMatch[1],
+      kind: (mediaMatch?.[2] as "blob" | "thumbnail") || "blob",
+    };
+  }
+
+  const uuidMatch = raw.match(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  );
+  if (uuidMatch) return { mediaId: raw, kind: "blob" };
+
+  const looksLikeMinioAvatar =
+    /minio/i.test(raw) || /\/avatars\//i.test(raw) || /whispr-media/i.test(raw);
+  if (looksLikeMinioAvatar) {
+    const trailingUuid = raw.match(
+      /\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?.*)?$/i,
+    );
+    if (trailingUuid?.[1]) return { mediaId: trailingUuid[1], kind: "blob" };
+  }
+
+  return { mediaId: undefined, kind: "blob" };
+}
+
 export const Avatar: React.FC<AvatarProps> = ({
   uri,
   name,
@@ -27,8 +187,67 @@ export const Avatar: React.FC<AvatarProps> = ({
   isOnline = false,
 }) => {
   const [imageError, setImageError] = React.useState(false);
+  const [resolvedUri, setResolvedUri] = React.useState<string | undefined>(
+    undefined,
+  );
+  const triedAuthResolveRef = React.useRef(false);
 
-  const effectiveUri = uri && /^https?:\/\//i.test(uri) ? uri : undefined;
+  const effectiveCandidate = React.useMemo(() => {
+    const raw = typeof uri === "string" ? uri.trim() : "";
+    if (!raw) return { uri: undefined, mediaId: undefined };
+
+    if (raw.startsWith("file://") || raw.startsWith("data:")) {
+      return { uri: raw, mediaId: undefined };
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+      const base = getApiBaseUrl();
+      const extracted = extractMediaIdFromUri(raw);
+      if (extracted.mediaId) {
+        return {
+          uri: `${base}/media/v1/${encodeURIComponent(extracted.mediaId)}/${extracted.kind}`,
+          mediaId: extracted.mediaId,
+        };
+      }
+      return { uri: raw, mediaId: undefined };
+    }
+
+    const publicMediaMatch = raw.match(
+      /^\/?media\/v1\/public\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+    );
+    if (publicMediaMatch?.[1]) {
+      const base = getApiBaseUrl();
+      const id = publicMediaMatch[1];
+      return {
+        uri: `${base}/media/v1/${encodeURIComponent(id)}/blob`,
+        mediaId: id,
+      };
+    }
+
+    const uuidMatch = raw.match(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    if (uuidMatch) {
+      const base = getApiBaseUrl();
+      return {
+        uri: `${base}/media/v1/${encodeURIComponent(raw)}/blob`,
+        mediaId: raw,
+      };
+    }
+
+    const base = getApiBaseUrl();
+    if (raw.startsWith("/")) {
+      return { uri: `${base}${raw}`, mediaId: undefined };
+    }
+
+    if (raw.includes("/")) {
+      return { uri: `${base}/${raw.replace(/^\/+/, "")}`, mediaId: undefined };
+    }
+
+    return { uri: undefined, mediaId: undefined };
+  }, [uri]);
+
+  const effectiveUri = resolvedUri ?? effectiveCandidate.uri;
 
   const initials =
     name
@@ -41,9 +260,32 @@ export const Avatar: React.FC<AvatarProps> = ({
   // Reset error state when URI changes
   React.useEffect(() => {
     setImageError(false);
-  }, [effectiveUri]);
+    setResolvedUri(undefined);
+    triedAuthResolveRef.current = false;
+  }, [uri]);
 
-  const shouldShowImage = effectiveUri && !imageError;
+  // Pre-resolve through `?stream=1` when we know the mediaId, so <Image>
+  // never hits `/blob` directly (which returns a JSON envelope it can't
+  // decode and triggers a useless second request).
+  React.useEffect(() => {
+    const mediaId = effectiveCandidate.mediaId;
+    if (!mediaId) return;
+    if (resolvedUri) return;
+    let cancelled = false;
+    triedAuthResolveRef.current = true;
+    resolveAvatarDataUrl(mediaId)
+      .then((dataUrl) => {
+        if (cancelled) return;
+        setResolvedUri(dataUrl);
+        setImageError(false);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveCandidate.mediaId, resolvedUri]);
+
+  const shouldShowImage = !!effectiveUri && !imageError;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -55,13 +297,43 @@ export const Avatar: React.FC<AvatarProps> = ({
             { width: size, height: size, borderRadius: size / 2 },
           ]}
           resizeMode="cover"
-          onError={(error) => {
-            console.log(
-              "[Avatar] Image load error:",
-              effectiveUri,
-              error.nativeEvent?.error,
-            );
+          onError={() => {
             setImageError(true);
+
+            if (triedAuthResolveRef.current) return;
+            triedAuthResolveRef.current = true;
+
+            const raw = typeof uri === "string" ? uri.trim() : "";
+            const directMediaId =
+              effectiveCandidate.mediaId ||
+              (raw.match(
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+              )
+                ? raw
+                : undefined);
+
+            const parsedFromUrl = (() => {
+              const candidate = effectiveUri ?? "";
+              const m = candidate.match(
+                /\/media\/v1\/(?:public\/)?([^/]+)(?:\/|$)/,
+              );
+              if (!m?.[1]) return undefined;
+              try {
+                return decodeURIComponent(m[1]);
+              } catch {
+                return m[1];
+              }
+            })();
+
+            const mediaId = directMediaId || parsedFromUrl;
+            if (!mediaId) return;
+
+            resolveAvatarDataUrl(mediaId)
+              .then((dataUrl) => {
+                setResolvedUri(dataUrl);
+                setImageError(false);
+              })
+              .catch(() => undefined);
           }}
         />
       ) : (

@@ -45,7 +45,7 @@ export const DeleteContactModal: React.FC<DeleteContactModalProps> = ({
   const handleConfirm = async () => {
     try {
       setDeleting(true);
-      await contactsAPI.deleteContact(contact.id);
+      await contactsAPI.deleteContact(contact.contact_id || contact.id);
       onContactDeleted();
       onClose();
     } catch (error: any) {

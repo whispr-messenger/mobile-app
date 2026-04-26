@@ -39,11 +39,11 @@ import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { BottomTabBar } from "../../components/Navigation/BottomTabBar";
 import {
   getFavoriteIds,
   toggleFavorite,
 } from "../../services/contacts/favorites";
+import { filterAndSortContacts } from "../../utils/contactsFilter";
 
 declare module "@expo/vector-icons";
 
@@ -71,6 +71,7 @@ export const ContactsScreen: React.FC = () => {
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? "";
   const [token, setToken] = useState<string>("");
+  const lastRefreshAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (!userId) {
@@ -116,6 +117,7 @@ export const ContactsScreen: React.FC = () => {
 
   const refreshAll = useCallback(async () => {
     await Promise.all([loadContacts(), loadContactRequests()]);
+    lastRefreshAtRef.current = Date.now();
   }, [loadContacts, loadContactRequests]);
 
   useWebSocket({
@@ -133,20 +135,19 @@ export const ContactsScreen: React.FC = () => {
     },
   });
 
-  useEffect(() => {
-    loadContacts();
-    loadContactRequests();
-  }, [loadContacts, loadContactRequests]);
-
   useFocusEffect(
     useCallback(() => {
-      if (!userId || !token) return undefined;
-      void refreshAll();
-      const interval = setInterval(() => {
+      if (!userId) return undefined;
+      if (Date.now() - lastRefreshAtRef.current > 30_000) {
         void refreshAll();
-      }, 10000);
+      }
+      const interval = setInterval(() => {
+        if (Date.now() - lastRefreshAtRef.current > 30_000) {
+          void refreshAll();
+        }
+      }, 30_000);
       return () => clearInterval(interval);
-    }, [userId, token, refreshAll]),
+    }, [userId, refreshAll]),
   );
   // Handle refresh
   const handleRefresh = useCallback(async () => {
@@ -197,7 +198,6 @@ export const ContactsScreen: React.FC = () => {
       try {
         const conversation =
           await messagingAPI.createDirectConversation(otherUserId);
-        // @ts-ignore - navigation type will be fixed later
         navigation.navigate("Chat", { conversationId: conversation.id });
       } catch (error: any) {
         console.error("[ContactsScreen] Error creating conversation:", error);
@@ -241,66 +241,11 @@ export const ContactsScreen: React.FC = () => {
   }, []);
 
   // Filtered and sorted contacts
-  const filteredContacts = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    let list = [...contacts];
-
-    if (showFavoritesOnly) {
-      list = list.filter((contact) => contact.is_favorite);
-    }
-
-    if (query) {
-      list = list.filter((contact) => {
-        const fields = [
-          contact.nickname,
-          contact.contact_user?.username,
-          contact.contact_user?.first_name,
-          contact.contact_user?.last_name,
-          contact.contact_user?.phone_number,
-        ]
-          .filter(Boolean)
-          .map((v) => String(v).toLowerCase());
-        return fields.some((v) => v.includes(query));
-      });
-    }
-
-    const byName = (a: Contact, b: Contact) => {
-      const left = (a.nickname ?? a.contact_user?.username ?? "").toLowerCase();
-      const right = (
-        b.nickname ??
-        b.contact_user?.username ??
-        ""
-      ).toLowerCase();
-      return left.localeCompare(right, "fr");
-    };
-
-    if (sortBy === "added_at") {
-      list.sort(
-        (a, b) =>
-          new Date(b.added_at).getTime() - new Date(a.added_at).getTime(),
-      );
-      return list;
-    }
-
-    if (sortBy === "last_seen") {
-      list.sort(
-        (a, b) =>
-          new Date(b.contact_user?.last_seen ?? 0).getTime() -
-          new Date(a.contact_user?.last_seen ?? 0).getTime(),
-      );
-      return list;
-    }
-
-    if (sortBy === "favorites") {
-      list.sort(
-        (a, b) => Number(b.is_favorite) - Number(a.is_favorite) || byName(a, b),
-      );
-      return list;
-    }
-
-    list.sort(byName);
-    return list;
-  }, [contacts, searchQuery, showFavoritesOnly, sortBy]);
+  const filteredContacts = useMemo(
+    () =>
+      filterAndSortContacts(contacts, searchQuery, sortBy, showFavoritesOnly),
+    [contacts, searchQuery, showFavoritesOnly, sortBy],
+  );
 
   const pendingRequests = useMemo(() => {
     if (!userId) {
@@ -557,7 +502,6 @@ export const ContactsScreen: React.FC = () => {
               { backgroundColor: "rgba(255, 255, 255, 0.1)" },
             ]}
             onPress={() => {
-              // @ts-ignore
               navigation.navigate("BlockedUsers");
             }}
           >
@@ -580,7 +524,7 @@ export const ContactsScreen: React.FC = () => {
             <Text
               style={[styles.emptyText, { color: themeColors.text.secondary }]}
             >
-              Chargement des demandes...
+              Chargement
             </Text>
           </View>
         ) : pendingRequests.length > 0 ? (
@@ -673,7 +617,7 @@ export const ContactsScreen: React.FC = () => {
             <Text
               style={[styles.emptyText, { color: themeColors.text.secondary }]}
             >
-              Chargement...
+              Chargement
             </Text>
           </View>
         ) : filteredContacts.length === 0 ? (
@@ -725,7 +669,6 @@ export const ContactsScreen: React.FC = () => {
           }}
           onMessageUser={(conversationId) => {
             setShowAddModal(false);
-            // @ts-ignore - navigation type will be fixed later
             navigation.navigate("Chat", { conversationId });
           }}
         />
@@ -753,7 +696,6 @@ export const ContactsScreen: React.FC = () => {
           onContactsSynced={loadContacts}
         />
       </SafeAreaView>
-      <BottomTabBar />
     </LinearGradient>
   );
 };

@@ -180,7 +180,7 @@ export const SecurityKeysScreen: React.FC = () => {
               : Haptics.ImpactFeedbackStyle.Heavy,
         );
       } catch (error) {
-        console.log("⚠️ Haptic feedback error:", error);
+        console.warn("[SecurityKeysScreen] Haptic feedback error:", error);
       }
     }
   };
@@ -190,6 +190,12 @@ export const SecurityKeysScreen: React.FC = () => {
     type: "success" | "error" | "info" | "warning" = "info",
   ) => {
     setToast({ visible: true, message, type });
+  };
+
+  const confirmDisconnectDevice = (device: ConnectedDevice) => {
+    triggerHaptic("medium");
+    setDevices((prev) => prev.filter((d) => d.id !== device.id));
+    showToast(getLocalizedText("security.deviceDisconnected"), "success");
   };
 
   const handleDisconnectDevice = (device: ConnectedDevice) => {
@@ -211,14 +217,7 @@ export const SecurityKeysScreen: React.FC = () => {
         {
           text: getLocalizedText("security.disconnect"),
           style: "destructive",
-          onPress: () => {
-            triggerHaptic("medium");
-            setDevices((prev) => prev.filter((d) => d.id !== device.id));
-            showToast(
-              getLocalizedText("security.deviceDisconnected"),
-              "success",
-            );
-          },
+          onPress: () => confirmDisconnectDevice(device),
         },
       ],
       { cancelable: true },

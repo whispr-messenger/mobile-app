@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  NativeModules,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -22,43 +24,119 @@ import { Ionicons } from "@expo/vector-icons";
 import { TokenService } from "../../services/TokenService";
 import { isReachableUrl } from "../../utils";
 
+function uriNeedsAuthResolution(uri: string | undefined): boolean {
+  return (
+    !!uri &&
+    uri.includes("/media/v1/") &&
+    (uri.includes("/blob") || uri.includes("/thumbnail"))
+  );
+}
+
+/**
+ * Stream the raw bytes through `?stream=1` with a Bearer token and turn the
+ * response into a renderable URI. Used as a fallback when the presigned URL
+ * returned by the media-service points at an internal hostname the device
+ * cannot reach (typical when `S3_PUBLIC_ENDPOINT` is not configured).
+ */
+async function streamMediaToRenderableUri(
+  uri: string,
+  token: string | null,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    Accept: "application/octet-stream",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const separator = uri.includes("?") ? "&" : "?";
+  const response = await fetch(`${uri}${separator}stream=1`, { headers });
+  if (!response.ok) {
+    throw new Error(`stream failed: HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+
+  if (
+    Platform.OS === "web" &&
+    typeof URL !== "undefined" &&
+    typeof URL.createObjectURL === "function"
+  ) {
+    return URL.createObjectURL(blob);
+  }
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") resolve(result);
+      else reject(new Error("FileReader did not produce a data URL"));
+    };
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
  * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
- * The blob/thumbnail endpoints now return 200 JSON `{ url, expiresAt }`
- * (previously a 302 redirect). We fetch with Bearer, extract `url`, and
- * reject any URL pointing at internal cluster hostnames — the browser
- * cannot resolve those and they trigger Mixed Content on https pages.
+ * The blob/thumbnail endpoints return 200 JSON `{ url, expiresAt }`. We
+ * fetch with Bearer, extract `url`, and reject any URL pointing at internal
+ * cluster hostnames. When the presigned URL is unreachable we fall back to
+ * streaming the raw bytes via `?stream=1` so previews still render.
+ *
+ * The hook also tracks `expiresAt` and automatically re-resolves when the
+ * presigned URL is about to expire (60s buffer).
  */
 function useResolvedMediaUrl(uri: string | undefined): {
   resolvedUri: string;
   loading: boolean;
   error: boolean;
 } {
-  const [resolvedUri, setResolvedUri] = useState(uri || "");
-  const [loading, setLoading] = useState(false);
+  // Guard initial render: when the URI requires auth, never seed the state
+  // with the raw `/media/v1/.../blob` URL — RN's <Image> would issue an
+  // unauthenticated GET that the gateway answers with 401, producing the
+  // 401 floods Tudy reported.
+  const [resolvedUri, setResolvedUri] = useState(
+    uriNeedsAuthResolution(uri) ? "" : uri || "",
+  );
+  const [loading, setLoading] = useState(uriNeedsAuthResolution(uri));
   const [error, setError] = useState(false);
+  const blobUrlRef = useRef<string | null>(null);
+  // Bumped to force a re-resolve when the presigned URL expires.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
+    const revokeBlobUrl = () => {
+      const previous = blobUrlRef.current;
+      if (
+        previous &&
+        typeof URL !== "undefined" &&
+        typeof URL.revokeObjectURL === "function"
+      ) {
+        URL.revokeObjectURL(previous);
+      }
+      blobUrlRef.current = null;
+    };
+
     if (!uri) {
+      revokeBlobUrl();
       setResolvedUri("");
+      setLoading(false);
       return;
     }
 
-    // Only resolve blob/thumbnail endpoints that need auth
-    const needsAuth =
-      uri.includes("/media/v1/") &&
-      (uri.includes("/blob") || uri.includes("/thumbnail"));
-
-    if (!needsAuth) {
+    if (!uriNeedsAuthResolution(uri)) {
+      revokeBlobUrl();
       setResolvedUri(uri);
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
+    let expiryTimer: ReturnType<typeof setTimeout> | null = null;
+    setResolvedUri("");
     setLoading(true);
     setError(false);
 
     (async () => {
+      revokeBlobUrl();
       try {
         const token = await TokenService.getAccessToken();
         const headers: Record<string, string> = {};
@@ -79,35 +157,80 @@ function useResolvedMediaUrl(uri: string | undefined): {
           return;
         }
 
-        // New contract (media-service deploy/preprod ≥ cedf7f9b):
-        // `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON, not a
-        // 302 redirect. Parse JSON first; fall back to response.url for the
-        // legacy 302 redirect contract.
+        // Contract: `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON.
+        // Fall back to response.url for the legacy 302 redirect contract.
         let presigned: string | null = null;
+        let urlExplicitlyNull = false;
+        let expiresAtMs: number | null = null;
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           try {
-            const body = (await response.json()) as { url?: string | null };
+            const body = (await response.json()) as {
+              url?: string | null;
+              expiresAt?: string | null;
+            };
+            if (body && "url" in body && body.url === null) {
+              urlExplicitlyNull = true;
+            }
             presigned = body?.url ?? null;
+            if (typeof body?.expiresAt === "string") {
+              const parsed = Date.parse(body.expiresAt);
+              if (!Number.isNaN(parsed)) expiresAtMs = parsed;
+            }
           } catch {
             presigned = null;
           }
         } else if (response.url && response.url !== uri) {
-          // Legacy: fetch followed a 302 — response.url is the presigned URL
           presigned = response.url;
         }
 
+        // `/thumbnail` returning `{ url: null }` means no thumbnail stored —
+        // legitimate, not an error. Leave resolvedUri empty without falling
+        // back to streaming (which would download a JSON blob and break the
+        // image).
+        if (urlExplicitlyNull) {
+          setResolvedUri("");
+          return;
+        }
+
+        const scheduleRefresh = () => {
+          if (!expiresAtMs) return;
+          // Refresh 60s before expiry, never sooner than 5s from now.
+          const now = Date.now();
+          const refreshIn = Math.max(5_000, expiresAtMs - now - 60_000);
+          expiryTimer = setTimeout(() => {
+            if (!cancelled) setRefreshTick((t) => t + 1);
+          }, refreshIn);
+        };
+
         if (isReachableUrl(presigned)) {
           setResolvedUri(presigned as string);
-        } else {
-          if (presigned) {
-            console.warn(
-              "[MediaMessage] Rejected unreachable media URL (cluster-internal):",
-              presigned,
-            );
-          }
-          setError(true);
+          scheduleRefresh();
+          return;
         }
+
+        if (presigned) {
+          console.warn(
+            "[MediaMessage] Presigned URL unreachable — streaming via API proxy:",
+            presigned,
+          );
+        }
+        const renderableUri = await streamMediaToRenderableUri(uri, token);
+        if (cancelled) {
+          if (
+            renderableUri.startsWith("blob:") &&
+            typeof URL !== "undefined" &&
+            typeof URL.revokeObjectURL === "function"
+          ) {
+            URL.revokeObjectURL(renderableUri);
+          }
+          return;
+        }
+        if (renderableUri.startsWith("blob:")) {
+          blobUrlRef.current = renderableUri;
+        }
+        setResolvedUri(renderableUri);
+        scheduleRefresh();
       } catch (err) {
         if (cancelled) return;
         console.warn("[MediaMessage] Error resolving media URL:", err);
@@ -119,22 +242,40 @@ function useResolvedMediaUrl(uri: string | undefined): {
 
     return () => {
       cancelled = true;
+      if (expiryTimer) clearTimeout(expiryTimer);
+      revokeBlobUrl();
     };
-  }, [uri]);
+  }, [uri, refreshTick]);
 
   return { resolvedUri, loading, error };
 }
 
-// Import expo-av avec gestion d'erreur
 let Video: any = null;
 let ResizeMode: any = null;
-try {
-  const expoAv = require("expo-av");
-  Video = expoAv.Video;
-  ResizeMode = expoAv.ResizeMode;
-} catch (error) {
-  console.warn("[MediaMessage] expo-av not available, using fallback:", error);
+let triedLoadingExpoAvVideo = false;
+
+function ensureExpoAvVideoLoaded(): void {
+  if (Video || triedLoadingExpoAvVideo) return;
+  triedLoadingExpoAvVideo = true;
+  const native = NativeModules as Record<string, unknown>;
+  if (!native?.ExponentAV) return;
+  try {
+    const expoAv = require("expo-av");
+    Video = expoAv.Video;
+    ResizeMode = expoAv.ResizeMode;
+  } catch (error) {
+    console.warn(
+      "[MediaMessage] expo-av not available, using fallback:",
+      error,
+    );
+  }
 }
+
+// Bornes du ratio d'affichage des images dans le chat (WHISPR-1039) :
+// au-delà, on tombe sur du `cover` graceful plutôt que de laisser un
+// panorama 5:1 ou un screenshot 1:4 casser la grille de la conversation.
+const MIN_IMAGE_ASPECT = 0.5;
+const MAX_IMAGE_ASPECT = 2.0;
 
 interface MediaMessageProps {
   uri: string;
@@ -151,6 +292,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   size,
   thumbnailUri,
 }) => {
+  ensureExpoAvVideoLoaded();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const [showFullImage, setShowFullImage] = useState(false);
@@ -159,13 +301,34 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const playerVideoRef = useRef<any>(null); // Ref for full-screen player
   const [videoStatus, setVideoStatus] = useState<any>({});
   const [thumbnailError, setThumbnailError] = useState(false);
+  // WHISPR-1039: ratio mesuré sur l'image résolue, borné pour éviter qu'une
+  // image très étirée ne casse la mise en page de la conversation.
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
 
   // Resolve blob/thumbnail URLs to fresh presigned URLs
-  const { resolvedUri: resolvedMainUri, loading: mainLoading } =
-    useResolvedMediaUrl(uri);
+  const {
+    resolvedUri: resolvedMainUri,
+    loading: mainLoading,
+    error: mainError,
+  } = useResolvedMediaUrl(uri);
   const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
     thumbnailUri || uri,
   );
+
+  // WHISPR-1039: on lit le ratio via l'évènement onLoad natif plutôt que
+  // Image.getSize pour fonctionner uniformément iOS/Android/web et éviter
+  // les soucis de mock côté tests.
+  const handleImageLoad = (event: {
+    nativeEvent: { source?: { width?: number; height?: number } };
+  }) => {
+    const source = event?.nativeEvent?.source;
+    const width = source?.width;
+    const height = source?.height;
+    if (!width || !height) return;
+    const raw = width / height;
+    const clamped = Math.min(MAX_IMAGE_ASPECT, Math.max(MIN_IMAGE_ASPECT, raw));
+    setImageAspectRatio(clamped);
+  };
 
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
@@ -243,11 +406,32 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             >
               <ActivityIndicator size="small" color={colors.primary.main} />
             </View>
+          ) : mainError ? (
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(26, 31, 58, 0.4)",
+                },
+              ]}
+            >
+              <Text style={{ color: colors.text.light }}>
+                Échec du chargement
+              </Text>
+            </View>
           ) : (
             <Image
               source={{ uri: resolvedThumbUri || resolvedMainUri }}
-              style={styles.image}
+              style={[
+                styles.image,
+                imageAspectRatio !== null
+                  ? { aspectRatio: imageAspectRatio }
+                  : null,
+              ]}
               resizeMode="cover"
+              onLoad={handleImageLoad}
             />
           )}
         </TouchableOpacity>

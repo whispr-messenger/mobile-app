@@ -2,6 +2,7 @@ import { AuthService } from "./AuthService";
 import { TokenService } from "./TokenService";
 import { getApiBaseUrl } from "./apiBase";
 import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
@@ -157,6 +158,16 @@ export const MediaService = {
       });
     }
 
+    console.log(
+      "[PDP-DEBUG][MediaService] uploadMedia → POST",
+      `${getMediaBaseUrl()}/upload`,
+      {
+        context: meta?.context,
+        ownerId: meta?.ownerId,
+        fileName: file.name,
+        fileType: file.type,
+      },
+    );
     const response = await fetch(`${getMediaBaseUrl()}/upload`, {
       method: "POST",
       headers,
@@ -165,6 +176,11 @@ export const MediaService = {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      console.log(
+        "[PDP-DEBUG][MediaService] uploadMedia ← HTTP",
+        response.status,
+        body,
+      );
       const error = new Error(
         (body as { message?: string })?.message ??
           `Upload failed: HTTP ${response.status}`,
@@ -173,7 +189,15 @@ export const MediaService = {
       throw error;
     }
 
-    return normaliseUpload(await response.json());
+    const raw = await response.json();
+    console.log("[PDP-DEBUG][MediaService] uploadMedia ← 200 raw:", raw);
+    const normalised = normaliseUpload(raw);
+    console.log("[PDP-DEBUG][MediaService] uploadMedia normalised:", {
+      id: normalised.id,
+      url: normalised.url,
+      thumbnail_url: normalised.thumbnail_url,
+    });
+    return normalised;
   },
 
   /**
@@ -211,6 +235,138 @@ export const MediaService = {
     } catch {
       return { url: response.url };
     }
+  },
+
+  /**
+   * Download media to a local cache file (works for protected endpoints).
+   * Useful for React Native <Image> when auth headers are required.
+   */
+  async downloadMediaToCacheFile(id: string): Promise<string> {
+    const token = await TokenService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const cacheRoot =
+      (FileSystem as any).cacheDirectory ??
+      (FileSystem as any).documentDirectory ??
+      "";
+    const cacheDir = `${cacheRoot}avatars/`;
+    await FileSystem.makeDirectoryAsync(cacheDir, {
+      intermediates: true,
+    }).catch(() => {});
+    const baseName = `${encodeURIComponent(id)}`;
+    const tmpPath = `${cacheDir}${baseName}.tmp`;
+
+    const download = (url: string) =>
+      FileSystem.downloadAsync(url, tmpPath, { headers });
+
+    const result = await download(
+      `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`,
+    );
+
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`Failed to download media file: HTTP ${result.status}`);
+    }
+
+    const contentType =
+      (result as any)?.headers?.["Content-Type"] ??
+      (result as any)?.headers?.["content-type"] ??
+      "";
+
+    const info = (await FileSystem.getInfoAsync(result.uri).catch(
+      () => null,
+    )) as any;
+    const size = typeof info?.size === "number" ? info.size : undefined;
+
+    const tryParseUrl = async () => {
+      const raw = await FileSystem.readAsStringAsync(result.uri).catch(
+        () => "",
+      );
+      try {
+        const data = JSON.parse(raw);
+        const url = typeof data?.url === "string" ? data.url : undefined;
+        if (url) return url;
+      } catch {
+        // ignore
+      }
+      return undefined;
+    };
+
+    if (
+      contentType.includes("application/json") ||
+      contentType.includes("text/plain") ||
+      (typeof size === "number" && size > 0 && size < 1024)
+    ) {
+      const url = await tryParseUrl();
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+
+      try {
+        const streamed = await download(
+          `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob?stream=1`,
+        );
+        if (streamed.status < 200 || streamed.status >= 300) {
+          throw new Error(`HTTP ${streamed.status}`);
+        }
+
+        const streamedContentType =
+          (streamed as any)?.headers?.["Content-Type"] ??
+          (streamed as any)?.headers?.["content-type"] ??
+          "";
+
+        if (!streamedContentType.startsWith("image/")) {
+          await FileSystem.deleteAsync(streamed.uri, {
+            idempotent: true,
+          }).catch(() => {});
+          throw new Error(
+            `Streamed avatar has invalid content-type: ${streamedContentType}`,
+          );
+        }
+
+        const ext = streamedContentType.includes("png")
+          ? "png"
+          : streamedContentType.includes("webp")
+            ? "webp"
+            : streamedContentType.includes("heic") ||
+                streamedContentType.includes("heif")
+              ? "heic"
+              : "jpg";
+        const finalPath = `${cacheDir}${baseName}.${ext}`;
+        await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+          () => {},
+        );
+        await FileSystem.moveAsync({ from: streamed.uri, to: finalPath });
+        return finalPath;
+      } catch {
+        if (url) return url;
+        throw new Error("Downloaded avatar is not an image");
+      }
+    }
+
+    if (!contentType.startsWith("image/")) {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+      throw new Error(
+        `Downloaded avatar has invalid content-type: ${contentType}`,
+      );
+    }
+
+    const ext = contentType.includes("png")
+      ? "png"
+      : contentType.includes("webp")
+        ? "webp"
+        : contentType.includes("heic") || contentType.includes("heif")
+          ? "heic"
+          : "jpg";
+    const finalPath = `${cacheDir}${baseName}.${ext}`;
+    await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+      () => {},
+    );
+    await FileSystem.moveAsync({ from: result.uri, to: finalPath });
+
+    return finalPath;
   },
 
   /**
@@ -256,6 +412,46 @@ export const MediaService = {
         body: JSON.stringify({ userIds }),
       },
     );
+  },
+
+  /**
+   * Same as shareMedia but retries up to `maxAttempts` times on failure
+   * with exponential backoff (default 1s, 2s). Recipients cannot view
+   * media until shared_with contains their user ID, so a transient
+   * network blip during this PATCH would leave the media unreadable
+   * for the recipient until the next retry — surface failures clearly
+   * after exhaustion.
+   */
+  async shareMediaWithRetry(
+    id: string,
+    userIds: string[],
+    options: {
+      maxAttempts?: number;
+      initialDelayMs?: number;
+      sleep?: (ms: number) => Promise<void>;
+    } = {},
+  ): Promise<void> {
+    if (!userIds.length) return;
+    const maxAttempts = options.maxAttempts ?? 3;
+    const initialDelayMs = options.initialDelayMs ?? 1000;
+    const sleep =
+      options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await MediaService.shareMedia(id, userIds);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxAttempts) {
+          await sleep(initialDelayMs * Math.pow(2, attempt - 1));
+        }
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("shareMedia failed after retries");
   },
 };
 

@@ -310,71 +310,70 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
     [contacts],
   );
 
-  // Handle group photo selection with haptics
-  const handleSelectPhoto = async () => {
+  type PhotoSource = {
+    requestPermission: () => Promise<{ status: string }>;
+    launch: () => Promise<ImagePicker.ImagePickerResult>;
+    permissionMessage: string;
+    errorMessage: string;
+  };
+
+  const pickAndSetGroupPhoto = async ({
+    requestPermission,
+    launch,
+    permissionMessage,
+    errorMessage,
+  }: PhotoSource) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } = await requestPermission();
       if (status !== "granted") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert(
-          "Permission requise",
-          "L'accès à la galerie est nécessaire pour sélectionner une photo",
-        );
+        Alert.alert("Permission requise", permissionMessage);
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images",
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0] && result.assets[0].base64) {
+      const result = await launch();
+      const base64 = !result.canceled ? result.assets?.[0]?.base64 : undefined;
+      if (base64) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setGroupPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
+        setGroupPhoto(`data:image/jpeg;base64,${base64}`);
       }
     } catch (error) {
-      // Error handled by Alert
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Erreur", "Impossible de sélectionner la photo");
+      Alert.alert("Erreur", errorMessage);
     }
   };
 
-  // Handle take photo with haptics
-  const handleTakePhoto = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== "granted") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert(
-          "Permission requise",
-          "L'accès à la caméra est nécessaire pour prendre une photo",
-        );
-        return;
-      }
+  const handleSelectPhoto = () =>
+    pickAndSetGroupPhoto({
+      requestPermission: ImagePicker.requestMediaLibraryPermissionsAsync,
+      launch: () =>
+        ImagePicker.launchImageLibraryAsync({
+          mediaTypes: "images",
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.5,
+          base64: true,
+        }),
+      permissionMessage:
+        "L'accès à la galerie est nécessaire pour sélectionner une photo",
+      errorMessage: "Impossible de sélectionner la photo",
+    });
 
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0] && result.assets[0].base64) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setGroupPhoto(`data:image/jpeg;base64,${result.assets[0].base64}`);
-      }
-    } catch (error) {
-      // Error handled by Alert
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Erreur", "Impossible de prendre la photo");
-    }
-  };
+  const handleTakePhoto = () =>
+    pickAndSetGroupPhoto({
+      requestPermission: ImagePicker.requestCameraPermissionsAsync,
+      launch: () =>
+        ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.5,
+          base64: true,
+        }),
+      permissionMessage:
+        "L'accès à la caméra est nécessaire pour prendre une photo",
+      errorMessage: "Impossible de prendre la photo",
+    });
 
   // Handle create conversation with haptics and animations
   const handleCreate = async () => {
@@ -476,7 +475,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
       } catch (error: any) {
         // Error handled by Alert
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert("Erreur", error.message || "Impossible de créer le groupe");
+        Alert.alert("Erreur", "Impossible de créer le groupe");
       } finally {
         setCreating(false);
       }

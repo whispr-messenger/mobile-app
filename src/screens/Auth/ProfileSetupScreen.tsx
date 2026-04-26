@@ -21,6 +21,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { MediaService } from "../../services/MediaService";
 import { UserService } from "../../services";
+import { profileSetupFlag } from "../../services/profileSetupFlag";
 import { normalizeUsername } from "../../utils";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
@@ -39,6 +40,7 @@ export const ProfileSetupScreen: React.FC = () => {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -56,7 +58,12 @@ export const ProfileSetupScreen: React.FC = () => {
         try {
           const res = await service.getProfile();
           if (res.success) {
-            if (!cancelled) setProfileReady(true);
+            if (!cancelled) {
+              if (res.profile?.phoneNumber) {
+                setPhoneNumber(res.profile.phoneNumber);
+              }
+              setProfileReady(true);
+            }
             return;
           }
         } catch {
@@ -95,7 +102,7 @@ export const ProfileSetupScreen: React.FC = () => {
     if (status !== "granted") {
       Alert.alert(
         getLocalizedText("notif.error"),
-        "Permission refusée pour accéder à la galerie.",
+        getLocalizedText("auth.permissionDeniedGallery"),
       );
       return;
     }
@@ -111,20 +118,15 @@ export const ProfileSetupScreen: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert(
-        getLocalizedText("notif.error"),
-        "Veuillez remplir tous les champs obligatoires.",
-      );
-      return;
-    }
-
     setLoading(true);
     try {
-      const profileData: Record<string, string> = {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-      };
+      const profileData: Record<string, string> = {};
+      if (firstName.trim()) {
+        profileData.firstName = firstName.trim();
+      }
+      if (lastName.trim()) {
+        profileData.lastName = lastName.trim();
+      }
       const normalizedUsername = normalizeUsername(username);
       if (normalizedUsername.length >= 3) {
         profileData.username = normalizedUsername;
@@ -153,13 +155,16 @@ export const ProfileSetupScreen: React.FC = () => {
         }
       }
 
-      const service = UserService.getInstance();
-      const res = await service.updateProfile(profileData);
+      if (Object.keys(profileData).length > 0) {
+        const service = UserService.getInstance();
+        const res = await service.updateProfile(profileData);
 
-      if (!res.success) {
-        throw new Error(res.message || "Profile update failed");
+        if (!res.success) {
+          throw new Error(res.message || "Profile update failed");
+        }
       }
 
+      await profileSetupFlag.markDone();
       navigation.reset({ index: 0, routes: [{ name: "ConversationsList" }] });
     } catch (error: any) {
       Alert.alert(
@@ -171,7 +176,8 @@ export const ProfileSetupScreen: React.FC = () => {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    await profileSetupFlag.markDone();
     navigation.reset({ index: 0, routes: [{ name: "ConversationsList" }] });
   };
 
@@ -220,12 +226,28 @@ export const ProfileSetupScreen: React.FC = () => {
               >
                 {getLocalizedText("auth.profileSetupSubtitle")}
               </Text>
+              {phoneNumber && (
+                <Text
+                  style={[
+                    styles.phoneLabel,
+                    {
+                      color: themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
+                  ]}
+                >
+                  {getLocalizedText("auth.linkedAccount")} {phoneNumber}
+                </Text>
+              )}
             </View>
 
             {/* Avatar */}
             <TouchableOpacity
               style={styles.avatarContainer}
               onPress={pickImage}
+              accessibilityRole="button"
+              accessibilityLabel={getLocalizedText("auth.selectPhoto")}
+              accessibilityHint="Ouvre la bibliothèque photo pour choisir une image de profil"
             >
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.avatar} />
@@ -255,7 +277,10 @@ export const ProfileSetupScreen: React.FC = () => {
                   },
                 ]}
               >
-                {getLocalizedText("auth.firstName")} *
+                {getLocalizedText("auth.firstName")}{" "}
+                <Text style={styles.optionalHint}>
+                  ({getLocalizedText("common.optional")})
+                </Text>
               </Text>
               <Input
                 placeholder={getLocalizedText("auth.firstName")}
@@ -274,7 +299,10 @@ export const ProfileSetupScreen: React.FC = () => {
                   },
                 ]}
               >
-                {getLocalizedText("auth.lastName")} *
+                {getLocalizedText("auth.lastName")}{" "}
+                <Text style={styles.optionalHint}>
+                  ({getLocalizedText("common.optional")})
+                </Text>
               </Text>
               <Input
                 placeholder={getLocalizedText("auth.lastName")}
@@ -293,10 +321,13 @@ export const ProfileSetupScreen: React.FC = () => {
                   },
                 ]}
               >
-                {getLocalizedText("profile.username")} *
+                {getLocalizedText("profile.username")}{" "}
+                <Text style={styles.optionalHint}>
+                  ({getLocalizedText("common.optional")})
+                </Text>
               </Text>
               <Input
-                placeholder="@username"
+                placeholder="Pseudo"
                 value={username}
                 onChangeText={(t) => setUsername(normalizeUsername(t))}
                 autoCapitalize="none"
@@ -333,26 +364,27 @@ export const ProfileSetupScreen: React.FC = () => {
               size="large"
               fullWidth
               loading={loading}
-              disabled={
-                !profileReady ||
-                !firstName.trim() ||
-                !lastName.trim() ||
-                loading
-              }
+              disabled={!profileReady || loading}
               onPress={handleSave}
             />
 
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={handleSkip}
+              accessibilityRole="button"
+              accessibilityLabel={`${getLocalizedText("auth.skip")} — compléter plus tard`}
+              accessibilityHint="Ignore la configuration du profil pour l'instant"
+            >
               <Text
                 style={[
                   styles.skipText,
                   {
-                    color: themeColors.text.secondary,
+                    color: themeColors.text.primary,
                     fontSize: getFontSize("base"),
                   },
                 ]}
               >
-                {getLocalizedText("auth.cancel")} — compléter plus tard
+                {getLocalizedText("auth.skip")} — compléter plus tard
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -386,21 +418,28 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     textAlign: "center",
   },
+  phoneLabel: {
+    color: colors.text.light,
+    opacity: 0.6,
+    textAlign: "center",
+    marginTop: spacing.xs,
+    fontWeight: "500",
+  },
   avatarContainer: {
     alignSelf: "center",
     marginBottom: spacing.xl,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 128,
+    height: 128,
+    borderRadius: 64,
     borderWidth: 3,
     borderColor: colors.primary.main,
   },
   avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 128,
+    height: 128,
+    borderRadius: 64,
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.3)",
     borderStyle: "dashed",
@@ -410,7 +449,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   avatarPlaceholderIcon: {
-    fontSize: 28,
+    fontSize: 36,
   },
   avatarPlaceholderText: {
     color: colors.text.light,
@@ -435,7 +474,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   skipText: {
+    opacity: 0.9,
+    fontWeight: "600",
+    textDecorationLine: "underline",
+  },
+  optionalHint: {
     opacity: 0.6,
+    fontWeight: "400",
   },
   readyBanner: {
     flexDirection: "row",

@@ -9,11 +9,16 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthService } from "../services/AuthService";
 import { TokenService } from "../services/TokenService";
+import { profileSetupFlag } from "../services/profileSetupFlag";
+import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
+import { useModerationStore } from "../store/moderationStore";
 import { cacheService } from "../services/messaging/cache";
+import { offlineQueue } from "../services/offlineQueue";
 import { onSessionExpired } from "../services/sessionEvents";
+import { useBadgeSync } from "../hooks/useBadgeSync";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -49,6 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           userId: session?.userId ?? null,
           deviceId: session?.deviceId ?? null,
         });
+        if (session) {
+          void tokenRefreshScheduler.start();
+        }
       })
       .catch(() => {
         setState({
@@ -67,23 +75,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       userId,
       deviceId,
     });
+    void tokenRefreshScheduler.start();
   }, []);
 
   const signOut = useCallback(async () => {
+    // Stop the proactive refresh timer before tearing down the session so it
+    // doesn't fire a refresh against a dead session.
+    tokenRefreshScheduler.stop();
+
     // Tear down WebSocket before clearing auth state
     destroySharedSocket();
 
     // Reset stores and caches to prevent data leaking between users
     useConversationsStore.getState().reset();
     usePresenceStore.getState().reset();
+    useModerationStore.getState().reset();
     await cacheService.clearCache();
+    await offlineQueue.clearAll();
     await AsyncStorage.removeItem("@whispr/manually_unread_ids");
+    await profileSetupFlag.clear();
 
     if (state.deviceId && state.userId) {
       await AuthService.logout(state.deviceId, state.userId);
     } else {
       await TokenService.clearTokens();
     }
+    // Drop the per-device Signal identity private key — it is bound to the
+    // session that just ended and must not leak into the next account.
+    await TokenService.clearIdentityPrivateKey();
     setState({
       isAuthenticated: false,
       isLoading: false,
@@ -111,6 +130,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     return () => sub.remove();
   }, []);
+
+  // WHISPR-1049: sync app icon badge on cold-start and auth transitions.
+  useBadgeSync(state.isAuthenticated);
 
   return (
     <AuthContext.Provider value={{ ...state, signIn, signOut }}>
