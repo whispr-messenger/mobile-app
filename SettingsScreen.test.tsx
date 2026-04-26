@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform, StyleSheet } from "react-native";
 import { render, waitFor } from "@testing-library/react-native";
 import { SettingsScreen } from "./src/screens/Settings/SettingsScreen";
 
@@ -113,5 +114,22 @@ describe("SettingsScreen", () => {
     await waitFor(() => {
       expect(getByText("settings.logout")).toBeTruthy();
     });
+  });
+
+  it("constrains the ScrollView height on web so the page can scroll (WHISPR-1199)", async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
+    try {
+      const { getByTestId } = render(<SettingsScreen />);
+      const scroll = await waitFor(() => getByTestId("settings-scroll"));
+      const flat = StyleSheet.flatten(scroll.props.style);
+      expect(flat.height).toBe("100%");
+      expect(flat.minHeight).toBe(0);
+    } finally {
+      Object.defineProperty(Platform, "OS", {
+        value: originalOS,
+        configurable: true,
+      });
+    }
   });
 });
