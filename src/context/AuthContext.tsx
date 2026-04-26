@@ -15,6 +15,7 @@ import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
 import { useModerationStore } from "../store/moderationStore";
+import { useCallsStore } from "../store/callsStore";
 import { cacheService } from "../services/messaging/cache";
 import { offlineQueue } from "../services/offlineQueue";
 import { onSessionExpired } from "../services/sessionEvents";
@@ -90,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     useConversationsStore.getState().reset();
     usePresenceStore.getState().reset();
     useModerationStore.getState().reset();
+    useCallsStore.getState().reset();
     await cacheService.clearCache();
     await offlineQueue.clearAll();
     await AsyncStorage.removeItem("@whispr/manually_unread_ids");
