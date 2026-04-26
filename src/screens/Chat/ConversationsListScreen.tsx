@@ -14,7 +14,11 @@ import {
   TextInput,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -41,6 +45,7 @@ type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
 export const ConversationsListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
 
   // Store
   const conversations = useConversationsStore((s) => s.conversations);
@@ -395,7 +400,10 @@ export const ConversationsListScreen: React.FC = () => {
         data={filteredAndSortedConversations}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE },
+        ]}
         style={styles.list}
         removeClippedSubviews={false}
         maxToRenderPerBatch={10}

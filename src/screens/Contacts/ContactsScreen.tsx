@@ -16,7 +16,11 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
@@ -50,6 +54,7 @@ declare module "@expo/vector-icons";
 export const ContactsScreen: React.FC = () => {
   const navigation =
     useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
+  const insets = useSafeAreaInsets();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -655,7 +660,12 @@ export const ContactsScreen: React.FC = () => {
                 tintColor={colors.text.light}
               />
             }
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              {
+                paddingBottom: insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE,
+              },
+            ]}
           />
         )}
 
