@@ -271,6 +271,12 @@ function ensureExpoAvVideoLoaded(): void {
   }
 }
 
+// Bornes du ratio d'affichage des images dans le chat (WHISPR-1039) :
+// au-delà, on tombe sur du `cover` graceful plutôt que de laisser un
+// panorama 5:1 ou un screenshot 1:4 casser la grille de la conversation.
+const MIN_IMAGE_ASPECT = 0.5;
+const MAX_IMAGE_ASPECT = 2.0;
+
 interface MediaMessageProps {
   uri: string;
   type: "image" | "video" | "file";
@@ -295,6 +301,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const playerVideoRef = useRef<any>(null); // Ref for full-screen player
   const [videoStatus, setVideoStatus] = useState<any>({});
   const [thumbnailError, setThumbnailError] = useState(false);
+  // WHISPR-1039: ratio mesuré sur l'image résolue, borné pour éviter qu'une
+  // image très étirée ne casse la mise en page de la conversation.
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
 
   // Resolve blob/thumbnail URLs to fresh presigned URLs
   const {
@@ -305,6 +314,21 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
     thumbnailUri || uri,
   );
+
+  // WHISPR-1039: on lit le ratio via l'évènement onLoad natif plutôt que
+  // Image.getSize pour fonctionner uniformément iOS/Android/web et éviter
+  // les soucis de mock côté tests.
+  const handleImageLoad = (event: {
+    nativeEvent: { source?: { width?: number; height?: number } };
+  }) => {
+    const source = event?.nativeEvent?.source;
+    const width = source?.width;
+    const height = source?.height;
+    if (!width || !height) return;
+    const raw = width / height;
+    const clamped = Math.min(MAX_IMAGE_ASPECT, Math.max(MIN_IMAGE_ASPECT, raw));
+    setImageAspectRatio(clamped);
+  };
 
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
@@ -400,8 +424,14 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
           ) : (
             <Image
               source={{ uri: resolvedThumbUri || resolvedMainUri }}
-              style={styles.image}
+              style={[
+                styles.image,
+                imageAspectRatio !== null
+                  ? { aspectRatio: imageAspectRatio }
+                  : null,
+              ]}
               resizeMode="cover"
+              onLoad={handleImageLoad}
             />
           )}
         </TouchableOpacity>
