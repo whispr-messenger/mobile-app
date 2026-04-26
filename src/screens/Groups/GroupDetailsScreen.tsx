@@ -18,6 +18,7 @@ import {
   Modal,
   TextInput,
   FlatList,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -132,6 +133,7 @@ export const GroupDetailsScreen: React.FC = () => {
   const [showTransferAdminModal, setShowTransferAdminModal] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -166,7 +168,9 @@ export const GroupDetailsScreen: React.FC = () => {
           conversationId: conversationKey,
         }),
         groupsAPI.getGroupLogs(groupId),
-        groupsAPI.getGroupSettings(groupId),
+        groupsAPI.getGroupSettings(groupId, {
+          conversationId: conversationKey,
+        }),
       ]);
 
       const [detailsR, membersR, statsR, logsR, settingsR] = results;
@@ -248,7 +252,7 @@ export const GroupDetailsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [groupId, conversationId, conversationName]);
+  }, [groupId, conversationKey, conversationName]);
 
   useEffect(() => {
     loadGroupData().catch((err) => {
@@ -334,6 +338,114 @@ export const GroupDetailsScreen: React.FC = () => {
       setShowDeleteModal(false);
     }
   }, [groupId, navigation]);
+
+  const updateGroupSetting = useCallback(
+    async (updates: Partial<GroupSettings>) => {
+      if (!isAdmin) {
+        Alert.alert(
+          "Information",
+          "Seuls les administrateurs peuvent modifier ces paramètres.",
+        );
+        return;
+      }
+      if (!settings || savingSettings) return;
+
+      const previous = settings;
+      const optimistic = { ...previous, ...updates };
+      setSettings(optimistic);
+      setSavingSettings(true);
+      try {
+        await groupsAPI.updateGroupSettings(groupId, updates, {
+          conversationId: conversationKey,
+        });
+        const refreshed = await groupsAPI.getGroupSettings(groupId, {
+          conversationId: conversationKey,
+        });
+        setSettings(refreshed);
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
+      } catch (error: any) {
+        setSettings(previous);
+        logger.error(
+          "GroupDetailsScreen",
+          "Error updating group settings",
+          error,
+        );
+        Alert.alert(
+          "Erreur",
+          error?.message ||
+            "Impossible de mettre à jour les paramètres du groupe",
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
+          () => {},
+        );
+      } finally {
+        setSavingSettings(false);
+      }
+    },
+    [conversationKey, groupId, isAdmin, savingSettings, settings],
+  );
+
+  const openPermissionSelector = useCallback(
+    (
+      key:
+        | "message_permission"
+        | "media_permission"
+        | "mention_permission"
+        | "add_members_permission",
+      title: string,
+    ) => {
+      Alert.alert(title, "Choisissez le niveau d'autorisation", [
+        {
+          text: "Tous les membres",
+          onPress: () => updateGroupSetting({ [key]: "all_members" }),
+        },
+        {
+          text: "Modérateurs+",
+          onPress: () => updateGroupSetting({ [key]: "moderators_plus" }),
+        },
+        {
+          text: "Admins uniquement",
+          onPress: () => updateGroupSetting({ [key]: "admins_only" }),
+        },
+        { text: "Annuler", style: "cancel" },
+      ]);
+    },
+    [updateGroupSetting],
+  );
+
+  const openModerationLevelSelector = useCallback(() => {
+    Alert.alert("Niveau de modération", "Choisissez le niveau", [
+      {
+        text: "Léger",
+        onPress: () => updateGroupSetting({ moderation_level: "light" }),
+      },
+      {
+        text: "Modéré",
+        onPress: () => updateGroupSetting({ moderation_level: "medium" }),
+      },
+      {
+        text: "Strict",
+        onPress: () => updateGroupSetting({ moderation_level: "strict" }),
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }, [updateGroupSetting]);
+
+  const openContentFilterSelector = useCallback(() => {
+    Alert.alert("Filtre de contenu", "Choisissez l'etat du filtre", [
+      {
+        text: "Activer",
+        onPress: () => updateGroupSetting({ content_filter_enabled: true }),
+      },
+      {
+        text: "Desactiver",
+        onPress: () => updateGroupSetting({ content_filter_enabled: false }),
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }, [updateGroupSetting]);
 
   const handleTransferAndLeave = useCallback(
     async (newAdminId: string) => {
@@ -1180,7 +1292,17 @@ export const GroupDetailsScreen: React.FC = () => {
           >
             Permissions de communication
           </Text>
-          <View style={styles.settingItem}>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={() =>
+              openPermissionSelector(
+                "message_permission",
+                "Permission d'envoi de messages",
+              )
+            }
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="chatbubble-outline"
@@ -1203,8 +1325,18 @@ export const GroupDetailsScreen: React.FC = () => {
                   ? "Modérateurs+"
                   : "Admins uniquement"}
             </Text>
-          </View>
-          <View style={styles.settingItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={() =>
+              openPermissionSelector(
+                "media_permission",
+                "Permission d'envoi de medias",
+              )
+            }
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="image-outline"
@@ -1227,7 +1359,7 @@ export const GroupDetailsScreen: React.FC = () => {
                   ? "Modérateurs+"
                   : "Admins uniquement"}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.settingsSection}>
           <Text
@@ -1235,7 +1367,12 @@ export const GroupDetailsScreen: React.FC = () => {
           >
             Modération
           </Text>
-          <View style={styles.settingItem}>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={openModerationLevelSelector}
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="shield-outline"
@@ -1258,8 +1395,13 @@ export const GroupDetailsScreen: React.FC = () => {
                   ? "Modéré"
                   : "Strict"}
             </Text>
-          </View>
-          <View style={styles.settingItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={openContentFilterSelector}
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="filter-outline"
@@ -1286,7 +1428,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 {settings?.content_filter_enabled ? "Activé" : "Désactivé"}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.settingsSection}>
           <Text
@@ -2017,9 +2159,11 @@ export const GroupDetailsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100vh" as any } : {}),
   },
   container: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100%", minHeight: 0 } : {}),
   },
   header: {
     flexDirection: "row",
@@ -2054,6 +2198,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0, overflow: "auto" as any } : {}),
   },
   groupInfoSection: {
     alignItems: "center",

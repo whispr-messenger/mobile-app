@@ -24,7 +24,6 @@ import { navigationRef } from "./src/navigation/navigationRef";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
-import { tfjsService } from "./src/services/moderation";
 
 enableScreens(false);
 
@@ -32,7 +31,7 @@ enableScreens(false);
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
@@ -52,25 +51,23 @@ export default function App() {
     }
   }, []);
 
-  // WHISPR-1149: warm both moderation models (v2 + v3) in the background so
-  // the first image/video send doesn't pay the model-load cost inline.
-  // Failures are swallowed — the next gate() call will retry and surface
-  // the error to the user.
   useEffect(() => {
-    tfjsService.preloadModels().catch(() => {});
-  }, []);
+    if (fontsLoaded || fontsError) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontsError]);
 
   const onLayoutRootView = useCallback(async () => {
-    if (fontsLoaded) {
+    if (fontsLoaded || fontsError) {
       await SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, fontsError]);
 
   const syncCurrentRouteName = useCallback(() => {
     setCurrentRouteName(navigationRef.getCurrentRoute()?.name ?? "");
   }, []);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded && !fontsError) {
     return null;
   }
 

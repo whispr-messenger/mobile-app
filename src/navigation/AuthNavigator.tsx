@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
+import { NativeModules, Text, View } from "react-native";
 import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
 import { OtpScreen } from "../screens/Auth/OtpScreen";
@@ -150,6 +151,10 @@ export const AuthNavigator: React.FC = () => {
     boolean | null
   >(null);
   const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
+  const hasNativeWebRtc = useMemo(() => {
+    const native = NativeModules as Record<string, unknown>;
+    return Boolean(native?.WebRTCModule || native?.LivekitReactNativeWebRTC);
+  }, []);
 
   // WHISPR-1060: drain any offline-queued messages left over from a
   // previous session as soon as the authenticated tree mounts, and keep
@@ -211,7 +216,7 @@ export const AuthNavigator: React.FC = () => {
     try {
       require("../screens/Contacts/QRCodeScannerScreen");
     } catch {}
-    if (Constants.appOwnership !== "expo") {
+    if (Constants.appOwnership !== "expo" && hasNativeWebRtc) {
       try {
         require("../screens/Calls/CallsScreen");
         require("../screens/Calls/IncomingCallScreen");
@@ -222,7 +227,7 @@ export const AuthNavigator: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, userId]);
+  }, [hasNativeWebRtc, isAuthenticated, userId]);
 
   const showSplash =
     isLoading || !splashMinElapsed || profileSetupPending === null;
@@ -236,6 +241,22 @@ export const AuthNavigator: React.FC = () => {
     : profileSetupPending
       ? "ProfileSetup"
       : "ConversationsList";
+
+  const CallsUnavailableScreen = () => (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 24,
+      }}
+    >
+      <Text style={{ textAlign: "center", opacity: 0.8 }}>
+        Les appels ne sont pas disponibles sur ce build. Recompilez le dev
+        client avec le module WebRTC natif.
+      </Text>
+    </View>
+  );
 
   return (
     <Stack.Navigator
@@ -313,12 +334,18 @@ export const AuthNavigator: React.FC = () => {
       />
       <Stack.Screen
         name="Calls"
-        getComponent={() => require("../screens/Calls/CallsScreen").CallsScreen}
+        getComponent={() =>
+          hasNativeWebRtc
+            ? require("../screens/Calls/CallsScreen").CallsScreen
+            : CallsUnavailableScreen
+        }
       />
       <Stack.Screen
         name="IncomingCall"
         getComponent={() =>
-          require("../screens/Calls/IncomingCallScreen").IncomingCallScreen
+          hasNativeWebRtc
+            ? require("../screens/Calls/IncomingCallScreen").IncomingCallScreen
+            : CallsUnavailableScreen
         }
         options={{
           presentation: "modal",
@@ -329,14 +356,18 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="InCall"
         getComponent={() =>
-          require("../screens/Calls/InCallScreen").InCallScreen
+          hasNativeWebRtc
+            ? require("../screens/Calls/InCallScreen").InCallScreen
+            : CallsUnavailableScreen
         }
         options={{ headerShown: false, gestureEnabled: false }}
       />
       <Stack.Screen
         name="CallHistory"
         getComponent={() =>
-          require("../screens/Calls/CallHistoryScreen").CallHistoryScreen
+          hasNativeWebRtc
+            ? require("../screens/Calls/CallHistoryScreen").CallHistoryScreen
+            : CallsUnavailableScreen
         }
         options={{ title: "Appels" }}
       />

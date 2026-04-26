@@ -14,6 +14,7 @@ import {
   Alert,
   FlatList,
   ScrollView,
+  NativeModules,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,20 +29,34 @@ import { Avatar } from "./Avatar";
 import { CameraCapture, CameraCaptureResult } from "./CameraCapture";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
 
-// Import expo-av for audio recording
 let AudioModule: any = null;
-try {
-  const expoAv = require("expo-av");
-  AudioModule = expoAv.Audio;
-} catch (error) {
-  console.warn("[MessageInput] expo-av not available for recording:", error);
+let triedLoadingAudioModule = false;
+
+function getAudioModule(): any | null {
+  if (AudioModule) return AudioModule;
+  if (triedLoadingAudioModule) return null;
+  const native = NativeModules as Record<string, unknown>;
+  const shouldAttemptLoad =
+    Platform.OS === "web" ||
+    process.env.NODE_ENV === "test" ||
+    Boolean(native?.ExponentAV);
+  if (!shouldAttemptLoad) return null;
+  triedLoadingAudioModule = true;
+  try {
+    const expoAv = require("expo-av");
+    AudioModule = expoAv.Audio;
+    return AudioModule;
+  } catch (error) {
+    console.warn("[MessageInput] expo-av not available for recording:", error);
+    return null;
+  }
 }
 
 // Derive a Safari-compatible MIME on web; keep HIGH_QUALITY preset on native.
 // expo-av's HIGH_QUALITY preset forces `audio/webm` on web, which iOS Safari
 // refuses with NotSupportedError. Safari (iOS + macOS) supports `audio/mp4`.
 export const buildRecordingOptions = () => {
-  const base = AudioModule?.RecordingOptionsPresets?.HIGH_QUALITY;
+  const base = getAudioModule()?.RecordingOptionsPresets?.HIGH_QUALITY;
   if (Platform.OS !== "web") return base;
   const webMime =
     typeof MediaRecorder !== "undefined" &&
@@ -273,11 +288,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Launch image picker
+      // Launch image picker without forcing a crop: WHISPR-1039 wants the
+      // user to send images in their native ratio (portrait/landscape/square).
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -314,15 +329,33 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, []);
 
+  // Pre-warm mic permission on web so the long-press doesn't trigger the
+  // browser permission prompt synchronously (which freezes the tap UI).
+  // On web getUserMedia permission is sticky per-origin once granted.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const audioModule = getAudioModule();
+    if (!audioModule?.requestPermissionsAsync) return;
+    audioModule.requestPermissionsAsync().catch(() => {});
+  }, []);
+
   const startRecording = useCallback(async () => {
-    if (!AudioModule) {
+    const audioModule = getAudioModule();
+    if (!audioModule) {
       Alert.alert("Erreur", "L'enregistrement audio n'est pas disponible.");
       return;
     }
 
+    // Flip UI to "Recording" immediately so the user gets instant feedback.
+    // Reverted in the catch block on failure.
+    setIsRecording(true);
+    setRecordingDuration(0);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     try {
-      const permission = await AudioModule.requestPermissionsAsync();
+      const permission = await audioModule.requestPermissionsAsync();
       if (permission.status !== "granted") {
+        setIsRecording(false);
         Alert.alert(
           "Permission requise",
           "Nous avons besoin de votre permission pour enregistrer des messages vocaux.",
@@ -330,19 +363,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      await AudioModule.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      // Defer setAudioModeAsync so it doesn't block the render of the
+      // recording UI on iOS Safari (the call can be slow).
+      setTimeout(() => {
+        audioModule
+          .setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          })
+          .catch((err: unknown) => {
+            console.warn("[MessageInput] setAudioModeAsync failed:", err);
+          });
+      }, 0);
 
       const options = buildRecordingOptions();
       recordingMimeRef.current =
         Platform.OS === "web" ? (options?.web?.mimeType ?? null) : null;
-      const { recording } = await AudioModule.Recording.createAsync(options);
+      const { recording } = await audioModule.Recording.createAsync(options);
       recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Start duration timer
       const startTime = Date.now();
@@ -351,6 +389,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }, 1000);
     } catch (error: any) {
       console.error("[MessageInput] Error starting recording:", error);
+      setIsRecording(false);
+      setRecordingDuration(0);
       Alert.alert("Erreur", "Impossible de démarrer l'enregistrement.");
     }
   }, []);
@@ -365,9 +405,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       await recordingRef.current.stopAndUnloadAsync();
-      await AudioModule.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      const audioModule = getAudioModule();
+      if (audioModule) {
+        await audioModule.setAudioModeAsync({
+          allowsRecordingIOS: false,
+        });
+      }
 
       const uri = recordingRef.current.getURI();
       const status = await recordingRef.current.getStatusAsync();
@@ -677,7 +720,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <TouchableOpacity
                 onPress={handleMicPress}
                 onLongPress={startRecording}
-                delayLongPress={300}
+                delayLongPress={Platform.OS === "web" ? 200 : 300}
                 activeOpacity={0.7}
                 style={
                   // iOS Safari: block native context menu / text-selection
