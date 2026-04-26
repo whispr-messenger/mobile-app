@@ -114,4 +114,60 @@ describe("callsStore — track publish on connect", () => {
     // Active call still set so the user sees the in-call UI and can retry.
     expect(useCallsStore.getState().active).not.toBeNull();
   });
+
+  // WHISPR-1198 — reset() est appelé par AuthContext.signOut pour empêcher
+  // les fuites d'état d'appel entre deux comptes successifs sur le device.
+  describe("reset (WHISPR-1198)", () => {
+    it("clears active and incoming when nothing is in flight", () => {
+      useCallsStore.getState().reset();
+      expect(useCallsStore.getState().active).toBeNull();
+      expect(useCallsStore.getState().incoming).toBeNull();
+    });
+
+    it("disconnects the LiveKit room and nulls active when an active call exists", () => {
+      const disconnect = jest.fn();
+      useCallsStore.setState({
+        active: {
+          callId: "c-leak",
+          status: "connected",
+          liveKitUrl: "wss://lk",
+          liveKitToken: "tok",
+          type: "audio",
+          room: { disconnect } as any,
+        },
+        incoming: {
+          callId: "c-ring",
+          initiatorId: "u-other",
+          conversationId: "conv-1",
+          type: "video",
+        },
+      });
+
+      useCallsStore.getState().reset();
+
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      expect(useCallsStore.getState().active).toBeNull();
+      expect(useCallsStore.getState().incoming).toBeNull();
+    });
+
+    it("swallows disconnect errors so signOut never throws", () => {
+      const disconnect = jest.fn(() => {
+        throw new Error("livekit dead");
+      });
+      useCallsStore.setState({
+        active: {
+          callId: "c-leak",
+          status: "connected",
+          liveKitUrl: "wss://lk",
+          liveKitToken: "tok",
+          type: "audio",
+          room: { disconnect } as any,
+        },
+        incoming: null,
+      });
+
+      expect(() => useCallsStore.getState().reset()).not.toThrow();
+      expect(useCallsStore.getState().active).toBeNull();
+    });
+  });
 });
