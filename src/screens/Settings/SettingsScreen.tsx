@@ -30,6 +30,7 @@ import {
   NotificationSettings,
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import {
   DEFAULT_MODERATION_MODEL,
   getModerationModelVersion,
@@ -570,7 +571,9 @@ export const SettingsScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 40 + insets.bottom },
+          {
+            paddingBottom: 40 + insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE,
+          },
         ]}
         showsVerticalScrollIndicator={__DEV__}
         keyboardShouldPersistTaps="handled"
