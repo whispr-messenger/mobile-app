@@ -560,14 +560,24 @@ export const SettingsScreen: React.FC = () => {
     </View>
   );
 
-  // WHISPR-1199 : sur React Native Web, la chaîne flex:1 du Stack.Screen ne
-  // contraint pas toujours la hauteur du LinearGradient — le ScrollView ne
-  // génère alors plus d'overflow scrollable. On force la hauteur viewport
-  // côté web ; minHeight:0 permet à l'enfant flex de réellement shrinker.
+  // WHISPR-1202 (re-fix WHISPR-1199) : sur React Native Web, height:100% sur
+  // le ScrollView ne suffit pas car la chaîne flex au-dessus n'est pas
+  // toujours contrainte en pixels. On positionne le ScrollView en absolu
+  // pour qu'il remplisse à coup sûr le LinearGradient (qu'on passe en
+  // position:relative pour servir de référent).
   const webContainerStyle =
-    Platform.OS === "web" ? { height: "100%" as const } : null;
+    Platform.OS === "web" ? { position: "relative" as const } : null;
   const webScrollStyle =
-    Platform.OS === "web" ? { height: "100%" as const, minHeight: 0 } : null;
+    Platform.OS === "web"
+      ? {
+          position: "absolute" as const,
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          overflowY: "auto" as const,
+        }
+      : null;
 
   return (
     <LinearGradient

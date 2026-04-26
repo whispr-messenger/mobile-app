@@ -116,15 +116,19 @@ describe("SettingsScreen", () => {
     });
   });
 
-  it("constrains the ScrollView height on web so the page can scroll (WHISPR-1199)", async () => {
+  it("absolute-positions the ScrollView on web so the page actually scrolls (WHISPR-1202)", async () => {
     const originalOS = Platform.OS;
     Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
     try {
       const { getByTestId } = render(<SettingsScreen />);
       const scroll = await waitFor(() => getByTestId("settings-scroll"));
       const flat = StyleSheet.flatten(scroll.props.style);
-      expect(flat.height).toBe("100%");
-      expect(flat.minHeight).toBe(0);
+      expect(flat.position).toBe("absolute");
+      expect(flat.top).toBe(0);
+      expect(flat.bottom).toBe(0);
+      expect(flat.left).toBe(0);
+      expect(flat.right).toBe(0);
+      expect(flat.overflowY).toBe("auto");
     } finally {
       Object.defineProperty(Platform, "OS", {
         value: originalOS,
