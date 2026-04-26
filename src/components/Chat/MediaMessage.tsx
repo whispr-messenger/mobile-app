@@ -330,6 +330,42 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
     setImageAspectRatio(clamped);
   };
 
+  // WHISPR-1196: sur RN Web, l'évènement `onLoad` ne fire pas toujours
+  // pour une image déjà décodée dans le cache navigateur (revenir sur une
+  // conversation déjà visitée), ce qui laisse `imageAspectRatio` à null
+  // indéfiniment. On sonde donc les dimensions via un `Image()` DOM en
+  // parallèle, et on ne pose la valeur que si `onLoad` ne l'a pas déjà
+  // fait — pas de régression iOS/Android.
+  const imagePreviewUri = resolvedThumbUri || resolvedMainUri;
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    if (type !== "image" || !imagePreviewUri) return undefined;
+    const ImageCtor =
+      typeof globalThis !== "undefined"
+        ? (globalThis as { Image?: { new (): HTMLImageElement } }).Image
+        : undefined;
+    if (typeof ImageCtor !== "function") return undefined;
+    const probe = new ImageCtor();
+    let cancelled = false;
+    probe.onload = () => {
+      if (cancelled) return;
+      const w = probe.naturalWidth;
+      const h = probe.naturalHeight;
+      if (!w || !h) return;
+      const raw = w / h;
+      const clamped = Math.min(
+        MAX_IMAGE_ASPECT,
+        Math.max(MIN_IMAGE_ASPECT, raw),
+      );
+      setImageAspectRatio((prev) => prev ?? clamped);
+    };
+    probe.src = imagePreviewUri;
+    return () => {
+      cancelled = true;
+      probe.onload = null;
+    };
+  }, [type, imagePreviewUri]);
+
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
