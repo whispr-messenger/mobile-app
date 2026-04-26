@@ -50,6 +50,7 @@ interface CallsState {
   declineIncoming: () => Promise<void>;
   end: () => Promise<void>;
   setIncoming: (incoming: IncomingCallInfo | null) => void;
+  reset: () => void;
 }
 
 export const useCallsStore = create<CallsState>((set, get) => ({
@@ -134,4 +135,20 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   },
 
   setIncoming: (incoming) => set({ incoming }),
+
+  // WHISPR-1198: appelé par AuthContext.signOut pour empêcher l'état d'appel
+  // (token LiveKit, callId, ringer fantôme) de fuir d'un compte vers le
+  // suivant sur le même device. Best-effort sur la déconnexion LiveKit : la
+  // session côté backend est de toute façon morte, on ne dépend pas du succès.
+  reset: () => {
+    const a = get().active;
+    if (a?.room) {
+      try {
+        a.room.disconnect();
+      } catch {
+        // ignore — best-effort cleanup pendant le signOut
+      }
+    }
+    set({ active: null, incoming: null });
+  },
 }));
