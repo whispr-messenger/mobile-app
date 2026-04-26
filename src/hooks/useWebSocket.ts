@@ -15,7 +15,7 @@ import {
 import { Conversation, Message } from "../types/messaging";
 import { usePresenceStore } from "../store/presenceStore";
 import { useCallsStore } from "../store/callsStore";
-import { navigate } from "../navigation/navigationRef";
+import { navigate, navigationRef } from "../navigation/navigationRef";
 import type { CallType } from "../types/calls";
 
 const executionEnvironment = (Constants as any)?.executionEnvironment;
@@ -136,9 +136,18 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         navigate("IncomingCall");
       },
       // call_ended: remote party hung up or server timed out the call.
-      // Clear any pending incoming state so the modal dismisses cleanly.
+      // WHISPR-1203 : reset() disconnect la Room LiveKit + clear active +
+      // clear incoming. setIncoming(null) seul laissait l'autre côté
+      // bloqué sur InCallScreen avec micro/caméra encore actifs. On
+      // navigue aussi hors de InCall vers ConversationsList si on y est.
       onCallEnded: () => {
-        useCallsStore.getState().setIncoming(null);
+        useCallsStore.getState().reset();
+        if (
+          navigationRef.isReady() &&
+          navigationRef.getCurrentRoute()?.name === "InCall"
+        ) {
+          navigate("ConversationsList");
+        }
       },
     }),
     [],
