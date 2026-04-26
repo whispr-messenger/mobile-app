@@ -115,6 +115,46 @@ describe("callsStore — track publish on connect", () => {
     expect(useCallsStore.getState().active).not.toBeNull();
   });
 
+  // WHISPR-1200 — la couche UI a besoin de distinguer un échec API d'un
+  // échec LiveKit pour afficher un message utile. acceptIncoming doit donc
+  // tagguer chaque étape avec un préfixe stable.
+  it("tags accept-api errors so the UI can surface them (WHISPR-1200)", async () => {
+    const callsApi = require("./src/services/calls/callsApi").callsApi as {
+      accept: jest.Mock;
+    };
+    callsApi.accept.mockRejectedValueOnce(new Error("403 Forbidden"));
+    useCallsStore.setState({
+      incoming: {
+        callId: "c1",
+        initiatorId: "u2",
+        conversationId: "conv-1",
+        type: "audio",
+      },
+    });
+
+    await expect(useCallsStore.getState().acceptIncoming()).rejects.toThrow(
+      /^accept-api: /,
+    );
+  });
+
+  it("tags livekit-connect errors so the UI can surface them (WHISPR-1200)", async () => {
+    mockProvider.connect.mockRejectedValueOnce(
+      new Error("WebSocket connection failed"),
+    );
+    useCallsStore.setState({
+      incoming: {
+        callId: "c1",
+        initiatorId: "u2",
+        conversationId: "conv-1",
+        type: "audio",
+      },
+    });
+
+    await expect(useCallsStore.getState().acceptIncoming()).rejects.toThrow(
+      /^livekit-connect: /,
+    );
+  });
+
   // WHISPR-1198 — reset() est appelé par AuthContext.signOut pour empêcher
   // les fuites d'état d'appel entre deux comptes successifs sur le device.
   describe("reset (WHISPR-1198)", () => {

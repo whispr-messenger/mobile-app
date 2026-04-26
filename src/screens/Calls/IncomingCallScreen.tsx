@@ -1,11 +1,28 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import { useCallsStore } from "../../store/callsStore";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
 type Nav = StackNavigationProp<AuthStackParamList>;
+
+const showAcceptError = (message: string) => {
+  const title = "Impossible de prendre l'appel";
+  if (Platform.OS === "web") {
+    // window.alert est synchrone sur web ; Alert.alert RN ne s'affiche pas.
+    if (typeof window !== "undefined") window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+};
 
 /**
  * Full-screen incoming call UI. Shown as a modal over the current stack
@@ -16,6 +33,7 @@ export const IncomingCallScreen: React.FC = () => {
   const incoming = useCallsStore((s) => s.incoming);
   const acceptIncoming = useCallsStore((s) => s.acceptIncoming);
   const declineIncoming = useCallsStore((s) => s.declineIncoming);
+  const setIncoming = useCallsStore((s) => s.setIncoming);
   const navigation = useNavigation<Nav>();
 
   const onAccept = async () => {
@@ -26,7 +44,19 @@ export const IncomingCallScreen: React.FC = () => {
         routes: [{ name: "InCall" }],
       });
     } catch (err) {
+      // WHISPR-1200 : on ne peut plus avaler l'erreur silencieusement, sinon
+      // l'utilisateur reste coincé sur la modale. callsStore tague l'étape
+      // (`accept-api: ...` vs `livekit-connect: ...`) pour aider au diagnostic.
+      const message = err instanceof Error ? err.message : "Erreur inconnue";
       console.error("Failed to accept call", err);
+      showAcceptError(message);
+      // Dismiss la modale : le call peut être dans un état incohérent côté
+      // serveur, on rend la main à l'utilisateur plutôt que de le laisser
+      // bloqué sur un bouton qui ne réagit plus.
+      setIncoming(null);
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      }
     }
   };
 
