@@ -185,6 +185,38 @@ export const Avatar: React.FC<AvatarProps> = ({
     triedAuthResolveRef.current = false;
   }, [uri]);
 
+  // Pre-resolve through `?stream=1` when we know the mediaId, so <Image>
+  // never hits `/blob` directly (which returns a JSON envelope it can't
+  // decode and triggers a useless second request).
+  React.useEffect(() => {
+    const mediaId = effectiveCandidate.mediaId;
+    if (!mediaId) return;
+    if (resolvedUri) return;
+    let cancelled = false;
+    triedAuthResolveRef.current = true;
+    (async () => {
+      try {
+        const token = await TokenService.getAccessToken();
+        const dataUrl = await streamMediaToRenderableUri(
+          `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`,
+          token,
+        );
+        if (cancelled) return;
+        setResolvedUri(dataUrl);
+        setImageError(false);
+      } catch (err) {
+        if (cancelled) return;
+        console.log(
+          "[PDP-DEBUG][Avatar] preresolve FAILED:",
+          (err as Error)?.message ?? String(err),
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveCandidate.mediaId, resolvedUri]);
+
   const shouldShowImage = !!effectiveUri && !imageError;
 
   return (
@@ -197,12 +229,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             { width: size, height: size, borderRadius: size / 2 },
           ]}
           resizeMode="cover"
-          onError={(error) => {
-            console.log(
-              "[PDP-DEBUG][Avatar] Image load error:",
-              effectiveUri,
-              error.nativeEvent?.error,
-            );
+          onError={() => {
             setImageError(true);
 
             if (triedAuthResolveRef.current) return;

@@ -2,6 +2,23 @@ import React from "react";
 import { render } from "@testing-library/react-native";
 import { Avatar } from "./src/components/Chat/Avatar";
 
+jest.mock("./src/services/TokenService", () => ({
+  TokenService: { getAccessToken: jest.fn().mockResolvedValue(null) },
+}));
+jest.mock("./src/services/apiBase", () => ({
+  getApiBaseUrl: () => "https://api.test",
+}));
+
+beforeAll(() => {
+  // Avatar pre-resolves media via fetch (?stream=1). Stub it so unit tests
+  // don't hit the network — tests only check the initial render.
+  (global as unknown as { fetch: jest.Mock }).fetch = jest
+    .fn()
+    .mockImplementation(
+      () => new Promise(() => undefined),
+    ) as unknown as typeof fetch;
+});
+
 describe("Avatar", () => {
   it("renders an image when given a presigned https URL", () => {
     const url =
@@ -97,9 +114,7 @@ describe("Avatar", () => {
     );
     expect(getByText("T")).toBeTruthy();
 
-    rerender(
-      <Avatar uri="https://cdn.example.com/avatar.png" name="Test" />,
-    );
+    rerender(<Avatar uri="https://cdn.example.com/avatar.png" name="Test" />);
     expect(queryByText("T")).toBeNull();
   });
 
