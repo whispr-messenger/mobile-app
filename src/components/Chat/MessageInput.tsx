@@ -288,11 +288,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Launch image picker
+      // Launch image picker without forcing a crop: WHISPR-1039 wants the
+      // user to send images in their native ratio (portrait/landscape/square).
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
