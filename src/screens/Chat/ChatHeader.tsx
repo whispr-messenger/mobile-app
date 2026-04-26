@@ -57,6 +57,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           }
         }}
         style={styles.backButton}
+        accessibilityRole="button"
+        accessibilityLabel="Retour"
       >
         <Ionicons
           name="arrow-back"
@@ -163,6 +165,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           <TouchableOpacity
             onPress={onScheduledPress}
             style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Messages programmés"
           >
             <Ionicons
               name="timer-outline"
@@ -172,7 +176,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </TouchableOpacity>
         )}
         {onSearchPress && (
-          <TouchableOpacity onPress={onSearchPress} style={styles.actionButton}>
+          <TouchableOpacity
+            onPress={onSearchPress}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Rechercher dans la conversation"
+          >
             <Ionicons
               name="search"
               size={22}
@@ -185,6 +194,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             onInfoPress?.();
           }}
           style={styles.actionButton}
+          accessibilityRole="button"
+          accessibilityLabel="Détails de la conversation"
         >
           <Ionicons
             name="information-circle-outline"
