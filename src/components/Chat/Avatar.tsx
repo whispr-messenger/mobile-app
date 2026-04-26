@@ -46,7 +46,9 @@ async function streamMediaToRenderableUri(
   const separator = uri.includes("?") ? "&" : "?";
   const response = await fetch(`${uri}${separator}stream=1`, { headers });
   if (!response.ok) {
-    throw new Error(`stream failed: HTTP ${response.status}`);
+    const err = new Error(`stream failed: HTTP ${response.status}`);
+    (err as Error & { status?: number }).status = response.status;
+    throw err;
   }
 
   // Some media-service deployments return a presigned URL JSON envelope
@@ -67,6 +69,84 @@ async function streamMediaToRenderableUri(
   }
 
   return await blobToDataUrl(await response.blob());
+}
+
+// Module-level resolver: shares a single dataUrl per mediaId across every
+// Avatar instance in the app, deduplicates concurrent fetches, throttles
+// concurrency, and retries on transient failures (429 / network).
+//
+// Why this exists: media-service throttles GET /blob to 3 req/s short
+// (WHISPR-1192). A conversations list with N avatars firing in parallel
+// trips 429 and shows initials. Caching + dedup + serialised retry keeps
+// the screen progressively filling instead of permanently failing.
+const resolvedCache = new Map<string, string>();
+const inflightCache = new Map<string, Promise<string>>();
+const fetchQueue: Array<() => void> = [];
+let activeFetches = 0;
+const MAX_CONCURRENT_AVATAR_FETCHES = 2;
+
+function acquireFetchSlot(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const tryAcquire = () => {
+      if (activeFetches < MAX_CONCURRENT_AVATAR_FETCHES) {
+        activeFetches += 1;
+        resolve();
+      } else {
+        fetchQueue.push(tryAcquire);
+      }
+    };
+    tryAcquire();
+  });
+}
+
+function releaseFetchSlot(): void {
+  activeFetches -= 1;
+  const next = fetchQueue.shift();
+  if (next) next();
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function resolveAvatarDataUrl(mediaId: string): Promise<string> {
+  const cached = resolvedCache.get(mediaId);
+  if (cached) return cached;
+
+  const inflight = inflightCache.get(mediaId);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const url = `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`;
+    const maxAttempts = 4;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      await acquireFetchSlot();
+      try {
+        const token = await TokenService.getAccessToken();
+        const dataUrl = await streamMediaToRenderableUri(url, token);
+        resolvedCache.set(mediaId, dataUrl);
+        return dataUrl;
+      } catch (err) {
+        const status = (err as Error & { status?: number })?.status;
+        const retryable =
+          status === 429 || status === 503 || status === undefined;
+        if (!retryable || attempt === maxAttempts) {
+          throw err;
+        }
+        const delay = Math.min(2000, 250 * 2 ** (attempt - 1));
+        await sleep(delay);
+      } finally {
+        releaseFetchSlot();
+      }
+    }
+    throw new Error("unreachable");
+  })();
+
+  inflightCache.set(mediaId, promise);
+  try {
+    return await promise;
+  } finally {
+    inflightCache.delete(mediaId);
+  }
 }
 
 function extractMediaIdFromUri(raw: string): {
@@ -194,24 +274,13 @@ export const Avatar: React.FC<AvatarProps> = ({
     if (resolvedUri) return;
     let cancelled = false;
     triedAuthResolveRef.current = true;
-    (async () => {
-      try {
-        const token = await TokenService.getAccessToken();
-        const dataUrl = await streamMediaToRenderableUri(
-          `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`,
-          token,
-        );
+    resolveAvatarDataUrl(mediaId)
+      .then((dataUrl) => {
         if (cancelled) return;
         setResolvedUri(dataUrl);
         setImageError(false);
-      } catch (err) {
-        if (cancelled) return;
-        console.log(
-          "[PDP-DEBUG][Avatar] preresolve FAILED:",
-          (err as Error)?.message ?? String(err),
-        );
-      }
-    })();
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -260,13 +329,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             const mediaId = directMediaId || parsedFromUrl;
             if (!mediaId) return;
 
-            TokenService.getAccessToken()
-              .then((token) =>
-                streamMediaToRenderableUri(
-                  `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`,
-                  token,
-                ),
-              )
+            resolveAvatarDataUrl(mediaId)
               .then((dataUrl) => {
                 setResolvedUri(dataUrl);
                 setImageError(false);
