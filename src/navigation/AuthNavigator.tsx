@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
-import { NativeModules, Text, View } from "react-native";
+import { NativeModules, Platform, Text, View } from "react-native";
 import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
 import { OtpScreen } from "../screens/Auth/OtpScreen";
@@ -151,7 +151,12 @@ export const AuthNavigator: React.FC = () => {
     boolean | null
   >(null);
   const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
-  const hasNativeWebRtc = useMemo(() => {
+  // Web (PWA Safari) uses the browser's built-in WebRTC via livekit-client,
+  // so calls work without a native module. The CallsUnavailableScreen
+  // guard only applies to native builds (Expo Go) that lack the
+  // @livekit/react-native-webrtc native bindings.
+  const hasCallsSupport = useMemo(() => {
+    if (Platform.OS === "web") return true;
     const native = NativeModules as Record<string, unknown>;
     return Boolean(native?.WebRTCModule || native?.LivekitReactNativeWebRTC);
   }, []);
@@ -216,7 +221,7 @@ export const AuthNavigator: React.FC = () => {
     try {
       require("../screens/Contacts/QRCodeScannerScreen");
     } catch {}
-    if (Constants.appOwnership !== "expo" && hasNativeWebRtc) {
+    if (Constants.appOwnership !== "expo" && hasCallsSupport) {
       try {
         require("../screens/Calls/CallsScreen");
         require("../screens/Calls/IncomingCallScreen");
@@ -227,7 +232,7 @@ export const AuthNavigator: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [hasNativeWebRtc, isAuthenticated, userId]);
+  }, [hasCallsSupport, isAuthenticated, userId]);
 
   const showSplash =
     isLoading || !splashMinElapsed || profileSetupPending === null;
@@ -335,7 +340,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="Calls"
         getComponent={() =>
-          hasNativeWebRtc
+          hasCallsSupport
             ? require("../screens/Calls/CallsScreen").CallsScreen
             : CallsUnavailableScreen
         }
@@ -343,7 +348,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="IncomingCall"
         getComponent={() =>
-          hasNativeWebRtc
+          hasCallsSupport
             ? require("../screens/Calls/IncomingCallScreen").IncomingCallScreen
             : CallsUnavailableScreen
         }
@@ -356,7 +361,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="InCall"
         getComponent={() =>
-          hasNativeWebRtc
+          hasCallsSupport
             ? require("../screens/Calls/InCallScreen").InCallScreen
             : CallsUnavailableScreen
         }
@@ -365,7 +370,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="CallHistory"
         getComponent={() =>
-          hasNativeWebRtc
+          hasCallsSupport
             ? require("../screens/Calls/CallHistoryScreen").CallHistoryScreen
             : CallsUnavailableScreen
         }
