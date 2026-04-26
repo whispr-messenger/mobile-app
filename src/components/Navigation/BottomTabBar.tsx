@@ -1,10 +1,13 @@
 /**
  * BottomTabBar - Bottom navigation bar component
  * WHISPR-1194: pilule flottante avec effet glassmorphism (BlurView).
+ * WHISPR-1195: animation d'apparition/disparition (translateY + opacity).
  */
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
+  Animated,
+  Easing,
   View,
   Text,
   StyleSheet,
@@ -28,6 +31,11 @@ import {
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
 const PRIMARY_MAIN_COLOR = colors.primary.main;
+
+// WHISPR-1195: timings de l'animation d'entrée/sortie de la pilule.
+const HIDDEN_TRANSLATE_Y = 16;
+const ENTER_DURATION_MS = 180;
+const EXIT_DURATION_MS = 140;
 
 interface TabItem {
   name: string;
@@ -76,14 +84,43 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
   const isActive = (tabRoute: string) => currentRouteName === tabRoute;
 
   const visible = tabs.some((t) => t.route === currentRouteName);
-  if (!visible) return null;
+
+  // On garde la pilule montée en permanence pour ne pas couper l'animation
+  // de sortie ; `pointerEvents="none"` empêche les touches résiduelles de
+  // toucher les onglets pendant le fade-out, et `opacity:0` la rend invisible
+  // une fois la transition finie.
+  const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const translateY = useRef(
+    new Animated.Value(visible ? 0 : HIDDEN_TRANSLATE_Y),
+  ).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: visible ? 1 : 0,
+        duration: visible ? ENTER_DURATION_MS : EXIT_DURATION_MS,
+        easing: visible ? Easing.out(Easing.quad) : Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: visible ? 0 : HIDDEN_TRANSLATE_Y,
+        duration: visible ? ENTER_DURATION_MS : EXIT_DURATION_MS,
+        easing: visible ? Easing.out(Easing.quad) : Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [visible, opacity, translateY]);
 
   return (
-    <View
-      pointerEvents="box-none"
+    <Animated.View
+      pointerEvents={visible ? "box-none" : "none"}
       style={[
         styles.floatingContainer,
-        { bottom: PILL_BOTTOM_OFFSET + insets.bottom },
+        {
+          bottom: PILL_BOTTOM_OFFSET + insets.bottom,
+          opacity,
+          transform: [{ translateY }],
+        },
       ]}
     >
       <View style={styles.shadowFrame}>
@@ -189,7 +226,7 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
           </BlurView>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
