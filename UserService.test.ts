@@ -51,7 +51,7 @@ describe("UserService.getInstance", () => {
 });
 
 describe("UserService.getProfile", () => {
-  it("GETs /profile/{userId} with a Bearer token and normalizes the response", async () => {
+  it("GETs /profile/me with a Bearer token and normalizes the response", async () => {
     mockFetch.mockResolvedValueOnce(
       mockResponse({
         body: {
@@ -65,7 +65,7 @@ describe("UserService.getProfile", () => {
     const result = await service.getProfile();
 
     const [url, init] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://api.test/user/v1/profile/user-1");
+    expect(url).toBe("https://api.test/user/v1/profile/me");
     expect(init.headers.Authorization).toBe("Bearer at");
     expect(result.success).toBe(true);
     expect(result.profile?.firstName).toBe("Ada");

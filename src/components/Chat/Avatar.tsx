@@ -21,21 +21,7 @@ interface AvatarProps {
   isOnline?: boolean;
 }
 
-async function streamMediaToRenderableUri(
-  uri: string,
-  token: string | null,
-): Promise<string> {
-  const headers: Record<string, string> = {
-    Accept: "application/octet-stream",
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const separator = uri.includes("?") ? "&" : "?";
-  const response = await fetch(`${uri}${separator}stream=1`, { headers });
-  if (!response.ok) {
-    throw new Error(`stream failed: HTTP ${response.status}`);
-  }
-
-  const blob = await response.blob();
+async function blobToDataUrl(blob: Blob): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -47,6 +33,120 @@ async function streamMediaToRenderableUri(
       reject(reader.error ?? new Error("FileReader failed"));
     reader.readAsDataURL(blob);
   });
+}
+
+async function streamMediaToRenderableUri(
+  uri: string,
+  token: string | null,
+): Promise<string> {
+  const headers: Record<string, string> = {
+    Accept: "application/octet-stream",
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const separator = uri.includes("?") ? "&" : "?";
+  const response = await fetch(`${uri}${separator}stream=1`, { headers });
+  if (!response.ok) {
+    const err = new Error(`stream failed: HTTP ${response.status}`);
+    (err as Error & { status?: number }).status = response.status;
+    throw err;
+  }
+
+  // Some media-service deployments return a presigned URL JSON envelope
+  // ({ url, expiresAt }) instead of the raw binary, even with stream=1 +
+  // Accept: octet-stream. Detect this and follow the URL.
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const data = await response.json().catch(() => null as any);
+    const followUrl = typeof data?.url === "string" ? data.url : undefined;
+    if (!followUrl) {
+      throw new Error("stream returned JSON without a usable url");
+    }
+    const followed = await fetch(followUrl);
+    if (!followed.ok) {
+      throw new Error(`presigned fetch failed: HTTP ${followed.status}`);
+    }
+    return await blobToDataUrl(await followed.blob());
+  }
+
+  return await blobToDataUrl(await response.blob());
+}
+
+// Module-level resolver: shares a single dataUrl per mediaId across every
+// Avatar instance in the app, deduplicates concurrent fetches, throttles
+// concurrency, and retries on transient failures (429 / network).
+//
+// Why this exists: media-service throttles GET /blob to 3 req/s short
+// (WHISPR-1192). A conversations list with N avatars firing in parallel
+// trips 429 and shows initials. Caching + dedup + serialised retry keeps
+// the screen progressively filling instead of permanently failing.
+const resolvedCache = new Map<string, string>();
+const inflightCache = new Map<string, Promise<string>>();
+const fetchQueue: Array<() => void> = [];
+let activeFetches = 0;
+const MAX_CONCURRENT_AVATAR_FETCHES = 2;
+
+function acquireFetchSlot(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const tryAcquire = () => {
+      if (activeFetches < MAX_CONCURRENT_AVATAR_FETCHES) {
+        activeFetches += 1;
+        resolve();
+      } else {
+        fetchQueue.push(tryAcquire);
+      }
+    };
+    tryAcquire();
+  });
+}
+
+function releaseFetchSlot(): void {
+  activeFetches -= 1;
+  const next = fetchQueue.shift();
+  if (next) next();
+}
+
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function resolveAvatarDataUrl(mediaId: string): Promise<string> {
+  const cached = resolvedCache.get(mediaId);
+  if (cached) return cached;
+
+  const inflight = inflightCache.get(mediaId);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const url = `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`;
+    const maxAttempts = 4;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      await acquireFetchSlot();
+      try {
+        const token = await TokenService.getAccessToken();
+        const dataUrl = await streamMediaToRenderableUri(url, token);
+        resolvedCache.set(mediaId, dataUrl);
+        return dataUrl;
+      } catch (err) {
+        const status = (err as Error & { status?: number })?.status;
+        const retryable =
+          status === 429 || status === 503 || status === undefined;
+        if (!retryable || attempt === maxAttempts) {
+          throw err;
+        }
+        const delay = Math.min(2000, 250 * 2 ** (attempt - 1));
+        await sleep(delay);
+      } finally {
+        releaseFetchSlot();
+      }
+    }
+    throw new Error("unreachable");
+  })();
+
+  inflightCache.set(mediaId, promise);
+  try {
+    return await promise;
+  } finally {
+    inflightCache.delete(mediaId);
+  }
 }
 
 function extractMediaIdFromUri(raw: string): {
@@ -165,6 +265,27 @@ export const Avatar: React.FC<AvatarProps> = ({
     triedAuthResolveRef.current = false;
   }, [uri]);
 
+  // Pre-resolve through `?stream=1` when we know the mediaId, so <Image>
+  // never hits `/blob` directly (which returns a JSON envelope it can't
+  // decode and triggers a useless second request).
+  React.useEffect(() => {
+    const mediaId = effectiveCandidate.mediaId;
+    if (!mediaId) return;
+    if (resolvedUri) return;
+    let cancelled = false;
+    triedAuthResolveRef.current = true;
+    resolveAvatarDataUrl(mediaId)
+      .then((dataUrl) => {
+        if (cancelled) return;
+        setResolvedUri(dataUrl);
+        setImageError(false);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveCandidate.mediaId, resolvedUri]);
+
   const shouldShowImage = !!effectiveUri && !imageError;
 
   return (
@@ -177,12 +298,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             { width: size, height: size, borderRadius: size / 2 },
           ]}
           resizeMode="cover"
-          onError={(error) => {
-            console.log(
-              "[PDP-DEBUG][Avatar] Image load error:",
-              effectiveUri,
-              error.nativeEvent?.error,
-            );
+          onError={() => {
             setImageError(true);
 
             if (triedAuthResolveRef.current) return;
@@ -213,13 +329,7 @@ export const Avatar: React.FC<AvatarProps> = ({
             const mediaId = directMediaId || parsedFromUrl;
             if (!mediaId) return;
 
-            TokenService.getAccessToken()
-              .then((token) =>
-                streamMediaToRenderableUri(
-                  `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`,
-                  token,
-                ),
-              )
+            resolveAvatarDataUrl(mediaId)
               .then((dataUrl) => {
                 setResolvedUri(dataUrl);
                 setImageError(false);
