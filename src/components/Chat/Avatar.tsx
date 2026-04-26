@@ -75,15 +75,14 @@ async function streamMediaToRenderableUri(
 // Avatar instance in the app, deduplicates concurrent fetches, throttles
 // concurrency, and retries on transient failures (429 / network).
 //
-// Why this exists: media-service throttles GET /blob to 3 req/s short
-// (WHISPR-1192). A conversations list with N avatars firing in parallel
-// trips 429 and shows initials. Caching + dedup + serialised retry keeps
-// the screen progressively filling instead of permanently failing.
+// Concurrency is capped to stay comfortably under the media-service short
+// throttle (WHISPR-1192 raised it to 30 req/s on /blob and /thumbnail), and
+// we still keep dedup + cache so the same mediaId is never fetched twice.
 const resolvedCache = new Map<string, string>();
 const inflightCache = new Map<string, Promise<string>>();
 const fetchQueue: Array<() => void> = [];
 let activeFetches = 0;
-const MAX_CONCURRENT_AVATAR_FETCHES = 2;
+const MAX_CONCURRENT_AVATAR_FETCHES = 8;
 
 function acquireFetchSlot(): Promise<void> {
   return new Promise<void>((resolve) => {
@@ -132,7 +131,7 @@ async function resolveAvatarDataUrl(mediaId: string): Promise<string> {
         if (!retryable || attempt === maxAttempts) {
           throw err;
         }
-        const delay = Math.min(2000, 250 * 2 ** (attempt - 1));
+        const delay = Math.min(1000, 100 * 2 ** (attempt - 1));
         await sleep(delay);
       } finally {
         releaseFetchSlot();
