@@ -73,9 +73,10 @@ jobs:
         run: |
           REF="${INPUT_REF:-$GITHUB_REF}"
           if [[ "$REF" == *"deploy/preprod"* ]]; then
-            echo "url=https://preprod-whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
+            echo "url=https://whispr.devzeyu.com" >> $GITHUB_OUTPUT
           else
-            echo "url=https://whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
+            echo "::error::No production API URL configured for ref $REF — refusing to bake an old hardcoded domain into the image."
+            exit 1
           fi
 
       - name: Build and push Docker image
