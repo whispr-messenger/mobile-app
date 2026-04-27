@@ -31,16 +31,20 @@ export function useOfflineQueueDrainer(): void {
       if (inFlight.current) return;
       inFlight.current = true;
       try {
-        const { sent, failed } = await offlineQueue.drainAll(async (queued) => {
-          await messagingAPI.sendMessage(queued.conversation_id, {
-            content: queued.content,
-            message_type: queued.message_type,
-            client_random: queued.client_random,
-            metadata: {},
-            reply_to_id: queued.reply_to_id,
-          });
-        });
-        if (sent > 0 || failed > 0) {
+        const { sent, failed, skipped } = await offlineQueue.drainAll(
+          async (queued) => {
+            await messagingAPI.sendMessage(queued.conversation_id, {
+              content: queued.content,
+              message_type: queued.message_type,
+              client_random: queued.client_random,
+              metadata: queued.client_message_id
+                ? { client_message_id: queued.client_message_id }
+                : {},
+              reply_to_id: queued.reply_to_id,
+            });
+          },
+        );
+        if (!skipped && (sent > 0 || failed > 0)) {
           logger.info(
             "offlineQueueDrainer",
             `Drained offline queue: ${sent} sent, ${failed} still pending`,
