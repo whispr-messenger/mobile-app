@@ -39,6 +39,13 @@ const mockFetchJson = (body: unknown) => ({
   json: async () => body,
 });
 
+const mockFetchBytes = () => ({
+  ok: true,
+  url: "",
+  headers: { get: () => "audio/mp4" },
+  blob: async () => new Blob([new Uint8Array([0xff])], { type: "audio/mp4" }),
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetAccessToken.mockResolvedValue("tok");
@@ -52,32 +59,35 @@ beforeEach(() => {
     status: { isLoaded: true, durationMillis: 3000 },
   });
   mockSetAudioModeAsync.mockResolvedValue({});
+  (global as any).URL.createObjectURL = jest.fn(() => "blob:audio-fake");
+  (global as any).URL.revokeObjectURL = jest.fn();
   const Platform = require("react-native").Platform;
   Platform.OS = "web";
 });
 
-describe("AudioMessage resolves /blob URL before playback", () => {
-  it("fetches the presigned URL and passes it to Audio.Sound.createAsync on play", async () => {
-    const fetchSpy = jest
-      .fn()
-      .mockResolvedValue(
-        mockFetchJson({ url: "https://cdn.example.com/voice.m4a" }),
-      );
+describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => {
+  it("streams via /blob?stream=1 and passes the proxied blob URL — never the presigned URL — to Audio.Sound.createAsync", async () => {
+    const presigned =
+      "https://minio.whispr.devzeyu.com/bucket/voice.m4a?X-Amz-Signature=abc";
+    const fetchSpy = jest.fn().mockImplementation((url: string) => {
+      if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
+      return Promise.resolve(mockFetchJson({ url: presigned }));
+    });
     (global as any).fetch = fetchSpy;
 
-    const { getByRole, UNSAFE_getAllByType } = render(
+    const { UNSAFE_getAllByType } = render(
       <AudioMessage
         uri="https://whispr.devzeyu.com/media/v1/abc/blob"
         duration={3}
       />,
     );
 
-    // Wait for the resolver effect to run
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalled();
+      expect(
+        fetchSpy.mock.calls.some(([u]: [string]) => u.includes("stream=1")),
+      ).toBe(true);
     });
 
-    // Simulate user pressing play
     const Touchable = require("react-native").TouchableOpacity;
     const touchables = UNSAFE_getAllByType(Touchable);
     fireEvent.press(touchables[0]);
@@ -87,9 +97,11 @@ describe("AudioMessage resolves /blob URL before playback", () => {
     });
 
     const [source] = mockCreateAsync.mock.calls[0];
-    expect(source.uri).toBe("https://cdn.example.com/voice.m4a");
-    // The raw /blob URL must NEVER reach Audio.Sound — it returns JSON
-    expect(source.uri).not.toContain("/media/v1/abc/blob");
+    expect(source.uri).toBe("blob:audio-fake");
+    // Critical regression check: the presigned URL must NEVER reach the
+    // playback layer.
+    expect(source.uri).not.toContain(presigned);
+    expect(source.uri).not.toContain("X-Amz-Signature");
   }, 15000);
 
   it("passes local file:// URIs through unchanged (recording preview)", async () => {
