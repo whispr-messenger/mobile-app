@@ -314,3 +314,41 @@ describe("AuthService.validateSession", () => {
     await expect(AuthService.validateSession()).resolves.toBeNull();
   });
 });
+
+describe("AuthService.getWsToken (WHISPR-1214)", () => {
+  it("POSTs to /tokens/ws-token with the access token as Bearer", async () => {
+    mockedToken.getAccessToken.mockResolvedValueOnce("access-bearer");
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ body: { wsToken: "short-jwt", expiresIn: 60 } }),
+    );
+
+    const result = await AuthService.getWsToken();
+
+    expect(result).toEqual({ wsToken: "short-jwt", expiresIn: 60 });
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://api.test/auth/v1/tokens/ws-token");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer access-bearer");
+  });
+
+  it("throws a 401-tagged error when no access token is stored", async () => {
+    mockedToken.getAccessToken.mockResolvedValueOnce(null);
+
+    await expect(AuthService.getWsToken()).rejects.toMatchObject({
+      message: "NO_ACCESS_TOKEN",
+      status: 401,
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("propagates non-OK responses with status (so the WS layer can fall back)", async () => {
+    mockedToken.getAccessToken.mockResolvedValueOnce("access-bearer");
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 401, body: { message: "expired" } }),
+    );
+
+    await expect(AuthService.getWsToken()).rejects.toMatchObject({
+      status: 401,
+    });
+  });
+});
