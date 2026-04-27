@@ -290,10 +290,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       // Launch image picker without forcing a crop: WHISPR-1039 wants the
       // user to send images in their native ratio (portrait/landscape/square).
+      // WHISPR-1197 : on ne passe PAS `quality` ici — sur iOS/Android
+      // expo-image-picker re-encode en JPEG dès que `quality` est défini,
+      // ce qui aplatit les GIFs animés (premier frame seulement) et perd
+      // la compression native HEIC. La taille du fichier est déjà bornée
+      // côté upload par WHISPR-1220, on accepte donc un léger surcoût
+      // réseau pour préserver l'animation et le format Apple.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
