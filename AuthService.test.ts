@@ -221,6 +221,107 @@ describe("AuthService.refreshTokens", () => {
   });
 });
 
+describe("AuthService.refreshTokens transient backoff (WHISPR-1218)", () => {
+  it("a single 503 enters cooldown — next call fails fast without hitting the network", async () => {
+    mockedToken.getRefreshToken.mockResolvedValue("rt");
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 503, body: { message: "down" } }),
+    );
+
+    await expect(AuthService.refreshTokens()).rejects.toThrow();
+    expect(mockedEmitSessionExpired).not.toHaveBeenCalled();
+
+    // Second call within the cooldown window — must NOT issue a new fetch.
+    mockFetch.mockClear();
+    await expect(AuthService.refreshTokens()).rejects.toThrow(
+      "AUTH_UNREACHABLE",
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("after MAX_TRANSIENT_FAILURES (3) consecutive 503, declares auth_unreachable", async () => {
+    jest.useFakeTimers();
+    mockedToken.getRefreshToken.mockResolvedValue("rt");
+
+    // Three 503s, with a fake-timer advance between each to clear the cooldown.
+    for (let i = 0; i < 3; i++) {
+      mockFetch.mockResolvedValueOnce(
+        mockResponse({ status: 503, body: { message: "down" } }),
+      );
+      await expect(AuthService.refreshTokens()).rejects.toThrow();
+      // Skip past the exponential backoff (max 4 s on attempt 3).
+      await jest.advanceTimersByTimeAsync(10_000);
+    }
+
+    expect(mockedEmitSessionExpired).toHaveBeenCalledWith("auth_unreachable");
+    // Subsequent calls fast-fail with SESSION_EXPIRED (sessionDead path).
+    await expect(AuthService.refreshTokens()).rejects.toThrow(
+      "SESSION_EXPIRED",
+    );
+
+    jest.useRealTimers();
+  });
+
+  it("network error (status undefined) counts as a transient failure", async () => {
+    mockedToken.getRefreshToken.mockResolvedValue("rt");
+    // Throw a bare Error (no .status) — mimics fetch network rejection that
+    // apiFetch would re-throw.
+    mockFetch.mockRejectedValueOnce(new Error("connection refused"));
+
+    await expect(AuthService.refreshTokens()).rejects.toThrow();
+
+    // Cooldown is now active — refresh fast-fails without network.
+    mockFetch.mockClear();
+    await expect(AuthService.refreshTokens()).rejects.toThrow(
+      "AUTH_UNREACHABLE",
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("a successful refresh after a transient failure clears the backoff state", async () => {
+    jest.useFakeTimers();
+    mockedToken.getRefreshToken.mockResolvedValue("rt");
+
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 503 }));
+    await expect(AuthService.refreshTokens()).rejects.toThrow();
+
+    await jest.advanceTimersByTimeAsync(2_000);
+
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: makeTokenPair() }));
+    await expect(AuthService.refreshTokens()).resolves.toBeUndefined();
+
+    // Counter is back to zero — a fresh 503 should be the first transient,
+    // not the fourth (which would trip auth_unreachable).
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 503 }));
+    await expect(AuthService.refreshTokens()).rejects.toThrow();
+    expect(mockedEmitSessionExpired).not.toHaveBeenCalledWith(
+      "auth_unreachable",
+    );
+
+    jest.useRealTimers();
+  });
+
+  it("a 400 (programming-error 4xx) does NOT poison the transient counter", async () => {
+    jest.useFakeTimers();
+    mockedToken.getRefreshToken.mockResolvedValue("rt");
+
+    // Two 400s — shouldn't enter cooldown, shouldn't increment the counter.
+    for (let i = 0; i < 2; i++) {
+      mockFetch.mockResolvedValueOnce(
+        mockResponse({ status: 400, body: { message: "bad request" } }),
+      );
+      await expect(AuthService.refreshTokens()).rejects.toThrow();
+    }
+    // Now a third 400 — still no auth_unreachable.
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 400 }));
+    await expect(AuthService.refreshTokens()).rejects.toThrow();
+
+    expect(mockedEmitSessionExpired).not.toHaveBeenCalled();
+
+    jest.useRealTimers();
+  });
+});
+
 describe("AuthService.logout", () => {
   it("POSTs /logout with token and clears tokens afterwards", async () => {
     mockedToken.getAccessToken.mockResolvedValue("at");
