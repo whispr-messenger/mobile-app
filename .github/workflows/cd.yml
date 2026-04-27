@@ -170,9 +170,9 @@ jobs:
           SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
+            COMMIT_MSG="chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
           else
-            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA}"
+            COMMIT_MSG="chore(deploy/mobile-web): update image to ${SHORT_SHA}"
           fi
 
           git add k8s/whispr/preprod/mobile-web/deployment.yaml
