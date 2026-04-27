@@ -22,9 +22,14 @@ jest.mock("./src/services/TokenService", () => ({
 }));
 
 const mockRefreshTokens = jest.fn<Promise<void>, []>();
+const mockGetWsToken = jest.fn<
+  Promise<{ wsToken: string; expiresIn: number }>,
+  []
+>();
 jest.mock("./src/services/AuthService", () => ({
   AuthService: {
     refreshTokens: (...args: any[]) => mockRefreshTokens(...args),
+    getWsToken: (...args: any[]) => mockGetWsToken(...args),
   },
 }));
 
@@ -107,8 +112,15 @@ function latestWs(): MockWebSocket {
   return wsInstances[wsInstances.length - 1];
 }
 
-function connectAndOpen(socket: SocketConnection): MockWebSocket {
-  socket.connect("user-1", "valid-token");
+async function connectAndOpen(
+  socket: SocketConnection,
+): Promise<MockWebSocket> {
+  // connect() is async since WHISPR-1214 (it awaits AuthService.getWsToken
+  // before opening the WebSocket). flushMicrotasks lets the awaited
+  // Promise.resolve in the mocked getWsToken settle so the WebSocket
+  // constructor runs before we look it up.
+  const promise = socket.connect("user-1", "valid-token");
+  await promise;
   const ws = latestWs();
   ws.simulateOpen();
   return ws;
@@ -123,11 +135,20 @@ beforeEach(() => {
   mockGetAccessToken.mockReset();
   mockIsTokenExpired.mockReset();
   mockRefreshTokens.mockReset();
+  mockGetWsToken.mockReset();
 
   // Default: token is available and not expired
   mockGetAccessToken.mockResolvedValue("fresh-token");
   mockIsTokenExpired.mockReturnValue(false);
   mockRefreshTokens.mockResolvedValue(undefined);
+  // WHISPR-1214: connect() pulls a short-lived ws-token before opening
+  // the socket. Default to a successful fetch so existing tests behave
+  // identically to before; the few new tests below exercise the failure /
+  // fallback paths explicitly.
+  mockGetWsToken.mockResolvedValue({
+    wsToken: "ws-short-token",
+    expiresIn: 60,
+  });
 });
 
 afterEach(() => {
@@ -137,7 +158,7 @@ afterEach(() => {
 describe("SocketConnection reconnection (WHISPR-1148)", () => {
   it("emits sessionExpired after max reconnect attempts", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     // Each close+advance triggers a reconnect attempt that increments the counter.
     // We do NOT open the new sockets — this way reconnectAttempt is never reset
@@ -162,7 +183,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("forces token refresh on close code 1008", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     mockGetAccessToken.mockResolvedValue("current-token");
     mockIsTokenExpired.mockReturnValue(false);
@@ -177,7 +198,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("forces token refresh on close code 4001", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     mockGetAccessToken.mockResolvedValue("current-token");
     mockIsTokenExpired.mockReturnValue(false);
@@ -192,7 +213,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("does not force refresh on normal close code 1000", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     mockGetAccessToken.mockResolvedValue("current-token");
     mockIsTokenExpired.mockReturnValue(false);
@@ -207,7 +228,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("picks up externally refreshed token from TokenService", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     // Simulate external refresh: storage has a new token
     mockGetAccessToken.mockResolvedValue("externally-refreshed-token");
@@ -227,7 +248,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("refreshes token when fetched token from storage is expired", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     // Storage returns expired token first, then fresh after refresh
     mockGetAccessToken
@@ -245,7 +266,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("emits sessionExpired when token refresh fails", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     mockGetAccessToken.mockResolvedValue("expired-token");
     mockIsTokenExpired.mockReturnValue(true);
@@ -264,7 +285,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("emits sessionExpired when no token available after refresh", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     // Token from storage is null, refresh succeeds but still no token
     mockGetAccessToken.mockResolvedValue(null);
@@ -281,7 +302,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("auth close code is consumed after first reconnect attempt", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     mockGetAccessToken.mockResolvedValue("valid-token");
     mockIsTokenExpired.mockReturnValue(false);
@@ -308,7 +329,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
   it("disconnect() resets lastCloseCode", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     // Close with auth code, then disconnect before reconnect fires
     latestWs().simulateClose(4001, "auth error");
@@ -316,7 +337,7 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 
     // Reconnect fresh
     mockRefreshTokens.mockClear();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     mockGetAccessToken.mockResolvedValue("valid-token");
     mockIsTokenExpired.mockReturnValue(false);
@@ -332,13 +353,14 @@ describe("SocketConnection reconnection (WHISPR-1148)", () => {
 });
 
 describe("SocketConnection basics", () => {
-  it("connect creates a WebSocket and transitions to connected on open", () => {
+  it("connect creates a WebSocket and transitions to connected on open", async () => {
     const socket = new SocketConnection();
     expect(socket.connectionState).toBe("disconnected");
     expect(socket.isConnected()).toBe(false);
 
-    socket.connect("user-1", "token-1");
+    const connectPromise = socket.connect("user-1", "token-1");
     expect(socket.connectionState).toBe("connecting");
+    await connectPromise;
 
     latestWs().simulateOpen();
     expect(socket.connectionState).toBe("connected");
@@ -347,9 +369,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("connect is a no-op if already connected", () => {
+  it("connect is a no-op if already connected", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
     const countBefore = wsInstances.length;
 
     socket.connect("user-1", "token-1");
@@ -358,21 +380,21 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("disconnect sets state to disconnected and clears socket", () => {
+  it("disconnect sets state to disconnected and clears socket", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     socket.disconnect();
     expect(socket.connectionState).toBe("disconnected");
     expect(socket.isConnected()).toBe(false);
   });
 
-  it("connectionState listeners are notified on state changes", () => {
+  it("connectionState listeners are notified on state changes", async () => {
     const socket = new SocketConnection();
     const states: string[] = [];
     socket.addConnectionStateListener((s) => states.push(s));
 
-    socket.connect("user-1", "token-1");
+    await socket.connect("user-1", "token-1");
     latestWs().simulateOpen();
     latestWs().simulateClose(1000, "normal");
 
@@ -383,12 +405,12 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("removeConnectionStateListener stops notifications", () => {
+  it("removeConnectionStateListener stops notifications", async () => {
     const socket = new SocketConnection();
     const states: string[] = [];
     const remove = socket.addConnectionStateListener((s) => states.push(s));
 
-    socket.connect("user-1", "token-1");
+    await socket.connect("user-1", "token-1");
     remove();
     latestWs().simulateOpen();
 
@@ -398,9 +420,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("channel join/on/off/push/leave work without errors", () => {
+  it("channel join/on/off/push/leave work without errors", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     const ch = socket.channel("test:topic");
     ch.join();
@@ -414,9 +436,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("channel join queues as pending if socket is not open", () => {
+  it("channel join queues as pending if socket is not open", async () => {
     const socket = new SocketConnection();
-    socket.connect("user-1", "token-1");
+    await socket.connect("user-1", "token-1");
     // Socket is CONNECTING, not OPEN
 
     const ch = socket.channel("test:topic");
@@ -428,9 +450,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("onmessage dispatches to channel callbacks with snake_case keys", () => {
+  it("onmessage dispatches to channel callbacks with snake_case keys", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     const ch = socket.channel("room:1");
     ch.join();
@@ -441,7 +463,13 @@ describe("SocketConnection basics", () => {
     // Simulate a v2 message frame
     const ws = latestWs();
     ws.onmessage?.({
-      data: JSON.stringify([null, "1", "room:1", "new_message", { userId: "u1", messageText: "hello" }]),
+      data: JSON.stringify([
+        null,
+        "1",
+        "room:1",
+        "new_message",
+        { userId: "u1", messageText: "hello" },
+      ]),
     });
 
     expect(handler).toHaveBeenCalledWith({
@@ -452,31 +480,43 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("onmessage handles phx_reply and marks channel as joined", () => {
+  it("onmessage handles phx_reply and marks channel as joined", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     socket.channel("room:1");
 
     const ws = latestWs();
     ws.onmessage?.({
-      data: JSON.stringify([null, "1", "room:1", "phx_reply", { status: "ok" }]),
+      data: JSON.stringify([
+        null,
+        "1",
+        "room:1",
+        "phx_reply",
+        { status: "ok" },
+      ]),
     });
 
     // No error thrown — phx_reply handled internally
     socket.disconnect();
   });
 
-  it("onmessage handles phx_error by marking channel as not joined", () => {
+  it("onmessage handles phx_error by marking channel as not joined", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     socket.channel("room:1");
 
     const ws = latestWs();
     // First mark as joined
     ws.onmessage?.({
-      data: JSON.stringify([null, "1", "room:1", "phx_reply", { status: "ok" }]),
+      data: JSON.stringify([
+        null,
+        "1",
+        "room:1",
+        "phx_reply",
+        { status: "ok" },
+      ]),
     });
     // Then crash
     ws.onmessage?.({
@@ -486,9 +526,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("onmessage handles phx_close by marking channel as not joined", () => {
+  it("onmessage handles phx_close by marking channel as not joined", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     socket.channel("room:1");
 
@@ -500,9 +540,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("onmessage ignores unparseable frames", () => {
+  it("onmessage ignores unparseable frames", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     const ws = latestWs();
     // Should not throw
@@ -512,9 +552,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("heartbeat sends periodic messages when connected", () => {
+  it("heartbeat sends periodic messages when connected", async () => {
     const socket = new SocketConnection();
-    const ws = connectAndOpen(socket);
+    const ws = await connectAndOpen(socket);
 
     // Advance past heartbeat interval (30s)
     jest.advanceTimersByTime(31_000);
@@ -527,9 +567,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("onerror logs but does not crash", () => {
+  it("onerror logs but does not crash", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     const ws = latestWs();
     // Should not throw
@@ -540,7 +580,7 @@ describe("SocketConnection basics", () => {
 
   it("onopen rejoins existing channels after reconnect", async () => {
     const socket = new SocketConnection();
-    const ws = connectAndOpen(socket);
+    const ws = await connectAndOpen(socket);
 
     // Create and join a channel
     const ch = socket.channel("room:1");
@@ -559,9 +599,9 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
-  it("v1 message format is also parsed", () => {
+  it("v1 message format is also parsed", async () => {
     const socket = new SocketConnection();
-    connectAndOpen(socket);
+    await connectAndOpen(socket);
 
     const ch = socket.channel("room:1");
     ch.join();
@@ -600,9 +640,9 @@ describe("Singleton helpers", () => {
     expect(a).toBe(b);
   });
 
-  it("destroySharedSocket disconnects and clears the singleton", () => {
+  it("destroySharedSocket disconnects and clears the singleton", async () => {
     const s = getSharedSocket();
-    s.connect("u1", "t1");
+    await s.connect("u1", "t1");
     const ws = latestWs();
     ws.simulateOpen();
 
@@ -646,9 +686,9 @@ describe("Edge-case branches", () => {
     jest.useRealTimers();
   });
 
-  it("pending topics are joined when the socket opens", () => {
+  it("pending topics are joined when the socket opens", async () => {
     // Create a channel and join BEFORE the socket is open → becomes pending
-    socket.connect("user-1", "tok");
+    await socket.connect("user-1", "tok");
     const ws = latestWs();
     // Socket is still CONNECTING — join should queue as pending
     const ch = socket.channel("room:pending");
@@ -665,8 +705,8 @@ describe("Edge-case branches", () => {
     expect(joinCalls.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("bad callback in onmessage is silently caught", () => {
-    const ws = connectAndOpen(socket);
+  it("bad callback in onmessage is silently caught", async () => {
+    const ws = await connectAndOpen(socket);
     const badCb = jest.fn(() => {
       throw new Error("boom");
     });
@@ -685,8 +725,8 @@ describe("Edge-case branches", () => {
     expect(goodCb).toHaveBeenCalledWith({ x: 1 });
   });
 
-  it("onclose sets disconnected when shouldReconnect is false", () => {
-    const ws = connectAndOpen(socket);
+  it("onclose sets disconnected when shouldReconnect is false", async () => {
+    const ws = await connectAndOpen(socket);
 
     const stateChanges: string[] = [];
     socket.addConnectionStateListener((s) => stateChanges.push(s));
@@ -698,9 +738,9 @@ describe("Edge-case branches", () => {
     expect(socket.connectionState).toBe("disconnected");
   });
 
-  it("onclose after disconnect goes to disconnected, not reconnecting", () => {
+  it("onclose after disconnect goes to disconnected, not reconnecting", async () => {
     // Connect and open normally
-    const ws = connectAndOpen(socket);
+    const ws = await connectAndOpen(socket);
 
     // Reach into socket to set shouldReconnect = false without closing
     // by calling disconnect which also fires close. Instead, we connect
@@ -721,5 +761,98 @@ describe("Edge-case branches", () => {
     // Should be disconnected, not reconnecting
     expect(states).toContain("disconnected");
     expect(states).not.toContain("reconnecting");
+  });
+});
+
+describe("WS short-lived token (WHISPR-1214)", () => {
+  it("fetches a fresh ws-token before opening the WebSocket", async () => {
+    const socket = new SocketConnection();
+    await socket.connect("user-1", "long-access-token");
+
+    expect(mockGetWsToken).toHaveBeenCalledTimes(1);
+    socket.disconnect();
+  });
+
+  it("puts the ws-token (NOT the access token) in the URL query string", async () => {
+    const observedUrls: string[] = [];
+    const PrevWS = (global as any).WebSocket;
+    (global as any).WebSocket = class extends MockWebSocket {
+      constructor(url: string) {
+        super();
+        observedUrls.push(url);
+        wsInstances.push(this);
+      }
+    };
+    Object.assign((global as any).WebSocket, {
+      OPEN: MockWebSocket.OPEN,
+      CONNECTING: MockWebSocket.CONNECTING,
+      CLOSING: MockWebSocket.CLOSING,
+      CLOSED: MockWebSocket.CLOSED,
+    });
+
+    try {
+      mockGetWsToken.mockResolvedValueOnce({
+        wsToken: "ws-jwt-60s",
+        expiresIn: 60,
+      });
+
+      const socket = new SocketConnection();
+      await socket.connect("user-1", "long-access-token");
+
+      expect(observedUrls).toHaveLength(1);
+      expect(observedUrls[0]).toContain("token=ws-jwt-60s");
+      expect(observedUrls[0]).not.toContain("long-access-token");
+
+      socket.disconnect();
+    } finally {
+      (global as any).WebSocket = PrevWS;
+    }
+  });
+
+  it("falls back to the access token when /tokens/ws-token errors out", async () => {
+    const observedUrls: string[] = [];
+    const PrevWS = (global as any).WebSocket;
+    (global as any).WebSocket = class extends MockWebSocket {
+      constructor(url: string) {
+        super();
+        observedUrls.push(url);
+        wsInstances.push(this);
+      }
+    };
+    Object.assign((global as any).WebSocket, {
+      OPEN: MockWebSocket.OPEN,
+      CONNECTING: MockWebSocket.CONNECTING,
+      CLOSING: MockWebSocket.CLOSING,
+      CLOSED: MockWebSocket.CLOSED,
+    });
+
+    try {
+      mockGetWsToken.mockRejectedValueOnce(
+        new Error("backend not yet rolled out"),
+      );
+
+      const socket = new SocketConnection();
+      await socket.connect("user-1", "fallback-access-token");
+
+      // Fallback is the access token passed in by the caller — keeps chat
+      // online during the auth-service rollout window.
+      expect(observedUrls[0]).toContain("token=fallback-access-token");
+
+      socket.disconnect();
+    } finally {
+      (global as any).WebSocket = PrevWS;
+    }
+  });
+
+  it("re-fetches a ws-token on every reconnect (60s lifetime, can't reuse)", async () => {
+    const socket = new SocketConnection();
+    await connectAndOpen(socket);
+    expect(mockGetWsToken).toHaveBeenCalledTimes(1);
+
+    latestWs().simulateClose(1006, "network");
+    await jest.advanceTimersByTimeAsync(1_500);
+
+    expect(mockGetWsToken).toHaveBeenCalledTimes(2);
+    socket.disconnect();
   });
 });
