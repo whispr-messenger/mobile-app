@@ -102,6 +102,11 @@ export interface BadgeCountResponse {
 
 export interface RegisterDeviceParams {
   token: string;
+  // WHISPR-1217 — passed explicitly from initPushRegistration so the
+  // backend can assert body.user_id == claims.sub. Today the backend
+  // overwrites it with the JWT sub anyway, but the field is in place
+  // so a future tightening doesn't need a coordinated client release.
+  userId: string;
   platform?: "android" | "ios";
   deviceId?: string;
   appVersion?: string;
@@ -197,6 +202,7 @@ export const NotificationService = {
         fcm_token: params.token,
         platform,
         app_version: appVersion,
+        user_id: params.userId,
       }),
     });
   },
@@ -219,7 +225,7 @@ export const NotificationService = {
    *
    * No-op sur web ou si `expo-notifications` n'est pas disponible.
    */
-  async initPushRegistration(): Promise<void> {
+  async initPushRegistration(userId: string): Promise<void> {
     const mod = loadExpoNotifications();
     if (!mod) return;
 
@@ -232,15 +238,19 @@ export const NotificationService = {
 
       const native = await mod.getDevicePushTokenAsync();
       if (native?.data) {
-        await NotificationService.registerDevice({ token: native.data });
+        await NotificationService.registerDevice({
+          token: native.data,
+          userId,
+        });
       }
 
       if (!tokenRotationSub) {
         tokenRotationSub = mod.addPushTokenListener((t) => {
           if (t?.data) {
-            NotificationService.registerDevice({ token: t.data }).catch(
-              () => {},
-            );
+            NotificationService.registerDevice({
+              token: t.data,
+              userId,
+            }).catch(() => {});
           }
         });
       }
