@@ -60,6 +60,27 @@ let refreshPromise: Promise<void> | null = null;
 // refresh loop. Reset on every successful login/register.
 let sessionDead = false;
 
+// WHISPR-1218 — backoff state for transient backend failures (5xx /
+// network). 401/403 still goes straight to sessionDead because that's
+// auth saying "no", not "I'm down".
+const MAX_TRANSIENT_FAILURES = 3;
+const COOLDOWN_BASE_MS = 1000;
+let consecutiveTransientFailures = 0;
+let cooldownUntil = 0;
+
+function resetSessionState(): void {
+  sessionDead = false;
+  consecutiveTransientFailures = 0;
+  cooldownUntil = 0;
+}
+
+// Treat undefined status (network error) and 5xx as transient. Other
+// 4xx (e.g. 400 bad-request) are programming errors and shouldn't poison
+// the backoff counter — let them propagate without state change.
+function isTransientFailure(status: number | undefined): boolean {
+  return status === undefined || status >= 500;
+}
+
 export const AuthService = {
   async requestVerification(
     phoneNumber: string,
@@ -98,7 +119,7 @@ export const AuthService = {
     });
 
     await TokenService.saveTokens(tokens);
-    sessionDead = false;
+    resetSessionState();
     const userId = TokenService.decodeAccessToken(tokens.accessToken)?.sub;
     if (userId) {
       NotificationService.initPushRegistration(userId).catch(() => {});
@@ -122,7 +143,7 @@ export const AuthService = {
     });
 
     await TokenService.saveTokens(tokens);
-    sessionDead = false;
+    resetSessionState();
     const userId = TokenService.decodeAccessToken(tokens.accessToken)?.sub;
     if (userId) {
       NotificationService.initPushRegistration(userId).catch(() => {});
@@ -136,6 +157,13 @@ export const AuthService = {
     // event → every screen that is still mounted fetches again → loop.
     if (sessionDead) {
       throw new Error("SESSION_EXPIRED");
+    }
+    // WHISPR-1218 — short-circuit during the cooldown that follows
+    // transient (5xx / network) failures. Without this, every 401 from
+    // an in-flight HTTP call would re-trigger refresh → 5xx → repeat,
+    // hammering an already-degraded auth-service.
+    if (cooldownUntil > Date.now()) {
+      throw new Error("AUTH_UNREACHABLE");
     }
     if (refreshPromise) return refreshPromise;
 
@@ -154,24 +182,47 @@ export const AuthService = {
             body: JSON.stringify({ refreshToken }),
           });
           await TokenService.saveTokens(tokens);
+          // Healthy response — clear any pending backoff state.
+          consecutiveTransientFailures = 0;
+          cooldownUntil = 0;
         } catch (err) {
-          // Refresh failed (401 / token revoked / fingerprint mismatch).
-          // Clear local tokens once, emit sessionExpired once, and mark the
-          // session dead so subsequent callers short-circuit above.
           const status = (err as { status?: number })?.status;
           console.error(
             "[AuthService] refreshTokens failed, status=",
             status,
             err,
           );
+
           if (status === 401 || status === 403) {
+            // Auth said "no" — session genuinely dead.
             sessionDead = true;
             await TokenService.clearTokens();
             emitSessionExpired("refresh_failed");
             console.warn(
               "[AuthService] tokens cleared, sessionExpired event emitted",
             );
+          } else if (isTransientFailure(status)) {
+            // 5xx or network — auth-service is unreachable, not refusing.
+            consecutiveTransientFailures += 1;
+            if (consecutiveTransientFailures >= MAX_TRANSIENT_FAILURES) {
+              // Stop hammering — declare unreachable and bounce the user.
+              sessionDead = true;
+              emitSessionExpired("auth_unreachable");
+              console.warn(
+                "[AuthService] auth-service unreachable after",
+                consecutiveTransientFailures,
+                "attempts; sessionExpired emitted",
+              );
+            } else {
+              // Exponential backoff: 1 s, 2 s, 4 s.
+              cooldownUntil =
+                Date.now() +
+                COOLDOWN_BASE_MS *
+                  Math.pow(2, consecutiveTransientFailures - 1);
+            }
           }
+          // Other 4xx (400/404/etc.) are bugs, not retry-worthy — let
+          // them propagate without poisoning the backoff state.
           throw err;
         }
       } finally {
