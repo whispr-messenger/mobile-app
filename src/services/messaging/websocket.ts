@@ -133,8 +133,14 @@ export class SocketConnection {
   private maxReconnectAttempts = 20;
   private shouldReconnect = false;
   private lastUserId: string | null = null;
+  // Long-lived access token captured at connect()-time, used as a fallback
+  // for the WS handshake if the dedicated /tokens/ws-token endpoint is
+  // unreachable (network error or backend not yet rolled out). WHISPR-1214.
   private lastToken: string | null = null;
   private lastCloseCode: number = 0;
+  // Mutex around the async ws-token fetch in connect(). Without it, two
+  // rapid connect() calls (e.g. mount + reconnect) could open two sockets.
+  private connecting = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatInterval = 30000;
 
@@ -158,7 +164,7 @@ export class SocketConnection {
     return !!this.socket && this.socket.readyState === WebSocket.OPEN;
   }
 
-  connect(userId: string, token: string): void {
+  async connect(userId: string, token: string): Promise<void> {
     if (
       this.socket &&
       (this.socket.readyState === WebSocket.OPEN ||
@@ -166,21 +172,36 @@ export class SocketConnection {
     ) {
       return;
     }
+    if (this.connecting) return;
+    this.connecting = true;
 
     this.lastUserId = userId;
     this.lastToken = token;
     this.lastCloseCode = 0;
     this.shouldReconnect = true;
 
-    // Explicitly request v2 serializer so both sides agree on array format
-    const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
-      userId,
-    )}&token=${encodeURIComponent(token)}&vsn=2.0.0`;
-
     this.setConnectionState(
       this.reconnectAttempt > 0 ? "reconnecting" : "connecting",
     );
+
+    // Fetch the short-lived ws-token instead of putting the access token in
+    // the URL (WHISPR-1214). On failure we fall back to the access token so
+    // an outage of /tokens/ws-token doesn't take chat offline.
+    const wsToken = await this.fetchWsTokenWithFallback(token);
+
+    if (!this.shouldReconnect) {
+      // disconnect() was called while we were fetching the token
+      this.connecting = false;
+      return;
+    }
+
+    // Explicitly request v2 serializer so both sides agree on array format
+    const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
+      userId,
+    )}&token=${encodeURIComponent(wsToken)}&vsn=2.0.0`;
+
     this.socket = new WebSocket(url);
+    this.connecting = false;
     logger.info(
       "WS",
       `Connecting to ${url.replace(/token=[^&]+/, "token=***")}`,
@@ -292,6 +313,27 @@ export class SocketConnection {
     this.socket.onerror = (err) => {
       logger.error("WS", "Socket error", err);
     };
+  }
+
+  // WHISPR-1214 — try the short-lived ws-token endpoint first; fall back to
+  // the access token if the call fails. The fallback covers two cases:
+  //   * the auth-service hasn't rolled out /tokens/ws-token yet (transition
+  //     window between mobile-app deploy and backend deploy)
+  //   * a transient network blip on that single request
+  // The risk added by the fallback is the pre-WHISPR-1214 status quo, so we
+  // never regress functionality vs. before this fix.
+  private async fetchWsTokenWithFallback(accessToken: string): Promise<string> {
+    try {
+      const { wsToken } = await AuthService.getWsToken();
+      return wsToken;
+    } catch (err) {
+      logger.warn(
+        "WS",
+        "ws-token fetch failed, falling back to access token",
+        err,
+      );
+      return accessToken;
+    }
   }
 
   /** Send a phx_join for a topic using v2 array format */
