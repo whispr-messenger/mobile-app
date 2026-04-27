@@ -137,6 +137,7 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
 const buildSearchResult = (
   u: any,
   contactIds?: Set<string>,
+  blockedIds?: Set<string>,
 ): UserSearchResult => {
   const userId = u.id ?? u.userId;
   return {
@@ -156,7 +157,10 @@ const buildSearchResult = (
       is_active: u.isActive ?? u.is_active ?? true,
     },
     is_contact: contactIds ? contactIds.has(userId) : false,
-    is_blocked: false,
+    // WHISPR-1215 — couvre le sens "je l'ai bloqué". Le sens inverse
+    // ("il m'a bloqué") demande un flag côté serveur et fait l'objet d'un
+    // ticket séparé.
+    is_blocked: blockedIds ? blockedIds.has(userId) : false,
   };
 };
 
@@ -374,14 +378,15 @@ export const contactsAPI = {
   async getUserPreviewById(userId: string): Promise<UserSearchResult | null> {
     const user = await fetchUserById(userId);
     if (!user) return null;
-    let contactIds: Set<string>;
-    try {
-      const { contacts } = await this.getContacts();
-      contactIds = new Set(contacts.map((c) => c.contact_id));
-    } catch {
-      contactIds = new Set();
-    }
-    return buildSearchResult(user, contactIds);
+    const [contactIds, blockedIds] = await Promise.all([
+      this.getContacts()
+        .then(({ contacts }) => new Set(contacts.map((c) => c.contact_id)))
+        .catch(() => new Set<string>()),
+      this.getBlockedUsers()
+        .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
+        .catch(() => new Set<string>()),
+    ]);
+    return buildSearchResult(user, contactIds, blockedIds);
   },
 
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
@@ -390,14 +395,16 @@ export const contactsAPI = {
       return [];
     }
 
-    // Fetch current contacts to mark search results
-    let contactIds: Set<string>;
-    try {
-      const { contacts } = await this.getContacts();
-      contactIds = new Set(contacts.map((c) => c.contact_id));
-    } catch {
-      contactIds = new Set();
-    }
+    // WHISPR-1215 — fetch contacts and blocked users in parallel so each
+    // result carries the real is_blocked flag (was hard-coded to false).
+    const [contactIds, blockedIds] = await Promise.all([
+      this.getContacts()
+        .then(({ contacts }) => new Set(contacts.map((c) => c.contact_id)))
+        .catch(() => new Set<string>()),
+      this.getBlockedUsers()
+        .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
+        .catch(() => new Set<string>()),
+    ]);
 
     // Run all search strategies in parallel for fuzzy matching
     const searches: Promise<UserSearchResult[]>[] = [];
@@ -414,7 +421,7 @@ export const contactsAPI = {
           if (!r.ok) return [];
           const user = await r.json().catch(() => null);
           if (!user?.id && !user?.userId) return [];
-          return [buildSearchResult(user, contactIds)];
+          return [buildSearchResult(user, contactIds, blockedIds)];
         })
         .catch(() => []),
     );
@@ -437,7 +444,7 @@ export const contactsAPI = {
               : [];
           return items
             .filter((u: any) => u?.id || u?.userId)
-            .map((u: any) => buildSearchResult(u, contactIds));
+            .map((u: any) => buildSearchResult(u, contactIds, blockedIds));
         })
         .catch(() => []),
     );
@@ -463,7 +470,7 @@ export const contactsAPI = {
                 : [];
             return items
               .filter((u: any) => u?.id || u?.userId)
-              .map((u: any) => buildSearchResult(u, contactIds));
+              .map((u: any) => buildSearchResult(u, contactIds, blockedIds));
           })
           .catch(() => []),
       );
@@ -498,6 +505,12 @@ export const contactsAPI = {
 
     if (!phoneNumbers.length) return [];
 
+    // WHISPR-1215 — pull the user's blocked list once, before issuing the
+    // search calls, so each result reflects the real is_blocked state.
+    const blockedIds = await this.getBlockedUsers()
+      .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
+      .catch(() => new Set<string>());
+
     // Try batch endpoint first
     try {
       const batchResponse = await fetch(`${API_BASE_URL}/search/phone/batch`, {
@@ -520,7 +533,7 @@ export const contactsAPI = {
           const id = u?.id ?? u?.userId;
           if (id && !seen.has(id)) {
             seen.add(id);
-            results.push(buildSearchResult(u));
+            results.push(buildSearchResult(u, undefined, blockedIds));
           }
         }
         return results;
@@ -556,7 +569,7 @@ export const contactsAPI = {
           const id = u?.id ?? u?.userId;
           if (id && !seen.has(id)) {
             seen.add(id);
-            results.push(buildSearchResult(u));
+            results.push(buildSearchResult(u, undefined, blockedIds));
           }
         }
       } catch {
