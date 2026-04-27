@@ -235,13 +235,15 @@ describe("contactsAPI.searchUsers", () => {
   });
 
   it("merges username + name results and deduplicates", async () => {
-    // 1st call: getContacts (for contactIds enrichment)
+    // getContacts (for contactIds enrichment)
     mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
-    // 2nd call: /search/username
+    // getBlockedUsers (WHISPR-1215 — for is_blocked enrichment)
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
+    // /search/username
     mockFetch.mockResolvedValueOnce(
       mockResponse({ body: { id: "u-1", username: "ada" } }),
     );
-    // 3rd call: /search/name (returns same user + a new one)
+    // /search/name (returns same user + a new one)
     mockFetch.mockResolvedValueOnce(
       mockResponse({
         body: {
@@ -259,6 +261,7 @@ describe("contactsAPI.searchUsers", () => {
 
   it("also calls /search/phone when the query looks like a phone number", async () => {
     mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getBlockedUsers (WHISPR-1215)
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 404 })); // username
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 404 })); // name
     mockFetch.mockResolvedValueOnce(
@@ -273,6 +276,42 @@ describe("contactsAPI.searchUsers", () => {
     );
     expect(phoneCall).toBeDefined();
   });
+
+  it("flags is_blocked=true on search hits that are in the blocked list (WHISPR-1215)", async () => {
+    // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
+    // getBlockedUsers — u-1 is blocked, u-2 is not
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: [
+          {
+            id: "b-1",
+            blockerId: "me",
+            blockedId: "u-1",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+    // /search/username
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 404 }));
+    // /search/name
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          results: [
+            { id: "u-1", username: "ada" },
+            { id: "u-2", username: "grace" },
+          ],
+        },
+      }),
+    );
+
+    const results = await contactsAPI.searchUsers({ username: "ada" });
+    const byId = Object.fromEntries(results.map((r) => [r.user.id, r]));
+    expect(byId["u-1"]?.is_blocked).toBe(true);
+    expect(byId["u-2"]?.is_blocked).toBe(false);
+  });
 });
 
 describe("contactsAPI.importPhoneContacts", () => {
@@ -281,6 +320,8 @@ describe("contactsAPI.importPhoneContacts", () => {
   });
 
   it("uses the batch endpoint when it succeeds", async () => {
+    // getBlockedUsers (WHISPR-1215)
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
     mockFetch.mockResolvedValueOnce(
       mockResponse({
         body: {
@@ -294,8 +335,11 @@ describe("contactsAPI.importPhoneContacts", () => {
     ]);
     expect(results).toHaveLength(1);
 
-    const [url, init] = mockFetch.mock.calls[0];
-    expect(url).toBe(`${BASE}/search/phone/batch`);
+    const batchCall = mockFetch.mock.calls.find(([url]) =>
+      String(url).includes("/search/phone/batch"),
+    );
+    expect(batchCall).toBeDefined();
+    const [, init] = batchCall!;
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body)).toEqual({
       phoneNumbers: ["+33600000000"],
@@ -303,6 +347,8 @@ describe("contactsAPI.importPhoneContacts", () => {
   });
 
   it("falls back to sequential lookups when the batch endpoint 404s", async () => {
+    // getBlockedUsers (WHISPR-1215)
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
     // batch call
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 404 }));
     // sequential calls (one per phone number)
@@ -318,6 +364,42 @@ describe("contactsAPI.importPhoneContacts", () => {
       { phoneNumber: "+33700000000" } as any,
     ]);
     expect(results.map((r) => r.user.id).sort()).toEqual(["u-1", "u-2"]);
+  });
+
+  it("flags imported users as is_blocked when they're in the blocked list (WHISPR-1215)", async () => {
+    // getBlockedUsers — u-1 is blocked
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: [
+          {
+            id: "b-1",
+            blockerId: "me",
+            blockedId: "u-1",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+    // batch
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          results: [
+            { id: "u-1", username: "ada" },
+            { id: "u-2", username: "grace" },
+          ],
+        },
+      }),
+    );
+
+    const results = await contactsAPI.importPhoneContacts([
+      { phoneNumber: "+33600000000" } as any,
+      { phoneNumber: "+33700000000" } as any,
+    ]);
+
+    const byId = Object.fromEntries(results.map((r) => [r.user.id, r]));
+    expect(byId["u-1"]?.is_blocked).toBe(true);
+    expect(byId["u-2"]?.is_blocked).toBe(false);
   });
 });
 
@@ -336,12 +418,40 @@ describe("contactsAPI.getUserPreviewById", () => {
     mockFetch.mockResolvedValueOnce(
       mockResponse({ body: [{ id: "c-1", contactId: "u-1" }] }),
     );
+    // getBlockedUsers call (WHISPR-1215)
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
     primeUserEnrichment(1);
 
     const result = await contactsAPI.getUserPreviewById("u-1");
     expect(result).not.toBeNull();
     expect(result?.user.id).toBe("u-1");
     expect(result?.is_contact).toBe(true);
+    expect(result?.is_blocked).toBe(false);
+  });
+
+  it("flags is_blocked=true when the previewed user is blocked (WHISPR-1215)", async () => {
+    // fetchUserById
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ body: { id: "u-1", username: "ada" } }),
+    );
+    // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
+    // getBlockedUsers — u-1 IS blocked
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: [
+          {
+            id: "b-1",
+            blockerId: "me",
+            blockedId: "u-1",
+            createdAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    const result = await contactsAPI.getUserPreviewById("u-1");
+    expect(result?.is_blocked).toBe(true);
   });
 });
 
