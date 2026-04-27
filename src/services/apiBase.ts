@@ -1,13 +1,14 @@
 import Constants from "expo-constants";
 
-/** Production (releases EAS avec `extra.apiBaseUrl` non défini). */
-const PROD_API_URL = "https://whispr-api.roadmvn.com";
-
 /**
- * Même défaut que `app.json` / `app.config.js` quand aucune variable d'env
- * ne surcharge — évite de pointer la prod en dev si `expoConfig.extra` est vide.
+ * Filet de sécurité utilisé uniquement en dev (`__DEV__ === true`). En
+ * production on échoue durement (`getApiBaseUrl` throw) plutôt que de
+ * tomber sur un domaine codé en dur — voir WHISPR-1213 : le défaut
+ * historique pointait sur `roadmvn.com`, qu'on n'opère plus, et un
+ * attaquant qui rachèterait ce domaine intercepterait toutes les
+ * requêtes auth/messages des builds qui n'auraient pas reçu d'env.
  */
-const APP_CONFIG_DEFAULT_API = "https://preprod-whispr-api.roadmvn.com";
+const APP_CONFIG_DEFAULT_API = "https://whispr.devzeyu.com";
 
 function pickBaseUrl(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -62,12 +63,16 @@ export const getApiBaseUrl = (): string => {
   const envOverride = pickBaseUrl(
     (process.env as any)?.EXPO_PUBLIC_API_BASE_URL,
   );
-  return (
+  const resolved =
     envOverride ??
     resolveApiBaseUrlFromSameOrigin() ??
-    resolveApiBaseUrlFromConstants() ??
-    (__DEV__ ? APP_CONFIG_DEFAULT_API : PROD_API_URL)
-  ).replace(/\/+$/, "");
+    resolveApiBaseUrlFromConstants();
+  if (resolved) return resolved.replace(/\/+$/, "");
+  if (__DEV__) return APP_CONFIG_DEFAULT_API;
+  throw new Error(
+    "API base URL not configured. Inject EXPO_PUBLIC_API_BASE_URL or set " +
+      "Constants.expoConfig.extra.apiBaseUrl before building this release.",
+  );
 };
 
 export const getWsBaseUrl = (): string => {
