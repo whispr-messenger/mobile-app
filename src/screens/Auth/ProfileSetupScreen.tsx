@@ -41,6 +41,24 @@ export const ProfileSetupScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  // WHISPR-1034 — username est le seul champ obligatoire à l'inscription.
+  // firstName / lastName restent optionnels (parité avec Signal/Telegram :
+  // l'identifiant unique est le numéro + le pseudo, pas le nom civil).
+  const trimmedUsername = username.trim();
+  const isUsernameValid = trimmedUsername.length >= 3;
+  const usernameError = (() => {
+    if (trimmedUsername.length === 0) {
+      return submitAttempted
+        ? "Pseudo requis pour finaliser votre profil"
+        : undefined;
+    }
+    if (trimmedUsername.length < 3) {
+      return "Minimum 3 caractères";
+    }
+    return undefined;
+  })();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -118,6 +136,10 @@ export const ProfileSetupScreen: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!isUsernameValid) {
+      setSubmitAttempted(true);
+      return;
+    }
     setLoading(true);
     try {
       const profileData: Record<string, string> = {};
@@ -176,9 +198,24 @@ export const ProfileSetupScreen: React.FC = () => {
     }
   };
 
-  const handleSkip = async () => {
-    await profileSetupFlag.markDone();
-    navigation.reset({ index: 0, routes: [{ name: "ConversationsList" }] });
+  const handleSkip = () => {
+    Alert.alert(
+      "Compléter plus tard ?",
+      "Vous pourrez configurer votre pseudo et vos informations de profil à tout moment depuis vos paramètres. En attendant vous serez identifié par votre numéro de téléphone.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Passer",
+          onPress: async () => {
+            await profileSetupFlag.markDone();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "ConversationsList" }],
+            });
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -322,8 +359,11 @@ export const ProfileSetupScreen: React.FC = () => {
                 ]}
               >
                 {getLocalizedText("profile.username")}{" "}
-                <Text style={styles.optionalHint}>
-                  ({getLocalizedText("common.optional")})
+                <Text
+                  style={styles.requiredHint}
+                  accessibilityLabel="champ requis"
+                >
+                  *
                 </Text>
               </Text>
               <Input
@@ -332,11 +372,7 @@ export const ProfileSetupScreen: React.FC = () => {
                 onChangeText={(t) => setUsername(normalizeUsername(t))}
                 autoCapitalize="none"
                 containerStyle={styles.inputContainer}
-                error={
-                  username.trim().length > 0 && username.trim().length < 3
-                    ? "Minimum 3 caractères"
-                    : undefined
-                }
+                error={usernameError}
                 helperText="Seuls minuscules, chiffres et _ (auto-corrigé)"
               />
             </View>
@@ -481,6 +517,10 @@ const styles = StyleSheet.create({
   optionalHint: {
     opacity: 0.6,
     fontWeight: "400",
+  },
+  requiredHint: {
+    color: "#ff6b6b",
+    fontWeight: "700",
   },
   readyBanner: {
     flexDirection: "row",
