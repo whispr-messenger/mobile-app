@@ -99,7 +99,10 @@ export const AuthService = {
 
     await TokenService.saveTokens(tokens);
     sessionDead = false;
-    NotificationService.initPushRegistration().catch(() => {});
+    const userId = TokenService.decodeAccessToken(tokens.accessToken)?.sub;
+    if (userId) {
+      NotificationService.initPushRegistration(userId).catch(() => {});
+    }
     return tokens;
   },
 
@@ -120,7 +123,10 @@ export const AuthService = {
 
     await TokenService.saveTokens(tokens);
     sessionDead = false;
-    NotificationService.initPushRegistration().catch(() => {});
+    const userId = TokenService.decodeAccessToken(tokens.accessToken)?.sub;
+    if (userId) {
+      NotificationService.initPushRegistration(userId).catch(() => {});
+    }
     return tokens;
   },
 
@@ -199,8 +205,24 @@ export const AuthService = {
 
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
-    await NotificationService.unregisterDevice(deviceId).catch(() => {});
+
+    // WHISPR-1217 — properly await the unregister so a fresh login on the
+    // same device can't race ahead while the server still has the previous
+    // user's row. We bound the wait at 5 s so a hung connection can't
+    // block logout indefinitely. Failures are logged (vs. swallowed
+    // silently) so shared-device misroute reports are debuggable.
+    try {
+      await Promise.race([
+        NotificationService.unregisterDevice(deviceId),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("UNREGISTER_TIMEOUT")), 5000),
+        ),
+      ]);
+    } catch (err) {
+      console.warn("[AuthService] unregisterDevice failed:", err);
+    }
     NotificationService.tearDownPushRegistration();
+
     await apiFetch("/logout", {
       method: "POST",
       token: token ?? undefined,
