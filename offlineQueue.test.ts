@@ -105,6 +105,102 @@ describe("offlineQueue.drainAll (WHISPR-1060)", () => {
   });
 });
 
+describe("offlineQueue.drainAll concurrency lock (WHISPR-1219)", () => {
+  it("rejects a concurrent invocation with skipped=true and only sends each message once", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 51 }));
+    await offlineQueue.enqueue(makeMessage({ client_random: 52 }));
+
+    let resolveFirst: () => void = () => {};
+    const sendFn = jest.fn(
+      (_msg: QueuedMessage) =>
+        new Promise<void>((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+
+    // Start the first drain — it will await sendFn for the first message.
+    const first = offlineQueue.drainAll(sendFn);
+    // Yield so the first drain reaches the `await sendFn(...)`.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Second drain fires while the first is in flight. It must short-circuit.
+    const second = await offlineQueue.drainAll(sendFn);
+    expect(second).toEqual({ sent: 0, failed: 0, skipped: true });
+
+    // Now let the first drain finish.
+    resolveFirst();
+    // Resolve any remaining sendFn calls in the loop.
+    sendFn.mockImplementation(() => Promise.resolve());
+    const firstResult = await first;
+
+    expect(firstResult).toEqual({ sent: 2, failed: 0 });
+    // sendFn was called for each of the 2 messages — never doubled by the
+    // concurrent call.
+    expect(sendFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases the lock after a successful drain so the next call can run", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 61 }));
+    const sendFn = jest.fn().mockResolvedValue(undefined);
+
+    const first = await offlineQueue.drainAll(sendFn);
+    expect(first).toEqual({ sent: 1, failed: 0 });
+
+    // Re-enqueue and drain again — second call must NOT report skipped.
+    await offlineQueue.enqueue(makeMessage({ client_random: 62 }));
+    const second = await offlineQueue.drainAll(sendFn);
+    expect(second.skipped).toBeUndefined();
+    expect(second.sent).toBe(1);
+  });
+
+  it("releases the lock when sendFn throws synchronously inside the promise", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 71 }));
+    // sendFn always rejects → all messages stay pending, but the lock
+    // must still be released.
+    const sendFn = jest.fn().mockRejectedValue(new Error("network"));
+    await offlineQueue.drainAll(sendFn);
+
+    // Subsequent drain: sendFn will succeed this time. If the lock had
+    // leaked, this call would short-circuit with skipped=true.
+    sendFn.mockResolvedValue(undefined);
+    const result = await offlineQueue.drainAll(sendFn);
+    expect(result.skipped).toBeUndefined();
+    expect(result.sent).toBe(1);
+  });
+});
+
+describe("offlineQueue.enqueue client_message_id (WHISPR-1219)", () => {
+  it("auto-generates a UUID v4 client_message_id when not provided", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 81 }));
+    const [persisted] = await offlineQueue.getAll();
+
+    expect(persisted.client_message_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
+  it("preserves an explicit client_message_id passed in by the caller", async () => {
+    await offlineQueue.enqueue(
+      makeMessage({
+        client_random: 82,
+        client_message_id: "00000000-0000-4000-8000-000000000000",
+      }),
+    );
+    const [persisted] = await offlineQueue.getAll();
+    expect(persisted.client_message_id).toBe(
+      "00000000-0000-4000-8000-000000000000",
+    );
+  });
+
+  it("gives different UUIDs to two messages enqueued back-to-back", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 83 }));
+    await offlineQueue.enqueue(makeMessage({ client_random: 84 }));
+    const [a, b] = await offlineQueue.getAll();
+    expect(a.client_message_id).not.toEqual(b.client_message_id);
+  });
+});
+
 describe("offlineQueue.getAll", () => {
   it("returns an empty array when nothing is persisted", async () => {
     await expect(offlineQueue.getAll()).resolves.toEqual([]);
