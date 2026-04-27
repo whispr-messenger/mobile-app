@@ -181,18 +181,44 @@ export const QRCodeScannerScreen: React.FC = () => {
             text: "Ajouter",
             onPress: async () => {
               try {
-                await contactsAPI.addContact({ contactId: userId });
-                Alert.alert("Succès", "Contact ajouté avec succès", [
-                  {
-                    text: "OK",
-                    onPress: () => navigation.goBack(),
-                  },
-                ]);
+                await contactsAPI.sendContactRequest(userId);
+                Alert.alert(
+                  "Succès",
+                  "Demande de contact envoyée. En attente d'acceptation.",
+                  [
+                    {
+                      text: "OK",
+                      onPress: () => navigation.goBack(),
+                    },
+                  ],
+                );
               } catch (error: unknown) {
-                const msg =
-                  error instanceof Error
-                    ? error.message
-                    : "Impossible d'ajouter ce contact";
+                const status =
+                  typeof error === "object" &&
+                  error !== null &&
+                  "status" in error
+                    ? Number((error as { status?: number }).status)
+                    : undefined;
+                const msg = error instanceof Error ? error.message : "";
+                const isAlreadyPendingOrContact =
+                  status === 409 ||
+                  msg.toLowerCase().includes("already") ||
+                  msg.toLowerCase().includes("pending");
+
+                if (isAlreadyPendingOrContact) {
+                  Alert.alert(
+                    "Info",
+                    "Une demande est deja en attente ou ce contact est deja ajoute.",
+                    [
+                      {
+                        text: "OK",
+                        onPress: () => navigation.goBack(),
+                      },
+                    ],
+                  );
+                  return;
+                }
+
                 Alert.alert("Erreur", msg, [
                   {
                     text: "OK",
