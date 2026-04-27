@@ -75,6 +75,128 @@ export interface UploadMediaResult {
 
 export type UploadMediaContext = "message" | "avatar" | "group_icon";
 
+// WHISPR-1220 — limites alignées avec media-service
+// (see media.service.ts:46 / CONTEXT_SIZE_LIMITS).
+//   * MESSAGE   : 100 MB — couvre vidéos courtes, documents, audio.
+//   * AVATAR    :   5 MB — image seulement, déjà compressée client-side.
+//   * GROUP_ICON:   5 MB — idem AVATAR.
+const CONTEXT_SIZE_LIMITS: Record<UploadMediaContext, number> = {
+  message: 100 * 1024 * 1024,
+  avatar: 5 * 1024 * 1024,
+  group_icon: 5 * 1024 * 1024,
+};
+
+const COMMON_IMAGE_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+] as const;
+
+// Doit rester en synchro avec CONTEXT_MIME_ALLOWLIST côté media-service
+// (media.service.ts:70). Si le serveur élargit ou restreint la liste,
+// reproduire ici — la validation client est un filet de sécurité, pas la
+// source de vérité (le serveur doit toujours re-vérifier).
+const CONTEXT_MIME_ALLOWLIST: Record<
+  UploadMediaContext,
+  ReadonlySet<string>
+> = {
+  message: new Set<string>([
+    ...COMMON_IMAGE_MIMES,
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-matroska",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/mp4",
+    "audio/aac",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/zip",
+  ]),
+  avatar: new Set<string>(COMMON_IMAGE_MIMES),
+  group_icon: new Set<string>(COMMON_IMAGE_MIMES),
+};
+
+export type UploadValidationError = Error & {
+  code: "UPLOAD_TOO_LARGE" | "UPLOAD_MIME_NOT_ALLOWED";
+  context: UploadMediaContext;
+  limitBytes?: number;
+  actualBytes?: number;
+  mimeType?: string;
+};
+
+export function isUploadValidationError(
+  err: unknown,
+): err is UploadValidationError {
+  if (!(err instanceof Error)) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "UPLOAD_TOO_LARGE" || code === "UPLOAD_MIME_NOT_ALLOWED";
+}
+
+function normalizeMime(raw: string): string {
+  return raw.split(";")[0].trim().toLowerCase();
+}
+
+async function readFileSize(uri: string): Promise<number | null> {
+  if (Platform.OS === "web") {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      return blob.size;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const info = (await FileSystem.getInfoAsync(uri)) as { size?: number };
+    return typeof info?.size === "number" ? info.size : null;
+  } catch {
+    return null;
+  }
+}
+
+async function validateUpload(
+  file: { uri: string; type: string },
+  context: UploadMediaContext,
+): Promise<void> {
+  const mime = normalizeMime(file.type);
+  const allowed = CONTEXT_MIME_ALLOWLIST[context];
+  if (!allowed.has(mime)) {
+    const error = new Error(
+      `MIME type '${mime}' not allowed for context '${context}'`,
+    ) as UploadValidationError;
+    error.code = "UPLOAD_MIME_NOT_ALLOWED";
+    error.context = context;
+    error.mimeType = mime;
+    throw error;
+  }
+
+  const size = await readFileSize(file.uri);
+  // If we can't read the size client-side (older RN, opaque URI), fall
+  // through to the server check rather than block a legitimate upload.
+  if (size === null) return;
+
+  const limit = CONTEXT_SIZE_LIMITS[context];
+  if (size > limit) {
+    const error = new Error(
+      `File size ${size} bytes exceeds ${context} limit of ${limit} bytes`,
+    ) as UploadValidationError;
+    error.code = "UPLOAD_TOO_LARGE";
+    error.context = context;
+    error.limitBytes = limit;
+    error.actualBytes = size;
+    throw error;
+  }
+}
+
 // The media-service upload response uses {mediaId, ...} but the rest of the
 // app (chat send path, attachment metadata) expects {id}. Normalise here so
 // callers don't have to know which key the server happened to return.
@@ -104,6 +226,11 @@ export const MediaService = {
     onProgress?: (percent: number) => void,
     meta?: { context?: UploadMediaContext; ownerId?: string },
   ): Promise<UploadMediaResult> {
+    // WHISPR-1220 — fail fast before consuming the upload bandwidth.
+    // Default to "message" (the most permissive context) when the caller
+    // doesn't pass one, mirroring the server which uses the same default.
+    await validateUpload(file, meta?.context ?? "message");
+
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
