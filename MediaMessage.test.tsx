@@ -73,96 +73,95 @@ afterAll(() => {
 
 const mediaUrl = "https://whispr.devzeyu.com/media/v1/abc/blob";
 
-describe("MediaMessage useResolvedMediaUrl", () => {
+describe("MediaMessage useResolvedMediaUrl (WHISPR-1216)", () => {
   it(
-    "uses the presigned URL directly when it is publicly reachable",
+    "always streams via /blob?stream=1 — never exposes the presigned URL",
     async () => {
-    const fetchSpy = jest.fn().mockImplementation((url: string) => {
-      if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
-      return Promise.resolve(
-        mockFetchJson({ url: "https://cdn.example.com/x.jpg" }),
+      const presigned =
+        "https://minio.whispr.devzeyu.com/bucket/x.jpg?X-Amz-Signature=deadbeef";
+      const fetchSpy = jest.fn().mockImplementation((url: string) => {
+        if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
+        return Promise.resolve(mockFetchJson({ url: presigned }));
+      });
+      (global as any).fetch = fetchSpy;
+
+      const { toJSON } = render(<MediaMessage uri={mediaUrl} type="image" />);
+
+      await waitFor(
+        () => {
+          const tree = JSON.stringify(toJSON());
+          expect(tree).toContain("blob:fake");
+        },
+        { timeout: 10000 },
       );
-    });
-    (global as any).fetch = fetchSpy;
 
-    const { toJSON } = render(<MediaMessage uri={mediaUrl} type="image" />);
-
-    await waitFor(
-      () => {
+      // The presigned URL must NEVER appear in the rendered tree — that's
+      // the regression this ticket is preventing.
       const tree = JSON.stringify(toJSON());
-      expect(tree).toContain("https://cdn.example.com/x.jpg");
-      },
-      { timeout: 10000 },
-    );
-    // Only the JSON roundtrip — never hit ?stream=1.
-    expect(
-      fetchSpy.mock.calls.some(([url]: [string]) => url.includes("stream=1")),
-    ).toBe(false);
+      expect(tree).not.toContain(presigned);
+      expect(tree).not.toContain("X-Amz-Signature");
+
+      // The bytes were fetched through the authenticated stream endpoint.
+      const streamCall = fetchSpy.mock.calls.find(([u]: [string]) =>
+        u.includes("stream=1"),
+      );
+      expect(streamCall).toBeDefined();
+      expect(streamCall![1].headers.Authorization).toBe("Bearer tok");
     },
     15000,
   );
 
   it(
-    "falls back to ?stream=1 bytes when the presigned URL is cluster-internal",
+    "ignores response.url on the legacy 302 redirect path (no presign leak)",
     async () => {
-    const fetchSpy = jest.fn().mockImplementation((url: string) => {
-      if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
-      return Promise.resolve(
-        mockFetchJson({
-          url: "http://minio.minio.svc.cluster.local:9000/bucket/x?sig=1",
-        }),
-      );
-    });
-    (global as any).fetch = fetchSpy;
+      // Simulate a media-service that still returns a 302 to a presigned
+      // URL — fetch follows the redirect and exposes the target via
+      // response.url. The hook must NOT use it.
+      const presignedRedirectTarget =
+        "https://minio.whispr.devzeyu.com/bucket/x.jpg?X-Amz-Signature=foo";
+      const fetchSpy = jest.fn().mockImplementation((url: string) => {
+        if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
+        return Promise.resolve({
+          ok: true,
+          // post-redirect URL — historically the hook would lift this.
+          url: presignedRedirectTarget,
+          // Non-JSON content-type → legacy 302 path
+          headers: { get: () => "image/jpeg" },
+        });
+      });
+      (global as any).fetch = fetchSpy;
 
-    const { toJSON } = render(<MediaMessage uri={mediaUrl} type="image" />);
+      const { toJSON } = render(<MediaMessage uri={mediaUrl} type="image" />);
 
-    await waitFor(
-      () => {
+      await waitFor(() => {
+        expect(JSON.stringify(toJSON())).toContain("blob:fake");
+      });
+
       const tree = JSON.stringify(toJSON());
-      expect(tree).toContain("blob:fake");
-      },
-      { timeout: 10000 },
-    );
-
-    // A ?stream=1 request was made with the Bearer token
-    const streamCall = fetchSpy.mock.calls.find(([url]: [string]) =>
-      url.includes("stream=1"),
-    );
-    expect(streamCall).toBeDefined();
-    expect(streamCall![0]).toContain("stream=1");
-    expect(streamCall![1].headers.Authorization).toBe("Bearer tok");
+      expect(tree).not.toContain(presignedRedirectTarget);
+      expect(tree).not.toContain("X-Amz-Signature");
     },
     15000,
   );
 
-  it("treats {url:null} as 'no thumbnail' without error or stream fallback", async () => {
-    const blobUrl = "https://cdn.example.com/main.jpg";
-    const fetchSpy = jest.fn().mockImplementation((url: string) => {
-      if (url.includes("/thumbnail"))
-        return Promise.resolve(mockFetchJson({ url: null }));
-      // /blob returns a normal presigned URL
-      return Promise.resolve(mockFetchJson({ url: blobUrl }));
-    });
+  it("treats {url:null} as 'no media' without falling back to a stream fetch", async () => {
+    const fetchSpy = jest.fn().mockImplementation(() =>
+      Promise.resolve(mockFetchJson({ url: null })),
+    );
     (global as any).fetch = fetchSpy;
 
-    const { toJSON, queryByText } = render(
-      <MediaMessage uri={mediaUrl} type="image" />,
-    );
+    render(<MediaMessage uri={mediaUrl} type="image" />);
 
-    // Main image renders with the presigned URL — no error placeholder
-    await waitFor(() => {
-      const tree = JSON.stringify(toJSON());
-      expect(tree).toContain(blobUrl);
-    });
-    expect(queryByText("Échec du chargement")).toBeNull();
-    // No `?stream=1` request was made — null URL is legitimate, not an error
+    // Give the async resolver a tick to settle.
+    await new Promise((r) => setTimeout(r, 50));
+
+    // No `?stream=1` request — null URL is legitimate, not an error.
     expect(
       fetchSpy.mock.calls.some(([u]: [string]) => u.includes("stream=1")),
     ).toBe(false);
   });
 
-  it("sets error state when both the JSON and the stream fetch fail", async () => {
+  it("sets error state when the JSON probe fetch fails with HTTP 500", async () => {
     const fetchSpy = jest.fn().mockResolvedValue({
       ok: false,
       status: 500,
