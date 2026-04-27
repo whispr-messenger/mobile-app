@@ -6,18 +6,14 @@ import React, {
   useRef,
   useState,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthService } from "../services/AuthService";
-import { TokenService } from "../services/TokenService";
-import { profileSetupFlag } from "../services/profileSetupFlag";
+import { AppResetService } from "../services/AppResetService";
 import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
 import { useModerationStore } from "../store/moderationStore";
 import { useCallsStore } from "../store/callsStore";
-import { cacheService } from "../services/messaging/cache";
-import { offlineQueue } from "../services/offlineQueue";
 import { onSessionExpired } from "../services/sessionEvents";
 import { useBadgeSync } from "../hooks/useBadgeSync";
 
@@ -87,24 +83,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // Tear down WebSocket before clearing auth state
     destroySharedSocket();
 
-    // Reset stores and caches to prevent data leaking between users
+    // Reset in-memory Zustand state so screens unmount with a clean slate.
+    // The on-disk caches are wiped by AppResetService below, but the
+    // resident state needs an explicit reset since the stores aren't
+    // persisted via AsyncStorage middleware.
     useConversationsStore.getState().reset();
     usePresenceStore.getState().reset();
     useModerationStore.getState().reset();
     useCallsStore.getState().reset();
-    await cacheService.clearCache();
-    await offlineQueue.clearAll();
-    await AsyncStorage.removeItem("@whispr/manually_unread_ids");
-    await profileSetupFlag.clear();
 
+    // Best-effort server-side logout. Swallow failures so the local
+    // cleanup still happens if the server is unreachable.
     if (state.deviceId && state.userId) {
-      await AuthService.logout(state.deviceId, state.userId);
-    } else {
-      await TokenService.clearTokens();
+      await AuthService.logout(state.deviceId, state.userId).catch(() => {});
     }
-    // Drop the per-device Signal identity private key — it is bound to the
-    // session that just ended and must not leak into the next account.
-    await TokenService.clearIdentityPrivateKey();
+
+    // WHISPR-1221 — sweep every per-account key under our prefixes
+    // (settings, caches, queued messages, manually-unread set, profile
+    // setup flag, tokens, Signal identity key, …). Allowlist preserves
+    // theme + language only.
+    await AppResetService.resetAppData();
+
     setState({
       isAuthenticated: false,
       isLoading: false,
