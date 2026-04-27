@@ -115,7 +115,7 @@ describe("NotificationService.unmuteConversation", () => {
 });
 
 describe("NotificationService.registerDevice / unregisterDevice", () => {
-  it("POSTs the token with device_id, platform, app_version", async () => {
+  it("POSTs the token with device_id, platform, app_version, user_id", async () => {
     const mockedDevice = require("./src/services/DeviceService")
       .DeviceService as any;
     mockedDevice.getOrCreateDeviceId.mockResolvedValue("dev-xyz");
@@ -123,6 +123,7 @@ describe("NotificationService.registerDevice / unregisterDevice", () => {
 
     await NotificationService.registerDevice({
       token: "fcm-tok",
+      userId: "user-42",
       platform: "android",
       appVersion: "1.2.3",
     });
@@ -135,6 +136,7 @@ describe("NotificationService.registerDevice / unregisterDevice", () => {
       fcm_token: "fcm-tok",
       platform: "android",
       app_version: "1.2.3",
+      user_id: "user-42",
     });
   });
 

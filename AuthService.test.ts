@@ -242,6 +242,54 @@ describe("AuthService.logout", () => {
 
     expect(mockedToken.clearTokens).toHaveBeenCalled();
   });
+
+  // WHISPR-1217 — closes the shared-device race where the next user could
+  // sign in before the previous user's device row was unregistered.
+  it("awaits unregisterDevice before clearing tokens (no fire-and-forget)", async () => {
+    mockedToken.getAccessToken.mockResolvedValue("at");
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
+
+    const order: string[] = [];
+    const mockedNotif = require("./src/services/NotificationService")
+      .NotificationService as any;
+    mockedNotif.unregisterDevice.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      order.push("unregister-resolved");
+    });
+    mockedToken.clearTokens.mockImplementation(async () => {
+      order.push("tokens-cleared");
+    });
+
+    await AuthService.logout("dev-1", "user-1");
+
+    // unregister MUST have settled before tokens are cleared, otherwise a
+    // racing signIn on the same device would re-register before the old
+    // row is gone.
+    expect(order).toEqual(["unregister-resolved", "tokens-cleared"]);
+  });
+
+  it("times out the unregister at 5s instead of blocking logout forever", async () => {
+    jest.useFakeTimers();
+    mockedToken.getAccessToken.mockResolvedValue("at");
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
+
+    const mockedNotif = require("./src/services/NotificationService")
+      .NotificationService as any;
+    // Hang forever — simulates a stalled connection.
+    mockedNotif.unregisterDevice.mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    const logoutPromise = AuthService.logout("dev-1", "user-1");
+
+    // Advance past the 5s ceiling so the timeout reject fires.
+    await jest.advanceTimersByTimeAsync(6000);
+
+    await expect(logoutPromise).resolves.toBeUndefined();
+    expect(mockedToken.clearTokens).toHaveBeenCalled();
+
+    jest.useRealTimers();
+  });
 });
 
 describe("AuthService.validateSession", () => {
