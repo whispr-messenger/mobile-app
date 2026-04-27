@@ -5,16 +5,20 @@
  *
  * The `/blob` and `/thumbnail` endpoints return `{ url, expiresAt }` JSON
  * rather than the raw bytes, so passing the bare URL to `<Image>`, `<Video>`,
- * or `Audio.Sound.createAsync` results in a JSON decode failure. This hook
- * fetches the endpoint with a Bearer token, extracts the presigned URL, and
- * falls back to streaming the bytes through `?stream=1` when the presigned
- * host is cluster-internal.
+ * or `Audio.Sound.createAsync` results in a JSON decode failure.
+ *
+ * WHISPR-1216 — the JSON `url` field is a presigned MinIO URL carrying
+ * `X-Amz-Signature`. Rendering it directly via `<Image src={url}>` would
+ * leak the signed URL to the rendering layer (DevTools Network panel,
+ * right-click "copy image address", screenshots of HAR exports, Sentry
+ * breadcrumbs, …) and let anyone who captures it download the blob without
+ * authentication for the rest of the presign window. We always proxy the
+ * bytes through the authenticated `?stream=1` endpoint instead.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { TokenService } from "../services/TokenService";
-import { isReachableUrl } from "../utils";
 
 export function uriNeedsAuthResolution(uri: string | undefined): boolean {
   return (
@@ -120,6 +124,10 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
+        // Probe the endpoint first. We don't use the returned presigned
+        // URL (see WHISPR-1216) but the JSON response tells us whether
+        // the blob exists at all — `/thumbnail` legitimately returns
+        // `{ url: null }` when no thumbnail is stored.
         const response = await fetch(uri, {
           headers,
           redirect: "follow",
@@ -135,48 +143,29 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
           return;
         }
 
-        // New contract (media-service deploy/preprod ≥ cedf7f9b):
-        // `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON, not a
-        // 302 redirect. Parse JSON first; fall back to response.url for
-        // the legacy 302 redirect contract.
-        let presigned: string | null = null;
-        let urlExplicitlyNull = false;
+        let blobExists = true;
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           try {
-            const body = (await response.json()) as {
-              url?: string | null;
-            };
+            const body = (await response.json()) as { url?: string | null };
             if (body && "url" in body && body.url === null) {
-              urlExplicitlyNull = true;
+              blobExists = false;
             }
-            presigned = body?.url ?? null;
           } catch {
-            presigned = null;
+            // Unparseable JSON → assume the blob exists; the proxy will
+            // give us an explicit status if it really is gone.
           }
-        } else if (response.url && response.url !== uri) {
-          // Legacy: fetch followed a 302 — response.url is the presigned URL
-          presigned = response.url;
         }
+        // Legacy 302 path: response.url would be the presigned URL. We
+        // intentionally don't read it — proceed to stream below.
 
-        // `/thumbnail` retourne `{ url: null }` quand aucune vignette
-        // n'est stockée — c'est légitime, pas une erreur.
-        if (urlExplicitlyNull) {
+        if (!blobExists) {
           setResolvedUri("");
           return;
         }
 
-        if (isReachableUrl(presigned)) {
-          setResolvedUri(presigned as string);
-          return;
-        }
-
-        if (presigned) {
-          console.warn(
-            "[useResolvedMediaUrl] Presigned URL unreachable — streaming via API proxy:",
-            presigned,
-          );
-        }
+        // WHISPR-1216 — always proxy through the authenticated /blob?stream=1
+        // endpoint. We never hand the presigned URL to the renderer.
         const renderableUri = await streamMediaToRenderableUri(uri, token);
         if (cancelled) {
           if (
