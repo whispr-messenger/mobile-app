@@ -176,6 +176,27 @@ export const AuthService = {
     return refreshPromise;
   },
 
+  // WHISPR-1214 — récupère un JWT court-vivant (60 s, aud=ws) à passer dans
+  // la query string du handshake Phoenix. Le token long (access token) ne
+  // doit jamais transiter par l'URL : reverse-proxies, HAR exports et
+  // Sentry breadcrumbs le captureraient. On échoue si pas d'access token
+  // disponible — l'appelant (websocket.ts) gère le fallback éventuel.
+  async getWsToken(): Promise<{ wsToken: string; expiresIn: number }> {
+    const access = await TokenService.getAccessToken();
+    if (!access) {
+      const err = new Error("NO_ACCESS_TOKEN") as Error & { status: number };
+      err.status = 401;
+      throw err;
+    }
+    return apiFetch<{ wsToken: string; expiresIn: number }>(
+      "/tokens/ws-token",
+      {
+        method: "POST",
+        token: access,
+      },
+    );
+  },
+
   async logout(deviceId: string, userId: string): Promise<void> {
     const token = await TokenService.getAccessToken();
     await NotificationService.unregisterDevice(deviceId).catch(() => {});
