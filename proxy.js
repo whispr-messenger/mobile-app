@@ -4,8 +4,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 
 const DEFAULT_ALLOWED_ORIGINS = [
-  'https://whispr-preprod.roadmvn.com',
-  'https://whispr.roadmvn.com',
+  'https://whispr.devzeyu.com',
 ];
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS
@@ -39,7 +38,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/', createProxyMiddleware({
-  target: 'https://whispr-api.roadmvn.com',
+  target: 'https://whispr.devzeyu.com',
   changeOrigin: true,
   on: {
     proxyRes: (proxyRes, req) => {
@@ -58,4 +57,4 @@ app.use('/', createProxyMiddleware({
   },
 }));
 
-app.listen(8083, () => console.log('Proxy on http://localhost:8083 → https://whispr-api.roadmvn.com'));
+app.listen(8083, () => console.log('Proxy on http://localhost:8083 → https://whispr.devzeyu.com'));
