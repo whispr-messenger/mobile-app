@@ -1,9 +1,18 @@
 import { TokenService } from "./TokenService";
 import { DeviceService } from "./DeviceService";
 import { SignalKeyService } from "./SignalKeyService";
-import { NotificationService } from "./NotificationService";
 import { getApiBaseUrl } from "./apiBase";
 import { emitSessionExpired } from "./sessionEvents";
+
+// NotificationService.handle401 appelle AuthService.refreshTokens : un
+// import statique réciproque crée un cycle module qui, sous Hermes /
+// Metro dev-client, peut résoudre l'un des deux côtés à `undefined` au
+// premier accès. On charge NotificationService à la demande pour casser
+// le cycle ; les sites d'appel sont fire-and-forget, le coût est nul.
+function notificationService(): typeof import("./NotificationService").NotificationService {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("./NotificationService").NotificationService;
+}
 import type {
   AuthPurpose,
   TokenPair,
@@ -122,7 +131,9 @@ export const AuthService = {
     resetSessionState();
     const userId = TokenService.decodeAccessToken(tokens.accessToken)?.sub;
     if (userId) {
-      NotificationService.initPushRegistration(userId).catch(() => {});
+      notificationService()
+        .initPushRegistration(userId)
+        .catch(() => {});
     }
     return tokens;
   },
@@ -146,7 +157,9 @@ export const AuthService = {
     resetSessionState();
     const userId = TokenService.decodeAccessToken(tokens.accessToken)?.sub;
     if (userId) {
-      NotificationService.initPushRegistration(userId).catch(() => {});
+      notificationService()
+        .initPushRegistration(userId)
+        .catch(() => {});
     }
     return tokens;
   },
@@ -262,9 +275,10 @@ export const AuthService = {
     // user's row. We bound the wait at 5 s so a hung connection can't
     // block logout indefinitely. Failures are logged (vs. swallowed
     // silently) so shared-device misroute reports are debuggable.
+    const notif = notificationService();
     try {
       await Promise.race([
-        NotificationService.unregisterDevice(deviceId),
+        notif.unregisterDevice(deviceId),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("UNREGISTER_TIMEOUT")), 5000),
         ),
@@ -272,7 +286,7 @@ export const AuthService = {
     } catch (err) {
       console.warn("[AuthService] unregisterDevice failed:", err);
     }
-    NotificationService.tearDownPushRegistration();
+    notif.tearDownPushRegistration();
 
     await apiFetch("/logout", {
       method: "POST",

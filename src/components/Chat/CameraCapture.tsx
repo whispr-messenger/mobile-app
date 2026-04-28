@@ -185,10 +185,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         withSpring(1, { damping: 10 }),
       );
 
+      // WHISPR-1197 : pas de `quality` pour préserver le format natif de
+      // l'appareil photo (HEIC sur iOS si "Haute efficacité" est actif).
+      // Imposer une qualité re-encoderait systématiquement en JPEG.
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.9,
         cameraType:
           cameraType === "front"
             ? ImagePicker.CameraType.front
