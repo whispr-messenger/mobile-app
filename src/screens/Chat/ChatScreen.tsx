@@ -2175,7 +2175,7 @@ export const ChatScreen: React.FC = () => {
           styles.container,
           Platform.OS === "web" && { minHeight: 0, height: "100%" },
         ]}
-        edges={["top"]}
+        edges={["top", "bottom"]}
       >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
