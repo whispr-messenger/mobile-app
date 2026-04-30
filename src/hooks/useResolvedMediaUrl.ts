@@ -71,6 +71,76 @@ export async function streamMediaToRenderableUri(
   });
 }
 
+// /blob?stream=1 is rate-limited at 30 req/s/IP server-side (WHISPR-1192).
+// A chat screen routinely opens with ~12 image messages, each triggering a
+// stream fetch (and thumbnails on top), so the burst hits the throttle and
+// the bare streamMediaToRenderableUri call surfaces 429 directly — the
+// hook's catch block then flips state.error to true and the UI shows
+// "Échec du chargement" for a transient capacity problem. Cap concurrent
+// stream fetches comfortably below 30 req/s and retry transient
+// 429/503/network failures with exponential backoff. Mirrors the strategy
+// already used for avatars in src/components/Chat/Avatar.tsx.
+const MAX_CONCURRENT_STREAM_FETCHES = 6;
+
+let activeStreamFetches = 0;
+const streamFetchQueue: Array<() => void> = [];
+
+function acquireStreamSlot(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const tryAcquire = () => {
+      if (activeStreamFetches < MAX_CONCURRENT_STREAM_FETCHES) {
+        activeStreamFetches += 1;
+        resolve();
+      } else {
+        streamFetchQueue.push(tryAcquire);
+      }
+    };
+    tryAcquire();
+  });
+}
+
+function releaseStreamSlot(): void {
+  activeStreamFetches -= 1;
+  const next = streamFetchQueue.shift();
+  if (next) next();
+}
+
+const streamSleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+function isRetryableStreamError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // streamMediaToRenderableUri throws "stream failed: HTTP <status>" for
+  // HTTP errors. Anything without an HTTP marker (network failure, abort,
+  // FileReader error) is treated as retryable.
+  const match = /HTTP (\d+)/.exec(msg);
+  if (!match) return true;
+  const status = Number(match[1]);
+  return status === 429 || status === 503;
+}
+
+export async function streamMediaToRenderableUriThrottled(
+  uri: string,
+  token: string | null,
+): Promise<string> {
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await acquireStreamSlot();
+    try {
+      return await streamMediaToRenderableUri(uri, token);
+    } catch (err) {
+      if (!isRetryableStreamError(err) || attempt === maxAttempts) {
+        throw err;
+      }
+      const delayMs = Math.min(1000, 100 * 2 ** (attempt - 1));
+      await streamSleep(delayMs);
+    } finally {
+      releaseStreamSlot();
+    }
+  }
+  throw new Error("streamMediaToRenderableUri retry loop exhausted");
+}
+
 export interface ResolvedMediaUrl {
   resolvedUri: string;
   loading: boolean;
@@ -166,7 +236,12 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
 
         // WHISPR-1216 — always proxy through the authenticated /blob?stream=1
         // endpoint. We never hand the presigned URL to the renderer.
-        const renderableUri = await streamMediaToRenderableUri(uri, token);
+        // Use the throttled variant so a chat-screen burst doesn't trip
+        // the server-side 30 req/s short throttle.
+        const renderableUri = await streamMediaToRenderableUriThrottled(
+          uri,
+          token,
+        );
         if (cancelled) {
           if (
             renderableUri.startsWith("blob:") &&
