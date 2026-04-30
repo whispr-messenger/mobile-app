@@ -5,7 +5,7 @@
     "scheme": "whispr",
     "version": "1.0.0",
     "extra": {
-      "apiBaseUrl": "https://whispr.devzeyu.com",
+      "apiBaseUrl": "https://whispr-preprod.roadmvn.com",
       "devAuthApiUrl": "http://10.0.2.2:3010",
       "devUserApiUrl": "http://10.0.2.2:3011",
       "legalPrivacyUrl": "https://whispr.example/privacy",

@@ -3,12 +3,12 @@ import Constants from "expo-constants";
 /**
  * Filet de sécurité utilisé uniquement en dev (`__DEV__ === true`). En
  * production on échoue durement (`getApiBaseUrl` throw) plutôt que de
- * tomber sur un domaine codé en dur — voir WHISPR-1213 : le défaut
- * historique pointait sur `roadmvn.com`, qu'on n'opère plus, et un
- * attaquant qui rachèterait ce domaine intercepterait toutes les
- * requêtes auth/messages des builds qui n'auraient pas reçu d'env.
+ * tomber sur un domaine codé en dur — voir WHISPR-1213 : tout défaut
+ * doit pointer sur un domaine que l'on opère, sinon un attaquant qui
+ * rachèterait ce domaine intercepterait les requêtes auth/messages des
+ * builds qui n'auraient pas reçu d'env.
  */
-const APP_CONFIG_DEFAULT_API = "https://whispr.devzeyu.com";
+const APP_CONFIG_DEFAULT_API = "https://whispr-preprod.roadmvn.com";
 
 function pickBaseUrl(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
