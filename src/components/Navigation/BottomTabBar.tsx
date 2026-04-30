@@ -4,7 +4,7 @@
  * WHISPR-1195: animation d'apparition/disparition (translateY + opacity).
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 import {
   Animated,
   Easing,
@@ -12,7 +12,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,9 +27,17 @@ import {
   FLOATING_TAB_BAR_PILL_HEIGHT as PILL_HEIGHT,
 } from "./floatingTabBarLayout";
 
-// Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
 const PRIMARY_MAIN_COLOR = colors.primary.main;
+const INACTIVE_ICON_COLOR = "rgba(255, 255, 255, 0.6)";
+const INACTIVE_LABEL_COLOR = "rgba(255, 255, 255, 0.7)";
+
+// On iOS BlurView gives a real glass effect, so the overlay tint can stay
+// light. On Android the blur is very translucent (and the default method is
+// a no-op fallback on some devices), so we use a more opaque tint to keep
+// the pill readable.
+const PILL_OVERLAY_BG_COLOR =
+  Platform.OS === "ios" ? "rgba(20, 25, 50, 0.35)" : "rgba(20, 25, 50, 0.7)";
 
 // WHISPR-1195: timings de l'animation d'entrée/sortie de la pilule.
 const HIDDEN_TRANSLATE_Y = 16;
@@ -39,9 +46,7 @@ const EXIT_DURATION_MS = 140;
 
 interface TabItem {
   name: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  useLogo?: boolean;
-  logoVariant?: "single" | "double";
+  icon: keyof typeof Ionicons.glyphMap;
   route: string;
   badgeKey?: "chats";
 }
@@ -51,19 +56,81 @@ const tabs: TabItem[] = [
   { name: "Appels", icon: "call-outline", route: "Calls" },
   {
     name: "Discussions",
-    useLogo: true,
-    logoVariant: "double",
+    icon: "chatbubble-ellipses-outline",
     route: "ConversationsList",
     badgeKey: "chats",
   },
-  { name: "Réglages", useLogo: true, logoVariant: "single", route: "Settings" },
+  { name: "Réglages", icon: "settings-outline", route: "Settings" },
 ];
+
+type TabButtonProps = {
+  tab: TabItem;
+  active: boolean;
+  badgeCount: number;
+  onPress: (route: string) => void;
+};
+
+const TabButton = memo<TabButtonProps>(
+  ({ tab, active, badgeCount, onPress }) => {
+    const handlePress = useCallback(
+      () => onPress(tab.route),
+      [onPress, tab.route],
+    );
+
+    const accessibilityLabel =
+      badgeCount > 0
+        ? `${tab.name}, ${badgeCount} ${
+            badgeCount > 1 ? "messages non lus" : "message non lu"
+          }`
+        : tab.name;
+
+    return (
+      <TouchableOpacity
+        style={styles.tab}
+        onPress={handlePress}
+        activeOpacity={0.7}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={accessibilityLabel}
+      >
+        <View style={styles.iconContainer}>
+          <Ionicons
+            name={tab.icon}
+            size={24}
+            color={active ? PRIMARY_MAIN_COLOR : INACTIVE_ICON_COLOR}
+          />
+          {badgeCount > 0 && (
+            <View
+              style={[styles.badge, { backgroundColor: PRIMARY_MAIN_COLOR }]}
+            >
+              <Text style={styles.badgeText}>
+                {badgeCount > 99 ? "99+" : String(badgeCount)}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text
+          style={[
+            styles.tabLabel,
+            {
+              color: active ? PRIMARY_MAIN_COLOR : INACTIVE_LABEL_COLOR,
+              fontWeight: active ? "600" : "500",
+            },
+          ]}
+        >
+          {tab.name}
+        </Text>
+      </TouchableOpacity>
+    );
+  },
+);
+TabButton.displayName = "TabButton";
 
 type Props = {
   currentRouteName: string;
 };
 
-export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
+const BottomTabBarImpl: React.FC<Props> = ({ currentRouteName }) => {
   const chatsUnread = useConversationsStore((s) =>
     s.conversations.reduce(
       (sum, c) =>
@@ -71,17 +138,19 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
       0,
     ),
   );
-  const unreadCounts = { chats: chatsUnread };
 
   const insets = useSafeAreaInsets();
 
-  const handleTabPress = (tabRoute: string) => {
-    if (currentRouteName !== tabRoute) {
-      navigate(tabRoute as any);
-    }
-  };
+  // Keep the latest route in a ref so the press callback can stay stable
+  // across renders — required for React.memo on TabButton to actually skip.
+  const currentRouteRef = useRef(currentRouteName);
+  currentRouteRef.current = currentRouteName;
 
-  const isActive = (tabRoute: string) => currentRouteName === tabRoute;
+  const handleTabPress = useCallback((tabRoute: string) => {
+    if (currentRouteRef.current !== tabRoute) {
+      navigate(tabRoute as never);
+    }
+  }, []);
 
   const visible = tabs.some((t) => t.route === currentRouteName);
 
@@ -133,103 +202,19 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
             <View style={styles.pillBorderOverlay}>
               <View style={styles.tabRow}>
                 {tabs.map((tab) => {
-                  const active = isActive(tab.route);
+                  const active = currentRouteName === tab.route;
                   const badgeCount =
-                    tab.badgeKey &&
-                    unreadCounts[tab.badgeKey] &&
-                    unreadCounts[tab.badgeKey] > 0
-                      ? unreadCounts[tab.badgeKey]
+                    tab.badgeKey === "chats" && chatsUnread > 0
+                      ? chatsUnread
                       : 0;
-
                   return (
-                    <TouchableOpacity
+                    <TabButton
                       key={tab.name}
-                      style={styles.tab}
-                      onPress={() => handleTabPress(tab.route)}
-                      activeOpacity={0.7}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: active }}
-                      accessibilityLabel={
-                        badgeCount > 0
-                          ? `${tab.name}, ${badgeCount} ${
-                              badgeCount > 1
-                                ? "messages non lus"
-                                : "message non lu"
-                            }`
-                          : tab.name
-                      }
-                    >
-                      <View style={styles.iconContainer}>
-                        {tab.useLogo ? (
-                          <View style={styles.logoContainer}>
-                            {tab.logoVariant === "double" ? (
-                              <View style={styles.doubleLogoContainer}>
-                                <View style={styles.logoBack}>
-                                  <Image
-                                    source={require("../../../assets/images/logo-icon.png")}
-                                    style={styles.logoImageBack}
-                                    resizeMode="contain"
-                                  />
-                                </View>
-                                <View style={styles.logoFront}>
-                                  <Image
-                                    source={require("../../../assets/images/logo-icon.png")}
-                                    style={styles.logoImageFront}
-                                    resizeMode="contain"
-                                  />
-                                  {badgeCount > 0 && (
-                                    <View
-                                      style={[
-                                        styles.badge,
-                                        {
-                                          backgroundColor: PRIMARY_MAIN_COLOR,
-                                          borderColor: "transparent",
-                                        },
-                                      ]}
-                                    >
-                                      <Text style={styles.badgeText}>
-                                        {badgeCount > 99
-                                          ? "99+"
-                                          : String(badgeCount)}
-                                      </Text>
-                                    </View>
-                                  )}
-                                </View>
-                              </View>
-                            ) : (
-                              <Image
-                                source={require("../../../assets/images/logo-icon.png")}
-                                style={styles.logoImage}
-                                resizeMode="contain"
-                              />
-                            )}
-                          </View>
-                        ) : tab.icon ? (
-                          <Ionicons
-                            name={tab.icon}
-                            size={24}
-                            color={
-                              active
-                                ? PRIMARY_MAIN_COLOR
-                                : "rgba(255, 255, 255, 0.6)"
-                            }
-                          />
-                        ) : null}
-                      </View>
-                      <Text
-                        style={[
-                          styles.tabLabel,
-                          {
-                            color: active
-                              ? PRIMARY_MAIN_COLOR
-                              : "rgba(255, 255, 255, 0.7)",
-                            fontWeight: active ? "600" : "500",
-                          },
-                        ]}
-                      >
-                        {tab.name}
-                      </Text>
-                    </TouchableOpacity>
+                      tab={tab}
+                      active={active}
+                      badgeCount={badgeCount}
+                      onPress={handleTabPress}
+                    />
                   );
                 })}
               </View>
@@ -240,6 +225,8 @@ export const BottomTabBar: React.FC<Props> = ({ currentRouteName }) => {
     </Animated.View>
   );
 };
+
+export const BottomTabBar = memo(BottomTabBarImpl);
 
 const styles = StyleSheet.create({
   floatingContainer: {
@@ -273,7 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: PILL_BORDER_RADIUS,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.18)",
-    backgroundColor: "rgba(20, 25, 50, 0.35)",
+    backgroundColor: PILL_OVERLAY_BG_COLOR,
   },
   tabRow: {
     flexDirection: "row",
@@ -294,58 +281,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logoContainer: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  logoImage: {
-    width: 24,
-    height: 24,
-    tintColor: undefined,
-  },
-  doubleLogoContainer: {
-    width: 48,
-    height: 32,
-    position: "relative",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  logoBack: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    zIndex: 1,
-  },
-  logoFront: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    zIndex: 2,
-  },
-  logoImageBack: {
-    width: 28,
-    height: 28,
-    opacity: 0.7,
-  },
-  logoImageFront: {
-    width: 28,
-    height: 28,
-  },
   badge: {
     position: "absolute",
-    top: -2,
-    right: -2,
+    top: 0,
+    right: 8,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
     paddingHorizontal: 3,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1.5,
   },
   badgeText: {
     color: TEXT_LIGHT_COLOR,
