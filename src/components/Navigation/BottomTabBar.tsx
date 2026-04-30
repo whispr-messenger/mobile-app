@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { navigate } from "../../navigation/navigationRef";
+import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import { useConversationsStore } from "../../store/conversationsStore";
 import {
@@ -44,10 +45,12 @@ const HIDDEN_TRANSLATE_Y = 16;
 const ENTER_DURATION_MS = 180;
 const EXIT_DURATION_MS = 140;
 
+type TabRoute = keyof AuthStackParamList;
+
 interface TabItem {
   name: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route: string;
+  route: TabRoute;
   badgeKey?: "chats";
 }
 
@@ -67,7 +70,7 @@ type TabButtonProps = {
   tab: TabItem;
   active: boolean;
   badgeCount: number;
-  onPress: (route: string) => void;
+  onPress: (route: TabRoute) => void;
 };
 
 const TabButton = memo<TabButtonProps>(
@@ -146,9 +149,9 @@ const BottomTabBarImpl: React.FC<Props> = ({ currentRouteName }) => {
   const currentRouteRef = useRef(currentRouteName);
   currentRouteRef.current = currentRouteName;
 
-  const handleTabPress = useCallback((tabRoute: string) => {
+  const handleTabPress = useCallback((tabRoute: TabRoute) => {
     if (currentRouteRef.current !== tabRoute) {
-      navigate(tabRoute as never);
+      navigate(tabRoute);
     }
   }, []);
 
