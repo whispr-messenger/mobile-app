@@ -13,7 +13,10 @@ jest.mock('./src/components/Navigation/BottomTabBar', () => ({
   BottomTabBar: () => null,
 }));
 jest.mock('./src/screens/Calls/CallHistoryScreen', () => ({
-  CallHistoryScreen: () => null,
+  CallHistoryScreen: () => {
+    const { Text } = require('react-native');
+    return <Text>Call history content</Text>;
+  },
 }));
 jest.mock('./src/theme/colors', () => ({
   colors: {
@@ -24,9 +27,9 @@ jest.mock('./src/theme/colors', () => ({
 }));
 
 describe('CallsScreen', () => {
-  it('renders the Appels header', () => {
+  it('renders the call history content', () => {
     const { getByText } = render(<CallsScreen />);
-    expect(getByText('Appels')).toBeTruthy();
+    expect(getByText('Call history content')).toBeTruthy();
   });
 
   it('renders without crashing', () => {

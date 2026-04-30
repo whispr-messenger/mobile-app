@@ -4,80 +4,281 @@ exports[`InCallScreen matches snapshot when no active call 1`] = `
 <View
   style={
     {
-      "backgroundColor": "#000",
       "flex": 1,
-      "justifyContent": "space-between",
+      "position": "relative",
     }
   }
 >
   <View
     style={
       {
-        "alignItems": "center",
-        "backgroundColor": "rgba(0,0,0,0.4)",
-        "paddingBottom": 16,
-        "paddingHorizontal": 16,
-        "paddingTop": 32,
+        "backgroundColor": "rgba(255, 142, 142, 0.16)",
+        "borderRadius": 110,
+        "height": 220,
+        "position": "absolute",
+        "right": -50,
+        "top": -80,
+        "width": 220,
       }
     }
+  />
+  <View
+    style={
+      {
+        "backgroundColor": "rgba(150, 146, 172, 0.12)",
+        "borderRadius": 120,
+        "bottom": 80,
+        "height": 240,
+        "left": -80,
+        "position": "absolute",
+        "width": 240,
+      }
+    }
+  />
+  <View
+    style={
+      [
+        {
+          "zIndex": 2,
+        },
+        {
+          "paddingHorizontal": 16,
+          "paddingTop": 16,
+        },
+      ]
+    }
   >
-    <Text
+    <View
       style={
-        {
-          "color": "#fff",
-          "fontFamily": "Inter_600SemiBold",
-          "fontSize": 18,
-        }
+        [
+          {
+            "backgroundColor": "transparent",
+          },
+          {
+            "borderRadius": 30,
+            "overflow": "hidden",
+          },
+        ]
       }
     >
-      Appel en cours…
-    </Text>
-    <Text
-      style={
-        {
-          "color": "#bbb",
-          "fontSize": 13,
-          "marginTop": 4,
+      <ViewManagerAdapter_ExpoBlurView
+        blurReductionFactor={4}
+        experimentalBlurMethod="none"
+        intensity={55}
+        style={
+          {
+            "bottom": 0,
+            "left": 0,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          }
         }
-      }
-    >
-      En attente que le destinataire décroche
-    </Text>
+        tint="dark"
+      />
+      <View
+        style={
+          {
+            "backgroundColor": "rgba(10,14,39,0.28)",
+            "borderColor": "rgba(255,255,255,0.14)",
+            "borderRadius": 30,
+            "borderWidth": 1,
+            "paddingHorizontal": 18,
+            "paddingVertical": 18,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "alignSelf": "center",
+              "backgroundColor": "rgba(255,255,255,0.08)",
+              "borderColor": "rgba(255,255,255,0.12)",
+              "borderRadius": 999,
+              "borderWidth": 1,
+              "flexDirection": "row",
+              "gap": 8,
+              "paddingHorizontal": 12,
+              "paddingVertical": 8,
+            }
+          }
+        >
+          <Text
+            style={
+              {
+                "color": "#fff",
+                "fontFamily": "Inter_600SemiBold",
+                "fontSize": 15,
+              }
+            }
+          >
+            Appel en cours…
+          </Text>
+        </View>
+        <Text
+          style={
+            {
+              "color": "rgba(255,255,255,0.72)",
+              "fontSize": 14,
+              "marginTop": 8,
+              "textAlign": "center",
+            }
+          }
+        >
+          En attente que le destinataire décroche
+        </Text>
+        <View
+          style={
+            {
+              "flexDirection": "row",
+              "flexWrap": "wrap",
+              "gap": 10,
+              "justifyContent": "center",
+              "marginTop": 16,
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "alignItems": "center",
+                "backgroundColor": "rgba(255,255,255,0.08)",
+                "borderColor": "rgba(255,255,255,0.08)",
+                "borderRadius": 999,
+                "borderWidth": 1,
+                "flexDirection": "row",
+                "gap": 6,
+                "paddingHorizontal": 12,
+                "paddingVertical": 8,
+              }
+            }
+          >
+            <Text
+              style={
+                {
+                  "color": "rgba(255,255,255,0.86)",
+                  "fontFamily": "Inter_500Medium",
+                  "fontSize": 13,
+                }
+              }
+            >
+              Audio
+            </Text>
+          </View>
+          <View
+            style={
+              {
+                "alignItems": "center",
+                "backgroundColor": "rgba(255,255,255,0.08)",
+                "borderColor": "rgba(255,255,255,0.08)",
+                "borderRadius": 999,
+                "borderWidth": 1,
+                "flexDirection": "row",
+                "gap": 6,
+                "paddingHorizontal": 12,
+                "paddingVertical": 8,
+              }
+            }
+          >
+            <Text
+              style={
+                {
+                  "color": "rgba(255,255,255,0.86)",
+                  "fontFamily": "Inter_500Medium",
+                  "fontSize": 13,
+                }
+              }
+            >
+              1
+               participant
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
   </View>
   <View
     style={
       {
         "flex": 1,
         "minHeight": 0,
+        "paddingHorizontal": 16,
+        "paddingTop": 14,
       }
     }
   >
-    <RCTScrollView
-      contentContainerStyle={
-        {
-          "gap": 8,
-          "padding": 8,
-        }
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+          },
+          {
+            "borderRadius": 34,
+            "flex": 1,
+            "overflow": "hidden",
+          },
+        ]
       }
-      data={[]}
-      getItem={[Function]}
-      getItemCount={[Function]}
-      keyExtractor={[Function]}
-      onContentSizeChange={[Function]}
-      onLayout={[Function]}
-      onMomentumScrollBegin={[Function]}
-      onMomentumScrollEnd={[Function]}
-      onScroll={[Function]}
-      onScrollBeginDrag={[Function]}
-      onScrollEndDrag={[Function]}
-      removeClippedSubviews={false}
-      renderItem={[Function]}
-      scrollEventThrottle={0.0001}
-      stickyHeaderIndices={[]}
-      viewabilityConfigCallbackPairs={[]}
     >
-      <View />
-    </RCTScrollView>
+      <ViewManagerAdapter_ExpoBlurView
+        blurReductionFactor={4}
+        experimentalBlurMethod="none"
+        intensity={40}
+        style={
+          {
+            "bottom": 0,
+            "left": 0,
+            "position": "absolute",
+            "right": 0,
+            "top": 0,
+          }
+        }
+        tint="dark"
+      />
+      <View
+        style={
+          {
+            "backgroundColor": "rgba(7,10,22,0.26)",
+            "borderColor": "rgba(255,255,255,0.1)",
+            "borderRadius": 34,
+            "borderWidth": 1,
+            "flex": 1,
+          }
+        }
+      >
+        <RCTScrollView
+          contentContainerStyle={
+            {
+              "gap": 10,
+              "paddingBottom": 18,
+              "paddingHorizontal": 10,
+              "paddingTop": 10,
+            }
+          }
+          data={[]}
+          getItem={[Function]}
+          getItemCount={[Function]}
+          keyExtractor={[Function]}
+          onContentSizeChange={[Function]}
+          onLayout={[Function]}
+          onMomentumScrollBegin={[Function]}
+          onMomentumScrollEnd={[Function]}
+          onScroll={[Function]}
+          onScrollBeginDrag={[Function]}
+          onScrollEndDrag={[Function]}
+          removeClippedSubviews={false}
+          renderItem={[Function]}
+          scrollEventThrottle={0.0001}
+          showsVerticalScrollIndicator={false}
+          stickyHeaderIndices={[]}
+          viewabilityConfigCallbackPairs={[]}
+        >
+          <View />
+        </RCTScrollView>
+      </View>
+    </View>
   </View>
 </View>
 `;
