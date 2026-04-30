@@ -184,7 +184,7 @@ export const SettingsScreen: React.FC = () => {
     (local: typeof notificationSettings): Partial<NotificationSettings> => ({
       push_enabled: local.notifications,
       sound_enabled: local.sound,
-      vibration_enabled: local.mentions,
+      mentions_only: local.mentions,
     }),
     [],
   );
@@ -196,7 +196,7 @@ export const SettingsScreen: React.FC = () => {
     (api: NotificationSettings) => ({
       notifications: api.push_enabled,
       sound: api.sound_enabled,
-      mentions: api.vibration_enabled,
+      mentions: api.mentions_only,
     }),
     [],
   );

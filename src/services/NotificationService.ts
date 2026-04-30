@@ -80,6 +80,11 @@ export interface NotificationSettings {
   sound_enabled: boolean;
   vibration_enabled: boolean;
   show_sender_name: boolean;
+  // When true, the user only receives push notifications for messages where
+  // they are explicitly @-mentioned. Backed by user_settings.mentions_only
+  // (notification-service); per-conversation overrides live in
+  // conversation_settings.mentions_only.
+  mentions_only: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start?: string; // HH:mm
   quiet_hours_end?: string; // HH:mm
