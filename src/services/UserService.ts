@@ -17,6 +17,8 @@ export interface UserProfile {
   phoneNumber: string;
   biography: string;
   profilePicture?: string;
+  backgroundMediaId?: string;
+  backgroundMediaUrl?: string;
   isOnline: boolean;
   lastSeen?: string;
   createdAt: string;
@@ -29,6 +31,8 @@ export interface UpdateProfileRequest {
   username?: string;
   biography?: string;
   avatarMediaId?: string;
+  backgroundMediaId?: string | null;
+  backgroundMediaUrl?: string | null;
 }
 
 export interface UpdateProfileResponse {
@@ -120,6 +124,20 @@ export class UserService {
       raw.profilePictureUrl ??
       raw.profile_picture_url ??
       raw.avatar_url;
+    const backgroundMediaId =
+      raw.backgroundMediaId ??
+      raw.background_media_id ??
+      raw?.preferences?.backgroundMediaId ??
+      raw?.preferences?.background_media_id ??
+      raw?.metadata?.backgroundMediaId ??
+      raw?.metadata?.background_media_id;
+    const backgroundMediaUrl =
+      raw.backgroundMediaUrl ??
+      raw.background_media_url ??
+      raw?.preferences?.backgroundMediaUrl ??
+      raw?.preferences?.background_media_url ??
+      raw?.metadata?.backgroundMediaUrl ??
+      raw?.metadata?.background_media_url;
     return {
       id: String(raw.id ?? ""),
       firstName: String(raw.firstName ?? raw.first_name ?? ""),
@@ -128,6 +146,12 @@ export class UserService {
       phoneNumber: String(raw.phoneNumber ?? raw.phone_number ?? ""),
       biography: String(raw.biography ?? ""),
       profilePicture: profilePicture ? String(profilePicture) : undefined,
+      backgroundMediaId: backgroundMediaId
+        ? String(backgroundMediaId)
+        : undefined,
+      backgroundMediaUrl: backgroundMediaUrl
+        ? String(backgroundMediaUrl)
+        : undefined,
       isOnline: Boolean(raw.isOnline ?? raw.is_online ?? true),
       lastSeen: raw.lastSeen ?? raw.last_seen ?? undefined,
       createdAt: String(raw.createdAt ?? raw.created_at ?? ""),
@@ -341,6 +365,46 @@ export class UserService {
       return {
         success: false,
         message: "Impossible de mettre à jour la photo de profil",
+      };
+    }
+  }
+
+  async updateProfileBackground(
+    backgroundMediaId: string | null,
+    backgroundMediaUrl?: string | null,
+  ): Promise<UpdateProfileResponse> {
+    try {
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          backgroundMediaId,
+          backgroundMediaUrl: backgroundMediaUrl ?? null,
+        }),
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
+      }
+
+      const data = await response.json().catch(() => null);
+      const normalized = this.normalizeProfile(data);
+      return {
+        success: true,
+        message: "Arrière-plan mis à jour avec succès",
+        profile: normalized,
+      };
+    } catch (error) {
+      console.error("Erreur mise à jour arrière-plan:", error);
+      return {
+        success: false,
+        message: "Impossible de mettre à jour l'arrière-plan",
       };
     }
   }

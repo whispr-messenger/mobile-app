@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import { navigate } from "../../navigation/navigationRef";
+import { switchToRootTab } from "../../navigation/navigationRef";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import { useConversationsStore } from "../../store/conversationsStore";
@@ -151,7 +151,7 @@ const BottomTabBarImpl: React.FC<Props> = ({ currentRouteName }) => {
 
   const handleTabPress = useCallback((tabRoute: TabRoute) => {
     if (currentRouteRef.current !== tabRoute) {
-      navigate(tabRoute);
+      switchToRootTab(tabRoute);
     }
   }, []);
 
