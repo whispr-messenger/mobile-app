@@ -48,6 +48,7 @@ export const CallControls: React.FC<Props> = ({
               <Ctrl
                 label={muted ? "Micro" : "Micro"}
                 helper={muted ? "Activé" : "Coupé"}
+                accessibilityLabel={muted ? "Activer micro" : "Couper micro"}
                 icon={muted ? "mic-off-outline" : "mic-outline"}
                 active={!muted}
                 onPress={onToggleMute}
@@ -55,6 +56,9 @@ export const CallControls: React.FC<Props> = ({
               <Ctrl
                 label="Caméra"
                 helper={cameraOff ? "Coupée" : "Active"}
+                accessibilityLabel={
+                  cameraOff ? "Activer caméra" : "Couper caméra"
+                }
                 icon={cameraOff ? "videocam-off-outline" : "videocam-outline"}
                 active={!cameraOff}
                 onPress={onToggleCamera}
@@ -68,6 +72,7 @@ export const CallControls: React.FC<Props> = ({
               <Ctrl
                 label=""
                 helper="Fin"
+                accessibilityLabel="Fin"
                 icon="call-outline"
                 danger
                 onPress={onEnd}
@@ -83,6 +88,7 @@ export const CallControls: React.FC<Props> = ({
 interface CtrlProps {
   label: string;
   helper: string;
+  accessibilityLabel?: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   danger?: boolean;
@@ -92,6 +98,7 @@ interface CtrlProps {
 const Ctrl: React.FC<CtrlProps> = ({
   label,
   helper,
+  accessibilityLabel,
   icon,
   onPress,
   danger,
@@ -102,7 +109,7 @@ const Ctrl: React.FC<CtrlProps> = ({
     onPress={onPress}
     activeOpacity={0.85}
     accessibilityRole="button"
-    accessibilityLabel={label}
+    accessibilityLabel={accessibilityLabel || label || helper}
   >
     <View
       style={[

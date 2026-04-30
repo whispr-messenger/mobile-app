@@ -4,6 +4,22 @@ import {
 } from "@react-navigation/native";
 import type { AuthStackParamList } from "./AuthNavigator";
 
+type MinimalNavigationRef = {
+  isReady: () => boolean;
+  navigate: (name: string, params?: unknown) => void;
+  dispatch: (action: unknown) => void;
+  getCurrentRoute: () => { name: keyof AuthStackParamList } | undefined;
+};
+
+function createFallbackNavigationRef(): MinimalNavigationRef {
+  return {
+    isReady: () => false,
+    navigate: () => {},
+    dispatch: () => {},
+    getCurrentRoute: () => undefined,
+  };
+}
+
 /**
  * Global NavigationContainer ref, used by non-React code (WebSocket handlers,
  * push notification callbacks, etc.) that needs to navigate without access to
@@ -11,7 +27,14 @@ import type { AuthStackParamList } from "./AuthNavigator";
  *
  * Attach in App root: <NavigationContainer ref={navigationRef}>.
  */
-export const navigationRef = createNavigationContainerRef<AuthStackParamList>();
+const createNavigationRef =
+  typeof createNavigationContainerRef === "function"
+    ? createNavigationContainerRef
+    : <T extends object>() => createFallbackNavigationRef() as unknown as T;
+
+export const navigationRef = createNavigationRef<AuthStackParamList>() as
+  | ReturnType<typeof createNavigationContainerRef<AuthStackParamList>>
+  | MinimalNavigationRef;
 
 export function navigate<RouteName extends keyof AuthStackParamList>(
   name: RouteName,
@@ -29,11 +52,20 @@ export function switchToRootTab<RouteName extends keyof AuthStackParamList>(
   params?: AuthStackParamList[RouteName],
 ): void {
   if (navigationRef.isReady()) {
-    navigationRef.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name, params }],
-      }),
-    );
+    const resetAction =
+      typeof CommonActions?.reset === "function"
+        ? CommonActions.reset({
+            index: 0,
+            routes: [{ name, params }],
+          })
+        : {
+            type: "RESET",
+            payload: {
+              index: 0,
+              routes: [{ name, params }],
+            },
+          };
+
+    navigationRef.dispatch(resetAction);
   }
 }
