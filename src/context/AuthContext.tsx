@@ -6,14 +6,16 @@ import React, {
   useRef,
   useState,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AuthService } from "../services/AuthService";
-import { TokenService } from "../services/TokenService";
+import { AppResetService } from "../services/AppResetService";
+import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
 import { usePresenceStore } from "../store/presenceStore";
-import { cacheService } from "../services/messaging/cache";
+import { useModerationStore } from "../store/moderationStore";
+import { useCallsStore } from "../store/callsStore";
 import { onSessionExpired } from "../services/sessionEvents";
+import { useBadgeSync } from "../hooks/useBadgeSync";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -49,6 +51,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           userId: session?.userId ?? null,
           deviceId: session?.deviceId ?? null,
         });
+        if (session) {
+          void tokenRefreshScheduler.start();
+        }
       })
       .catch(() => {
         setState({
@@ -67,23 +72,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       userId,
       deviceId,
     });
+    void tokenRefreshScheduler.start();
   }, []);
 
   const signOut = useCallback(async () => {
+    // Stop the proactive refresh timer before tearing down the session so it
+    // doesn't fire a refresh against a dead session.
+    tokenRefreshScheduler.stop();
+
     // Tear down WebSocket before clearing auth state
     destroySharedSocket();
 
-    // Reset stores and caches to prevent data leaking between users
+    // Reset in-memory Zustand state so screens unmount with a clean slate.
+    // The on-disk caches are wiped by AppResetService below, but the
+    // resident state needs an explicit reset since the stores aren't
+    // persisted via AsyncStorage middleware.
     useConversationsStore.getState().reset();
     usePresenceStore.getState().reset();
-    await cacheService.clearCache();
-    await AsyncStorage.removeItem("@whispr/manually_unread_ids");
+    useModerationStore.getState().reset();
+    useCallsStore.getState().reset();
 
+    // Best-effort server-side logout. Swallow failures so the local
+    // cleanup still happens if the server is unreachable.
     if (state.deviceId && state.userId) {
-      await AuthService.logout(state.deviceId, state.userId);
-    } else {
-      await TokenService.clearTokens();
+      await AuthService.logout(state.deviceId, state.userId).catch(() => {});
     }
+
+    // WHISPR-1221 — sweep every per-account key under our prefixes
+    // (settings, caches, queued messages, manually-unread set, profile
+    // setup flag, tokens, Signal identity key, …). Allowlist preserves
+    // theme + language only.
+    await AppResetService.resetAppData();
+
     setState({
       isAuthenticated: false,
       isLoading: false,
@@ -111,6 +131,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     return () => sub.remove();
   }, []);
+
+  // WHISPR-1049: sync app icon badge on cold-start and auth transitions.
+  useBadgeSync(state.isAuthenticated);
 
   return (
     <AuthContext.Provider value={{ ...state, signIn, signOut }}>

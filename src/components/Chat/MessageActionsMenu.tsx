@@ -113,25 +113,30 @@ export const MessageActionsMenu: React.FC<MessageActionsMenuProps> = ({
               </TouchableOpacity>
             )}
 
-            {isSent && onEdit && (
-              <TouchableOpacity
-                style={styles.actionItem}
-                onPress={() => {
-                  onEdit();
-                  onClose();
-                }}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={20}
-                  color={colors.primary.main}
-                />
-                <Text style={[styles.actionText, { color: colors.text.light }]}>
-                  Modifier
-                </Text>
-              </TouchableOpacity>
-            )}
+            {isSent &&
+              onEdit &&
+              message.message_type === "text" &&
+              !message.is_deleted && (
+                <TouchableOpacity
+                  style={styles.actionItem}
+                  onPress={() => {
+                    onEdit();
+                    onClose();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={20}
+                    color={colors.primary.main}
+                  />
+                  <Text
+                    style={[styles.actionText, { color: colors.text.light }]}
+                  >
+                    Modifier
+                  </Text>
+                </TouchableOpacity>
+              )}
 
             {onPin && (
               <TouchableOpacity

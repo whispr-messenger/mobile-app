@@ -13,128 +13,45 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  NativeModules,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
-import { TokenService } from "../../services/TokenService";
-import { isReachableUrl } from "../../utils";
+import {
+  useResolvedMediaUrl,
+  uriNeedsAuthResolution,
+} from "../../hooks/useResolvedMediaUrl";
 
-/**
- * Resolve a media-service blob/thumbnail URL to a fresh presigned URL.
- * The blob/thumbnail endpoints now return 200 JSON `{ url, expiresAt }`
- * (previously a 302 redirect). We fetch with Bearer, extract `url`, and
- * reject any URL pointing at internal cluster hostnames — the browser
- * cannot resolve those and they trigger Mixed Content on https pages.
- */
-function useResolvedMediaUrl(uri: string | undefined): {
-  resolvedUri: string;
-  loading: boolean;
-  error: boolean;
-} {
-  const [resolvedUri, setResolvedUri] = useState(uri || "");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    if (!uri) {
-      setResolvedUri("");
-      return;
-    }
-
-    // Only resolve blob/thumbnail endpoints that need auth
-    const needsAuth =
-      uri.includes("/media/v1/") &&
-      (uri.includes("/blob") || uri.includes("/thumbnail"));
-
-    if (!needsAuth) {
-      setResolvedUri(uri);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(false);
-
-    (async () => {
-      try {
-        const token = await TokenService.getAccessToken();
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const response = await fetch(uri, {
-          headers,
-          redirect: "follow",
-        });
-
-        if (cancelled) return;
-
-        if (!response.ok) {
-          console.warn(
-            `[MediaMessage] Failed to resolve media URL: HTTP ${response.status}`,
-          );
-          setError(true);
-          return;
-        }
-
-        // New contract (media-service deploy/preprod ≥ cedf7f9b):
-        // `/blob` and `/thumbnail` return `{ url, expiresAt }` JSON, not a
-        // 302 redirect. Parse JSON first; fall back to response.url for the
-        // legacy 302 redirect contract.
-        let presigned: string | null = null;
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          try {
-            const body = (await response.json()) as { url?: string | null };
-            presigned = body?.url ?? null;
-          } catch {
-            presigned = null;
-          }
-        } else if (response.url && response.url !== uri) {
-          // Legacy: fetch followed a 302 — response.url is the presigned URL
-          presigned = response.url;
-        }
-
-        if (isReachableUrl(presigned)) {
-          setResolvedUri(presigned as string);
-        } else {
-          if (presigned) {
-            console.warn(
-              "[MediaMessage] Rejected unreachable media URL (cluster-internal):",
-              presigned,
-            );
-          }
-          setError(true);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        console.warn("[MediaMessage] Error resolving media URL:", err);
-        setError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [uri]);
-
-  return { resolvedUri, loading, error };
-}
-
-// Import expo-av avec gestion d'erreur
 let Video: any = null;
 let ResizeMode: any = null;
-try {
-  const expoAv = require("expo-av");
-  Video = expoAv.Video;
-  ResizeMode = expoAv.ResizeMode;
-} catch (error) {
-  console.warn("[MediaMessage] expo-av not available, using fallback:", error);
+let triedLoadingExpoAvVideo = false;
+
+function ensureExpoAvVideoLoaded(): void {
+  if (Video || triedLoadingExpoAvVideo) return;
+  triedLoadingExpoAvVideo = true;
+  const native = NativeModules as Record<string, unknown>;
+  if (!native?.ExponentAV) return;
+  try {
+    const expoAv = require("expo-av");
+    Video = expoAv.Video;
+    ResizeMode = expoAv.ResizeMode;
+  } catch (error) {
+    console.warn(
+      "[MediaMessage] expo-av not available, using fallback:",
+      error,
+    );
+  }
 }
+
+// Bornes du ratio d'affichage des images dans le chat (WHISPR-1039) :
+// au-delà, on tombe sur du `cover` graceful plutôt que de laisser un
+// panorama 5:1 ou un screenshot 1:4 casser la grille de la conversation.
+const MIN_IMAGE_ASPECT = 0.5;
+const MAX_IMAGE_ASPECT = 2.0;
 
 interface MediaMessageProps {
   uri: string;
@@ -151,6 +68,7 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   size,
   thumbnailUri,
 }) => {
+  ensureExpoAvVideoLoaded();
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const [showFullImage, setShowFullImage] = useState(false);
@@ -159,13 +77,70 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   const playerVideoRef = useRef<any>(null); // Ref for full-screen player
   const [videoStatus, setVideoStatus] = useState<any>({});
   const [thumbnailError, setThumbnailError] = useState(false);
+  // WHISPR-1039: ratio mesuré sur l'image résolue, borné pour éviter qu'une
+  // image très étirée ne casse la mise en page de la conversation.
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
 
   // Resolve blob/thumbnail URLs to fresh presigned URLs
-  const { resolvedUri: resolvedMainUri, loading: mainLoading } =
-    useResolvedMediaUrl(uri);
+  const {
+    resolvedUri: resolvedMainUri,
+    loading: mainLoading,
+    error: mainError,
+  } = useResolvedMediaUrl(uri);
   const { resolvedUri: resolvedThumbUri } = useResolvedMediaUrl(
     thumbnailUri || uri,
   );
+
+  // WHISPR-1039: on lit le ratio via l'évènement onLoad natif plutôt que
+  // Image.getSize pour fonctionner uniformément iOS/Android/web et éviter
+  // les soucis de mock côté tests.
+  const handleImageLoad = (event: {
+    nativeEvent: { source?: { width?: number; height?: number } };
+  }) => {
+    const source = event?.nativeEvent?.source;
+    const width = source?.width;
+    const height = source?.height;
+    if (!width || !height) return;
+    const raw = width / height;
+    const clamped = Math.min(MAX_IMAGE_ASPECT, Math.max(MIN_IMAGE_ASPECT, raw));
+    setImageAspectRatio(clamped);
+  };
+
+  // WHISPR-1196: sur RN Web, l'évènement `onLoad` ne fire pas toujours
+  // pour une image déjà décodée dans le cache navigateur (revenir sur une
+  // conversation déjà visitée), ce qui laisse `imageAspectRatio` à null
+  // indéfiniment. On sonde donc les dimensions via un `Image()` DOM en
+  // parallèle, et on ne pose la valeur que si `onLoad` ne l'a pas déjà
+  // fait — pas de régression iOS/Android.
+  const imagePreviewUri = resolvedThumbUri || resolvedMainUri;
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    if (type !== "image" || !imagePreviewUri) return undefined;
+    const ImageCtor =
+      typeof globalThis !== "undefined"
+        ? (globalThis as { Image?: { new (): HTMLImageElement } }).Image
+        : undefined;
+    if (typeof ImageCtor !== "function") return undefined;
+    const probe = new ImageCtor();
+    let cancelled = false;
+    probe.onload = () => {
+      if (cancelled) return;
+      const w = probe.naturalWidth;
+      const h = probe.naturalHeight;
+      if (!w || !h) return;
+      const raw = w / h;
+      const clamped = Math.min(
+        MAX_IMAGE_ASPECT,
+        Math.max(MIN_IMAGE_ASPECT, raw),
+      );
+      setImageAspectRatio((prev) => prev ?? clamped);
+    };
+    probe.src = imagePreviewUri;
+    return () => {
+      cancelled = true;
+      probe.onload = null;
+    };
+  }, [type, imagePreviewUri]);
 
   // Cleanup video refs on unmount to prevent memory leaks
   useEffect(() => {
@@ -243,11 +218,32 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             >
               <ActivityIndicator size="small" color={colors.primary.main} />
             </View>
+          ) : mainError ? (
+            <View
+              style={[
+                styles.image,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "rgba(26, 31, 58, 0.4)",
+                },
+              ]}
+            >
+              <Text style={{ color: colors.text.light }}>
+                Échec du chargement
+              </Text>
+            </View>
           ) : (
             <Image
               source={{ uri: resolvedThumbUri || resolvedMainUri }}
-              style={styles.image}
+              style={[
+                styles.image,
+                imageAspectRatio !== null
+                  ? { aspectRatio: imageAspectRatio }
+                  : null,
+              ]}
               resizeMode="cover"
+              onLoad={handleImageLoad}
             />
           )}
         </TouchableOpacity>

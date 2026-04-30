@@ -95,7 +95,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
           style: "destructive",
           onPress: async () => {
             try {
-              await contactsAPI.deleteContact(contact.id);
+              await contactsAPI.deleteContact(contact.contact_id || contact.id);
               Alert.alert("Succès", "Contact supprimé", [
                 {
                   text: "OK",

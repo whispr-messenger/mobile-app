@@ -18,7 +18,7 @@ env:
 
 jobs:
   update-deployment:
-    if: ${{ github.event.workflow_run.event == 'push' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     name: Update Deployment Manifest
 
@@ -33,6 +33,10 @@ jobs:
         with:
           app-id: ${{ secrets.ACTIONS_CD }}
           private-key: ${{ secrets.ACTIONS_CD_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            mobile-app
+            infrastructure
 
       - name: Checkout mobile-app
         uses: actions/checkout@v5
@@ -166,9 +170,9 @@ jobs:
           SHORT_SHA=$(printf "%.7s" "$COMMIT_SHA")
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
+            COMMIT_MSG="chore(deploy/mobile-web): update image to ${SHORT_SHA} (manual trigger)"
           else
-            COMMIT_MSG="🔧 chore(deploy/mobile-web): update image to ${SHORT_SHA}"
+            COMMIT_MSG="chore(deploy/mobile-web): update image to ${SHORT_SHA}"
           fi
 
           git add k8s/whispr/preprod/mobile-web/deployment.yaml

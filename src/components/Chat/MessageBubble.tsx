@@ -34,8 +34,34 @@ import { FormattedText } from "../../utils/textFormatter";
 import { isReachableUrl } from "../../utils";
 import { getApiBaseUrl } from "../../services/apiBase";
 
-/** Resolve a media URL — prepend the API base when it is a relative path */
-function resolveMediaUrl(url: string | undefined): string {
+/**
+ * True when a URL hostname points to the internal cluster (unreachable from
+ * the public network) — e.g. MinIO's in-cluster DNS `minio.minio.svc…` or
+ * other `.svc.cluster.local` entries. These hosts can leak into stored
+ * media_url values when the backend forgets to rewrite presigned URLs.
+ */
+function isInternalClusterUrl(url: string): boolean {
+  return (
+    url.includes(".svc.cluster.local") ||
+    url.includes("minio.minio") ||
+    /https?:\/\/[^/]*\.internal[:/]/.test(url) ||
+    /https?:\/\/[^/]*\.local(:\d+)?\//.test(url)
+  );
+}
+
+/**
+ * Resolve a media URL — prepend the API base for relative paths and rewrite
+ * internal cluster URLs (preprod/prod MinIO k8s DNS) to the public media
+ * proxy when a mediaId is available.
+ */
+function resolveMediaUrl(
+  url: string | null | undefined,
+  mediaId?: string,
+  kind: "blob" | "thumbnail" = "blob",
+): string {
+  if (!url && mediaId) {
+    return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/${kind}`;
+  }
   if (!url) return "";
   if (url.startsWith("file://") || url.startsWith("data:")) {
     return url;
@@ -48,12 +74,93 @@ function resolveMediaUrl(url: string | undefined): string {
     ) {
       return url;
     }
-    // Other absolute URLs (e.g. expired presigned S3/MinIO URLs) are returned as-is;
-    // the caller should prefer blob-endpoint URLs when available.
+    // Any other absolute URL: prefer the media-service proxy when we have a
+    // mediaId. Stored presigned MinIO URLs go stale when credentials rotate
+    // (SignatureDoesNotMatch), so always funnel through /media/v1/<id>/<kind>
+    // which re-signs on every request.
+    if (mediaId) {
+      return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/${kind}`;
+    }
+    // No mediaId: drop unreachable internal URLs, pass presigned URLs through
+    // as last-resort fallback.
+    if (isInternalClusterUrl(url)) {
+      return "";
+    }
     return url;
   }
   // Relative path from the API — prepend base URL
   return `${getApiBaseUrl()}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
+/**
+ * Return false for messages that have nothing to display (no text, no media,
+ * not a tombstone). Keeps the main component free of a deeply-nested guard.
+ */
+function shouldRenderMessage(message: MessageWithRelations): boolean {
+  if (message.content) return true;
+  if (message.is_deleted) return true;
+  if (message.attachments && message.attachments.length > 0) return true;
+
+  const meta = message.metadata as
+    | { media_url?: string; media_id?: string }
+    | undefined;
+  const hasMetadataMedia =
+    message.message_type === "media" &&
+    !!meta &&
+    Boolean(meta.media_url || meta.media_id);
+  return hasMetadataMedia;
+}
+
+/**
+ * WebSocket-delivered media messages may arrive without an explicit
+ * attachments array — only a `metadata` blob. Synthesise a virtual
+ * attachment so the UI can render a preview immediately.
+ */
+function buildMetadataAttachment(message: MessageWithRelations) {
+  if (message.message_type !== "media" || !message.metadata) return null;
+  const meta = message.metadata as {
+    media_url?: string;
+    media_id?: string;
+    thumbnail_url?: string;
+    media_type?: "image" | "video" | "file" | "audio";
+    filename?: string;
+    size?: number;
+    mime_type?: string;
+    duration?: number;
+  };
+  if (!meta.media_url && !meta.media_id) return null;
+
+  const mediaId = meta.media_id;
+  const apiBase = getApiBaseUrl();
+  const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
+  const thumbFallback = mediaId
+    ? `${apiBase}/media/v1/${mediaId}/thumbnail`
+    : null;
+  const blobUrl =
+    blobFallback || (isReachableUrl(meta.media_url) ? meta.media_url : null);
+  const thumbUrl =
+    thumbFallback ||
+    (isReachableUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
+
+  return {
+    id: `synth-${message.id}`,
+    message_id: message.id,
+    media_id: mediaId || message.id,
+    media_type: (meta.media_type || "image") as
+      | "image"
+      | "video"
+      | "file"
+      | "audio",
+    metadata: {
+      filename: meta.filename,
+      size: meta.size,
+      mime_type: meta.mime_type,
+      media_url: blobUrl,
+      thumbnail_url: thumbUrl,
+      duration: meta.duration,
+    },
+    created_at: message.sent_at,
+  };
 }
 
 interface MessageBubbleProps {
@@ -108,72 +215,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const themeColors = getThemeColors();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
-  // Safety check — also allow media messages that carry metadata (no attachments yet)
-  const hasMetadataMedia =
-    message?.message_type === "media" &&
-    message?.metadata &&
-    ((message.metadata as any).media_url || (message.metadata as any).media_id);
-  if (
-    !message ||
-    (!message.content &&
-      !message.is_deleted &&
-      !hasMetadataMedia &&
-      (!message.attachments || message.attachments.length === 0))
-  ) {
+  if (!message || !shouldRenderMessage(message)) {
     return null;
   }
 
-  // Check if message has media attachments.
-  // When a message arrives via WebSocket it may only carry metadata (no attachments array),
-  // so we synthesize a virtual attachment from message.metadata to display the preview.
+  // Tombstoned messages must never expose their media (audio/video/image).
+  // Attachments and metadata may still be present in the payload after a
+  // delete, but the bubble must show only "[Message supprimé]" — no
+  // playable / viewable surface. Without this guard, a deleted voice
+  // message keeps its play button and remains audible via the resolved
+  // presigned URL — a P0 data-integrity bug.
+  const isTombstoned = !!message.is_deleted;
+
   const hasExplicitAttachments =
-    message.attachments && message.attachments.length > 0;
-
-  const metadataAttachment = (() => {
-    if (
-      hasExplicitAttachments ||
-      message.message_type !== "media" ||
-      !message.metadata
-    ) {
-      return null;
-    }
-    const meta = message.metadata as any;
-    if (!meta.media_url && !meta.media_id) return null;
-
-    // Always prefer the media-service /blob proxy when we have a mediaId —
-    // stored URLs may carry the internal cluster hostname
-    // (minio.minio.svc.cluster.local) which the browser cannot resolve and
-    // would also trigger Mixed Content over https. Only fall back to the raw
-    // URL when no mediaId is available (legacy metadata).
-    const mediaId = meta.media_id;
-    const apiBase = getApiBaseUrl();
-    const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
-    const thumbFallback = mediaId
-      ? `${apiBase}/media/v1/${mediaId}/thumbnail`
-      : null;
-    const blobUrl =
-      blobFallback || (isReachableUrl(meta.media_url) ? meta.media_url : null);
-    const thumbUrl =
-      thumbFallback ||
-      (isReachableUrl(meta.thumbnail_url) ? meta.thumbnail_url : blobUrl);
-
-    return {
-      id: `synth-${message.id}`,
-      message_id: message.id,
-      media_id: mediaId || message.id,
-      media_type:
-        meta.media_type || ("image" as "image" | "video" | "file" | "audio"),
-      metadata: {
-        filename: meta.filename,
-        size: meta.size,
-        mime_type: meta.mime_type,
-        media_url: blobUrl,
-        thumbnail_url: thumbUrl,
-        duration: meta.duration,
-      },
-      created_at: message.sent_at,
-    };
-  })();
+    !isTombstoned && !!message.attachments && message.attachments.length > 0;
+  const metadataAttachment =
+    isTombstoned || hasExplicitAttachments
+      ? null
+      : buildMetadataAttachment(message);
 
   const hasMedia = hasExplicitAttachments || metadataAttachment !== null;
   const firstAttachment = hasExplicitAttachments
@@ -186,12 +245,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     message.content &&
     ["Photo", "Vidéo", "Fichier", "Message vocal"].includes(message.content);
 
-  const displayContent =
-    message.is_deleted && message.delete_for_everyone
-      ? "[Message supprimé]"
-      : hasMedia && isDefaultMediaText
-        ? "" // Don't show default text for media without caption
-        : message.content || "";
+  const displayContent = isTombstoned
+    ? "[Message supprimé]"
+    : hasMedia && isDefaultMediaText
+      ? "" // Don't show default text for media without caption
+      : message.content || "";
 
   const handleLongPress = () => {
     if (Platform.OS !== "web") {
@@ -242,7 +300,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     opacity: opacity.value,
   }));
 
-  const isForwarded = message.metadata?.forwarded === true;
+  const isForwarded =
+    !!message.forwarded_from_id || message.metadata?.forwarded === true;
   const isFailed = message.status === "failed";
 
   // Only display the sender avatar for received messages in a group conversation.
@@ -270,12 +329,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               uri={resolveMediaUrl(
                 firstAttachment.metadata.media_url ||
                   firstAttachment.metadata.thumbnail_url,
+                firstAttachment.media_id,
+                "blob",
               )}
               type={firstAttachment.media_type as any}
               filename={firstAttachment.metadata.filename}
               size={firstAttachment.metadata.size}
               thumbnailUri={resolveMediaUrl(
                 firstAttachment.metadata.thumbnail_url,
+                firstAttachment.media_id,
+                "thumbnail",
               )}
             />
           ) : null}
@@ -355,7 +418,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <>
               {firstAttachment.media_type === "audio" ? (
                 <AudioMessage
-                  uri={resolveMediaUrl(firstAttachment.metadata.media_url)}
+                  uri={resolveMediaUrl(
+                    firstAttachment.metadata.media_url,
+                    firstAttachment.media_id,
+                    "blob",
+                  )}
                   duration={firstAttachment.metadata.duration}
                   isSent={true}
                 />
@@ -364,19 +431,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   uri={resolveMediaUrl(
                     firstAttachment.metadata.media_url ||
                       firstAttachment.metadata.thumbnail_url,
+                    firstAttachment.media_id,
+                    "blob",
                   )}
                   type={firstAttachment.media_type}
                   filename={firstAttachment.metadata.filename}
                   size={firstAttachment.metadata.size}
                   thumbnailUri={resolveMediaUrl(
                     firstAttachment.metadata.thumbnail_url,
+                    firstAttachment.media_id,
+                    "thumbnail",
                   )}
                 />
               )}
             </>
           ) : null}
           {displayContent ? (
-            message.is_deleted && message.delete_for_everyone ? (
+            isTombstoned ? (
               <Text style={[styles.sentText, styles.deletedText]}>
                 {displayContent}
               </Text>
@@ -448,7 +519,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <>
             {firstAttachment.media_type === "audio" ? (
               <AudioMessage
-                uri={resolveMediaUrl(firstAttachment.metadata.media_url)}
+                uri={resolveMediaUrl(
+                  firstAttachment.metadata.media_url,
+                  firstAttachment.media_id,
+                  "blob",
+                )}
                 duration={firstAttachment.metadata.duration}
                 isSent={false}
               />
@@ -457,19 +532,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 uri={resolveMediaUrl(
                   firstAttachment.metadata.media_url ||
                     firstAttachment.metadata.thumbnail_url,
+                  firstAttachment.media_id,
+                  "blob",
                 )}
                 type={firstAttachment.media_type as "image" | "video" | "file"}
                 filename={firstAttachment.metadata.filename}
                 size={firstAttachment.metadata.size}
                 thumbnailUri={resolveMediaUrl(
                   firstAttachment.metadata.thumbnail_url,
+                  firstAttachment.media_id,
+                  "thumbnail",
                 )}
               />
             )}
           </>
         ) : null}
         {displayContent ? (
-          message.is_deleted && message.delete_for_everyone ? (
+          isTombstoned ? (
             <Text
               style={[
                 styles.receivedText,

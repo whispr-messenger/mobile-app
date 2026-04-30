@@ -21,6 +21,8 @@ interface ChatHeaderProps {
   onSearchPress?: () => void;
   onInfoPress?: () => void;
   onScheduledPress?: () => void;
+  onAudioCallPress?: () => void;
+  onVideoCallPress?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -34,6 +36,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onSearchPress,
   onInfoPress,
   onScheduledPress,
+  onAudioCallPress,
+  onVideoCallPress,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -45,8 +49,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
       <TouchableOpacity
-        onPress={() => navigation.goBack()}
+        onPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            (navigation as any).navigate("ConversationsList");
+          }
+        }}
         style={styles.backButton}
+        accessibilityRole="button"
+        accessibilityLabel="Retour"
       >
         <Ionicons
           name="arrow-back"
@@ -54,26 +66,32 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           color={themeColors.text.primary}
         />
       </TouchableOpacity>
-      {conversationType === "group" && groupAvatarNodes.length > 0 ? (
-        <View style={styles.groupAvatarStack}>
-          {groupAvatarNodes.map((a, idx) => (
-            <View
-              key={`${a.uri ?? a.name}-${idx}`}
-              style={[
-                styles.groupAvatarItem,
-                idx === 1 ? styles.groupAvatarItemTop : null,
-              ]}
-            >
-              <Avatar size={22} uri={a.uri} name={a.name} />
-            </View>
-          ))}
-        </View>
+      {conversationType === "group" ? (
+        avatarUrl ? (
+          <Avatar size={32} uri={avatarUrl} name={conversationName} />
+        ) : groupAvatarNodes.length > 0 ? (
+          <View style={styles.groupAvatarStack}>
+            {groupAvatarNodes.map((a, idx) => (
+              <View
+                key={`${a.uri ?? a.name}-${idx}`}
+                style={[
+                  styles.groupAvatarItem,
+                  idx === 1 ? styles.groupAvatarItemTop : null,
+                ]}
+              >
+                <Avatar size={22} uri={a.uri} name={a.name} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Avatar size={32} name={conversationName} />
+        )
       ) : (
         <Avatar
           size={32}
           uri={avatarUrl}
           name={conversationName}
-          showOnlineBadge={conversationType === "direct"}
+          showOnlineBadge
           isOnline={isOnline}
         />
       )}
@@ -115,10 +133,40 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </View>
       <View style={styles.actions}>
+        {onAudioCallPress && (
+          <TouchableOpacity
+            onPress={onAudioCallPress}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Appel audio"
+          >
+            <Ionicons
+              name="call-outline"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
+        {onVideoCallPress && (
+          <TouchableOpacity
+            onPress={onVideoCallPress}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Appel video"
+          >
+            <Ionicons
+              name="videocam-outline"
+              size={22}
+              color={themeColors.text.primary}
+            />
+          </TouchableOpacity>
+        )}
         {onScheduledPress && (
           <TouchableOpacity
             onPress={onScheduledPress}
             style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Messages programmés"
           >
             <Ionicons
               name="timer-outline"
@@ -128,7 +176,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           </TouchableOpacity>
         )}
         {onSearchPress && (
-          <TouchableOpacity onPress={onSearchPress} style={styles.actionButton}>
+          <TouchableOpacity
+            onPress={onSearchPress}
+            style={styles.actionButton}
+            accessibilityRole="button"
+            accessibilityLabel="Rechercher dans la conversation"
+          >
             <Ionicons
               name="search"
               size={22}
@@ -141,6 +194,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             onInfoPress?.();
           }}
           style={styles.actionButton}
+          accessibilityRole="button"
+          accessibilityLabel="Détails de la conversation"
         >
           <Ionicons
             name="information-circle-outline"

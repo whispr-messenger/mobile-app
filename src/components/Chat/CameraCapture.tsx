@@ -84,7 +84,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   // Log component lifecycle
   useEffect(() => {
     if (visible) {
-      console.log("[CameraCapture] Modal opened");
       modalOpacity.value = withTiming(1, { duration: 300 });
       modalTranslateY.value = withSpring(0, { damping: 20, stiffness: 90 });
 
@@ -104,14 +103,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", (e) => {
       setKeyboardHeight(e.endCoordinates.height);
-      console.log(
-        "[CameraCapture] Keyboard shown, height:",
-        e.endCoordinates.height,
-      );
     });
     const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
       setKeyboardHeight(0);
-      console.log("[CameraCapture] Keyboard hidden");
     });
 
     return () => {
@@ -145,14 +139,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Request camera permissions
   const requestCameraPermissions = useCallback(async () => {
-    console.log("[CameraCapture] Requesting camera permissions...");
     try {
       const permissionResult =
         await ImagePicker.requestCameraPermissionsAsync();
-      console.log(
-        "[CameraCapture] Permission result:",
-        JSON.stringify(permissionResult, null, 2),
-      );
 
       if (!permissionResult) {
         console.error("[CameraCapture] Permission result is null");
@@ -172,7 +161,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         return false;
       }
 
-      console.log("[CameraCapture] Permission granted");
       return true;
     } catch (error: any) {
       console.error("[CameraCapture] Error requesting permissions:", error);
@@ -183,16 +171,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Handle photo capture
   const handleTakePhoto = useCallback(async () => {
-    console.log("[CameraCapture] handleTakePhoto called");
-
     const hasPermission = await requestCameraPermissions();
     if (!hasPermission) {
-      console.log("[CameraCapture] Permission denied, aborting photo capture");
       return;
     }
 
     try {
-      console.log("[CameraCapture] Launching camera for photo...");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Animation button press
@@ -201,25 +185,19 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         withSpring(1, { damping: 10 }),
       );
 
+      // WHISPR-1197 : pas de `quality` pour préserver le format natif de
+      // l'appareil photo (HEIC sur iOS si "Haute efficacité" est actif).
+      // Imposer une qualité re-encoderait systématiquement en JPEG.
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.9,
         cameraType:
           cameraType === "front"
             ? ImagePicker.CameraType.front
             : ImagePicker.CameraType.back,
       });
 
-      console.log("[CameraCapture] Camera result:", {
-        canceled: result.canceled,
-        assetsCount: result.assets?.length || 0,
-        hasAssets: !!result.assets && result.assets.length > 0,
-      });
-
       if (!result.canceled && result.assets && result.assets[0]) {
-        console.log("[CameraCapture] Photo captured successfully");
-
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCapturedMedia({
           uri: result.assets[0].uri,
@@ -229,10 +207,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         // Animate preview appearance
         previewScale.value = withSpring(1, { damping: 15 });
         previewOpacity.value = withTiming(1, { duration: 400 });
-
-        console.log("[CameraCapture] Preview state updated");
       } else {
-        console.log("[CameraCapture] Photo capture canceled or no assets");
       }
     } catch (error: any) {
       console.error("[CameraCapture] Error taking photo:", error);
@@ -250,20 +225,15 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   // Handle video capture
   const handleTakeVideo = useCallback(async () => {
     if (!allowVideo) {
-      console.log("[CameraCapture] Video not allowed, aborting");
       return;
     }
 
-    console.log("[CameraCapture] handleTakeVideo called");
-
     const hasPermission = await requestCameraPermissions();
     if (!hasPermission) {
-      console.log("[CameraCapture] Permission denied, aborting video capture");
       return;
     }
 
     try {
-      console.log("[CameraCapture] Launching camera for video...");
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Animation button press
@@ -283,15 +253,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         videoMaxDuration: 60,
       });
 
-      console.log("[CameraCapture] Video result:", {
-        canceled: result.canceled,
-        assetsCount: result.assets?.length || 0,
-        hasAssets: !!result.assets && result.assets.length > 0,
-      });
-
       if (!result.canceled && result.assets && result.assets[0]) {
-        console.log("[CameraCapture] Video captured successfully");
-
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCapturedMedia({
           uri: result.assets[0].uri,
@@ -301,10 +263,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         // Animate preview appearance
         previewScale.value = withSpring(1, { damping: 15 });
         previewOpacity.value = withTiming(1, { duration: 400 });
-
-        console.log("[CameraCapture] Preview state updated");
       } else {
-        console.log("[CameraCapture] Video capture canceled or no assets");
       }
     } catch (error: any) {
       console.error("[CameraCapture] Error taking video:", error);
@@ -323,12 +282,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   // Toggle camera (front/back)
   const handleToggleCamera = useCallback(() => {
     const newType = cameraType === "back" ? "front" : "back";
-    console.log(
-      "[CameraCapture] Toggling camera from",
-      cameraType,
-      "to",
-      newType,
-    );
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Animate rotation
@@ -342,7 +295,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Retake photo/video
   const handleRetake = useCallback(() => {
-    console.log("[CameraCapture] Retake requested");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     previewScale.value = withTiming(0.8, { duration: 200 });
@@ -352,13 +304,10 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       previewScale.value = 0.8;
       previewOpacity.value = 0;
     });
-
-    console.log("[CameraCapture] Preview reset");
   }, [previewScale, previewOpacity]);
 
   // Handle caption change
   const handleCaptionChange = useCallback((text: string) => {
-    console.log("[CameraCapture] Caption changed:", text.length, "characters");
     setCaption(text);
   }, []);
 
@@ -369,7 +318,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       return;
     }
 
-    console.log("[CameraCapture] Confirming capture");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     onCapture({
@@ -379,7 +327,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     });
 
     // Reset state
-    console.log("[CameraCapture] Resetting state after confirmation");
     setCapturedMedia(null);
     setCaption("");
     onClose();
@@ -387,7 +334,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
   // Cancel
   const handleCancel = useCallback(() => {
-    console.log("[CameraCapture] Cancel requested");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCapturedMedia(null);
     setCaption("");
@@ -501,11 +447,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                             source={{ uri: capturedMedia.uri }}
                             style={styles.previewImage}
                             resizeMode="cover"
-                            onLoad={() =>
-                              console.log(
-                                "[CameraCapture] Preview image loaded",
-                              )
-                            }
+                            onLoad={() => {}}
                             onError={(error) =>
                               console.error(
                                 "[CameraCapture] Preview image error:",
