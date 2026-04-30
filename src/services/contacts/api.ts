@@ -134,6 +134,19 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
   return promise;
 };
 
+// Some backend search endpoints return `200` with an empty body when no
+// match is found, which makes `response.json()` throw. Read as text first
+// and treat empty/whitespace-only payloads as `null` to avoid noisy errors.
+const parseJsonSafe = async (response: Response): Promise<unknown> => {
+  const text = await response.text().catch(() => "");
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
 const buildSearchResult = (
   u: any,
   contactIds?: Set<string>,
@@ -419,7 +432,10 @@ export const contactsAPI = {
       )
         .then(async (r) => {
           if (!r.ok) return [];
-          const user = await r.json().catch(() => null);
+          const data = (await parseJsonSafe(r)) as any;
+          // WHISPR-1233 — backend wraps the response as `{ user: User | null }`.
+          // Fall back to the raw payload for backwards compatibility.
+          const user = data?.user ?? data;
           if (!user?.id && !user?.userId) return [];
           return [buildSearchResult(user, contactIds, blockedIds)];
         })
@@ -436,7 +452,7 @@ export const contactsAPI = {
       )
         .then(async (r) => {
           if (!r.ok) return [];
-          const data = await r.json().catch(() => []);
+          const data = (await parseJsonSafe(r)) as any;
           const items = Array.isArray(data)
             ? data
             : Array.isArray(data?.results)
@@ -461,12 +477,16 @@ export const contactsAPI = {
         )
           .then(async (r) => {
             if (!r.ok) return [];
-            const data = await r.json().catch(() => null);
+            const data = (await parseJsonSafe(r)) as any;
             if (!data) return [];
-            const items = Array.isArray(data)
-              ? data
-              : data?.id || data?.userId
-                ? [data]
+            // WHISPR-1233 — backend wraps the response as `{ user: User | null }`.
+            // Unwrap it; fall back to the raw payload for backwards compatibility.
+            const payload = data?.user !== undefined ? data.user : data;
+            if (!payload) return [];
+            const items = Array.isArray(payload)
+              ? payload
+              : payload?.id || payload?.userId
+                ? [payload]
                 : [];
             return items
               .filter((u: any) => u?.id || u?.userId)
@@ -520,7 +540,7 @@ export const contactsAPI = {
       });
 
       if (batchResponse.ok) {
-        const data = await batchResponse.json();
+        const data = (await parseJsonSafe(batchResponse)) as any;
         const items = Array.isArray(data)
           ? data
           : Array.isArray(data?.results)
@@ -556,13 +576,18 @@ export const contactsAPI = {
         );
         if (!response.ok) continue;
 
-        const data = await response.json().catch(() => null);
+        const data = (await parseJsonSafe(response)) as any;
         if (!data) continue;
 
-        const items = Array.isArray(data)
-          ? data
-          : data?.id || data?.userId
-            ? [data]
+        // WHISPR-1233 — backend wraps the response as `{ user: User | null }`.
+        // Unwrap it; fall back to the raw payload for backwards compatibility.
+        const payload = data?.user !== undefined ? data.user : data;
+        if (!payload) continue;
+
+        const items = Array.isArray(payload)
+          ? payload
+          : payload?.id || payload?.userId
+            ? [payload]
             : [];
 
         for (const u of items) {
