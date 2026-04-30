@@ -54,6 +54,7 @@ function runExpo(expoArgs, env) {
     cwd: projectRoot,
     env,
     stdio: "inherit",
+    shell: process.platform === "win32",
   });
 
   child.on("exit", (code) => {
@@ -66,18 +67,19 @@ function runExpo(expoArgs, env) {
   });
 }
 
-if (mode === "preprod") {
+if (mode === "preprod" || mode === "preprod-android") {
   const env = {
     ...buildLocalExpoEnv(),
     EXPO_PUBLIC_API_BASE_URL: PREPROD_API_BASE_URL,
   };
+  const expoCommand = mode === "preprod-android" ? "run:android" : "run:ios";
 
   const buildOnly = envWantsBuild || passthroughArgs.includes("--build");
   const hostArgPresent = passthroughArgs.some((arg) =>
     arg === "--host" || arg.startsWith("--host="),
   );
   const finalArgs = buildOnly
-    ? ["run:ios", "--port", PREPROD_PORT]
+    ? [expoCommand, "--port", PREPROD_PORT]
     : [
         "start",
         "--dev-client",
