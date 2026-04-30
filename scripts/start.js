@@ -12,7 +12,14 @@ const rawArgs = process.argv.slice(2);
 const dryRun = rawArgs.includes("--dry-run");
 const normalizedArgs = rawArgs.filter((arg) => arg !== "--dry-run");
 const preprodAliases = new Set(["preprod", "--preprod"]);
-const isPreprod = normalizedArgs.some((arg) => preprodAliases.has(arg));
+const envWantsPreprod =
+  process.env.npm_config_preprod === "true" ||
+  process.env.npm_config_preprod === "1";
+const envWantsBuild =
+  process.env.npm_config_build === "true" ||
+  process.env.npm_config_build === "1";
+const isPreprod =
+  envWantsPreprod || normalizedArgs.some((arg) => preprodAliases.has(arg));
 const mode = isPreprod ? "preprod" : normalizedArgs[0];
 const passthroughArgs = normalizedArgs.filter((arg) => !preprodAliases.has(arg));
 
@@ -65,7 +72,7 @@ if (mode === "preprod") {
     EXPO_PUBLIC_API_BASE_URL: PREPROD_API_BASE_URL,
   };
 
-  const buildOnly = passthroughArgs.includes("--build");
+  const buildOnly = envWantsBuild || passthroughArgs.includes("--build");
   const hostArgPresent = passthroughArgs.some((arg) =>
     arg === "--host" || arg.startsWith("--host="),
   );

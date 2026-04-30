@@ -34,6 +34,7 @@ import {
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
+import { switchToRootTab } from "../../navigation/navigationRef";
 import {
   DEFAULT_MODERATION_MODEL,
   getModerationModelVersion,
@@ -73,6 +74,15 @@ export const SettingsScreen: React.FC = () => {
   const { fetchMyRole } = useModerationStore();
   const isStaff = useIsStaff();
   const insets = useSafeAreaInsets();
+
+  const handleBackPress = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    switchToRootTab("ConversationsList");
+  }, [navigation]);
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
@@ -694,7 +704,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={handleBackPress}
             accessibilityRole="button"
             accessibilityLabel="Retour"
             accessibilityHint="Ferme les réglages"
