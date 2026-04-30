@@ -12,6 +12,9 @@ import { systemCallProvider } from "../../services/calls/systemCallProvider";
 import { CallParticipantTile } from "../../components/Calls/CallParticipantTile";
 import { CallControls } from "../../components/Calls/CallControls";
 import { colors, withOpacity } from "../../theme/colors";
+import { Avatar } from "../../components/Chat/Avatar";
+import { messagingAPI } from "../../services/messaging/api";
+import { TokenService } from "../../services/TokenService";
 
 /**
  * In-call UI: status header (ringing/connected + elapsed time), grid of
@@ -29,6 +32,8 @@ export const InCallScreen: React.FC = () => {
   const [camOff, setCamOff] = useState(false);
   const [connectedAt, setConnectedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [selfDisplayName, setSelfDisplayName] = useState<string>("");
+  const [selfAvatarUrl, setSelfAvatarUrl] = useState<string | undefined>();
 
   useEffect(() => {
     const room = active?.room;
@@ -73,6 +78,28 @@ export const InCallScreen: React.FC = () => {
     if (!active?.callId || connectedAt === null) return;
     void systemCallProvider.markCallConnected(active.callId);
   }, [active?.callId, connectedAt]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSelfIdentity = async () => {
+      const token = await TokenService.getAccessToken();
+      const userId = token ? TokenService.decodeAccessToken(token)?.sub : null;
+      if (!userId) return;
+
+      const me = await messagingAPI.getUserInfo(userId).catch(() => null);
+      if (!me || cancelled) return;
+
+      setSelfDisplayName(me.display_name || me.username || "");
+      setSelfAvatarUrl(me.avatar_url);
+    };
+
+    void loadSelfIdentity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Safety net: if the user navigates away (system back, tab close, etc.)
   // without pressing the end button, end the call so the room is disconnected
@@ -129,6 +156,7 @@ export const InCallScreen: React.FC = () => {
 
   const numColumns = participants.length <= 4 ? 2 : 3;
   const remoteLabel = active?.displayName;
+  const remoteAvatarUrl = active?.avatarUrl;
   const isVideoCall = active?.type === "video";
 
   return (
@@ -162,6 +190,11 @@ export const InCallScreen: React.FC = () => {
                     : "En communication"}
                 </Text>
               </View>
+              {!!remoteLabel && (
+                <View style={styles.remoteAvatarWrap}>
+                  <Avatar uri={remoteAvatarUrl} name={remoteLabel} size={72} />
+                </View>
+              )}
               {!!remoteLabel && (
                 <Text style={styles.remoteLabel} numberOfLines={1}>
                   {remoteLabel}
@@ -218,6 +251,9 @@ export const InCallScreen: React.FC = () => {
                   <CallParticipantTile
                     participant={item}
                     displayName={!item.isLocal ? remoteLabel : undefined}
+                    avatarUrl={!item.isLocal ? remoteAvatarUrl : undefined}
+                    selfDisplayName={selfDisplayName}
+                    selfAvatarUrl={selfAvatarUrl}
                   />
                 )}
                 contentContainerStyle={styles.gridContent}
@@ -305,6 +341,15 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     marginTop: 16,
     textAlign: "center",
+  },
+  remoteAvatarWrap: {
+    alignSelf: "center",
+    marginTop: 16,
+    padding: 6,
+    borderRadius: 42,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
   hint: {
     color: "rgba(255,255,255,0.72)",

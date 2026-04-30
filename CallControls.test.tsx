@@ -57,7 +57,7 @@ describe('CallControls', () => {
   it('fires onEnd when end button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Raccrocher'));
+    fireEvent.press(getByLabelText('Fin'));
     expect(props.onEnd).toHaveBeenCalledTimes(1);
   });
 });
