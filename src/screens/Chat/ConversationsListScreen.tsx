@@ -18,8 +18,15 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
+import {
+  FLOATING_TAB_BAR_BORDER_RADIUS,
+  FLOATING_TAB_BAR_BOTTOM_OFFSET,
+  FLOATING_TAB_BAR_HORIZONTAL_MARGIN,
+  FLOATING_TAB_BAR_PILL_HEIGHT,
+  FLOATING_TAB_BAR_RESERVED_SPACE,
+} from "../../components/Navigation/floatingTabBarLayout";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,6 +44,7 @@ import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import Toast from "../../components/Toast/Toast";
 import { useConversationsStore } from "../../store/conversationsStore";
+import { useUIStore } from "../../store/uiStore";
 import { messagingAPI } from "../../services/messaging/api";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { getConversationDisplayName } from "../../utils";
@@ -71,14 +79,20 @@ export const ConversationsListScreen: React.FC = () => {
   const pinConversation = useConversationsStore((s) => s.pinConversation);
   const markAsUnread = useConversationsStore((s) => s.markAsUnread);
   const clearManualUnread = useConversationsStore((s) => s.clearManualUnread);
+  const resetUnreadCount = useConversationsStore((s) => s.resetUnreadCount);
   const loadManuallyUnreadIds = useConversationsStore(
     (s) => s.loadManuallyUnreadIds,
   );
+  const setBottomTabBarHidden = useUIStore((s) => s.setBottomTabBarHidden);
 
   // UI-only state
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [editMode, setEditMode] = useState(false);
+  useEffect(() => {
+    setBottomTabBarHidden(editMode);
+    return () => setBottomTabBarHidden(false);
+  }, [editMode, setBottomTabBarHidden]);
   const [selectedConversations, setSelectedConversations] = useState<
     Set<string>
   >(new Set());
@@ -142,20 +156,22 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
-  const { connectionState, joinConversationChannel } = useWebSocket({
-    userId,
-    token,
-    onNewMessage: (message: Message) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      applyNewMessage(message, userId);
+  const { connectionState, joinConversationChannel, markAsRead } = useWebSocket(
+    {
+      userId,
+      token,
+      onNewMessage: (message: Message) => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        applyNewMessage(message, userId);
+      },
+      onConversationUpdate: (conversation: Conversation) => {
+        applyConversationUpdate(conversation);
+      },
+      onConversationSummaries: (conversations: Conversation[]) => {
+        applyConversationSummaries(conversations);
+      },
     },
-    onConversationUpdate: (conversation: Conversation) => {
-      applyConversationUpdate(conversation);
-    },
-    onConversationSummaries: (conversations: Conversation[]) => {
-      applyConversationSummaries(conversations);
-    },
-  });
+  );
 
   // Subscribe to every visible conversation so we receive presence_diff /
   // presence_state events for members. Without this, the list items show
@@ -301,17 +317,34 @@ export const ConversationsListScreen: React.FC = () => {
     [muteConversation],
   );
 
-  const handleUnread = useCallback(
-    (conversationId: string) => {
+  const handleToggleRead = useCallback(
+    (conversationId: string, isCurrentlyUnread: boolean) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      markAsUnread(conversationId);
-      setToast({
-        visible: true,
-        message: "Conversation marquée comme non lue",
-        type: "info",
-      });
+      if (isCurrentlyUnread) {
+        clearManualUnread(conversationId);
+        resetUnreadCount(conversationId);
+        const conv = useConversationsStore
+          .getState()
+          .conversations.find((c) => c.id === conversationId);
+        const lastMessageId = conv?.last_message?.id;
+        if (lastMessageId) {
+          markAsRead(conversationId, lastMessageId);
+        }
+        setToast({
+          visible: true,
+          message: "Conversation marquée comme lue",
+          type: "info",
+        });
+      } else {
+        markAsUnread(conversationId);
+        setToast({
+          visible: true,
+          message: "Conversation marquée comme non lue",
+          type: "info",
+        });
+      }
     },
-    [markAsUnread],
+    [markAsUnread, clearManualUnread, resetUnreadCount, markAsRead],
   );
 
   const handleArchive = useCallback(
@@ -336,7 +369,7 @@ export const ConversationsListScreen: React.FC = () => {
         onPress={handleConversationPress}
         onDelete={handleDelete}
         onMute={handleMute}
-        onUnread={handleUnread}
+        onToggleRead={handleToggleRead}
         onArchive={handleArchive}
         onPin={handlePin}
         index={index}
@@ -348,7 +381,7 @@ export const ConversationsListScreen: React.FC = () => {
       handleConversationPress,
       handleDelete,
       handleMute,
-      handleUnread,
+      handleToggleRead,
       handleArchive,
       handlePin,
       editMode,
@@ -448,7 +481,7 @@ export const ConversationsListScreen: React.FC = () => {
                 setSelectedConversations(new Set());
               }
             }}
-            style={styles.headerButton}
+            style={[styles.headerButton, styles.editButtonPill]}
           >
             <Text style={[styles.editButton, { color: colors.text.light }]}>
               {editMode ? "Annuler" : "Modifier"}
@@ -550,54 +583,6 @@ export const ConversationsListScreen: React.FC = () => {
 
         {renderContent()}
 
-        {editMode && selectedConversations.size > 0 && (
-          <View style={styles.editActionsBar}>
-            <TouchableOpacity
-              style={styles.editActionButton}
-              onPress={handleBulkDelete}
-            >
-              <Ionicons
-                name="trash-outline"
-                size={24}
-                color={colors.ui.error}
-              />
-              <Text style={styles.editActionText}>Supprimer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editActionButton}
-              onPress={handleBulkArchive}
-            >
-              <Ionicons
-                name="archive-outline"
-                size={24}
-                color={colors.secondary.main}
-              />
-              <Text style={styles.editActionText}>Archiver</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.editActionButton}
-              onPress={handleSelectAll}
-            >
-              <Ionicons
-                name={
-                  selectedConversations.size ===
-                  filteredAndSortedConversations.length
-                    ? "checkmark-done-outline"
-                    : "checkmark-outline"
-                }
-                size={24}
-                color={colors.primary.main}
-              />
-              <Text style={styles.editActionText}>
-                {selectedConversations.size ===
-                filteredAndSortedConversations.length
-                  ? "Tout désélectionner"
-                  : "Tout sélectionner"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         <Toast
           visible={toast.visible}
           message={toast.message}
@@ -605,6 +590,100 @@ export const ConversationsListScreen: React.FC = () => {
           onHide={() => setToast({ ...toast, visible: false })}
         />
       </SafeAreaView>
+
+      {editMode && (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.editActionsFloating,
+            { bottom: FLOATING_TAB_BAR_BOTTOM_OFFSET + insets.bottom },
+          ]}
+        >
+          <View style={styles.editActionsShadow}>
+            <View style={styles.editActionsClip}>
+              <BlurView
+                intensity={Platform.OS === "ios" ? 60 : 80}
+                tint="dark"
+                style={styles.editActionsBlur}
+              >
+                <View style={styles.editActionsOverlay}>
+                  <View style={styles.editActionsRow}>
+                    <TouchableOpacity
+                      style={styles.editActionButton}
+                      onPress={handleBulkDelete}
+                      disabled={selectedConversations.size === 0}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={24}
+                        color={
+                          selectedConversations.size === 0
+                            ? "rgba(255, 80, 80, 0.4)"
+                            : colors.ui.error
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.editActionText,
+                          selectedConversations.size === 0 &&
+                            styles.editActionTextDisabled,
+                        ]}
+                      >
+                        Supprimer
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.editActionButton}
+                      onPress={handleBulkArchive}
+                      disabled={selectedConversations.size === 0}
+                    >
+                      <Ionicons
+                        name="archive-outline"
+                        size={24}
+                        color={
+                          selectedConversations.size === 0
+                            ? "rgba(255, 255, 255, 0.4)"
+                            : colors.text.light
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.editActionText,
+                          selectedConversations.size === 0 &&
+                            styles.editActionTextDisabled,
+                        ]}
+                      >
+                        Archiver
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.editActionButton}
+                      onPress={handleSelectAll}
+                    >
+                      <Ionicons
+                        name={
+                          selectedConversations.size ===
+                          filteredAndSortedConversations.length
+                            ? "checkmark-done-outline"
+                            : "checkmark-outline"
+                        }
+                        size={24}
+                        color={colors.primary.main}
+                      />
+                      <Text style={styles.editActionText}>
+                        {selectedConversations.size ===
+                        filteredAndSortedConversations.length
+                          ? "Désélec."
+                          : "Tout sélec."}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </BlurView>
+            </View>
+          </View>
+        </View>
+      )}
 
       <NewConversationModal
         visible={showNewConversationModal}
@@ -645,19 +724,26 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   headerButton: {
-    padding: 4,
-    minWidth: 44,
     alignItems: "center",
     justifyContent: "center",
   },
+  editButtonPill: {
+    height: 40,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+  },
   editButton: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "500",
   },
   composeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -699,38 +785,54 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  editActionsBar: {
+  editActionsFloating: {
+    position: "absolute",
+    left: FLOATING_TAB_BAR_HORIZONTAL_MARGIN,
+    right: FLOATING_TAB_BAR_HORIZONTAL_MARGIN,
+  },
+  editActionsShadow: {
+    borderRadius: FLOATING_TAB_BAR_BORDER_RADIUS,
+    shadowColor: "#000",
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+    backgroundColor: "transparent",
+  },
+  editActionsClip: {
+    borderRadius: FLOATING_TAB_BAR_BORDER_RADIUS,
+    overflow: "hidden",
+  },
+  editActionsBlur: {
+    borderRadius: FLOATING_TAB_BAR_BORDER_RADIUS,
+  },
+  editActionsOverlay: {
+    borderRadius: FLOATING_TAB_BAR_BORDER_RADIUS,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+    backgroundColor:
+      Platform.OS === "ios"
+        ? "rgba(20, 25, 50, 0.35)"
+        : "rgba(20, 25, 50, 0.7)",
+  },
+  editActionsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    height: FLOATING_TAB_BAR_PILL_HEIGHT,
+    paddingHorizontal: 4,
   },
   editActionButton: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginHorizontal: 4,
+    justifyContent: "center",
+    paddingVertical: 6,
   },
   editActionText: {
-    color: "#1A1625",
+    color: colors.text.light,
     fontSize: 12,
-    fontWeight: "600",
-    marginTop: 6,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  editActionTextDisabled: {
+    color: "rgba(255, 255, 255, 0.4)",
   },
 });
