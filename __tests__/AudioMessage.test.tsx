@@ -68,7 +68,7 @@ beforeEach(() => {
 describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => {
   it("streams via /blob?stream=1 and passes the proxied blob URL — never the presigned URL — to Audio.Sound.createAsync", async () => {
     const presigned =
-      "https://minio.whispr.devzeyu.com/bucket/voice.m4a?X-Amz-Signature=abc";
+      "https://minio.whispr-preprod.roadmvn.com/bucket/voice.m4a?X-Amz-Signature=abc";
     const fetchSpy = jest.fn().mockImplementation((url: string) => {
       if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
       return Promise.resolve(mockFetchJson({ url: presigned }));
@@ -77,7 +77,7 @@ describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => 
 
     const { UNSAFE_getAllByType } = render(
       <AudioMessage
-        uri="https://whispr.devzeyu.com/media/v1/abc/blob"
+        uri="https://whispr-preprod.roadmvn.com/media/v1/abc/blob"
         duration={3}
       />,
     );

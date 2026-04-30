@@ -6,8 +6,8 @@ import { TwoFactorService } from "../src/services/TwoFactorService";
 // expo-secure-store is mocked globally in jest.setup.js (WHISPR-994).
 
 jest.mock("../src/services/apiBase", () => ({
-  getApiBaseUrl: () => "https://whispr.devzeyu.com",
-  getWsBaseUrl: () => "wss://whispr.devzeyu.com",
+  getApiBaseUrl: () => "https://whispr-preprod.roadmvn.com",
+  getWsBaseUrl: () => "wss://whispr-preprod.roadmvn.com",
 }));
 
 const mockNavigate = jest.fn();

@@ -71,13 +71,13 @@ afterAll(() => {
   global.fetch = originalFetch;
 });
 
-const mediaUrl = "https://whispr.devzeyu.com/media/v1/abc/blob";
-const thumbUrl = "https://whispr.devzeyu.com/media/v1/abc/thumbnail";
+const mediaUrl = "https://whispr-preprod.roadmvn.com/media/v1/abc/blob";
+const thumbUrl = "https://whispr-preprod.roadmvn.com/media/v1/abc/thumbnail";
 
 describe("MediaMessage useResolvedMediaUrl (WHISPR-1216)", () => {
   it("always streams via /blob?stream=1 — never exposes the presigned URL", async () => {
     const presigned =
-      "https://minio.whispr.devzeyu.com/bucket/x.jpg?X-Amz-Signature=deadbeef";
+      "https://minio.whispr-preprod.roadmvn.com/bucket/x.jpg?X-Amz-Signature=deadbeef";
     const fetchSpy = jest.fn().mockImplementation((url: string) => {
       if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
       return Promise.resolve(mockFetchJson({ url: presigned }));
@@ -113,7 +113,7 @@ describe("MediaMessage useResolvedMediaUrl (WHISPR-1216)", () => {
     // URL — fetch follows the redirect and exposes the target via
     // response.url. The hook must NOT use it.
     const presignedRedirectTarget =
-      "https://minio.whispr.devzeyu.com/bucket/x.jpg?X-Amz-Signature=foo";
+      "https://minio.whispr-preprod.roadmvn.com/bucket/x.jpg?X-Amz-Signature=foo";
     const fetchSpy = jest.fn().mockImplementation((url: string) => {
       if (url.includes("stream=1")) return Promise.resolve(mockFetchBytes());
       return Promise.resolve({

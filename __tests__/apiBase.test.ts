@@ -15,7 +15,7 @@ jest.mock("expo-constants", () => ({
   default: mockConstants,
 }));
 
-const FALLBACK_DEV = "https://whispr.devzeyu.com";
+const FALLBACK_DEV = "https://whispr-preprod.roadmvn.com";
 
 describe("getApiBaseUrl", () => {
   const originalDev = (global as { __DEV__?: boolean }).__DEV__;
@@ -54,13 +54,13 @@ describe("getApiBaseUrl", () => {
     expect(getApiBaseUrl()).toBe("https://from-constants.test");
   });
 
-  it("falls back to whispr.devzeyu.com in dev when no source resolves", () => {
+  it("falls back to whispr-preprod.roadmvn.com in dev when no source resolves", () => {
     (global as { __DEV__?: boolean }).__DEV__ = true;
     const { getApiBaseUrl } = require("../src/services/apiBase");
     expect(getApiBaseUrl()).toBe(FALLBACK_DEV);
   });
 
-  it("throws in production when no source resolves (no roadmvn fallback)", () => {
+  it("throws in production when no source resolves (no devzeyu fallback)", () => {
     (global as { __DEV__?: boolean }).__DEV__ = false;
     const { getApiBaseUrl } = require("../src/services/apiBase");
     expect(() => getApiBaseUrl()).toThrow(/API base URL not configured/);
