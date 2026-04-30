@@ -9,7 +9,7 @@ jest.mock('livekit-client', () => ({
   Track: { Source: { Camera: 'camera' } },
 }));
 
-import { CallParticipantTile } from './src/components/Calls/CallParticipantTile';
+import { CallParticipantTile } from '../src/components/Calls/CallParticipantTile';
 
 const makeParticipant = (opts: {
   identity: string;
@@ -40,13 +40,19 @@ describe('CallParticipantTile', () => {
 
   it('renders the participant identity when no video track is published', () => {
     const p = makeParticipant({ identity: 'alice' });
-    const { getByText } = render(<CallParticipantTile participant={p as any} />);
-    expect(getByText('alice')).toBeTruthy();
+    const { getAllByText } = render(<CallParticipantTile participant={p as any} />);
+    // The new design renders the identity twice in the placeholder branch:
+    // once as the main label and once in the bottom name badge that overlays
+    // every tile. We just need to assert it appears at least once.
+    expect(getAllByText('alice').length).toBeGreaterThanOrEqual(1);
   });
 
   it('does not render the placeholder when a video track is present', () => {
     const p = makeParticipant({ identity: 'bob', hasVideo: true });
     const { queryByText } = render(<CallParticipantTile participant={p as any} />);
-    expect(queryByText('bob')).toBeNull();
+    // The "Participant" sub-label is only emitted inside the placeholder
+    // branch, so its absence proves we rendered the video tile path. The
+    // identity itself is now also shown on the always-visible name badge.
+    expect(queryByText('Participant')).toBeNull();
   });
 });
