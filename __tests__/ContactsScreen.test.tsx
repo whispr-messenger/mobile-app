@@ -1,8 +1,8 @@
 import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import { ContactsScreen } from "./src/screens/Contacts/ContactsScreen";
-import { contactsAPI } from "./src/services/contacts/api";
-import { messagingAPI } from "./src/services/messaging/api";
+import { ContactsScreen } from "../src/screens/Contacts/ContactsScreen";
+import { contactsAPI } from "../src/services/contacts/api";
+import { messagingAPI } from "../src/services/messaging/api";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -23,7 +23,7 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../src/context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -38,7 +38,7 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/context/AuthContext", () => ({
+jest.mock("../src/context/AuthContext", () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isLoading: false,
@@ -48,7 +48,7 @@ jest.mock("./src/context/AuthContext", () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock("./src/hooks/useWebSocket", () => ({
+jest.mock("../src/hooks/useWebSocket", () => ({
   useWebSocket: () => ({
     joinConversationChannel: jest
       .fn()
@@ -58,10 +58,10 @@ jest.mock("./src/hooks/useWebSocket", () => ({
     sendTyping: jest.fn(),
   }),
 }));
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../src/services/TokenService", () => ({
   TokenService: { getAccessToken: jest.fn().mockResolvedValue("tok") },
 }));
-jest.mock("./src/services/contacts/api", () => ({
+jest.mock("../src/services/contacts/api", () => ({
   contactsAPI: {
     getContacts: jest.fn(),
     getContactRequests: jest.fn(),
@@ -69,12 +69,12 @@ jest.mock("./src/services/contacts/api", () => ({
     refuseContactRequest: jest.fn(),
   },
 }));
-jest.mock("./src/services/messaging/api", () => ({
+jest.mock("../src/services/messaging/api", () => ({
   messagingAPI: {
     createDirectConversation: jest.fn(),
   },
 }));
-jest.mock("./src/components/Contacts/ContactItem", () => ({
+jest.mock("../src/components/Contacts/ContactItem", () => ({
   ContactItem: ({ contact, onPress }: any) => {
     const { TouchableOpacity, Text } = require("react-native");
     return (
@@ -84,22 +84,27 @@ jest.mock("./src/components/Contacts/ContactItem", () => ({
     );
   },
 }));
-jest.mock("./src/components/Contacts/AddContactModal", () => ({
+jest.mock("../src/components/Contacts/AddContactModal", () => ({
   AddContactModal: () => null,
 }));
-jest.mock("./src/components/Contacts/EditContactModal", () => ({
+jest.mock("../src/components/Contacts/EditContactModal", () => ({
   EditContactModal: () => null,
 }));
-jest.mock("./src/components/Contacts/SyncContactsModal", () => ({
+jest.mock("../src/components/Contacts/SyncContactsModal", () => ({
   SyncContactsModal: () => null,
 }));
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../src/theme/colors", () => ({
   colors: {
     background: { gradient: { app: ["#000", "#111"] } },
-    primary: { main: "#6200ee" },
+    primary: { main: "#6200ee", light: "#9d6cff" },
+    secondary: { main: "#1a1a2e", dark: "#0f0f1f" },
     text: { light: "#fff" },
     ui: { success: "#0f0", error: "#f00" },
   },
+  // ContactsScreen now styles itself with withOpacity(...) calls in its
+  // StyleSheet.create — return the colour unchanged so the styles object
+  // is still a valid string.
+  withOpacity: (color: string) => color,
 }));
 
 const mockedContactsAPI = contactsAPI as jest.Mocked<typeof contactsAPI>;

@@ -12,6 +12,14 @@ jest.mock("@react-navigation/native", () => ({
     goBack: mockGoBack,
     canGoBack: mockCanGoBack,
   }),
+  // systemCallProvider.ts → navigationRef.ts evaluates this at import time.
+  createNavigationContainerRef: () => ({
+    current: null,
+    isReady: () => false,
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+    reset: jest.fn(),
+  }),
 }));
 
 const mockAcceptIncoming = jest.fn().mockResolvedValue(undefined);
@@ -25,7 +33,7 @@ let mockIncoming: any = {
   type: "audio",
 };
 
-jest.mock("./src/store/callsStore", () => ({
+jest.mock("../src/store/callsStore", () => ({
   useCallsStore: (selector: any) =>
     selector({
       incoming: mockIncoming,
@@ -35,7 +43,7 @@ jest.mock("./src/store/callsStore", () => ({
     }),
 }));
 
-import { IncomingCallScreen } from "./src/screens/Calls/IncomingCallScreen";
+import { IncomingCallScreen } from "../src/screens/Calls/IncomingCallScreen";
 
 describe("IncomingCallScreen", () => {
   beforeEach(() => {

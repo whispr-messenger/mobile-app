@@ -6,19 +6,27 @@ const mockCanGoBack = jest.fn().mockReturnValue(true);
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => ({ goBack: mockGoBack, canGoBack: mockCanGoBack }),
+  // systemCallProvider.ts → navigationRef.ts evaluates this at import time.
+  createNavigationContainerRef: () => ({
+    current: null,
+    isReady: () => false,
+    navigate: jest.fn(),
+    goBack: jest.fn(),
+    reset: jest.fn(),
+  }),
 }));
 
 const mockEnd = jest.fn().mockResolvedValue(undefined);
 let mockActive: any = null;
 
-jest.mock('./src/store/callsStore', () => {
+jest.mock('../src/store/callsStore', () => {
   const fn: any = (selector: any) =>
     selector({ active: mockActive, end: mockEnd });
   fn.getState = () => ({ active: mockActive, end: mockEnd });
   return { useCallsStore: fn };
 });
 
-jest.mock('./src/services/calls/liveKitProvider', () => ({
+jest.mock('../src/services/calls/liveKitProvider', () => ({
   callsLiveKit: {
     enableMic: jest.fn().mockResolvedValue(undefined),
     enableCamera: jest.fn().mockResolvedValue(undefined),
@@ -38,15 +46,15 @@ jest.mock('livekit-client', () => ({
   },
 }));
 
-jest.mock('./src/components/Calls/CallParticipantTile', () => ({
+jest.mock('../src/components/Calls/CallParticipantTile', () => ({
   CallParticipantTile: () => null,
 }));
 
-jest.mock('./src/components/Calls/CallControls', () => ({
+jest.mock('../src/components/Calls/CallControls', () => ({
   CallControls: () => null,
 }));
 
-import { InCallScreen } from './src/screens/Calls/InCallScreen';
+import { InCallScreen } from '../src/screens/Calls/InCallScreen';
 
 describe('InCallScreen', () => {
   beforeEach(() => {

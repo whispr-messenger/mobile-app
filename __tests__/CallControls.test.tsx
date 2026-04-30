@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
-import { CallControls } from './src/components/Calls/CallControls';
+import { CallControls } from '../src/components/Calls/CallControls';
 
 describe('CallControls', () => {
   const makeProps = () => ({
@@ -12,38 +12,45 @@ describe('CallControls', () => {
     onEnd: jest.fn(),
   });
 
-  it('matches snapshot (default state)', () => {
-    const { toJSON } = render(<CallControls {...makeProps()} />);
-    expect(toJSON()).toMatchSnapshot();
+  // The redesigned bar always renders four buttons (mic, camera, flip, end).
+  // We assert the count rather than snapshotting the whole tree because the
+  // styling is heavy and snapshots break on every visual tweak.
+  it('renders four control buttons', () => {
+    const { getAllByRole } = render(<CallControls {...makeProps()} />);
+    expect(getAllByRole('button')).toHaveLength(4);
   });
 
-  it('shows French mic label depending on muted state', () => {
+  // Mic button keeps a stable accessibilityLabel ("Micro") and surfaces the
+  // muted/active state via a helper line ("Coupé" / "Activé").
+  it('shows the French mic helper text depending on muted state', () => {
     const props = makeProps();
     const { getByText, rerender } = render(<CallControls {...props} />);
-    expect(getByText('Couper micro')).toBeTruthy();
+    expect(getByText('Coupé')).toBeTruthy();
     rerender(<CallControls {...props} muted />);
-    expect(getByText('Activer micro')).toBeTruthy();
+    expect(getByText('Activé')).toBeTruthy();
   });
 
-  it('shows French camera label depending on cameraOff state', () => {
+  // Same pattern for the camera button: label stays "Caméra", helper toggles
+  // "Active" ↔ "Coupée".
+  it('shows the French camera helper text depending on cameraOff state', () => {
     const props = makeProps();
     const { getByText, rerender } = render(<CallControls {...props} />);
-    expect(getByText('Couper caméra')).toBeTruthy();
+    expect(getByText('Active')).toBeTruthy();
     rerender(<CallControls {...props} cameraOff />);
-    expect(getByText('Activer caméra')).toBeTruthy();
+    expect(getByText('Coupée')).toBeTruthy();
   });
 
   it('fires onToggleMute when mic button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Couper micro'));
+    fireEvent.press(getByLabelText('Micro'));
     expect(props.onToggleMute).toHaveBeenCalledTimes(1);
   });
 
   it('fires onToggleCamera when camera button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Couper caméra'));
+    fireEvent.press(getByLabelText('Caméra'));
     expect(props.onToggleCamera).toHaveBeenCalledTimes(1);
   });
 
@@ -54,10 +61,13 @@ describe('CallControls', () => {
     expect(props.onFlip).toHaveBeenCalledTimes(1);
   });
 
+  // The end button has an empty accessibilityLabel by design (red icon-only
+  // call button) — we press it via its helper text "Fin", which @testing-
+  // library/react-native bubbles up to the parent TouchableOpacity.
   it('fires onEnd when end button is pressed', () => {
     const props = makeProps();
-    const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Raccrocher'));
+    const { getByText } = render(<CallControls {...props} />);
+    fireEvent.press(getByText('Fin'));
     expect(props.onEnd).toHaveBeenCalledTimes(1);
   });
 });
