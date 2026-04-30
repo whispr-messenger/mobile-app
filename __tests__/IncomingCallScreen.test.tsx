@@ -22,6 +22,15 @@ jest.mock("@react-navigation/native", () => ({
   }),
 }));
 
+// Bridges to native CallKit/ConnectionService — irrelevant to this screen's
+// logic and adds extra awaits that desync the microtask ticks below.
+jest.mock("../src/services/calls/systemCallProvider", () => ({
+  systemCallProvider: {
+    markCallConnected: jest.fn().mockResolvedValue(undefined),
+    endCall: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 const mockAcceptIncoming = jest.fn().mockResolvedValue(undefined);
 const mockDeclineIncoming = jest.fn().mockResolvedValue(undefined);
 const mockSetIncoming = jest.fn();
