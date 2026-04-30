@@ -51,6 +51,7 @@ import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { useCallsStore } from "../../store/callsStore";
+import { systemCallProvider } from "../../services/calls/systemCallProvider";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -1466,13 +1467,23 @@ export const ChatScreen: React.FC = () => {
   const handleInitiateCall = useCallback(
     async (type: "audio" | "video") => {
       if (!conversation) return;
+      const displayName = getConversationDisplayName(conversation);
       const memberIds: string[] =
         conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
       const participantIds = memberIds.filter((id) => id && id !== userId);
       try {
         await useCallsStore
           .getState()
-          .initiate(conversationId, type, participantIds);
+          .initiate(conversationId, type, participantIds, displayName);
+        const activeCall = useCallsStore.getState().active;
+        if (activeCall) {
+          await systemCallProvider.startOutgoingCall({
+            callId: activeCall.callId,
+            handle: conversationId,
+            displayName,
+            hasVideo: type === "video",
+          });
+        }
         navigation.navigate("InCall");
       } catch (err) {
         console.error("Failed to initiate call", err);

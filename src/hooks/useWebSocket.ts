@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { AppState } from "react-native";
 import Constants from "expo-constants";
 import {
   getSharedSocket,
@@ -17,6 +18,10 @@ import { usePresenceStore } from "../store/presenceStore";
 import { useCallsStore } from "../store/callsStore";
 import { navigate, navigationRef } from "../navigation/navigationRef";
 import type { CallType } from "../types/calls";
+import {
+  buildIncomingCallPresentation,
+  systemCallProvider,
+} from "../services/calls/systemCallProvider";
 
 const executionEnvironment = (Constants as any)?.executionEnvironment;
 const appOwnership = (Constants as any)?.appOwnership;
@@ -124,6 +129,8 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         initiator_id: string;
         conversation_id: string;
         type: CallType;
+        caller_name?: string;
+        initiator_name?: string;
       }) => {
         if (!data?.call_id) return;
         if (isExpoGo) return;
@@ -132,7 +139,22 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           initiatorId: data.initiator_id,
           conversationId: data.conversation_id,
           type: data.type,
+          displayName:
+            data.caller_name ?? data.initiator_name ?? data.initiator_id,
         });
+        const incoming = useCallsStore.getState().incoming;
+        if (!incoming) return;
+
+        if (
+          AppState.currentState !== "active" &&
+          systemCallProvider.isSupported()
+        ) {
+          void systemCallProvider.showIncomingCall(
+            buildIncomingCallPresentation(incoming),
+          );
+          return;
+        }
+
         navigate("IncomingCall");
       },
       // call_ended: remote party hung up or server timed out the call.
@@ -141,6 +163,12 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       // bloqué sur InCallScreen avec micro/caméra encore actifs. On
       // navigue aussi hors de InCall vers ConversationsList si on y est.
       onCallEnded: () => {
+        const callId =
+          useCallsStore.getState().active?.callId ??
+          useCallsStore.getState().incoming?.callId;
+        if (callId) {
+          void systemCallProvider.endCall(callId, 2);
+        }
         useCallsStore.getState().reset();
         if (
           navigationRef.isReady() &&
