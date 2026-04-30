@@ -5,10 +5,15 @@ const base = require('./app.json');
 // modifier app.json (qui est partagé). Fallback : valeurs équipe.
 const easOwnerOverride = process.env.EAS_OWNER;
 const easProjectIdOverride = process.env.EAS_PROJECT_ID;
+const basePlugins = Array.isArray(base.expo.plugins) ? base.expo.plugins : [];
+const plugins = basePlugins.includes('react-native-call-keeper')
+  ? basePlugins
+  : [...basePlugins, 'react-native-call-keeper'];
 
 module.exports = ({ config }) => ({
   ...base.expo,
   ...(easOwnerOverride ? { owner: easOwnerOverride } : {}),
+  plugins,
   ios: {
     ...base.expo.ios,
     infoPlist: {
