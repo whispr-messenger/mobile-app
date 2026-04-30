@@ -7,13 +7,31 @@ import { callsApi } from "../../services/calls/callsApi";
 import type { Call, CallStatus } from "../../types/calls";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import { colors, withOpacity } from "../../theme/colors";
+import { messagingAPI } from "../../services/messaging/api";
+import { TokenService } from "../../services/TokenService";
+import type { Conversation } from "../../types/messaging";
+import { Avatar } from "../../components/Chat/Avatar";
+import { formatUsername, getConversationDisplayName } from "../../utils";
+
+interface EnrichedCallHistoryItem extends Call {
+  title: string;
+  subtitle?: string;
+  avatarUrl?: string;
+}
+
+type ConversationMemberPreview = {
+  id: string;
+  display_name: string;
+  username?: string;
+  avatar_url?: string;
+};
 
 /**
  * List of past calls for the current user. Pull-to-refresh rehydrates
  * from the calls-service /calls endpoint.
  */
 export const CallHistoryScreen: React.FC = () => {
-  const [calls, setCalls] = useState<Call[]>([]);
+  const [calls, setCalls] = useState<EnrichedCallHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const insets = useSafeAreaInsets();
   const stats = useMemo(
@@ -29,7 +47,7 @@ export const CallHistoryScreen: React.FC = () => {
     setLoading(true);
     try {
       const r = await callsApi.list({ limit: 50 });
-      setCalls(r.data);
+      setCalls(await enrichCallsForDisplay(r.data));
     } catch (err) {
       console.error("Failed to load call history", err);
     } finally {
@@ -60,6 +78,22 @@ export const CallHistoryScreen: React.FC = () => {
       ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
       ListHeaderComponent={
         <View style={styles.headerBlock}>
+          <BlurView intensity={45} tint="dark" style={styles.topHeaderBlur}>
+            <View style={styles.topHeaderCard}>
+              <View style={styles.topHeaderBadge}>
+                <Ionicons
+                  name="call-outline"
+                  size={14}
+                  color={colors.primary.main}
+                />
+                <Text style={styles.topHeaderBadgeText}>Centre d'appels</Text>
+              </View>
+              <Text style={styles.topHeaderTitle}>Appels</Text>
+              <Text style={styles.topHeaderSubtitle}>
+                Historique audio et vidéo.
+              </Text>
+            </View>
+          </BlurView>
           <BlurView intensity={45} tint="dark" style={styles.heroBlur}>
             <View style={styles.heroCard}>
               <View style={styles.heroBadge}>
@@ -70,9 +104,7 @@ export const CallHistoryScreen: React.FC = () => {
                 />
                 <Text style={styles.heroBadgeText}>Historique récent</Text>
               </View>
-              <Text style={styles.heroTitle}>
-                Vos appels, en un coup d'oeil
-              </Text>
+              <Text style={styles.heroTitle}>Vos appels</Text>
               <Text style={styles.heroSubtitle}>
                 Retrouvez les appels récents avec un aperçu rapide des statuts
                 et durées.
@@ -103,15 +135,16 @@ export const CallHistoryScreen: React.FC = () => {
         return (
           <BlurView intensity={35} tint="dark" style={styles.cardBlur}>
             <View style={styles.card}>
-              <View style={styles.iconBlock}>
+              <View style={styles.avatarBlock}>
+                <Avatar uri={item.avatarUrl} name={item.title} size={54} />
                 <View
                   style={[
-                    styles.iconCircle,
+                    styles.typeFloatingBadge,
                     {
                       backgroundColor:
                         item.type === "video"
-                          ? withOpacity(colors.secondary.main, 0.24)
-                          : withOpacity(colors.primary.main, 0.2),
+                          ? withOpacity(colors.secondary.main, 0.9)
+                          : withOpacity(colors.primary.main, 0.88),
                     },
                   ]}
                 >
@@ -121,7 +154,7 @@ export const CallHistoryScreen: React.FC = () => {
                         ? "videocam-outline"
                         : "call-outline"
                     }
-                    size={20}
+                    size={12}
                     color={colors.text.light}
                   />
                 </View>
@@ -129,8 +162,8 @@ export const CallHistoryScreen: React.FC = () => {
 
               <View style={styles.cardBody}>
                 <View style={styles.titleRow}>
-                  <Text style={styles.title}>
-                    Appel {item.type === "video" ? "vidéo" : "audio"}
+                  <Text style={styles.title} numberOfLines={1}>
+                    {item.title}
                   </Text>
                   <View
                     style={[
@@ -154,11 +187,31 @@ export const CallHistoryScreen: React.FC = () => {
                   </View>
                 </View>
 
+                {!!item.subtitle && (
+                  <Text style={styles.subtitle} numberOfLines={1}>
+                    {item.subtitle}
+                  </Text>
+                )}
+
                 <Text style={styles.dateText}>
                   {formatDate(item.started_at)}
                 </Text>
 
                 <View style={styles.metaInfoRow}>
+                  <View style={styles.metaInfoPill}>
+                    <Ionicons
+                      name={
+                        item.type === "video"
+                          ? "videocam-outline"
+                          : "call-outline"
+                      }
+                      size={13}
+                      color="rgba(255,255,255,0.7)"
+                    />
+                    <Text style={styles.metaText}>
+                      {item.type === "video" ? "Appel vidéo" : "Appel audio"}
+                    </Text>
+                  </View>
                   <View style={styles.metaInfoPill}>
                     <Ionicons
                       name="calendar-outline"
@@ -268,6 +321,123 @@ function relativeDayLabel(date: string): string {
   return target.toLocaleDateString("fr-FR", { weekday: "long" });
 }
 
+async function getCurrentUserId(): Promise<string | null> {
+  const token = await TokenService.getAccessToken();
+  if (!token) return null;
+  return TokenService.decodeAccessToken(token)?.sub ?? null;
+}
+
+function resolveConversationAvatar(
+  conversation: Conversation,
+  members: ConversationMemberPreview[],
+  currentUserId: string | null,
+): string | undefined {
+  if (conversation.type === "direct") {
+    const other = members.find(
+      (member) => member.id && member.id !== currentUserId,
+    );
+    return other?.avatar_url || conversation.avatar_url;
+  }
+
+  const meta = (conversation.metadata ?? {}) as Record<string, any>;
+  return (
+    conversation.avatar_url ||
+    meta.avatar_url ||
+    meta.group_avatar_url ||
+    meta.group_icon_url ||
+    meta.icon_url ||
+    meta.photo_url ||
+    meta.picture_url ||
+    meta.image_url
+  );
+}
+
+async function enrichCallsForDisplay(
+  calls: Call[],
+): Promise<EnrichedCallHistoryItem[]> {
+  const currentUserId = await getCurrentUserId();
+  const conversationIds = Array.from(
+    new Set(calls.map((call) => call.conversation_id).filter(Boolean)),
+  );
+  const conversationMap = new Map<
+    string,
+    {
+      conversation: Conversation | null;
+      members: ConversationMemberPreview[];
+    }
+  >();
+
+  await Promise.all(
+    conversationIds.map(async (conversationId) => {
+      try {
+        const conversation = await messagingAPI.getConversation(conversationId);
+        const members = await messagingAPI
+          .getConversationMembers(conversationId)
+          .catch(() => []);
+        conversationMap.set(conversationId, { conversation, members });
+      } catch {
+        conversationMap.set(conversationId, {
+          conversation: null,
+          members: [],
+        });
+      }
+    }),
+  );
+
+  return calls.map((call) => {
+    const preview = conversationMap.get(call.conversation_id);
+    const conversation = preview?.conversation;
+    const members = preview?.members ?? [];
+
+    if (!conversation) {
+      return {
+        ...call,
+        title: call.type === "video" ? "Appel vidéo" : "Appel audio",
+        subtitle: "Conversation indisponible",
+      };
+    }
+
+    if (conversation.type === "group") {
+      return {
+        ...call,
+        title: getConversationDisplayName(conversation),
+        subtitle: "Room de groupe",
+        avatarUrl: resolveConversationAvatar(
+          conversation,
+          members,
+          currentUserId,
+        ),
+      };
+    }
+
+    const otherMember =
+      members.find((member) => member.id && member.id !== currentUserId) ??
+      members[0];
+    const username = formatUsername(
+      otherMember?.username ??
+        conversation.username ??
+        conversation.metadata?.username,
+    );
+    const title = getConversationDisplayName({
+      type: "direct",
+      display_name: otherMember?.display_name ?? conversation.display_name,
+      username: otherMember?.username ?? conversation.username,
+      phone_number: conversation.phone_number,
+      metadata: conversation.metadata,
+    });
+
+    return {
+      ...call,
+      title,
+      subtitle:
+        username && username !== title ? username : "Conversation directe",
+      avatarUrl:
+        otherMember?.avatar_url ||
+        resolveConversationAvatar(conversation, members, currentUserId),
+    };
+  });
+}
+
 function getStatusMeta(status: CallStatus): {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -318,6 +488,49 @@ function getStatusMeta(status: CallStatus): {
 const styles = StyleSheet.create({
   headerBlock: {
     marginBottom: 16,
+    gap: 12,
+  },
+  topHeaderBlur: {
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  topHeaderCard: {
+    borderRadius: 30,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(11,17,36,0.18)",
+  },
+  topHeaderBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  topHeaderBadgeText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
+  topHeaderTitle: {
+    marginTop: 14,
+    fontSize: 28,
+    fontFamily: "Inter_700Bold",
+    color: colors.text.light,
+  },
+  topHeaderSubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.72)",
   },
   heroBlur: {
     borderRadius: 28,
@@ -401,17 +614,21 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
     backgroundColor: "rgba(11,17,36,0.22)",
   },
-  iconBlock: {
+  avatarBlock: {
+    position: "relative",
     marginRight: 14,
   },
-  iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  typeFloatingBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1.5,
+    borderColor: "rgba(11,17,36,0.88)",
   },
   cardBody: {
     flex: 1,
@@ -427,6 +644,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text.light,
     fontFamily: "Inter_700Bold",
+  },
+  subtitle: {
+    color: withOpacity(colors.text.light, 0.72),
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    marginTop: 4,
   },
   statusBadge: {
     flexDirection: "row",

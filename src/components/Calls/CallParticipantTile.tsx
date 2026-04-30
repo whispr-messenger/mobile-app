@@ -4,10 +4,14 @@ import { VideoTrack } from "@livekit/react-native";
 import { Track, type Participant } from "livekit-client";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors, withOpacity } from "../../theme/colors";
+import { Avatar } from "../Chat/Avatar";
 
 interface Props {
   participant: Participant;
   displayName?: string;
+  avatarUrl?: string;
+  selfDisplayName?: string;
+  selfAvatarUrl?: string;
 }
 
 /**
@@ -18,13 +22,16 @@ interface Props {
 export const CallParticipantTile: React.FC<Props> = ({
   participant,
   displayName,
+  avatarUrl,
+  selfDisplayName,
+  selfAvatarUrl,
 }) => {
   const videoPublication = participant.getTrackPublication(Track.Source.Camera);
   const videoTrack = videoPublication?.videoTrack;
   const label = participant.isLocal
-    ? "Vous"
+    ? selfDisplayName || "Vous"
     : participant.name || displayName || participant.identity;
-  const initial = label.trim().charAt(0).toUpperCase() || "?";
+  const resolvedAvatarUrl = participant.isLocal ? selfAvatarUrl : avatarUrl;
 
   return (
     <View style={styles.tile}>
@@ -55,8 +62,8 @@ export const CallParticipantTile: React.FC<Props> = ({
           style={styles.placeholder}
         >
           <View style={styles.glow} />
-          <View style={styles.avatar}>
-            <Text style={styles.avatarLetter}>{initial}</Text>
+          <View style={styles.avatarWrap}>
+            <Avatar uri={resolvedAvatarUrl} name={label} size={88} />
           </View>
           <Text style={styles.identity} numberOfLines={1}>
             {label}
@@ -104,21 +111,15 @@ const styles = StyleSheet.create({
     borderRadius: 90,
     backgroundColor: withOpacity(colors.primary.light, 0.22),
   },
-  avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "rgba(255,255,255,0.12)",
+  avatarWrap: {
+    padding: 6,
+    borderRadius: 52,
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,
-  },
-  avatarLetter: {
-    color: "#fff",
-    fontFamily: "Inter_700Bold",
-    fontSize: 34,
   },
   identity: {
     color: "#fff",

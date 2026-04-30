@@ -66,7 +66,7 @@ export const CallControls: React.FC<Props> = ({
                 onPress={onFlip}
               />
               <Ctrl
-                label="Raccrocher"
+                label=""
                 helper="Fin"
                 icon="call-outline"
                 danger
