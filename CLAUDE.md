@@ -9,7 +9,7 @@ when picking up and completing a Jira ticket for this repository.
 
 - Jira cloud ID: fetch at runtime via `mcp__atlassian__getAccessibleAtlassianResources` (select the resource whose `name` matches the Jira site)
 - GitHub org/repo: `whispr-messenger/mobile-app`
-- Default base branch: `main`
+- Default base branch: `deploy/preprod`
 - Node package manager: `npm`
 
 ---
@@ -27,8 +27,8 @@ when picking up and completing a Jira ticket for this repository.
 ## 2. Prepare the branch
 
 ```bash
-git checkout main
-git pull origin main
+git checkout deploy/preprod
+git pull origin deploy/preprod
 git checkout -b <TICKET-KEY>-<short-kebab-description>
 ```
 
@@ -142,7 +142,7 @@ Use `mcp__github__create_pull_request`:
   "repo": "mobile-app",
   "title": "<same as commit title>",
   "head": "<branch-name>",
-  "base": "main",
+  "base": "deploy/preprod",
   "body": "## Summary\n- bullet 1\n- bullet 2\n\n## Test plan\n- [ ] Unit tests green\n- [ ] Lint clean\n- [ ] Tested on iOS simulator\n- [ ] Tested on Android emulator\n\nCloses <TICKET-KEY>"
 }
 ```
@@ -170,7 +170,7 @@ Once all CI checks are green, use `mcp__github__merge_pull_request`:
 }
 ```
 
-Always use **squash** merge to keep `main` history linear.
+Always use **squash** merge to keep `deploy/preprod` history linear.
 
 ---
 
@@ -181,11 +181,11 @@ Use `mcp__atlassian__transitionJiraIssue` with the transition whose `name` is
 
 ---
 
-## 11. Return to main
+## 11. Return to deploy/preprod
 
 ```bash
-git checkout main
-git pull origin main
+git checkout deploy/preprod
+git pull origin deploy/preprod
 ```
 
 ---
@@ -300,7 +300,7 @@ This project is indexed by GitNexus as **mobile-app** (946 symbols, 2610 relatio
 1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
 2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
 3. `READ gitnexus://repo/mobile-app/process/{processName}` — trace the full execution flow step by step
-4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
+4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "deploy/preprod"})` — see what your branch changed
 
 ## When Refactoring
 
