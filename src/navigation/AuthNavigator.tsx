@@ -275,8 +275,12 @@ export const AuthNavigator: React.FC = () => {
         headerShown: false,
         gestureEnabled: true,
         gestureDirection: "horizontal",
+        cardStyle: {
+          backgroundColor: "transparent",
+        },
         cardStyleInterpolator: ({ current, layouts }) => ({
           cardStyle: {
+            backgroundColor: "transparent",
             transform: [
               {
                 translateX: current.progress.interpolate({

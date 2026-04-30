@@ -4,7 +4,8 @@ import { TokenService } from "./TokenService";
 // Keys that survive a sign-out. The list must stay tight: anything not in
 // here that lives under one of the OWNED_PREFIXES will be wiped on logout.
 //
-// `whispr.globalSettings.v1` carries the language and theme — preferences
+// `whispr.globalSettings.v1` carries the language, theme, font size and
+// background preset — preferences
 // that aren't tied to a specific account and that users would resent
 // having to re-set after every sign-out.
 const PRESERVED_KEYS: ReadonlySet<string> = new Set([
