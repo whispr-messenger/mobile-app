@@ -2,31 +2,25 @@
  * SwipeableConversationItem - Conversation item with swipe actions
  */
 
-import React, { useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-} from "react-native";
+import React, { useRef, useState } from "react";
+import { View, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
 import { Conversation } from "../../types/messaging";
 import { colors } from "../../theme/colors";
+import { useConversationsStore } from "../../store/conversationsStore";
 import ConversationItem from "./ConversationItem";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
+const BUTTON_SIZE = 52;
+const BUTTON_GAP = 12;
 
 interface SwipeableConversationItemProps {
   conversation: Conversation;
   onPress: (conversationId: string) => void;
   onDelete?: (conversationId: string) => void;
   onMute?: (conversationId: string) => void;
-  onUnread?: (conversationId: string) => void;
+  onToggleRead?: (conversationId: string, isCurrentlyUnread: boolean) => void;
   onArchive?: (conversationId: string) => void;
   onPin?: (conversationId: string) => void;
   index?: number;
@@ -41,7 +35,7 @@ export const SwipeableConversationItem: React.FC<
   onPress,
   onDelete,
   onMute,
-  onUnread,
+  onToggleRead,
   onArchive,
   onPin,
   index = 0,
@@ -49,13 +43,19 @@ export const SwipeableConversationItem: React.FC<
   isSelected = false,
 }) => {
   const swipeableRef = useRef<Swipeable>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const isManuallyUnread = useConversationsStore((s) =>
+    s.manuallyUnreadIds.has(conversation.id),
+  );
+  const isUnread = (conversation.unread_count ?? 0) > 0 || isManuallyUnread;
 
   const renderRightActions = (
     progress: Animated.AnimatedInterpolation<number>,
     dragX: Animated.AnimatedInterpolation<number>,
   ) => {
+    if (!isSwiping) return <View />;
     const actionCount = [onArchive, onMute, onDelete].filter(Boolean).length;
-    const totalWidth = actionCount * 88;
+    const totalWidth = actionCount * (BUTTON_SIZE + BUTTON_GAP) + BUTTON_GAP;
     const scale = progress.interpolate({
       inputRange: [0, 1],
       outputRange: [0.8, 1],
@@ -63,12 +63,7 @@ export const SwipeableConversationItem: React.FC<
     });
 
     return (
-      <View
-        style={[
-          styles.rightActions,
-          { width: Math.max(totalWidth, SCREEN_WIDTH) },
-        ]}
-      >
+      <View style={[styles.rightActions, { width: totalWidth }]}>
         {onArchive && (
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
@@ -81,10 +76,9 @@ export const SwipeableConversationItem: React.FC<
             >
               <Ionicons
                 name="archive-outline"
-                size={20}
+                size={24}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Archiver</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -100,10 +94,9 @@ export const SwipeableConversationItem: React.FC<
             >
               <Ionicons
                 name="notifications-off-outline"
-                size={20}
+                size={24}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Muet</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -119,10 +112,9 @@ export const SwipeableConversationItem: React.FC<
             >
               <Ionicons
                 name="trash-outline"
-                size={20}
+                size={24}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Supprimer</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -134,8 +126,9 @@ export const SwipeableConversationItem: React.FC<
     progress: Animated.AnimatedInterpolation<number>,
     dragX: Animated.AnimatedInterpolation<number>,
   ) => {
-    const actionCount = [onPin, onUnread].filter(Boolean).length;
-    const totalWidth = actionCount * 88;
+    if (!isSwiping) return <View />;
+    const actionCount = [onPin, onToggleRead].filter(Boolean).length;
+    const totalWidth = actionCount * (BUTTON_SIZE + BUTTON_GAP) + BUTTON_GAP;
     const scale = progress.interpolate({
       inputRange: [0, 1],
       outputRange: [0.8, 1],
@@ -143,12 +136,7 @@ export const SwipeableConversationItem: React.FC<
     });
 
     return (
-      <View
-        style={[
-          styles.leftActions,
-          { width: Math.max(totalWidth, SCREEN_WIDTH) },
-        ]}
-      >
+      <View style={[styles.leftActions, { width: totalWidth }]}>
         {onPin && (
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
@@ -161,29 +149,27 @@ export const SwipeableConversationItem: React.FC<
             >
               <Ionicons
                 name="pin-outline"
-                size={20}
+                size={24}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Épingler</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
-        {onUnread && (
+        {onToggleRead && (
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
               style={[styles.actionButton, styles.unreadButton]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onUnread(conversation.id);
+                onToggleRead(conversation.id, isUnread);
                 swipeableRef.current?.close();
               }}
             >
               <Ionicons
-                name="chatbubble-outline"
-                size={20}
+                name={isUnread ? "mail-open-outline" : "mail-unread-outline"}
+                size={24}
                 color={colors.text.light}
               />
-              <Text style={styles.actionText}>Non lu</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -214,12 +200,17 @@ export const SwipeableConversationItem: React.FC<
         friction={2}
         overshootRight={false}
         overshootLeft={false}
+        onBegan={() => setIsSwiping(true)}
+        onSwipeableWillOpen={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }}
+        onSwipeableClose={() => setIsSwiping(false)}
       >
-        <LinearGradient
-          colors={colors.background.gradient.app}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.contentWrapper}
+        <View
+          style={[
+            styles.contentWrapper,
+            isSwiping && styles.contentWrapperSwiping,
+          ]}
         >
           <ConversationItem
             conversation={conversation}
@@ -228,7 +219,7 @@ export const SwipeableConversationItem: React.FC<
             editMode={editMode}
             isSelected={isSelected}
           />
-        </LinearGradient>
+        </View>
       </Swipeable>
     </View>
   );
@@ -240,48 +231,46 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     overflow: "hidden",
   },
+  contentWrapperSwiping: {
+    backgroundColor: "#1A1F3A",
+    borderRadius: 16,
+  },
   rightActions: {
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
     justifyContent: "flex-end",
-    height: 88,
-    minWidth: SCREEN_WIDTH,
+    paddingHorizontal: BUTTON_GAP,
+    gap: BUTTON_GAP,
     backgroundColor: "transparent",
   },
   leftActions: {
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
     justifyContent: "flex-start",
-    height: 88,
-    minWidth: SCREEN_WIDTH,
+    paddingHorizontal: BUTTON_GAP,
+    gap: BUTTON_GAP,
     backgroundColor: "transparent",
   },
   actionButton: {
-    width: 88,
-    height: "100%",
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
+    borderRadius: BUTTON_SIZE / 2,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 8,
   },
   archiveButton: {
-    backgroundColor: "#39437C",
+    backgroundColor: "#5B66B8",
   },
   muteButton: {
-    backgroundColor: "#39437C",
+    backgroundColor: "#5B66B8",
   },
   deleteButton: {
-    backgroundColor: "#FE7A5C",
+    backgroundColor: "#FF3B30",
   },
   pinButton: {
-    backgroundColor: "#39437C",
+    backgroundColor: "#5B66B8",
   },
   unreadButton: {
-    backgroundColor: "#39437C",
-  },
-  actionText: {
-    color: colors.text.light,
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 4,
+    backgroundColor: "#5B66B8",
   },
 });

@@ -21,6 +21,7 @@ import { navigate } from "../../navigation/navigationRef";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import { useConversationsStore } from "../../store/conversationsStore";
+import { useUIStore } from "../../store/uiStore";
 import {
   FLOATING_TAB_BAR_BORDER_RADIUS as PILL_BORDER_RADIUS,
   FLOATING_TAB_BAR_BOTTOM_OFFSET as PILL_BOTTOM_OFFSET,
@@ -155,7 +156,9 @@ const BottomTabBarImpl: React.FC<Props> = ({ currentRouteName }) => {
     }
   }, []);
 
-  const visible = tabs.some((t) => t.route === currentRouteName);
+  const bottomTabBarHidden = useUIStore((s) => s.bottomTabBarHidden);
+  const visible =
+    tabs.some((t) => t.route === currentRouteName) && !bottomTabBarHidden;
 
   // On garde la pilule montée en permanence pour ne pas couper l'animation
   // de sortie ; `pointerEvents="none"` empêche les touches résiduelles de
