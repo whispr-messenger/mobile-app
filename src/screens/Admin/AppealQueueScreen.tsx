@@ -57,7 +57,9 @@ export const AppealQueueScreen: React.FC = () => {
     ({ item }: { item: Appeal }) => (
       <AppealCard
         appeal={item}
-        onPress={() => navigation.navigate("AppealReview", { appeal: item })}
+        onPress={() =>
+          navigation.navigate("AppealReview", { appealId: item.id })
+        }
       />
     ),
     [navigation],

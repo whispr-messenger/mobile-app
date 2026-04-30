@@ -1,0 +1,171 @@
+name: Auto-Labeller
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-label:
+    name: Label Pull Request
+    runs-on: ubuntu-latest
+    if: "!github.event.pull_request.draft"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Apply Labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/labeler.yml
+          sync-labels: true
+
+  priority-labeler:
+    name: Priority & Impact Assessment
+    runs-on: ubuntu-latest
+    needs: auto-label
+    if: "!github.event.pull_request.draft"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Analyze PR Impact
+        id: analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAGER: ""
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "Analyzing changed files..."
+
+          # Critical files that require high priority
+          CRITICAL_FILES="App.jsx App.js app.config.js src/navigation/ src/config/ src/context/AuthContext.tsx docker/ .github/workflows/"
+
+          # Security-related files
+          SECURITY_FILES="src/services/AuthService.ts src/services/TokenService.ts src/services/SecurityService.ts src/services/TwoFactorService.ts src/services/SignalKeyService.ts src/context/AuthContext.tsx"
+
+          # Get PR files
+          gh pr view "$PR_NUMBER" --json files --jq '.files[].path' > changed_files.txt
+
+          # Initialize flags
+          CRITICAL_CHANGED=false
+          SECURITY_CHANGED=false
+          STATE_CHANGED=false
+          TESTS_CHANGED=false
+          DOCS_CHANGED=false
+
+          # Check each changed file
+          while IFS= read -r file; do
+            echo "Checking file: $file"
+
+            # Check critical files
+            for pattern in $CRITICAL_FILES; do
+              if [[ "$file" == *"$pattern"* ]]; then
+                echo "critical=true" >> $GITHUB_OUTPUT
+                CRITICAL_CHANGED=true
+                break
+              fi
+            done
+
+            # Check security files
+            for pattern in $SECURITY_FILES; do
+              if [[ "$file" == *"$pattern"* ]]; then
+                echo "security=true" >> $GITHUB_OUTPUT
+                SECURITY_CHANGED=true
+                break
+              fi
+            done
+
+            # Check state management changes
+            if [[ "$file" == *"store"* ]] || [[ "$file" == *"context"* ]]; then
+              echo "state_management=true" >> $GITHUB_OUTPUT
+              STATE_CHANGED=true
+            fi
+
+            # Check test files
+            if [[ "$file" == *".test.ts"* ]] || [[ "$file" == *".test.tsx"* ]]; then
+              echo "tests=true" >> $GITHUB_OUTPUT
+              TESTS_CHANGED=true
+            fi
+
+            # Check documentation
+            if [[ "$file" == *".md"* ]] || [[ "$file" == *"documentation/"* ]]; then
+              echo "docs=true" >> $GITHUB_OUTPUT
+              DOCS_CHANGED=true
+            fi
+
+          done < changed_files.txt
+
+          # Calculate PR size
+          CHANGED_LINES=$(gh pr view "$PR_NUMBER" --json additions,deletions --jq '.additions + .deletions')
+          echo "changed_lines=$CHANGED_LINES" >> $GITHUB_OUTPUT
+
+          if (( CHANGED_LINES > 1000 )); then
+            echo "size=XL" >> $GITHUB_OUTPUT
+          elif (( CHANGED_LINES > 500 )); then
+            echo "size=L" >> $GITHUB_OUTPUT
+          elif (( CHANGED_LINES > 100 )); then
+            echo "size=M" >> $GITHUB_OUTPUT
+          elif (( CHANGED_LINES > 10 )); then
+            echo "size=S" >> $GITHUB_OUTPUT
+          else
+            echo "size=XS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Apply Priority Labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = ${{ github.event.pull_request.number }};
+
+            const labels = [];
+
+            // Priority labels based on impact
+            if ('${{ steps.analyze.outputs.critical }}' === 'true') {
+              labels.push('priority:high');
+            } else if ('${{ steps.analyze.outputs.security }}' === 'true' || '${{ steps.analyze.outputs.state_management }}' === 'true') {
+              labels.push('priority:medium');
+            } else {
+              labels.push('priority:low');
+            }
+
+            // Size labels
+            const size = '${{ steps.analyze.outputs.size }}';
+            labels.push(`size:${size}`);
+
+            // Type-specific labels
+            if ('${{ steps.analyze.outputs.tests }}' === 'true') {
+              labels.push('type:testing');
+            }
+
+            if ('${{ steps.analyze.outputs.docs }}' === 'true') {
+              labels.push('type:documentation');
+            }
+
+            if ('${{ steps.analyze.outputs.security }}' === 'true') {
+              labels.push('type:security');
+            }
+
+            if ('${{ steps.analyze.outputs.state_management }}' === 'true') {
+              labels.push('type:state-management');
+            }
+
+            // Apply labels
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number,
+                labels
+              });
+            }

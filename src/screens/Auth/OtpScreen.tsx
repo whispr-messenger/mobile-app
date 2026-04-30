@@ -22,6 +22,7 @@ import { TokenService } from "../../services/TokenService";
 import { SignalKeyService } from "../../services/SignalKeyService";
 import { SignalKeysService } from "../../services/SecurityService";
 import { UserService } from "../../services/UserService";
+import { profileSetupFlag } from "../../services/profileSetupFlag";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
@@ -115,7 +116,6 @@ export const OtpScreen: React.FC = () => {
    */
   const generateAndUploadSignalKeys = async (): Promise<void> => {
     try {
-      console.log("[OtpScreen] Generating Signal key bundle...");
       const bundle = await SignalKeyService.generateKeyBundle();
 
       // Upload signed prekey (map camelCase DTO → snake_case API)
@@ -124,7 +124,6 @@ export const OtpScreen: React.FC = () => {
         public_key: bundle.signedPreKey.publicKey,
         signature: bundle.signedPreKey.signature,
       });
-      console.log("[OtpScreen] Signed prekey uploaded");
 
       // Upload one-time prekeys
       await SignalKeysService.uploadPrekeys(
@@ -133,7 +132,6 @@ export const OtpScreen: React.FC = () => {
           public_key: pk.publicKey,
         })),
       );
-      console.log("[OtpScreen] One-time prekeys uploaded");
     } catch (err) {
       // Do not block the auth flow — keys can be uploaded later
       console.warn("[OtpScreen] Signal key upload failed (non-blocking):", err);
@@ -186,6 +184,7 @@ export const OtpScreen: React.FC = () => {
         generateAndUploadSignalKeys();
 
         if (purpose === "register") {
+          await profileSetupFlag.markPending();
           navigation.reset({ index: 0, routes: [{ name: "ProfileSetup" }] });
         } else {
           navigation.reset({
@@ -294,6 +293,9 @@ export const OtpScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Retour"
+            accessibilityHint="Retour à la saisie du numéro de téléphone"
           >
             <Text style={[styles.backText, { color: themeColors.primary }]}>
               ←
@@ -406,7 +408,14 @@ export const OtpScreen: React.FC = () => {
                 {getLocalizedText("auth.resendIn")} {resendCountdown}s
               </Text>
             ) : (
-              <TouchableOpacity onPress={handleResend} disabled={resending}>
+              <TouchableOpacity
+                onPress={handleResend}
+                disabled={resending}
+                accessibilityRole="button"
+                accessibilityLabel={getLocalizedText("auth.resendCode")}
+                accessibilityHint="Demande un nouvel envoi du code par SMS"
+                accessibilityState={{ disabled: resending }}
+              >
                 <Text
                   style={[
                     styles.resendLink,

@@ -2,6 +2,7 @@ import { AuthService } from "./AuthService";
 import { TokenService } from "./TokenService";
 import { getApiBaseUrl } from "./apiBase";
 import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
@@ -74,6 +75,128 @@ export interface UploadMediaResult {
 
 export type UploadMediaContext = "message" | "avatar" | "group_icon";
 
+// WHISPR-1220 — limites alignées avec media-service
+// (see media.service.ts:46 / CONTEXT_SIZE_LIMITS).
+//   * MESSAGE   : 100 MB — couvre vidéos courtes, documents, audio.
+//   * AVATAR    :   5 MB — image seulement, déjà compressée client-side.
+//   * GROUP_ICON:   5 MB — idem AVATAR.
+const CONTEXT_SIZE_LIMITS: Record<UploadMediaContext, number> = {
+  message: 100 * 1024 * 1024,
+  avatar: 5 * 1024 * 1024,
+  group_icon: 5 * 1024 * 1024,
+};
+
+const COMMON_IMAGE_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+] as const;
+
+// Doit rester en synchro avec CONTEXT_MIME_ALLOWLIST côté media-service
+// (media.service.ts:70). Si le serveur élargit ou restreint la liste,
+// reproduire ici — la validation client est un filet de sécurité, pas la
+// source de vérité (le serveur doit toujours re-vérifier).
+const CONTEXT_MIME_ALLOWLIST: Record<
+  UploadMediaContext,
+  ReadonlySet<string>
+> = {
+  message: new Set<string>([
+    ...COMMON_IMAGE_MIMES,
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-matroska",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/mp4",
+    "audio/aac",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/zip",
+  ]),
+  avatar: new Set<string>(COMMON_IMAGE_MIMES),
+  group_icon: new Set<string>(COMMON_IMAGE_MIMES),
+};
+
+export type UploadValidationError = Error & {
+  code: "UPLOAD_TOO_LARGE" | "UPLOAD_MIME_NOT_ALLOWED";
+  context: UploadMediaContext;
+  limitBytes?: number;
+  actualBytes?: number;
+  mimeType?: string;
+};
+
+export function isUploadValidationError(
+  err: unknown,
+): err is UploadValidationError {
+  if (!(err instanceof Error)) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "UPLOAD_TOO_LARGE" || code === "UPLOAD_MIME_NOT_ALLOWED";
+}
+
+function normalizeMime(raw: string): string {
+  return raw.split(";")[0].trim().toLowerCase();
+}
+
+async function readFileSize(uri: string): Promise<number | null> {
+  if (Platform.OS === "web") {
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      return blob.size;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const info = (await FileSystem.getInfoAsync(uri)) as { size?: number };
+    return typeof info?.size === "number" ? info.size : null;
+  } catch {
+    return null;
+  }
+}
+
+async function validateUpload(
+  file: { uri: string; type: string },
+  context: UploadMediaContext,
+): Promise<void> {
+  const mime = normalizeMime(file.type);
+  const allowed = CONTEXT_MIME_ALLOWLIST[context];
+  if (!allowed.has(mime)) {
+    const error = new Error(
+      `MIME type '${mime}' not allowed for context '${context}'`,
+    ) as UploadValidationError;
+    error.code = "UPLOAD_MIME_NOT_ALLOWED";
+    error.context = context;
+    error.mimeType = mime;
+    throw error;
+  }
+
+  const size = await readFileSize(file.uri);
+  // If we can't read the size client-side (older RN, opaque URI), fall
+  // through to the server check rather than block a legitimate upload.
+  if (size === null) return;
+
+  const limit = CONTEXT_SIZE_LIMITS[context];
+  if (size > limit) {
+    const error = new Error(
+      `File size ${size} bytes exceeds ${context} limit of ${limit} bytes`,
+    ) as UploadValidationError;
+    error.code = "UPLOAD_TOO_LARGE";
+    error.context = context;
+    error.limitBytes = limit;
+    error.actualBytes = size;
+    throw error;
+  }
+}
+
 // The media-service upload response uses {mediaId, ...} but the rest of the
 // app (chat send path, attachment metadata) expects {id}. Normalise here so
 // callers don't have to know which key the server happened to return.
@@ -103,6 +226,11 @@ export const MediaService = {
     onProgress?: (percent: number) => void,
     meta?: { context?: UploadMediaContext; ownerId?: string },
   ): Promise<UploadMediaResult> {
+    // WHISPR-1220 — fail fast before consuming the upload bandwidth.
+    // Default to "message" (the most permissive context) when the caller
+    // doesn't pass one, mirroring the server which uses the same default.
+    await validateUpload(file, meta?.context ?? "message");
+
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -157,6 +285,16 @@ export const MediaService = {
       });
     }
 
+    console.log(
+      "[PDP-DEBUG][MediaService] uploadMedia → POST",
+      `${getMediaBaseUrl()}/upload`,
+      {
+        context: meta?.context,
+        ownerId: meta?.ownerId,
+        fileName: file.name,
+        fileType: file.type,
+      },
+    );
     const response = await fetch(`${getMediaBaseUrl()}/upload`, {
       method: "POST",
       headers,
@@ -165,6 +303,11 @@ export const MediaService = {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      console.log(
+        "[PDP-DEBUG][MediaService] uploadMedia ← HTTP",
+        response.status,
+        body,
+      );
       const error = new Error(
         (body as { message?: string })?.message ??
           `Upload failed: HTTP ${response.status}`,
@@ -173,7 +316,15 @@ export const MediaService = {
       throw error;
     }
 
-    return normaliseUpload(await response.json());
+    const raw = await response.json();
+    console.log("[PDP-DEBUG][MediaService] uploadMedia ← 200 raw:", raw);
+    const normalised = normaliseUpload(raw);
+    console.log("[PDP-DEBUG][MediaService] uploadMedia normalised:", {
+      id: normalised.id,
+      url: normalised.url,
+      thumbnail_url: normalised.thumbnail_url,
+    });
+    return normalised;
   },
 
   /**
@@ -211,6 +362,138 @@ export const MediaService = {
     } catch {
       return { url: response.url };
     }
+  },
+
+  /**
+   * Download media to a local cache file (works for protected endpoints).
+   * Useful for React Native <Image> when auth headers are required.
+   */
+  async downloadMediaToCacheFile(id: string): Promise<string> {
+    const token = await TokenService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const cacheRoot =
+      (FileSystem as any).cacheDirectory ??
+      (FileSystem as any).documentDirectory ??
+      "";
+    const cacheDir = `${cacheRoot}avatars/`;
+    await FileSystem.makeDirectoryAsync(cacheDir, {
+      intermediates: true,
+    }).catch(() => {});
+    const baseName = `${encodeURIComponent(id)}`;
+    const tmpPath = `${cacheDir}${baseName}.tmp`;
+
+    const download = (url: string) =>
+      FileSystem.downloadAsync(url, tmpPath, { headers });
+
+    const result = await download(
+      `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob`,
+    );
+
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`Failed to download media file: HTTP ${result.status}`);
+    }
+
+    const contentType =
+      (result as any)?.headers?.["Content-Type"] ??
+      (result as any)?.headers?.["content-type"] ??
+      "";
+
+    const info = (await FileSystem.getInfoAsync(result.uri).catch(
+      () => null,
+    )) as any;
+    const size = typeof info?.size === "number" ? info.size : undefined;
+
+    const tryParseUrl = async () => {
+      const raw = await FileSystem.readAsStringAsync(result.uri).catch(
+        () => "",
+      );
+      try {
+        const data = JSON.parse(raw);
+        const url = typeof data?.url === "string" ? data.url : undefined;
+        if (url) return url;
+      } catch {
+        // ignore
+      }
+      return undefined;
+    };
+
+    if (
+      contentType.includes("application/json") ||
+      contentType.includes("text/plain") ||
+      (typeof size === "number" && size > 0 && size < 1024)
+    ) {
+      const url = await tryParseUrl();
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+
+      try {
+        const streamed = await download(
+          `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob?stream=1`,
+        );
+        if (streamed.status < 200 || streamed.status >= 300) {
+          throw new Error(`HTTP ${streamed.status}`);
+        }
+
+        const streamedContentType =
+          (streamed as any)?.headers?.["Content-Type"] ??
+          (streamed as any)?.headers?.["content-type"] ??
+          "";
+
+        if (!streamedContentType.startsWith("image/")) {
+          await FileSystem.deleteAsync(streamed.uri, {
+            idempotent: true,
+          }).catch(() => {});
+          throw new Error(
+            `Streamed avatar has invalid content-type: ${streamedContentType}`,
+          );
+        }
+
+        const ext = streamedContentType.includes("png")
+          ? "png"
+          : streamedContentType.includes("webp")
+            ? "webp"
+            : streamedContentType.includes("heic") ||
+                streamedContentType.includes("heif")
+              ? "heic"
+              : "jpg";
+        const finalPath = `${cacheDir}${baseName}.${ext}`;
+        await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+          () => {},
+        );
+        await FileSystem.moveAsync({ from: streamed.uri, to: finalPath });
+        return finalPath;
+      } catch {
+        if (url) return url;
+        throw new Error("Downloaded avatar is not an image");
+      }
+    }
+
+    if (!contentType.startsWith("image/")) {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+      throw new Error(
+        `Downloaded avatar has invalid content-type: ${contentType}`,
+      );
+    }
+
+    const ext = contentType.includes("png")
+      ? "png"
+      : contentType.includes("webp")
+        ? "webp"
+        : contentType.includes("heic") || contentType.includes("heif")
+          ? "heic"
+          : "jpg";
+    const finalPath = `${cacheDir}${baseName}.${ext}`;
+    await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+      () => {},
+    );
+    await FileSystem.moveAsync({ from: result.uri, to: finalPath });
+
+    return finalPath;
   },
 
   /**
@@ -256,6 +539,46 @@ export const MediaService = {
         body: JSON.stringify({ userIds }),
       },
     );
+  },
+
+  /**
+   * Same as shareMedia but retries up to `maxAttempts` times on failure
+   * with exponential backoff (default 1s, 2s). Recipients cannot view
+   * media until shared_with contains their user ID, so a transient
+   * network blip during this PATCH would leave the media unreadable
+   * for the recipient until the next retry — surface failures clearly
+   * after exhaustion.
+   */
+  async shareMediaWithRetry(
+    id: string,
+    userIds: string[],
+    options: {
+      maxAttempts?: number;
+      initialDelayMs?: number;
+      sleep?: (ms: number) => Promise<void>;
+    } = {},
+  ): Promise<void> {
+    if (!userIds.length) return;
+    const maxAttempts = options.maxAttempts ?? 3;
+    const initialDelayMs = options.initialDelayMs ?? 1000;
+    const sleep =
+      options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await MediaService.shareMedia(id, userIds);
+        return;
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxAttempts) {
+          await sleep(initialDelayMs * Math.pow(2, attempt - 1));
+        }
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("shareMedia failed after retries");
   },
 };
 

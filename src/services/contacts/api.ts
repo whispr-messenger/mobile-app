@@ -19,6 +19,36 @@ export type { Contact };
 
 const API_BASE_URL = `${getApiBaseUrl()}/user/v1`;
 
+type CacheEntry<T> = { value: T; expiresAt: number };
+
+const IS_TEST = process.env.NODE_ENV === "test";
+
+const CONTACTS_TTL_MS = 60_000;
+const CONTACT_REQUESTS_TTL_MS = 30_000;
+const USER_PROFILE_TTL_MS = 10 * 60_000;
+
+let contactsCache: CacheEntry<{ contacts: Contact[]; total: number }> | null =
+  null;
+let contactsInflight: Promise<{ contacts: Contact[]; total: number }> | null =
+  null;
+
+let requestsCache: CacheEntry<ContactRequest[]> | null = null;
+let requestsInflight: Promise<ContactRequest[]> | null = null;
+
+const userProfileCache = new Map<string, CacheEntry<User | null>>();
+const userProfileInflight = new Map<string, Promise<User | null>>();
+let lastAuthToken: string | null = null;
+
+const invalidateContactsCache = () => {
+  contactsCache = null;
+  contactsInflight = null;
+};
+
+const invalidateRequestsCache = () => {
+  requestsCache = null;
+  requestsInflight = null;
+};
+
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const token = await TokenService.getAccessToken();
   if (!token) return {};
@@ -45,41 +75,69 @@ const normalizeContact = (c: any): Contact => {
 };
 
 const fetchUserById = async (userId: string): Promise<User | null> => {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
-      {
-        headers: {
-          ...(await getAuthHeaders()),
-        },
-      },
-    );
-    if (!response.ok) return null;
-    const u = await response.json();
-    if (!u) return null;
-    return {
-      id: u.id ?? userId,
-      username: u.username ?? "",
-      phone_number: u.phoneNumber ?? u.phone_number,
-      first_name: u.firstName ?? u.first_name,
-      last_name: u.lastName ?? u.last_name,
-      avatar_url:
-        u.profilePictureUrl ??
-        u.profile_picture_url ??
-        u.profilePicture ??
-        u.profile_picture ??
-        u.avatar_url,
-      last_seen: u.lastSeen ?? u.last_seen,
-      is_active: u.isActive ?? u.is_active ?? true,
-    };
-  } catch {
-    return null;
+  if (!IS_TEST) {
+    const cached = userProfileCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
+    const inflight = userProfileInflight.get(userId);
+    if (inflight) return inflight;
   }
+
+  const promise = (async (): Promise<User | null> => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
+        {
+          headers: {
+            ...(await getAuthHeaders()),
+          },
+        },
+      );
+      if (!response.ok) return null;
+      const u = await response.json();
+      if (!u) return null;
+      const normalized: User = {
+        id: u.id ?? userId,
+        username: u.username ?? "",
+        phone_number: u.phoneNumber ?? u.phone_number,
+        first_name: u.firstName ?? u.first_name,
+        last_name: u.lastName ?? u.last_name,
+        avatar_url:
+          u.profilePictureUrl ??
+          u.profile_picture_url ??
+          u.profilePicture ??
+          u.profile_picture ??
+          u.avatar_url,
+        last_seen: u.lastSeen ?? u.last_seen,
+        is_active: u.isActive ?? u.is_active ?? true,
+      };
+      userProfileCache.set(userId, {
+        value: normalized,
+        expiresAt: Date.now() + USER_PROFILE_TTL_MS,
+      });
+      return normalized;
+    } catch {
+      userProfileCache.set(userId, {
+        value: null,
+        expiresAt: Date.now() + USER_PROFILE_TTL_MS,
+      });
+      return null;
+    }
+  })();
+
+  if (!IS_TEST) {
+    userProfileInflight.set(userId, promise);
+    promise.finally(() => userProfileInflight.delete(userId));
+  }
+  return promise;
 };
 
 const buildSearchResult = (
   u: any,
   contactIds?: Set<string>,
+  blockedIds?: Set<string>,
 ): UserSearchResult => {
   const userId = u.id ?? u.userId;
   return {
@@ -99,7 +157,10 @@ const buildSearchResult = (
       is_active: u.isActive ?? u.is_active ?? true,
     },
     is_contact: contactIds ? contactIds.has(userId) : false,
-    is_blocked: false,
+    // WHISPR-1215 — couvre le sens "je l'ai bloqué". Le sens inverse
+    // ("il m'a bloqué") demande un flag côté serveur et fait l'objet d'un
+    // ticket séparé.
+    is_blocked: blockedIds ? blockedIds.has(userId) : false,
   };
 };
 
@@ -108,59 +169,102 @@ export const contactsAPI = {
     params?: ContactSearchParams,
     userId?: string,
   ): Promise<{ contacts: Contact[]; total: number }> {
-    const url = `${API_BASE_URL}/contacts`;
-    const response = await fetch(url, {
-      headers: {
-        ...(await getAuthHeaders()),
-      },
-    });
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorBody: any = null;
-      try {
-        errorBody = JSON.parse(errorText);
-      } catch {
-        errorBody = null;
+    void userId;
+    const token = await TokenService.getAccessToken();
+    if (!token) {
+      return { contacts: [], total: 0 };
+    }
+    if (!IS_TEST) {
+      if (lastAuthToken !== token) {
+        lastAuthToken = token;
+        userProfileCache.clear();
+        userProfileInflight.clear();
+        invalidateContactsCache();
+        invalidateRequestsCache();
       }
 
-      const errorMessage =
-        errorBody?.data?.message ?? errorBody?.message ?? errorText;
-
-      if (
-        response.status === 404 &&
-        errorMessage?.toLowerCase().includes("no contacts")
-      ) {
-        return { contacts: [], total: 0 };
+      if (!params && contactsCache && contactsCache.expiresAt > Date.now()) {
+        return contactsCache.value;
       }
-
-      throw new Error(
-        `Failed to fetch contacts (${response.status}): ${errorMessage}`,
-      );
+      if (!params && contactsInflight) {
+        return contactsInflight;
+      }
     }
 
-    const raw = await response.json();
-    const data = raw?.data !== undefined ? raw.data : raw;
-    const items = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.contacts)
-        ? data.contacts
-        : [];
-    const contacts = items.map(normalizeContact);
-
-    // Enrich contacts with user data in parallel
-    const enriched = await Promise.all(
-      contacts.map(async (contact: Contact) => {
-        if (contact.contact_id) {
-          const user = await fetchUserById(contact.contact_id);
-          if (user) {
-            return { ...contact, contact_user: user };
-          }
+    const promise = (async (): Promise<{
+      contacts: Contact[];
+      total: number;
+    }> => {
+      const url = `${API_BASE_URL}/contacts`;
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorBody: any = null;
+        try {
+          errorBody = JSON.parse(errorText);
+        } catch {
+          errorBody = null;
         }
-        return contact;
-      }),
-    );
 
-    return { contacts: enriched, total: enriched.length };
+        const errorMessage =
+          errorBody?.data?.message ?? errorBody?.message ?? errorText;
+
+        if (
+          response.status === 404 &&
+          errorMessage?.toLowerCase().includes("no contacts")
+        ) {
+          return { contacts: [], total: 0 };
+        }
+
+        throw new Error(
+          `Failed to fetch contacts (${response.status}): ${errorMessage}`,
+        );
+      }
+
+      const raw = await response.json();
+      const data = raw?.data !== undefined ? raw.data : raw;
+      const items = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.contacts)
+          ? data.contacts
+          : [];
+      const contacts = items.map(normalizeContact);
+
+      // Enrich contacts with user data in parallel
+      const enriched = await Promise.all(
+        contacts.map(async (contact: Contact) => {
+          if (contact.contact_id) {
+            const user = await fetchUserById(contact.contact_id);
+            if (user) {
+              return { ...contact, contact_user: user };
+            }
+          }
+          return contact;
+        }),
+      );
+
+      const result = { contacts: enriched, total: enriched.length };
+      if (!IS_TEST && !params) {
+        contactsCache = {
+          value: result,
+          expiresAt: Date.now() + CONTACTS_TTL_MS,
+        };
+      }
+      return result;
+    })();
+
+    if (!IS_TEST && !params) {
+      contactsInflight = promise;
+      promise.finally(() => {
+        contactsInflight = null;
+      });
+    }
+
+    return promise;
   },
 
   async getContact(contactId: string): Promise<Contact> {
@@ -191,6 +295,7 @@ export const contactsAPI = {
       throw new Error("Failed to add contact");
     }
 
+    invalidateContactsCache();
     return normalizeContact(await response.json());
   },
 
@@ -214,6 +319,7 @@ export const contactsAPI = {
       throw new Error("Failed to update contact");
     }
 
+    invalidateContactsCache();
     return normalizeContact(await response.json());
   },
 
@@ -229,8 +335,31 @@ export const contactsAPI = {
     );
 
     if (!response.ok) {
-      throw new Error("Failed to delete contact");
+      const errorText = await response.text().catch(() => "");
+      let errorBody: any = null;
+      try {
+        errorBody = JSON.parse(errorText);
+      } catch {
+        errorBody = null;
+      }
+
+      const errorMessage =
+        errorBody?.data?.message ?? errorBody?.message ?? errorText;
+
+      if (
+        response.status === 404 &&
+        String(errorMessage || "")
+          .toLowerCase()
+          .includes("contact not found")
+      ) {
+        return;
+      }
+
+      throw new Error(
+        `Failed to delete contact (${response.status}): ${errorMessage || "Unknown error"}`,
+      );
     }
+    invalidateContactsCache();
   },
 
   async getContactStats(): Promise<ContactStats> {
@@ -249,14 +378,15 @@ export const contactsAPI = {
   async getUserPreviewById(userId: string): Promise<UserSearchResult | null> {
     const user = await fetchUserById(userId);
     if (!user) return null;
-    let contactIds: Set<string>;
-    try {
-      const { contacts } = await this.getContacts();
-      contactIds = new Set(contacts.map((c) => c.contact_id));
-    } catch {
-      contactIds = new Set();
-    }
-    return buildSearchResult(user, contactIds);
+    const [contactIds, blockedIds] = await Promise.all([
+      this.getContacts()
+        .then(({ contacts }) => new Set(contacts.map((c) => c.contact_id)))
+        .catch(() => new Set<string>()),
+      this.getBlockedUsers()
+        .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
+        .catch(() => new Set<string>()),
+    ]);
+    return buildSearchResult(user, contactIds, blockedIds);
   },
 
   async searchUsers(params: UserSearchParams): Promise<UserSearchResult[]> {
@@ -265,14 +395,16 @@ export const contactsAPI = {
       return [];
     }
 
-    // Fetch current contacts to mark search results
-    let contactIds: Set<string>;
-    try {
-      const { contacts } = await this.getContacts();
-      contactIds = new Set(contacts.map((c) => c.contact_id));
-    } catch {
-      contactIds = new Set();
-    }
+    // WHISPR-1215 — fetch contacts and blocked users in parallel so each
+    // result carries the real is_blocked flag (was hard-coded to false).
+    const [contactIds, blockedIds] = await Promise.all([
+      this.getContacts()
+        .then(({ contacts }) => new Set(contacts.map((c) => c.contact_id)))
+        .catch(() => new Set<string>()),
+      this.getBlockedUsers()
+        .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
+        .catch(() => new Set<string>()),
+    ]);
 
     // Run all search strategies in parallel for fuzzy matching
     const searches: Promise<UserSearchResult[]>[] = [];
@@ -289,7 +421,7 @@ export const contactsAPI = {
           if (!r.ok) return [];
           const user = await r.json().catch(() => null);
           if (!user?.id && !user?.userId) return [];
-          return [buildSearchResult(user, contactIds)];
+          return [buildSearchResult(user, contactIds, blockedIds)];
         })
         .catch(() => []),
     );
@@ -312,7 +444,7 @@ export const contactsAPI = {
               : [];
           return items
             .filter((u: any) => u?.id || u?.userId)
-            .map((u: any) => buildSearchResult(u, contactIds));
+            .map((u: any) => buildSearchResult(u, contactIds, blockedIds));
         })
         .catch(() => []),
     );
@@ -338,7 +470,7 @@ export const contactsAPI = {
                 : [];
             return items
               .filter((u: any) => u?.id || u?.userId)
-              .map((u: any) => buildSearchResult(u, contactIds));
+              .map((u: any) => buildSearchResult(u, contactIds, blockedIds));
           })
           .catch(() => []),
       );
@@ -373,6 +505,12 @@ export const contactsAPI = {
 
     if (!phoneNumbers.length) return [];
 
+    // WHISPR-1215 — pull the user's blocked list once, before issuing the
+    // search calls, so each result reflects the real is_blocked state.
+    const blockedIds = await this.getBlockedUsers()
+      .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
+      .catch(() => new Set<string>());
+
     // Try batch endpoint first
     try {
       const batchResponse = await fetch(`${API_BASE_URL}/search/phone/batch`, {
@@ -395,7 +533,7 @@ export const contactsAPI = {
           const id = u?.id ?? u?.userId;
           if (id && !seen.has(id)) {
             seen.add(id);
-            results.push(buildSearchResult(u));
+            results.push(buildSearchResult(u, undefined, blockedIds));
           }
         }
         return results;
@@ -431,7 +569,7 @@ export const contactsAPI = {
           const id = u?.id ?? u?.userId;
           if (id && !seen.has(id)) {
             seen.add(id);
-            results.push(buildSearchResult(u));
+            results.push(buildSearchResult(u, undefined, blockedIds));
           }
         }
       } catch {
@@ -443,59 +581,94 @@ export const contactsAPI = {
   },
 
   async getContactRequests(): Promise<ContactRequest[]> {
-    const response = await fetch(`${API_BASE_URL}/contact-requests`, {
-      headers: {
-        ...(await getAuthHeaders()),
-      },
-    });
-    if (!response.ok) {
-      return [];
+    const token = await TokenService.getAccessToken();
+    if (!token) return [];
+
+    if (!IS_TEST) {
+      if (lastAuthToken !== token) {
+        lastAuthToken = token;
+        userProfileCache.clear();
+        userProfileInflight.clear();
+        invalidateContactsCache();
+        invalidateRequestsCache();
+      }
+
+      if (requestsCache && requestsCache.expiresAt > Date.now()) {
+        return requestsCache.value;
+      }
+      if (requestsInflight) return requestsInflight;
     }
-    const raw = await response.json();
-    const data = raw?.data !== undefined ? raw.data : raw;
-    const items = Array.isArray(data) ? data : [];
-    return items.map((r: any) => ({
-      id: r.id,
-      requester_id: r.requesterId ?? r.requester_id,
-      recipient_id: r.recipientId ?? r.recipient_id,
-      status: r.status,
-      created_at: toIso(r.createdAt ?? r.created_at),
-      updated_at: toIso(r.updatedAt ?? r.updated_at),
-      requester_user: r.requester
-        ? {
-            id: r.requester.id,
-            username: r.requester.username ?? "",
-            phone_number: r.requester.phoneNumber ?? r.requester.phone_number,
-            first_name: r.requester.firstName ?? r.requester.first_name,
-            last_name: r.requester.lastName ?? r.requester.last_name,
-            avatar_url:
-              r.requester.profilePictureUrl ??
-              r.requester.profile_picture_url ??
-              r.requester.profilePicture ??
-              r.requester.profile_picture ??
-              r.requester.avatar_url,
-            last_seen: r.requester.lastSeen ?? r.requester.last_seen,
-            is_active: r.requester.isActive ?? r.requester.is_active ?? true,
-          }
-        : undefined,
-      recipient_user: r.recipient
-        ? {
-            id: r.recipient.id,
-            username: r.recipient.username ?? "",
-            phone_number: r.recipient.phoneNumber ?? r.recipient.phone_number,
-            first_name: r.recipient.firstName ?? r.recipient.first_name,
-            last_name: r.recipient.lastName ?? r.recipient.last_name,
-            avatar_url:
-              r.recipient.profilePictureUrl ??
-              r.recipient.profile_picture_url ??
-              r.recipient.profilePicture ??
-              r.recipient.profile_picture ??
-              r.recipient.avatar_url,
-            last_seen: r.recipient.lastSeen ?? r.recipient.last_seen,
-            is_active: r.recipient.isActive ?? r.recipient.is_active ?? true,
-          }
-        : undefined,
-    }));
+
+    const promise = (async (): Promise<ContactRequest[]> => {
+      const response = await fetch(`${API_BASE_URL}/contact-requests`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        return [];
+      }
+      const raw = await response.json();
+      const data = raw?.data !== undefined ? raw.data : raw;
+      const items = Array.isArray(data) ? data : [];
+      const mapped = items.map((r: any) => ({
+        id: r.id,
+        requester_id: r.requesterId ?? r.requester_id,
+        recipient_id: r.recipientId ?? r.recipient_id,
+        status: r.status,
+        created_at: toIso(r.createdAt ?? r.created_at),
+        updated_at: toIso(r.updatedAt ?? r.updated_at),
+        requester_user: r.requester
+          ? {
+              id: r.requester.id,
+              username: r.requester.username ?? "",
+              phone_number: r.requester.phoneNumber ?? r.requester.phone_number,
+              first_name: r.requester.firstName ?? r.requester.first_name,
+              last_name: r.requester.lastName ?? r.requester.last_name,
+              avatar_url:
+                r.requester.profilePictureUrl ??
+                r.requester.profile_picture_url ??
+                r.requester.profilePicture ??
+                r.requester.profile_picture ??
+                r.requester.avatar_url,
+              last_seen: r.requester.lastSeen ?? r.requester.last_seen,
+              is_active: r.requester.isActive ?? r.requester.is_active ?? true,
+            }
+          : undefined,
+        recipient_user: r.recipient
+          ? {
+              id: r.recipient.id,
+              username: r.recipient.username ?? "",
+              phone_number: r.recipient.phoneNumber ?? r.recipient.phone_number,
+              first_name: r.recipient.firstName ?? r.recipient.first_name,
+              last_name: r.recipient.lastName ?? r.recipient.last_name,
+              avatar_url:
+                r.recipient.profilePictureUrl ??
+                r.recipient.profile_picture_url ??
+                r.recipient.profilePicture ??
+                r.recipient.profile_picture ??
+                r.recipient.avatar_url,
+              last_seen: r.recipient.lastSeen ?? r.recipient.last_seen,
+              is_active: r.recipient.isActive ?? r.recipient.is_active ?? true,
+            }
+          : undefined,
+      }));
+      if (!IS_TEST) {
+        requestsCache = {
+          value: mapped,
+          expiresAt: Date.now() + CONTACT_REQUESTS_TTL_MS,
+        };
+      }
+      return mapped;
+    })();
+
+    if (!IS_TEST) {
+      requestsInflight = promise;
+      promise.finally(() => {
+        requestsInflight = null;
+      });
+    }
+    return promise;
   },
 
   async sendContactRequest(recipientId: string): Promise<ContactRequest> {
@@ -510,9 +683,14 @@ export const contactsAPI = {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || "Failed to send contact request");
+      const e = new Error(
+        err.message || "Failed to send contact request",
+      ) as Error & { status: number };
+      e.status = response.status;
+      throw e;
     }
 
+    invalidateRequestsCache();
     const r = await response.json();
     return {
       id: r.id,
@@ -540,6 +718,8 @@ export const contactsAPI = {
       throw new Error(err.message || "Failed to accept contact request");
     }
 
+    invalidateContactsCache();
+    invalidateRequestsCache();
     const r = await response.json();
     return {
       id: r.id,
@@ -567,6 +747,7 @@ export const contactsAPI = {
       throw new Error(err.message || "Failed to reject contact request");
     }
 
+    invalidateRequestsCache();
     const r = await response.json();
     return {
       id: r.id,

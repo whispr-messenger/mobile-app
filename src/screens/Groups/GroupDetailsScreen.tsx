@@ -18,10 +18,18 @@ import {
   Modal,
   TextInput,
   FlatList,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRoute, useNavigation } from "@react-navigation/native";
-import { StackScreenProps } from "@react-navigation/stack";
+import {
+  useRoute,
+  useNavigation,
+  type ParamListBase,
+} from "@react-navigation/native";
+import {
+  StackScreenProps,
+  type StackNavigationProp,
+} from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
@@ -52,10 +60,41 @@ import { messagingAPI } from "../../services/messaging/api";
 import { contactsAPI } from "../../services/contacts/api";
 import { Contact } from "../../types/contact";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { useConversationsStore } from "../../store/conversationsStore";
 
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
 const AnimatedView = Animated.createAnimatedComponent(View);
+
+const isSelfDemotionBlocked = (
+  role: "admin" | "member",
+  targetUserId: string,
+  currentUserId: string,
+  isLastAdmin: boolean,
+): boolean =>
+  role === "member" && targetUserId === currentUserId && isLastAdmin;
+
+const getChangeRoleErrorMessage = (
+  error: { status?: number; message?: string } | null | undefined,
+): { title: string; message: string } => {
+  if (error?.status === 403) {
+    return {
+      title: "Non autorisé",
+      message: "Seul un administrateur peut modifier les rôles.",
+    };
+  }
+  if (error?.status === 404 || error?.status === 405) {
+    return {
+      title: "Fonctionnalité indisponible",
+      message:
+        "Le changement de rôle n'est pas encore disponible côté serveur.",
+    };
+  }
+  return {
+    title: "Erreur",
+    message: error?.message || "Impossible de changer le rôle",
+  };
+};
 
 type GroupDetailsScreenRouteProp = StackScreenProps<
   AuthStackParamList,
@@ -64,10 +103,20 @@ type GroupDetailsScreenRouteProp = StackScreenProps<
 
 export const GroupDetailsScreen: React.FC = () => {
   const route = useRoute<GroupDetailsScreenRouteProp>();
-  const navigation = useNavigation();
+  // WHISPR-1074: the screen isn't scoped to a typed param list, so we reach
+  // for the base stack signature rather than sprinkling `as any` on every
+  // navigate() call.
+  const navigation = useNavigation<StackNavigationProp<ParamListBase>>();
   const { userId } = useAuth();
   const CURRENT_USER_ID = userId ?? "";
   const { groupId, conversationId, conversationName } = route.params;
+  const conversationKey = conversationId || groupId;
+  const removeConversationLocal = useConversationsStore(
+    (s) => s.removeConversationLocal,
+  );
+  const refreshConversations = useConversationsStore(
+    (s) => s.refreshConversations,
+  );
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -84,6 +133,7 @@ export const GroupDetailsScreen: React.FC = () => {
   const [showTransferAdminModal, setShowTransferAdminModal] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -110,11 +160,17 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLoading(true);
       const results = await Promise.allSettled([
-        groupsAPI.getGroupDetails(groupId),
-        groupsAPI.getGroupMembers(groupId),
-        groupsAPI.getGroupStats(groupId),
+        groupsAPI.getGroupDetails(groupId, conversationKey),
+        groupsAPI.getGroupMembers(groupId, {
+          conversationId: conversationKey,
+        }),
+        groupsAPI.getGroupStats(groupId, {
+          conversationId: conversationKey,
+        }),
         groupsAPI.getGroupLogs(groupId),
-        groupsAPI.getGroupSettings(groupId),
+        groupsAPI.getGroupSettings(groupId, {
+          conversationId: conversationKey,
+        }),
       ]);
 
       const [detailsR, membersR, statsR, logsR, settingsR] = results;
@@ -139,7 +195,7 @@ export const GroupDetailsScreen: React.FC = () => {
             created_at: "",
             updated_at: "",
             is_active: true,
-            conversation_id: conversationId,
+            conversation_id: conversationKey,
           } as GroupDetails;
         });
       }
@@ -196,16 +252,20 @@ export const GroupDetailsScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [groupId, conversationId, conversationName]);
+  }, [groupId, conversationKey, conversationName]);
 
   useEffect(() => {
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData effect failed", err);
+    });
   }, [loadGroupData]);
 
   const handleRefresh = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setRefreshing(true);
-    loadGroupData();
+    loadGroupData().catch((err) => {
+      logger.error("GroupDetailsScreen", "loadGroupData refresh failed", err);
+    });
   }, [loadGroupData]);
 
   const handleTabChange = useCallback((tab: typeof activeTab) => {
@@ -215,11 +275,11 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleManageGroup = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    (navigation as any).navigate("GroupManagement", {
-      groupId,
+    navigation.navigate("GroupManagement", {
+      groupId: conversationKey,
       conversationId,
     });
-  }, [navigation, groupId, conversationId]);
+  }, [navigation, conversationId, conversationKey]);
 
   const currentUserMember = members.find((m) => m.user_id === CURRENT_USER_ID);
   const isAdmin = currentUserMember?.role === "admin";
@@ -237,27 +297,38 @@ export const GroupDetailsScreen: React.FC = () => {
     try {
       setLeaving(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+      await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
+      removeConversationLocal(conversationKey);
+      refreshConversations().catch(() => {});
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      (navigation as any).navigate("ConversationsList");
+      navigation.navigate("ConversationsList");
     } catch (error: any) {
       logger.error("GroupDetailsScreen", "Error leaving group", error);
-      Alert.alert("Erreur", error.message || "Impossible de quitter le groupe");
+      Alert.alert("Erreur", "Impossible de quitter le groupe");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLeaving(false);
       setShowLeaveModal(false);
     }
-  }, [groupId, isLastAdmin, navigation]);
+  }, [
+    CURRENT_USER_ID,
+    conversationId,
+    conversationKey,
+    groupId,
+    isLastAdmin,
+    navigation,
+    refreshConversations,
+    removeConversationLocal,
+  ]);
 
   const handleDeleteGroup = useCallback(async () => {
     try {
       setDeleting(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      await groupsAPI.deleteGroup(groupId);
+      await groupsAPI.deleteGroup(groupId, conversationId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Le groupe a été supprimé");
-      (navigation as any).navigate("ConversationsList");
+      navigation.navigate("ConversationsList");
     } catch (error) {
       logger.error("GroupDetailsScreen", "Error deleting group", error);
       Alert.alert("Erreur", "Impossible de supprimer le groupe");
@@ -268,15 +339,125 @@ export const GroupDetailsScreen: React.FC = () => {
     }
   }, [groupId, navigation]);
 
+  const updateGroupSetting = useCallback(
+    async (updates: Partial<GroupSettings>) => {
+      if (!isAdmin) {
+        Alert.alert(
+          "Information",
+          "Seuls les administrateurs peuvent modifier ces paramètres.",
+        );
+        return;
+      }
+      if (!settings || savingSettings) return;
+
+      const previous = settings;
+      const optimistic = { ...previous, ...updates };
+      setSettings(optimistic);
+      setSavingSettings(true);
+      try {
+        await groupsAPI.updateGroupSettings(groupId, updates, {
+          conversationId: conversationKey,
+        });
+        const refreshed = await groupsAPI.getGroupSettings(groupId, {
+          conversationId: conversationKey,
+        });
+        setSettings(refreshed);
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success,
+        ).catch(() => {});
+      } catch (error: any) {
+        setSettings(previous);
+        logger.error(
+          "GroupDetailsScreen",
+          "Error updating group settings",
+          error,
+        );
+        Alert.alert(
+          "Erreur",
+          error?.message ||
+            "Impossible de mettre à jour les paramètres du groupe",
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
+          () => {},
+        );
+      } finally {
+        setSavingSettings(false);
+      }
+    },
+    [conversationKey, groupId, isAdmin, savingSettings, settings],
+  );
+
+  const openPermissionSelector = useCallback(
+    (
+      key:
+        | "message_permission"
+        | "media_permission"
+        | "mention_permission"
+        | "add_members_permission",
+      title: string,
+    ) => {
+      Alert.alert(title, "Choisissez le niveau d'autorisation", [
+        {
+          text: "Tous les membres",
+          onPress: () => updateGroupSetting({ [key]: "all_members" }),
+        },
+        {
+          text: "Modérateurs+",
+          onPress: () => updateGroupSetting({ [key]: "moderators_plus" }),
+        },
+        {
+          text: "Admins uniquement",
+          onPress: () => updateGroupSetting({ [key]: "admins_only" }),
+        },
+        { text: "Annuler", style: "cancel" },
+      ]);
+    },
+    [updateGroupSetting],
+  );
+
+  const openModerationLevelSelector = useCallback(() => {
+    Alert.alert("Niveau de modération", "Choisissez le niveau", [
+      {
+        text: "Léger",
+        onPress: () => updateGroupSetting({ moderation_level: "light" }),
+      },
+      {
+        text: "Modéré",
+        onPress: () => updateGroupSetting({ moderation_level: "medium" }),
+      },
+      {
+        text: "Strict",
+        onPress: () => updateGroupSetting({ moderation_level: "strict" }),
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }, [updateGroupSetting]);
+
+  const openContentFilterSelector = useCallback(() => {
+    Alert.alert("Filtre de contenu", "Choisissez l'etat du filtre", [
+      {
+        text: "Activer",
+        onPress: () => updateGroupSetting({ content_filter_enabled: true }),
+      },
+      {
+        text: "Desactiver",
+        onPress: () => updateGroupSetting({ content_filter_enabled: false }),
+      },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }, [updateGroupSetting]);
+
   const handleTransferAndLeave = useCallback(
     async (newAdminId: string) => {
       try {
         setLeaving(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await groupsAPI.transferAdmin(groupId, newAdminId);
-        await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID);
+        await groupsAPI.transferAdmin(groupId, newAdminId, conversationId);
+        await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
+        removeConversationLocal(conversationKey);
+        refreshConversations().catch(() => {});
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        (navigation as any).navigate("ConversationsList");
+        navigation.navigate("ConversationsList");
       } catch (error: any) {
         logger.error(
           "GroupDetailsScreen",
@@ -293,7 +474,15 @@ export const GroupDetailsScreen: React.FC = () => {
         setShowTransferAdminModal(false);
       }
     },
-    [groupId, navigation],
+    [
+      CURRENT_USER_ID,
+      conversationId,
+      conversationKey,
+      groupId,
+      navigation,
+      refreshConversations,
+      removeConversationLocal,
+    ],
   );
 
   const loadContactsForPicker = useCallback(async () => {
@@ -310,11 +499,17 @@ export const GroupDetailsScreen: React.FC = () => {
   }, []);
 
   const openAddMemberModal = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     setContactSearch("");
     setShowAddMemberModal(true);
     if (contacts.length === 0) {
-      loadContactsForPicker();
+      loadContactsForPicker().catch((err) => {
+        logger.error(
+          "GroupDetailsScreen",
+          "loadContactsForPicker rejected",
+          err,
+        );
+      });
     }
   }, [contacts.length, loadContactsForPicker]);
 
@@ -425,11 +620,13 @@ export const GroupDetailsScreen: React.FC = () => {
 
   const handleChangeRole = useCallback(
     async (member: GroupMember, role: "admin" | "member") => {
-      // Anti-self-lock: sole admin trying to demote self
       if (
-        role === "member" &&
-        member.user_id === CURRENT_USER_ID &&
-        isLastAdmin
+        isSelfDemotionBlocked(
+          role,
+          member.user_id,
+          CURRENT_USER_ID,
+          isLastAdmin,
+        )
       ) {
         Alert.alert(
           "Action impossible",
@@ -450,22 +647,8 @@ export const GroupDetailsScreen: React.FC = () => {
         loadGroupData();
       } catch (error: any) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        if (error?.status === 403) {
-          Alert.alert(
-            "Non autorisé",
-            "Seul un administrateur peut modifier les rôles.",
-          );
-        } else if (error?.status === 404 || error?.status === 405) {
-          Alert.alert(
-            "Fonctionnalité indisponible",
-            "Le changement de rôle n'est pas encore disponible côté serveur.",
-          );
-        } else {
-          Alert.alert(
-            "Erreur",
-            error?.message || "Impossible de changer le rôle",
-          );
-        }
+        const { title, message } = getChangeRoleErrorMessage(error);
+        Alert.alert(title, message);
       } finally {
         setMemberActionLoading(false);
       }
@@ -575,29 +758,31 @@ export const GroupDetailsScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabsScroll}
       >
-        {[
-          {
-            key: "info" as const,
-            label: "Informations",
-            icon: "information-circle-outline",
-          },
-          { key: "members" as const, label: "Membres", icon: "people-outline" },
-          {
-            key: "stats" as const,
-            label: "Statistiques",
-            icon: "stats-chart-outline",
-          },
-          {
-            key: "history" as const,
-            label: "Historique",
-            icon: "time-outline",
-          },
-          {
-            key: "settings" as const,
-            label: "Paramètres",
-            icon: "settings-outline",
-          },
-        ].map((tab, index) => {
+        {(
+          [
+            {
+              key: "info",
+              label: "Informations",
+              icon: "information-circle-outline",
+            },
+            { key: "members", label: "Membres", icon: "people-outline" },
+            {
+              key: "stats",
+              label: "Statistiques",
+              icon: "stats-chart-outline",
+            },
+            {
+              key: "history",
+              label: "Historique",
+              icon: "time-outline",
+            },
+            {
+              key: "settings",
+              label: "Paramètres",
+              icon: "settings-outline",
+            },
+          ] as const
+        ).map((tab, index) => {
           const isActive = activeTab === tab.key;
           return (
             <AnimatedTouchableOpacity
@@ -615,7 +800,7 @@ export const GroupDetailsScreen: React.FC = () => {
               entering={SlideInRight.delay(100 + index * 50).springify()}
             >
               <Ionicons
-                name={tab.icon as any}
+                name={tab.icon}
                 size={18}
                 color={
                   isActive
@@ -750,35 +935,33 @@ export const GroupDetailsScreen: React.FC = () => {
             {stats && stats.adminCount > 1 ? "s" : ""}
           </Text>
         </View>
-        {isAdmin && (
-          <TouchableOpacity
+        <TouchableOpacity
+          style={[
+            styles.addMemberButton,
+            { backgroundColor: withOpacity(colors.primary.main, 0.15) },
+          ]}
+          onPress={openAddMemberModal}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Ajouter un membre"
+        >
+          <View
             style={[
-              styles.addMemberButton,
-              { backgroundColor: withOpacity(colors.primary.main, 0.15) },
+              styles.addMemberIcon,
+              { backgroundColor: colors.primary.main },
             ]}
-            onPress={openAddMemberModal}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Ajouter un membre"
           >
-            <View
-              style={[
-                styles.addMemberIcon,
-                { backgroundColor: colors.primary.main },
-              ]}
-            >
-              <Ionicons name="person-add" size={18} color={colors.text.light} />
-            </View>
-            <Text style={[styles.addMemberText, { color: colors.text.light }]}>
-              Ajouter un membre
-            </Text>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={withOpacity(colors.text.light, 0.5)}
-            />
-          </TouchableOpacity>
-        )}
+            <Ionicons name="person-add" size={18} color={colors.text.light} />
+          </View>
+          <Text style={[styles.addMemberText, { color: colors.text.light }]}>
+            Ajouter un membre
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={withOpacity(colors.text.light, 0.5)}
+          />
+        </TouchableOpacity>
         {members.map((member, index) => (
           <AnimatedTouchableOpacity
             key={member.id}
@@ -788,16 +971,21 @@ export const GroupDetailsScreen: React.FC = () => {
             ]}
             activeOpacity={0.7}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              (navigation as any).navigate("Profile", {
-                userId:
-                  member.user_id === CURRENT_USER_ID
-                    ? CURRENT_USER_ID
-                    : member.user_id,
-              });
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+                () => {},
+              );
+              if (member.user_id === CURRENT_USER_ID) {
+                navigation.navigate("MyProfile");
+              } else {
+                navigation.navigate("UserProfile", {
+                  userId: member.user_id,
+                });
+              }
             }}
             accessibilityRole="button"
-            accessibilityLabel={`Ouvrir le profil de ${member.display_name}`}
+            accessibilityLabel={`Ouvrir le profil de ${
+              member.display_name ?? "membre"
+            }`}
             entering={FadeInDown.delay(150 + index * 50).springify()}
           >
             <Avatar
@@ -1104,7 +1292,17 @@ export const GroupDetailsScreen: React.FC = () => {
           >
             Permissions de communication
           </Text>
-          <View style={styles.settingItem}>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={() =>
+              openPermissionSelector(
+                "message_permission",
+                "Permission d'envoi de messages",
+              )
+            }
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="chatbubble-outline"
@@ -1127,8 +1325,18 @@ export const GroupDetailsScreen: React.FC = () => {
                   ? "Modérateurs+"
                   : "Admins uniquement"}
             </Text>
-          </View>
-          <View style={styles.settingItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={() =>
+              openPermissionSelector(
+                "media_permission",
+                "Permission d'envoi de medias",
+              )
+            }
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="image-outline"
@@ -1151,7 +1359,7 @@ export const GroupDetailsScreen: React.FC = () => {
                   ? "Modérateurs+"
                   : "Admins uniquement"}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.settingsSection}>
           <Text
@@ -1159,7 +1367,12 @@ export const GroupDetailsScreen: React.FC = () => {
           >
             Modération
           </Text>
-          <View style={styles.settingItem}>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={openModerationLevelSelector}
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="shield-outline"
@@ -1182,8 +1395,13 @@ export const GroupDetailsScreen: React.FC = () => {
                   ? "Modéré"
                   : "Strict"}
             </Text>
-          </View>
-          <View style={styles.settingItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.settingItem}
+            disabled={!isAdmin || savingSettings}
+            activeOpacity={isAdmin ? 0.7 : 1}
+            onPress={openContentFilterSelector}
+          >
             <View style={styles.settingInfo}>
               <Ionicons
                 name="filter-outline"
@@ -1210,7 +1428,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 {settings?.content_filter_enabled ? "Activé" : "Désactivé"}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.settingsSection}>
           <Text
@@ -1794,7 +2012,11 @@ export const GroupDetailsScreen: React.FC = () => {
                   {member.display_name}
                 </Text>
                 <Text style={styles.modalDescription}>
-                  {member.role === "admin" ? "Administrateur" : "Membre"}
+                  {member.role === "admin"
+                    ? "Administrateur"
+                    : member.role === "moderator"
+                      ? "Modérateur"
+                      : "Membre"}
                 </Text>
               </View>
 
@@ -1806,7 +2028,7 @@ export const GroupDetailsScreen: React.FC = () => {
                 />
               )}
 
-              {member.role === "member" && (
+              {member.role !== "admin" && !isSelf && (
                 <TouchableOpacity
                   style={styles.memberActionRow}
                   onPress={() => handleChangeRole(member, "admin")}
@@ -1937,9 +2159,11 @@ export const GroupDetailsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100vh" as any } : {}),
   },
   container: {
     flex: 1,
+    ...(Platform.OS === "web" ? { height: "100%", minHeight: 0 } : {}),
   },
   header: {
     flexDirection: "row",
@@ -1974,6 +2198,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0, overflow: "auto" as any } : {}),
   },
   groupInfoSection: {
     alignItems: "center",
@@ -2288,10 +2513,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.primary.main, 0.2),
@@ -2302,10 +2524,7 @@ const styles = StyleSheet.create({
     maxHeight: "80%",
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 25,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.5)",
     elevation: 15,
     borderWidth: 1,
     borderColor: withOpacity(colors.secondary.main, 0.2),
@@ -2370,20 +2589,14 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.primary.main,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.primary.main, 0.3)}`,
     elevation: 5,
   },
   modalButtonDelete: {
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: colors.ui.error,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: `0px 4px 8px ${withOpacity(colors.ui.error, 0.3)}`,
     elevation: 5,
   },
   modalButtonGradient: {

@@ -57,6 +57,7 @@ async function enrichSingleConversation(
       return {
         ...conv,
         display_name: userInfo.display_name,
+        username: (userInfo as any).username ?? conv.username,
         avatar_url: userInfo.avatar_url || conv.avatar_url,
         member_user_ids: memberIds,
       };
@@ -106,8 +107,9 @@ interface ConversationsActions {
   refreshConversations: () => Promise<void>;
   applyConversationUpdate: (conversation: Conversation) => void;
   applyConversationSummaries: (conversations: Conversation[]) => void;
-  applyNewMessage: (message: Message) => Promise<void>;
+  applyNewMessage: (message: Message, currentUserId?: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  removeConversationLocal: (id: string) => void;
   archiveConversation: (id: string) => void;
   muteConversation: (id: string) => Promise<void>;
   pinConversation: (id: string) => void;
@@ -311,6 +313,7 @@ export const useConversationsStore = create<
         is_pinned: wsConv.is_pinned ?? wsConv.isPinned ?? false,
         is_muted: wsConv.is_muted ?? wsConv.isMuted ?? false,
         is_archived: wsConv.is_archived ?? wsConv.isArchived ?? false,
+        avatar_url: wsConv.avatar_url || wsConv.avatarUrl,
       };
       const existing = existingMap.get(conv.id);
       if (existing) {
@@ -318,7 +321,7 @@ export const useConversationsStore = create<
           ...conv,
           display_name: existing.display_name || conv.display_name,
           member_user_ids: conv.member_user_ids || existing.member_user_ids,
-          avatar_url: existing.avatar_url,
+          avatar_url: conv.avatar_url || existing.avatar_url,
           // Preserve local enrichments the backend summary doesn't include
           last_message: conv.last_message || existing.last_message,
           is_pinned: conv.is_pinned || existing.is_pinned,
@@ -366,11 +369,15 @@ export const useConversationsStore = create<
     }
   },
 
-  applyNewMessage: async (message) => {
+  applyNewMessage: async (message, currentUserId) => {
     const { conversations, _cancelGracePeriod } = get();
     const index = conversations.findIndex(
       (conv) => conv.id === message.conversation_id,
     );
+    // WHISPR-1050: a message echoed back from our own device still arrives over
+    // the socket. We must not count it as unread, otherwise the badge flickers
+    // on every send and stays >0 after closing the chat.
+    const isOwnMessage = !!currentUserId && message.sender_id === currentUserId;
 
     if (index === -1) {
       // Bug C fix: conversation not in the list — fetch it from the API and prepend
@@ -383,7 +390,7 @@ export const useConversationsStore = create<
             ...fetched,
             last_message: message,
             updated_at: message.sent_at,
-            unread_count: 1,
+            unread_count: isOwnMessage ? 0 : 1,
           };
           // Enrich display name for new direct conversations
           const userId = await getCurrentUserId();
@@ -412,11 +419,13 @@ export const useConversationsStore = create<
       return;
     }
 
+    const previousUnread = conversations[index].unread_count || 0;
     const updated = {
       ...conversations[index],
       last_message: message,
       updated_at: message.sent_at,
-      unread_count: (conversations[index].unread_count || 0) + 1,
+      // WHISPR-1050: hold the counter steady on self-echo.
+      unread_count: isOwnMessage ? previousUnread : previousUnread + 1,
     };
     // Bug B fix: move the updated conversation to the top, sorted by recency
     const next = [updated, ...conversations.filter((_, i) => i !== index)];
@@ -438,6 +447,26 @@ export const useConversationsStore = create<
       set({ conversations, status: "loaded" });
       throw err;
     }
+  },
+
+  removeConversationLocal: (id) => {
+    const { conversations, groupAvatars, manuallyUnreadIds } = get();
+    const next = conversations.filter((c) => c.id !== id);
+    const nextAvatars = { ...groupAvatars };
+    delete nextAvatars[id];
+    const nextUnread = new Set(manuallyUnreadIds);
+    nextUnread.delete(id);
+    set({
+      conversations: next,
+      status: next.length === 0 ? "empty" : "loaded",
+      groupAvatars: nextAvatars,
+      manuallyUnreadIds: nextUnread,
+    });
+    cacheService.saveConversations(next);
+    AsyncStorage.setItem(
+      MANUALLY_UNREAD_KEY,
+      JSON.stringify(Array.from(nextUnread)),
+    ).catch(() => {});
   },
 
   archiveConversation: (id) => {

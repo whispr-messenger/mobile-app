@@ -15,7 +15,6 @@ import {
   Platform,
   Switch,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -42,6 +41,9 @@ export const TwoFactorAuthScreen: React.FC = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showDisableCard, setShowDisableCard] = useState(false);
   const [disableCode, setDisableCode] = useState("");
+  const [showRegenerateCard, setShowRegenerateCard] = useState(false);
+  const [regenerateCode, setRegenerateCode] = useState("");
+  const [remainingCodes, setRemainingCodes] = useState<number | null>(null);
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -95,7 +97,20 @@ export const TwoFactorAuthScreen: React.FC = () => {
       setActionLoading(false);
       setLoading(true);
       TwoFactorService.getStatus()
-        .then(({ enabled }) => setTwoFactorEnabled(enabled))
+        .then(async ({ enabled }) => {
+          setTwoFactorEnabled(enabled);
+          if (enabled) {
+            try {
+              const { remaining } =
+                await TwoFactorService.getRemainingBackupCodes();
+              setRemainingCodes(remaining);
+            } catch {
+              setRemainingCodes(null);
+            }
+          } else {
+            setRemainingCodes(null);
+          }
+        })
         .catch(() =>
           showToast(getLocalizedText("twoFactor.loadError"), "error"),
         )
@@ -137,30 +152,31 @@ export const TwoFactorAuthScreen: React.FC = () => {
   };
 
   const handleViewBackupCodes = () => {
-    Alert.alert(
-      getLocalizedText("twoFactor.regenerateTitle"),
-      getLocalizedText("twoFactor.regenerateConfirm"),
-      [
-        { text: getLocalizedText("common.cancel"), style: "cancel" },
-        {
-          text: getLocalizedText("twoFactor.regenerateCodes"),
-          style: "destructive",
-          onPress: async () => {
-            setActionLoading(true);
-            try {
-              const { backupCodes } = await TwoFactorService.getBackupCodes("");
-              navigation.navigate("TwoFactorBackupCodes", {
-                codes: backupCodes,
-              });
-            } catch {
-              showToast(getLocalizedText("twoFactor.setupError"), "error");
-            } finally {
-              setActionLoading(false);
-            }
-          },
-        },
-      ],
-    );
+    triggerHaptic("light");
+    setShowRegenerateCard(true);
+  };
+
+  const handleRegenerateBackupCodes = async () => {
+    if (regenerateCode.length < 6) {
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const { backupCodes } =
+        await TwoFactorService.regenerateBackupCodes(regenerateCode);
+      setRegenerateCode("");
+      setShowRegenerateCard(false);
+      setRemainingCodes(backupCodes.length);
+      triggerHaptic("success");
+      navigation.navigate("TwoFactorBackupCodes", { codes: backupCodes });
+    } catch {
+      triggerHaptic("heavy");
+      showToast(getLocalizedText("twoFactor.invalidCode"), "error");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -536,6 +552,122 @@ export const TwoFactorAuthScreen: React.FC = () => {
                   />
                 </View>
               </TouchableOpacity>
+
+              {remainingCodes !== null && (
+                <Text
+                  style={[
+                    styles.remainingText,
+                    {
+                      color:
+                        remainingCodes <= 2
+                          ? "#E53E3E"
+                          : themeColors.text.secondary,
+                      fontSize: getFontSize("sm"),
+                    },
+                  ]}
+                >
+                  {getLocalizedText("twoFactor.remainingCodes").replace(
+                    "{count}",
+                    String(remainingCodes),
+                  )}
+                </Text>
+              )}
+
+              {showRegenerateCard && (
+                <View
+                  style={[
+                    styles.disableCard,
+                    {
+                      backgroundColor: themeColors.background.secondary,
+                      borderColor: accentColor + "40",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.disableCardTitle,
+                      {
+                        color: themeColors.text.primary,
+                        fontSize: getFontSize("base"),
+                      },
+                    ]}
+                  >
+                    {getLocalizedText("twoFactor.regenerateTitle")}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.disableCardSubtitle,
+                      {
+                        color: themeColors.text.secondary,
+                        fontSize: getFontSize("sm"),
+                      },
+                    ]}
+                  >
+                    {getLocalizedText("twoFactor.regenerateConfirm")}
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.codeInput,
+                      {
+                        backgroundColor: themeColors.background.primary,
+                        color: themeColors.text.primary,
+                        borderColor: accentColor + "40",
+                        fontSize: getFontSize("base"),
+                      },
+                    ]}
+                    value={regenerateCode}
+                    onChangeText={setRegenerateCode}
+                    placeholder={getLocalizedText("twoFactor.enterCode")}
+                    placeholderTextColor={themeColors.text.tertiary}
+                    maxLength={8}
+                    autoCapitalize="characters"
+                  />
+                  <View style={styles.disableActions}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowRegenerateCard(false);
+                        setRegenerateCode("");
+                      }}
+                      style={[
+                        styles.disableActionButton,
+                        { backgroundColor: themeColors.background.primary },
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={{
+                          color: themeColors.text.primary,
+                          fontSize: getFontSize("base"),
+                        }}
+                      >
+                        {getLocalizedText("common.cancel")}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleRegenerateBackupCodes}
+                      disabled={actionLoading}
+                      style={[
+                        styles.disableActionButton,
+                        { backgroundColor: themeColors.primary },
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      {actionLoading ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text
+                          style={{
+                            color: "#FFFFFF",
+                            fontSize: getFontSize("base"),
+                          }}
+                        >
+                          {getLocalizedText("twoFactor.regenerateCodes")}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
@@ -679,6 +811,12 @@ const styles = StyleSheet.create({
   actionCardInfo: { flex: 1 },
   actionCardTitle: { fontWeight: "500", marginBottom: 2 },
   actionCardSubtitle: { lineHeight: 18 },
+  remainingText: {
+    marginTop: 4,
+    marginBottom: 12,
+    paddingHorizontal: 8,
+    fontWeight: "500",
+  },
 });
 
 export default TwoFactorAuthScreen;

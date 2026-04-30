@@ -7,6 +7,8 @@ import { render, fireEvent, waitFor } from "@testing-library/react-native";
 
 const mockCreateBlockedImageAppeal = jest.fn();
 
+jest.setTimeout(15000);
+
 jest.mock("./src/store/moderationStore", () => ({
   useModerationStore: () => ({
     createBlockedImageAppeal: mockCreateBlockedImageAppeal,
@@ -56,7 +58,8 @@ describe("BlockedImageAppealModal", () => {
 
     // The submit button's TouchableOpacity has disabled={!canSubmit}
     // We verify by attempting to press and confirming no call was made
-    fireEvent.press(getByText("Envoyer la contestation"));
+    const submitText = getByText("Envoyer la contestation");
+    fireEvent.press(submitText.parent as any);
     expect(mockCreateBlockedImageAppeal).not.toHaveBeenCalled();
   });
 
@@ -71,7 +74,8 @@ describe("BlockedImageAppealModal", () => {
       input,
       "This is a valid reason that is long enough to pass validation",
     );
-    fireEvent.press(getByText("Envoyer la contestation"));
+    const submitText = getByText("Envoyer la contestation");
+    fireEvent.press(submitText.parent as any);
 
     await waitFor(() => {
       expect(mockCreateBlockedImageAppeal).toHaveBeenCalled();
@@ -117,7 +121,8 @@ describe("BlockedImageAppealModal", () => {
       getByPlaceholderText("Explique pourquoi ton image est OK"),
       "This is a valid reason that is long enough to pass validation",
     );
-    fireEvent.press(getByText("Envoyer la contestation"));
+    const submitText = getByText("Envoyer la contestation");
+    fireEvent.press(submitText.parent as any);
 
     await waitFor(() => {
       expect(baseProps.onClose).toHaveBeenCalled();

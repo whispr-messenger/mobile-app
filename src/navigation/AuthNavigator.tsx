@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
+import { NativeModules, Platform, Text, View } from "react-native";
 import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
 import { OtpScreen } from "../screens/Auth/OtpScreen";
 import { ProfileSetupScreen } from "../screens/Auth/ProfileSetupScreen";
-import { ProfileScreen } from "../screens/Profile/ProfileScreen";
+import { MyProfileScreen } from "../screens/Profile/MyProfileScreen";
+import { UserProfileScreen } from "../screens/Profile/UserProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
 import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
+import { DevicesScreen } from "../screens/Settings/DevicesScreen";
 import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
 import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
 import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
@@ -20,7 +23,6 @@ import { MyQRCodeScreen } from "../screens/Contacts/MyQRCodeScreen";
 import { GroupDetailsScreen } from "../screens/Groups/GroupDetailsScreen";
 import { GroupManagementScreen } from "../screens/Groups/GroupManagementScreen";
 import { ScheduledMessagesScreen } from "../screens/Chat/ScheduledMessagesScreen";
-import { CallsScreen } from "../screens/Calls/CallsScreen";
 import { ModerationTestScreen } from "../screens/Debug/ModerationTestScreen";
 import { ModerationDecisionScreen } from "../screens/Moderation/ModerationDecisionScreen";
 import { ModerationAppealFormScreen } from "../screens/Moderation/ModerationAppealFormScreen";
@@ -29,6 +31,7 @@ import {
   ReportHistoryScreen,
   ReportDetailScreen,
   SanctionNoticeScreen,
+  MySanctionsScreen,
   AppealFormScreen,
   AppealStatusScreen,
 } from "../screens/Moderation";
@@ -43,8 +46,23 @@ import {
 } from "../screens/Admin";
 
 import { useAuth } from "../context/AuthContext";
+import { useOfflineQueueDrainer } from "../hooks/useOfflineQueueDrainer";
+import { useModerationStore } from "../store/moderationStore";
+import { useConversationsStore } from "../store/conversationsStore";
+import { profileSetupFlag } from "../services/profileSetupFlag";
 import { SplashScreen } from "../screens/SplashScreen/SplashScreen";
+import { contactsAPI } from "../services/contacts/api";
+import { TokenService } from "../services/TokenService";
+import { UserService } from "../services/UserService";
+import { NotificationService } from "../services/NotificationService";
+import Constants from "expo-constants";
 import type { AuthPurpose } from "../types/auth";
+import type {
+  Report,
+  Appeal,
+  UserSanction,
+  SanctionType,
+} from "../types/moderation";
 
 /** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
 const SPLASH_MIN_MS = 2000;
@@ -59,19 +77,12 @@ export type AuthStackParamList = {
     demoCode?: string;
   };
   ProfileSetup: undefined;
-  Profile: {
-    userId?: string;
-    token?: string;
-    firstName?: string;
-    lastName?: string;
-    phoneNumber?: string;
-    profilePicture?: string;
-    username?: string;
-    biography?: string;
-  };
+  MyProfile: undefined;
+  UserProfile: { userId: string };
   Settings: undefined;
   AboutContent: undefined;
   SecurityKeys: undefined;
+  Devices: undefined;
   TwoFactorAuth: undefined;
   TwoFactorSetup: undefined;
   TwoFactorVerify: { secret: string };
@@ -90,6 +101,9 @@ export type AuthStackParamList = {
   GroupManagement: { groupId: string; conversationId: string };
   ScheduledMessages: { conversationId: string };
   Calls: undefined;
+  IncomingCall: undefined;
+  InCall: undefined;
+  CallHistory: undefined;
   ModerationTest: undefined;
   ModerationDecision:
     | {
@@ -109,40 +123,149 @@ export type AuthStackParamList = {
   };
   // Moderation (user-facing)
   ReportHistory: undefined;
-  ReportDetail: { reportId: string };
+  ReportDetail: { report: Report };
+  MySanctions: undefined;
   SanctionNotice: { sanctionId: string };
-  AppealForm: { sanctionId: string };
-  AppealStatus: { appealId: string };
+  AppealForm: { sanction: UserSanction };
+  AppealStatus: { sanctionId?: string; appealId?: string };
   // Admin screens
   ModerationDashboard: undefined;
   ReportQueue: undefined;
-  ReportReview: { reportId: string };
+  ReportReview: { report: Report };
   AppealQueue: undefined;
-  AppealReview: { appealId: string };
-  UserModeration: { userId: string };
-  SanctionForm: { userId: string };
+  AppealReview: { appealId?: string; appeal?: Appeal };
+  UserModeration: { userId: string; userName?: string; userAvatar?: string };
+  SanctionForm: {
+    userId?: string;
+    userName?: string;
+    defaultType?: SanctionType;
+  };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
 export const AuthNavigator: React.FC = () => {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, userId } = useAuth();
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+  const [profileSetupPending, setProfileSetupPending] = useState<
+    boolean | null
+  >(null);
+  const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
+  // Web (PWA Safari) uses the browser's built-in WebRTC via livekit-client,
+  // so calls work without a native module. The CallsUnavailableScreen
+  // guard only applies to native builds (Expo Go) that lack the
+  // @livekit/react-native-webrtc native bindings.
+  const hasCallsSupport = useMemo(() => {
+    if (Platform.OS === "web") return true;
+    const native = NativeModules as Record<string, unknown>;
+    return Boolean(native?.WebRTCModule || native?.LivekitReactNativeWebRTC);
+  }, []);
+
+  // WHISPR-1060: drain any offline-queued messages left over from a
+  // previous session as soon as the authenticated tree mounts, and keep
+  // listening for WebSocket reconnects to drain on demand. The hook is
+  // a no-op when the queue is empty, so calling it unconditionally is
+  // cheap.
+  useOfflineQueueDrainer();
 
   useEffect(() => {
     const t = setTimeout(() => setSplashMinElapsed(true), SPLASH_MIN_MS);
     return () => clearTimeout(t);
   }, []);
 
-  const showSplash = isLoading || !splashMinElapsed;
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfileSetupPending(false);
+      return;
+    }
+    let cancelled = false;
+    profileSetupFlag
+      .get()
+      .then((flag) => {
+        if (!cancelled) setProfileSetupPending(flag === "0");
+      })
+      .catch(() => {
+        if (!cancelled) setProfileSetupPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  // WHISPR-929: load the current user's moderation role as soon as the app
+  // enters its authenticated tree so every screen (not just Settings) can
+  // gate admin-only UI correctly from first render.
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMyRole();
+    }
+  }, [isAuthenticated, fetchMyRole]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    const preload = async () => {
+      const token = await TokenService.getAccessToken();
+      if (!token || cancelled) return;
+      await Promise.allSettled([
+        useConversationsStore.getState().fetchConversations(),
+        useConversationsStore.getState().loadManuallyUnreadIds(),
+        contactsAPI.getContacts(),
+        contactsAPI.getContactRequests(),
+        UserService.getInstance().getPrivacySettings(),
+        userId ? NotificationService.getSettings(userId) : Promise.resolve(),
+      ]);
+    };
+
+    preload().catch(() => {});
+    try {
+      require("../screens/Contacts/QRCodeScannerScreen");
+    } catch {}
+    if (Constants.appOwnership !== "expo" && hasCallsSupport) {
+      try {
+        require("../screens/Calls/CallsScreen");
+        require("../screens/Calls/IncomingCallScreen");
+        require("../screens/Calls/InCallScreen");
+        require("../screens/Calls/CallHistoryScreen");
+      } catch {}
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [hasCallsSupport, isAuthenticated, userId]);
+
+  const showSplash =
+    isLoading || !splashMinElapsed || profileSetupPending === null;
 
   if (showSplash) {
     return <SplashScreen />;
   }
 
+  const initialRouteName = !isAuthenticated
+    ? "Welcome"
+    : profileSetupPending
+      ? "ProfileSetup"
+      : "ConversationsList";
+
+  const CallsUnavailableScreen = () => (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 24,
+      }}
+    >
+      <Text style={{ textAlign: "center", opacity: 0.8 }}>
+        Les appels ne sont pas disponibles sur ce build. Recompilez le dev
+        client avec le module WebRTC natif.
+      </Text>
+    </View>
+  );
+
   return (
     <Stack.Navigator
-      initialRouteName={isAuthenticated ? "ConversationsList" : "Welcome"}
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
@@ -165,7 +288,8 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="PhoneInput" component={PhoneInputScreen} />
       <Stack.Screen name="Otp" component={OtpScreen} />
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
@@ -176,6 +300,7 @@ export const AuthNavigator: React.FC = () => {
       />
       <Stack.Screen name="AboutContent" component={AboutContentScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
+      <Stack.Screen name="Devices" component={DevicesScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
       <Stack.Screen
         name="TwoFactorSetup"
@@ -212,7 +337,45 @@ export const AuthNavigator: React.FC = () => {
         name="ScheduledMessages"
         component={ScheduledMessagesScreen}
       />
-      <Stack.Screen name="Calls" component={CallsScreen} />
+      <Stack.Screen
+        name="Calls"
+        getComponent={() =>
+          hasCallsSupport
+            ? require("../screens/Calls/CallsScreen").CallsScreen
+            : CallsUnavailableScreen
+        }
+      />
+      <Stack.Screen
+        name="IncomingCall"
+        getComponent={() =>
+          hasCallsSupport
+            ? require("../screens/Calls/IncomingCallScreen").IncomingCallScreen
+            : CallsUnavailableScreen
+        }
+        options={{
+          presentation: "modal",
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="InCall"
+        getComponent={() =>
+          hasCallsSupport
+            ? require("../screens/Calls/InCallScreen").InCallScreen
+            : CallsUnavailableScreen
+        }
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="CallHistory"
+        getComponent={() =>
+          hasCallsSupport
+            ? require("../screens/Calls/CallHistoryScreen").CallHistoryScreen
+            : CallsUnavailableScreen
+        }
+        options={{ title: "Appels" }}
+      />
       <Stack.Screen
         name="ModerationDecision"
         component={ModerationDecisionScreen}
@@ -228,6 +391,7 @@ export const AuthNavigator: React.FC = () => {
       {/* Moderation — user-facing */}
       <Stack.Screen name="ReportHistory" component={ReportHistoryScreen} />
       <Stack.Screen name="ReportDetail" component={ReportDetailScreen} />
+      <Stack.Screen name="MySanctions" component={MySanctionsScreen} />
       <Stack.Screen
         name="SanctionNotice"
         component={SanctionNoticeScreen}

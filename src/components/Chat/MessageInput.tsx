@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { formatUsername } from "../../utils";
+import { detectMention } from "../../utils/mentions";
 import {
   View,
   TextInput,
@@ -13,6 +14,7 @@ import {
   Alert,
   FlatList,
   ScrollView,
+  NativeModules,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -27,14 +29,45 @@ import { Avatar } from "./Avatar";
 import { CameraCapture, CameraCaptureResult } from "./CameraCapture";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
 
-// Import expo-av for audio recording
 let AudioModule: any = null;
-try {
-  const expoAv = require("expo-av");
-  AudioModule = expoAv.Audio;
-} catch (error) {
-  console.warn("[MessageInput] expo-av not available for recording:", error);
+let triedLoadingAudioModule = false;
+
+function getAudioModule(): any | null {
+  if (AudioModule) return AudioModule;
+  if (triedLoadingAudioModule) return null;
+  const native = NativeModules as Record<string, unknown>;
+  const shouldAttemptLoad =
+    Platform.OS === "web" ||
+    process.env.NODE_ENV === "test" ||
+    Boolean(native?.ExponentAV);
+  if (!shouldAttemptLoad) return null;
+  triedLoadingAudioModule = true;
+  try {
+    const expoAv = require("expo-av");
+    AudioModule = expoAv.Audio;
+    return AudioModule;
+  } catch (error) {
+    console.warn("[MessageInput] expo-av not available for recording:", error);
+    return null;
+  }
 }
+
+// Derive a Safari-compatible MIME on web; keep HIGH_QUALITY preset on native.
+// expo-av's HIGH_QUALITY preset forces `audio/webm` on web, which iOS Safari
+// refuses with NotSupportedError. Safari (iOS + macOS) supports `audio/mp4`.
+export const buildRecordingOptions = () => {
+  const base = getAudioModule()?.RecordingOptionsPresets?.HIGH_QUALITY;
+  if (Platform.OS !== "web") return base;
+  const webMime =
+    typeof MediaRecorder !== "undefined" &&
+    MediaRecorder.isTypeSupported("audio/mp4")
+      ? "audio/mp4"
+      : "audio/webm";
+  return {
+    ...base,
+    web: { mimeType: webMime, bitsPerSecond: 128000 },
+  };
+};
 
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
@@ -77,6 +110,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingRef = useRef<any>(null);
+  const recordingMimeRef = useRef<string | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
@@ -93,47 +127,37 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [editingMessage, replyingTo]);
 
-  const handleTextChange = useCallback(
+  const updateMentionState = useCallback(
     (newText: string) => {
-      setText(newText);
-      const trimmed = newText.trim();
-
-      // Check for @ mentions (only in groups)
-      if (conversationType === "group" && members.length > 0) {
-        const lastAtIndex = newText.lastIndexOf("@");
-        const cursorPos = newText.length;
-
-        if (lastAtIndex !== -1) {
-          // Check if @ is followed by space or is at the end
-          const afterAt = newText.substring(lastAtIndex + 1);
-          const spaceIndex = afterAt.indexOf(" ");
-
-          if (spaceIndex === -1 || spaceIndex === afterAt.length - 1) {
-            // We're in a mention
-            const query =
-              spaceIndex === -1 ? afterAt : afterAt.substring(0, spaceIndex);
-            setMentionQuery(query.toLowerCase());
-            setMentionStartIndex(lastAtIndex);
-            setShowMentions(true);
-          } else {
-            setShowMentions(false);
-          }
-        } else {
-          setShowMentions(false);
-        }
+      const detection = detectMention(
+        newText,
+        conversationType,
+        members.length,
+      );
+      if (detection) {
+        setMentionQuery(detection.query);
+        setMentionStartIndex(detection.startIndex);
+        setShowMentions(true);
+      } else if (conversationType === "group" && members.length > 0) {
+        // Only clear mentions when we're in a group — matches the previous
+        // behaviour which only toggled mentions in that branch.
+        setShowMentions(false);
       }
+    },
+    [conversationType, members.length],
+  );
 
+  const updateTypingState = useCallback(
+    (trimmed: string) => {
       if (trimmed.length > 0 && !isTypingRef.current) {
         onTyping?.(true);
         isTypingRef.current = true;
       }
-
       if (trimmed.length === 0 && isTypingRef.current) {
         onTyping?.(false);
         isTypingRef.current = false;
       }
 
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -146,7 +170,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         }, 3000);
       }
     },
-    [onTyping, conversationType, members],
+    [onTyping],
+  );
+
+  const handleTextChange = useCallback(
+    (newText: string) => {
+      setText(newText);
+      updateMentionState(newText);
+      updateTypingState(newText.trim());
+    },
+    [updateMentionState, updateTypingState],
   );
 
   const handleMentionSelect = useCallback(
@@ -255,12 +288,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Launch image picker
+      // Launch image picker without forcing a crop: WHISPR-1039 wants the
+      // user to send images in their native ratio (portrait/landscape/square).
+      // WHISPR-1197 : on ne passe PAS `quality` ici — sur iOS/Android
+      // expo-image-picker re-encode en JPEG dès que `quality` est défini,
+      // ce qui aplatit les GIFs animés (premier frame seulement) et perd
+      // la compression native HEIC. La taille du fichier est déjà bornée
+      // côté upload par WHISPR-1220, on accepte donc un léger surcoût
+      // réseau pour préserver l'animation et le format Apple.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+        allowsEditing: false,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
@@ -296,15 +334,33 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, []);
 
+  // Pre-warm mic permission on web so the long-press doesn't trigger the
+  // browser permission prompt synchronously (which freezes the tap UI).
+  // On web getUserMedia permission is sticky per-origin once granted.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const audioModule = getAudioModule();
+    if (!audioModule?.requestPermissionsAsync) return;
+    audioModule.requestPermissionsAsync().catch(() => {});
+  }, []);
+
   const startRecording = useCallback(async () => {
-    if (!AudioModule) {
+    const audioModule = getAudioModule();
+    if (!audioModule) {
       Alert.alert("Erreur", "L'enregistrement audio n'est pas disponible.");
       return;
     }
 
+    // Flip UI to "Recording" immediately so the user gets instant feedback.
+    // Reverted in the catch block on failure.
+    setIsRecording(true);
+    setRecordingDuration(0);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     try {
-      const permission = await AudioModule.requestPermissionsAsync();
+      const permission = await audioModule.requestPermissionsAsync();
       if (permission.status !== "granted") {
+        setIsRecording(false);
         Alert.alert(
           "Permission requise",
           "Nous avons besoin de votre permission pour enregistrer des messages vocaux.",
@@ -312,18 +368,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      await AudioModule.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      // Defer setAudioModeAsync so it doesn't block the render of the
+      // recording UI on iOS Safari (the call can be slow).
+      setTimeout(() => {
+        audioModule
+          .setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          })
+          .catch((err: unknown) => {
+            console.warn("[MessageInput] setAudioModeAsync failed:", err);
+          });
+      }, 0);
 
-      const { recording } = await AudioModule.Recording.createAsync(
-        AudioModule.RecordingOptionsPresets.HIGH_QUALITY,
-      );
+      const options = buildRecordingOptions();
+      recordingMimeRef.current =
+        Platform.OS === "web" ? (options?.web?.mimeType ?? null) : null;
+      const { recording } = await audioModule.Recording.createAsync(options);
       recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordingDuration(0);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       // Start duration timer
       const startTime = Date.now();
@@ -332,6 +394,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }, 1000);
     } catch (error: any) {
       console.error("[MessageInput] Error starting recording:", error);
+      setIsRecording(false);
+      setRecordingDuration(0);
       Alert.alert("Erreur", "Impossible de démarrer l'enregistrement.");
     }
   }, []);
@@ -346,9 +410,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       await recordingRef.current.stopAndUnloadAsync();
-      await AudioModule.setAudioModeAsync({
-        allowsRecordingIOS: false,
-      });
+      const audioModule = getAudioModule();
+      if (audioModule) {
+        await audioModule.setAudioModeAsync({
+          allowsRecordingIOS: false,
+        });
+      }
 
       const uri = recordingRef.current.getURI();
       const status = await recordingRef.current.getStatusAsync();
@@ -368,7 +435,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSendMedia?.(uri, "audio", replyingTo?.id);
+
+      // On web the URI is a `blob:...uuid` with no extension; backends derive
+      // filenames from the URL path and reject blobs. Rewrap with a proper
+      // File so the resulting object URL carries a real name + MIME.
+      let finalUri = uri;
+      if (Platform.OS === "web" && uri.startsWith("blob:")) {
+        try {
+          const mime = recordingMimeRef.current || "audio/webm";
+          const ext = mime === "audio/mp4" ? "m4a" : "webm";
+          const fileName = `voice-${Date.now()}.${ext}`;
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const file = new File([blob], fileName, { type: mime });
+          finalUri = URL.createObjectURL(file);
+        } catch (rewrapError) {
+          console.warn(
+            "[MessageInput] Failed to rewrap blob, sending raw URI:",
+            rewrapError,
+          );
+        }
+      }
+      recordingMimeRef.current = null;
+
+      onSendMedia?.(finalUri, "audio", replyingTo?.id);
       if (replyingTo) {
         onCancelReply?.();
       }
@@ -390,6 +480,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
       await recordingRef.current.stopAndUnloadAsync();
       recordingRef.current = null;
+      recordingMimeRef.current = null;
       setIsRecording(false);
       setRecordingDuration(0);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -398,6 +489,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setIsRecording(false);
       setRecordingDuration(0);
       recordingRef.current = null;
+      recordingMimeRef.current = null;
     }
   }, []);
 
@@ -435,6 +527,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <TouchableOpacity
             onPress={replyingTo ? onCancelReply : onCancelEdit}
             style={styles.cancelReplyButton}
+            accessibilityRole="button"
+            accessibilityLabel={
+              replyingTo ? "Annuler la réponse" : "Annuler la modification"
+            }
           >
             <Ionicons
               name="close"
@@ -451,6 +547,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               onPress={cancelRecording}
               style={styles.attachButton}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Annuler l'enregistrement vocal"
             >
               <Ionicons
                 name="trash-outline"
@@ -464,7 +562,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 {formatRecordingTime(recordingDuration)}
               </Text>
             </View>
-            <TouchableOpacity onPress={stopRecording} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={stopRecording}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Envoyer le message vocal"
+            >
               <LinearGradient
                 colors={["#FFB07B", "#F04882"]}
                 start={{ x: 0, y: 0 }}
@@ -483,6 +586,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onPress={handleOpenCamera}
                   style={styles.attachButton}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Prendre une photo"
                 >
                   <Ionicons
                     name="camera-outline"
@@ -494,6 +599,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onPress={handlePickImage}
                   style={styles.attachButton}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Joindre une image"
                 >
                   <Ionicons
                     name="image-outline"
@@ -505,6 +612,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   onPress={handleOpenEmojiPicker}
                   style={styles.attachButton}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
                   accessibilityLabel="Ouvrir le clavier emoji"
                 >
                   <Ionicons
@@ -580,6 +688,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                             style={styles.mentionItem}
                             onPress={() => handleMentionSelect(member)}
                             activeOpacity={0.7}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Mentionner ${member.display_name}`}
                           >
                             <Avatar
                               size={32}
@@ -619,6 +729,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 onLongPress={handleLongPressSend}
                 delayLongPress={500}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  editingMessage
+                    ? "Enregistrer la modification"
+                    : "Envoyer le message"
+                }
+                accessibilityHint="Maintenir pour programmer l'envoi"
               >
                 <LinearGradient
                   colors={["#FFB07B", "#F04882"]}
@@ -633,8 +750,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <TouchableOpacity
                 onPress={handleMicPress}
                 onLongPress={startRecording}
-                delayLongPress={300}
+                delayLongPress={Platform.OS === "web" ? 200 : 300}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Enregistrer un message vocal"
+                accessibilityHint="Maintenir pour démarrer l'enregistrement"
+                style={
+                  // iOS Safari: block native context menu / text-selection
+                  // popup from stealing the long-press gesture.
+                  Platform.OS === "web"
+                    ? ({
+                        userSelect: "none",
+                        WebkitUserSelect: "none",
+                        WebkitTouchCallout: "none",
+                      } as any)
+                    : undefined
+                }
               >
                 <LinearGradient
                   colors={["#FFB07B", "#F04882"]}

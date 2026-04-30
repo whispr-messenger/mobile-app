@@ -27,6 +27,14 @@ import { colors } from "../../theme/colors";
 import { qrCodeService } from "../../services/qrCode/qrCodeService";
 import { contactsAPI } from "../../services/contacts/api";
 
+// Lazy-load the web QR scanner so native bundles don't pull in browser-only deps.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let WebScanner: any = null;
+if (Platform.OS === "web") {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  WebScanner = require("@yudiel/react-qr-scanner").Scanner;
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SCAN_AREA_SIZE = Math.min(SCREEN_WIDTH - 64, 280);
 
@@ -173,18 +181,44 @@ export const QRCodeScannerScreen: React.FC = () => {
             text: "Ajouter",
             onPress: async () => {
               try {
-                await contactsAPI.addContact({ contactId: userId });
-                Alert.alert("Succès", "Contact ajouté avec succès", [
-                  {
-                    text: "OK",
-                    onPress: () => navigation.goBack(),
-                  },
-                ]);
+                await contactsAPI.sendContactRequest(userId);
+                Alert.alert(
+                  "Succès",
+                  "Demande de contact envoyée. En attente d'acceptation.",
+                  [
+                    {
+                      text: "OK",
+                      onPress: () => navigation.goBack(),
+                    },
+                  ],
+                );
               } catch (error: unknown) {
-                const msg =
-                  error instanceof Error
-                    ? error.message
-                    : "Impossible d'ajouter ce contact";
+                const status =
+                  typeof error === "object" &&
+                  error !== null &&
+                  "status" in error
+                    ? Number((error as { status?: number }).status)
+                    : undefined;
+                const msg = error instanceof Error ? error.message : "";
+                const isAlreadyPendingOrContact =
+                  status === 409 ||
+                  msg.toLowerCase().includes("already") ||
+                  msg.toLowerCase().includes("pending");
+
+                if (isAlreadyPendingOrContact) {
+                  Alert.alert(
+                    "Info",
+                    "Une demande est deja en attente ou ce contact est deja ajoute.",
+                    [
+                      {
+                        text: "OK",
+                        onPress: () => navigation.goBack(),
+                      },
+                    ],
+                  );
+                  return;
+                }
+
                 Alert.alert("Erreur", msg, [
                   {
                     text: "OK",
@@ -214,7 +248,7 @@ export const QRCodeScannerScreen: React.FC = () => {
     }
   };
 
-  if (Platform.OS === "web") {
+  if (Platform.OS === "web" && WebScanner) {
     return (
       <LinearGradient
         colors={colors.background.gradient.app}
@@ -244,11 +278,33 @@ export const QRCodeScannerScreen: React.FC = () => {
             </Text>
             <View style={styles.placeholder} />
           </View>
-          <View style={styles.permissionContainer}>
-            <Text style={[styles.permissionText, { color: colors.text.light }]}>
-              Le scan QR n&apos;est pas disponible sur la version web. Utilisez
-              l&apos;application mobile.
-            </Text>
+          <View style={styles.cameraContainer}>
+            <WebScanner
+              onScan={(results: { rawValue: string }[]) => {
+                if (results && results[0]) {
+                  void handleBarCodeScanned({ data: results[0].rawValue });
+                }
+              }}
+              onError={(err: Error) => {
+                console.warn("QR scan error", err);
+              }}
+              constraints={{ facingMode: "environment" }}
+              styles={{
+                container: { width: "100%", height: "100%" },
+                video: { width: "100%", height: "100%" },
+              }}
+            />
+            <View style={styles.overlayBottom}>
+              <Text style={styles.instructionText}>
+                Positionnez le QR code dans le cadre
+              </Text>
+              {processing ? (
+                <View style={styles.processingContainer}>
+                  <ActivityIndicator size="small" color={colors.primary.main} />
+                  <Text style={styles.processingText}>Traitement...</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
         </SafeAreaView>
       </LinearGradient>

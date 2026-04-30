@@ -2,6 +2,23 @@ import React from "react";
 import { render } from "@testing-library/react-native";
 import { Avatar } from "./src/components/Chat/Avatar";
 
+jest.mock("./src/services/TokenService", () => ({
+  TokenService: { getAccessToken: jest.fn().mockResolvedValue(null) },
+}));
+jest.mock("./src/services/apiBase", () => ({
+  getApiBaseUrl: () => "https://api.test",
+}));
+
+beforeAll(() => {
+  // Avatar pre-resolves media via fetch (?stream=1). Stub it so unit tests
+  // don't hit the network — tests only check the initial render.
+  (global as unknown as { fetch: jest.Mock }).fetch = jest
+    .fn()
+    .mockImplementation(
+      () => new Promise(() => undefined),
+    ) as unknown as typeof fetch;
+});
+
 describe("Avatar", () => {
   it("renders an image when given a presigned https URL", () => {
     const url =
@@ -32,31 +49,31 @@ describe("Avatar", () => {
     expect(getByText("?")).toBeTruthy();
   });
 
-  it("rejects a bare UUID and shows initials instead", () => {
-    const { getByText } = render(
+  it("accepts a bare UUID (media id) and renders an image", () => {
+    const { queryByText } = render(
       <Avatar uri="550e8400-e29b-41d4-a716-446655440000" name="Test User" />,
     );
-    expect(getByText("TU")).toBeTruthy();
+    expect(queryByText("TU")).toBeNull();
   });
 
-  it("rejects a relative media path and shows initials", () => {
-    const { getByText } = render(
+  it("accepts a relative media path and renders an image", () => {
+    const { queryByText } = render(
       <Avatar
         uri="/media/v1/public/550e8400-e29b-41d4-a716-446655440000"
         name="Test User"
       />,
     );
-    expect(getByText("TU")).toBeTruthy();
+    expect(queryByText("TU")).toBeNull();
   });
 
-  it("rejects a storage path and shows initials", () => {
-    const { getByText } = render(
+  it("accepts a storage path and renders an image", () => {
+    const { queryByText } = render(
       <Avatar
         uri="avatars/aaaa-bbbb-cccc/550e8400-e29b-41d4-a716-446655440000"
         name="Test User"
       />,
     );
-    expect(getByText("TU")).toBeTruthy();
+    expect(queryByText("TU")).toBeNull();
   });
 
   it("passes through a plain https URL unchanged", () => {
@@ -97,9 +114,7 @@ describe("Avatar", () => {
     );
     expect(getByText("T")).toBeTruthy();
 
-    rerender(
-      <Avatar uri="https://cdn.example.com/avatar.png" name="Test" />,
-    );
+    rerender(<Avatar uri="https://cdn.example.com/avatar.png" name="Test" />);
     expect(queryByText("T")).toBeNull();
   });
 

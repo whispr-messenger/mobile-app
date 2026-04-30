@@ -1,6 +1,7 @@
 import { getWsBaseUrl } from "../apiBase";
 import { TokenService } from "../TokenService";
 import { AuthService } from "../AuthService";
+import { emitSessionExpired } from "../sessionEvents";
 import { logger } from "../../utils/logger";
 
 type EventCallback = (data: any) => void;
@@ -69,6 +70,9 @@ function nextRef(): string {
   return String(refCounter);
 }
 
+/** Phoenix/custom close codes that indicate an authentication failure. */
+const AUTH_CLOSE_CODES = new Set([1008, 4001]);
+
 /**
  * Encode a message in Phoenix v2 array format.
  */
@@ -129,7 +133,14 @@ export class SocketConnection {
   private maxReconnectAttempts = 20;
   private shouldReconnect = false;
   private lastUserId: string | null = null;
+  // Long-lived access token captured at connect()-time, used as a fallback
+  // for the WS handshake if the dedicated /tokens/ws-token endpoint is
+  // unreachable (network error or backend not yet rolled out). WHISPR-1214.
   private lastToken: string | null = null;
+  private lastCloseCode: number = 0;
+  // Mutex around the async ws-token fetch in connect(). Without it, two
+  // rapid connect() calls (e.g. mount + reconnect) could open two sockets.
+  private connecting = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatInterval = 30000;
 
@@ -153,7 +164,7 @@ export class SocketConnection {
     return !!this.socket && this.socket.readyState === WebSocket.OPEN;
   }
 
-  connect(userId: string, token: string): void {
+  async connect(userId: string, token: string): Promise<void> {
     if (
       this.socket &&
       (this.socket.readyState === WebSocket.OPEN ||
@@ -161,20 +172,36 @@ export class SocketConnection {
     ) {
       return;
     }
+    if (this.connecting) return;
+    this.connecting = true;
 
     this.lastUserId = userId;
     this.lastToken = token;
+    this.lastCloseCode = 0;
     this.shouldReconnect = true;
-
-    // Explicitly request v2 serializer so both sides agree on array format
-    const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
-      userId,
-    )}&token=${encodeURIComponent(token)}&vsn=2.0.0`;
 
     this.setConnectionState(
       this.reconnectAttempt > 0 ? "reconnecting" : "connecting",
     );
+
+    // Fetch the short-lived ws-token instead of putting the access token in
+    // the URL (WHISPR-1214). On failure we fall back to the access token so
+    // an outage of /tokens/ws-token doesn't take chat offline.
+    const wsToken = await this.fetchWsTokenWithFallback(token);
+
+    if (!this.shouldReconnect) {
+      // disconnect() was called while we were fetching the token
+      this.connecting = false;
+      return;
+    }
+
+    // Explicitly request v2 serializer so both sides agree on array format
+    const url = `${getWsBaseUrl()}/messaging/socket/websocket?user_id=${encodeURIComponent(
+      userId,
+    )}&token=${encodeURIComponent(wsToken)}&vsn=2.0.0`;
+
     this.socket = new WebSocket(url);
+    this.connecting = false;
     logger.info(
       "WS",
       `Connecting to ${url.replace(/token=[^&]+/, "token=***")}`,
@@ -270,6 +297,7 @@ export class SocketConnection {
     this.socket.onclose = (ev) => {
       logger.info("WS", `Closed code=${ev.code} reason=${ev.reason}`);
       this.stopHeartbeat();
+      this.lastCloseCode = ev.code;
       Object.values(this.channels).forEach((ch) => {
         ch.joined = false;
         ch.joinRef = null;
@@ -285,6 +313,27 @@ export class SocketConnection {
     this.socket.onerror = (err) => {
       logger.error("WS", "Socket error", err);
     };
+  }
+
+  // WHISPR-1214 — try the short-lived ws-token endpoint first; fall back to
+  // the access token if the call fails. The fallback covers two cases:
+  //   * the auth-service hasn't rolled out /tokens/ws-token yet (transition
+  //     window between mobile-app deploy and backend deploy)
+  //   * a transient network blip on that single request
+  // The risk added by the fallback is the pre-WHISPR-1214 status quo, so we
+  // never regress functionality vs. before this fix.
+  private async fetchWsTokenWithFallback(accessToken: string): Promise<string> {
+    try {
+      const { wsToken } = await AuthService.getWsToken();
+      return wsToken;
+    } catch (err) {
+      logger.warn(
+        "WS",
+        "ws-token fetch failed, falling back to access token",
+        err,
+      );
+      return accessToken;
+    }
   }
 
   /** Send a phx_join for a topic using v2 array format */
@@ -317,13 +366,13 @@ export class SocketConnection {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
+    if (!this.shouldReconnect || !this.lastUserId) return;
 
-    // Stop reconnecting after max attempts (~10 minutes with exponential backoff)
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
       logger.warn("WS", "Max reconnect attempts reached, giving up");
       this.shouldReconnect = false;
       this.setConnectionState("disconnected");
+      emitSessionExpired("ws_max_reconnect");
       return;
     }
 
@@ -334,38 +383,44 @@ export class SocketConnection {
     this.reconnectAttempt++;
 
     this.reconnectTimer = setTimeout(async () => {
-      if (!this.shouldReconnect || !this.lastUserId || !this.lastToken) return;
+      if (!this.shouldReconnect || !this.lastUserId) return;
 
-      // If the token is expired, try to refresh it before reconnecting
-      if (TokenService.isTokenExpired(this.lastToken)) {
-        try {
+      try {
+        let token = await TokenService.getAccessToken();
+
+        const authCloseTriggered = AUTH_CLOSE_CODES.has(this.lastCloseCode);
+        this.lastCloseCode = 0;
+
+        const needsRefresh =
+          !token || TokenService.isTokenExpired(token) || authCloseTriggered;
+
+        if (needsRefresh) {
           logger.info(
             "WS",
-            "Token expired, attempting refresh before reconnect",
+            "Refreshing token before reconnect" +
+              (authCloseTriggered ? " (auth close code)" : ""),
           );
           await AuthService.refreshTokens();
-          const newToken = await TokenService.getAccessToken();
-          if (newToken) {
-            this.lastToken = newToken;
-          } else {
-            logger.warn(
-              "WS",
-              "Token refresh returned null, stopping reconnect",
-            );
-            this.shouldReconnect = false;
-            this.setConnectionState("disconnected");
-            return;
-          }
-        } catch (err) {
-          logger.warn("WS", "Token refresh failed, stopping reconnect", err);
+          token = await TokenService.getAccessToken();
+        }
+
+        if (!token) {
+          logger.warn("WS", "No token available, stopping reconnect");
           this.shouldReconnect = false;
           this.setConnectionState("disconnected");
+          emitSessionExpired("ws_no_token");
           return;
         }
-      }
 
-      this.socket = null;
-      this.connect(this.lastUserId!, this.lastToken!);
+        this.lastToken = token;
+        this.socket = null;
+        this.connect(this.lastUserId!, this.lastToken);
+      } catch (err) {
+        logger.warn("WS", "Token refresh failed during reconnect", err);
+        this.shouldReconnect = false;
+        this.setConnectionState("disconnected");
+        emitSessionExpired("ws_token_refresh_failed");
+      }
     }, delay);
   }
 
@@ -383,6 +438,7 @@ export class SocketConnection {
       this.pendingTopics.clear();
     }
     this.reconnectAttempt = 0;
+    this.lastCloseCode = 0;
     this.setConnectionState("disconnected");
   }
 
