@@ -194,24 +194,26 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   /**
-   * Map local notification settings to the notification-service API format
+   * Map local notification settings to the notification-service API format.
+   * Only fields that exist in user_settings (Ecto schema) are sent; `sound`
+   * has no backend equivalent and stays purely client-side (AsyncStorage).
    */
   const notificationToApi = useCallback(
     (local: typeof notificationSettings): Partial<NotificationSettings> => ({
-      push_enabled: local.notifications,
-      sound_enabled: local.sound,
+      message_push_enabled: local.notifications,
       mentions_only: local.mentions,
     }),
     [],
   );
 
   /**
-   * Map notification-service API format back to local format
+   * Map notification-service API format back to local format. Returns a
+   * Partial — `sound` is preserved from the existing local state since the
+   * backend does not store it.
    */
   const apiToNotification = useCallback(
-    (api: NotificationSettings) => ({
-      notifications: api.push_enabled,
-      sound: api.sound_enabled,
+    (api: NotificationSettings): Partial<typeof notificationSettings> => ({
+      notifications: api.message_push_enabled,
       mentions: api.mentions_only,
     }),
     [],
@@ -221,7 +223,8 @@ export const SettingsScreen: React.FC = () => {
    * Sync notification settings to the notification-service backend.
    * Uses a PATCH-style merge: reads current backend settings first, then
    * updates only the fields we manage locally, preserving backend-only
-   * fields (message_previews, show_sender_name, quiet_hours_*).
+   * fields (message_email_enabled, system_push_enabled,
+   * marketing_push_enabled, language, timezone, quiet_hours_*).
    */
   const syncNotificationsToBackend = useCallback(
     async (local: typeof notificationSettings) => {
@@ -301,12 +304,15 @@ export const SettingsScreen: React.FC = () => {
         if (userId) {
           try {
             const backendNotif = await NotificationService.getSettings(userId);
-            const localNotif = apiToNotification(backendNotif);
-            setNotificationSettings(localNotif);
-            await AsyncStorage.setItem(
-              STORAGE_KEYS.notifications,
-              JSON.stringify(localNotif),
-            );
+            const partial = apiToNotification(backendNotif);
+            setNotificationSettings((prev) => {
+              const merged = { ...prev, ...partial };
+              AsyncStorage.setItem(
+                STORAGE_KEYS.notifications,
+                JSON.stringify(merged),
+              ).catch(() => {});
+              return merged;
+            });
           } catch (notifError) {
             // warn : échec réseau / API non alignée — évite l’overlay rouge LogBox en dev
             console.warn(

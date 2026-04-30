@@ -54,7 +54,7 @@ describe("NotificationService.getBadge", () => {
 describe("NotificationService.getSettings / updateSettings", () => {
   it("GETs the settings for a user", async () => {
     mockFetch.mockResolvedValueOnce(
-      mockResponse({ body: { push_enabled: true } }),
+      mockResponse({ body: { message_push_enabled: true } }),
     );
 
     const result = await NotificationService.getSettings("user 1/x");
@@ -62,20 +62,20 @@ describe("NotificationService.getSettings / updateSettings", () => {
     expect(mockFetch.mock.calls[0][0] as string).toBe(
       "https://api.test/notification/api/settings/user%201%2Fx",
     );
-    expect(result).toEqual({ push_enabled: true });
+    expect(result).toEqual({ message_push_enabled: true });
   });
 
   it("PUTs the partial settings payload", async () => {
     mockFetch.mockResolvedValueOnce(
-      mockResponse({ body: { push_enabled: false } }),
+      mockResponse({ body: { message_push_enabled: false } }),
     );
 
-    await NotificationService.updateSettings("u1", { push_enabled: false });
+    await NotificationService.updateSettings("u1", { message_push_enabled: false });
 
     const [url, init] = mockFetch.mock.calls[0];
     expect(url).toBe("https://api.test/notification/api/settings/u1");
     expect(init.method).toBe("PUT");
-    expect(JSON.parse(init.body)).toEqual({ push_enabled: false });
+    expect(JSON.parse(init.body)).toEqual({ message_push_enabled: false });
   });
 });
 

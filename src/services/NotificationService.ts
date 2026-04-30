@@ -74,18 +74,23 @@ async function apiFetch<T>(
   return response.json() as Promise<T>;
 }
 
+// Mirrors WhisprNotifications.Preferences.UserSettings on the backend
+// (lib/whispr_notifications/preferences/user_settings.ex). Any toggle that
+// must persist server-side has to live here under the exact name accepted by
+// the changeset @cast_fields — Ecto silently drops unknown keys, so a
+// mismatched name produces a 204 with no actual write.
 export interface NotificationSettings {
-  push_enabled: boolean;
-  message_previews: boolean;
-  sound_enabled: boolean;
-  vibration_enabled: boolean;
-  show_sender_name: boolean;
+  user_id?: string;
+  language?: string;
+  timezone?: string;
+  message_push_enabled: boolean;
+  message_email_enabled: boolean;
+  system_push_enabled: boolean;
+  marketing_push_enabled: boolean;
   // When true, the user only receives push notifications for messages where
-  // they are explicitly @-mentioned. Backed by user_settings.mentions_only
-  // (notification-service); per-conversation overrides live in
+  // they are explicitly @-mentioned. Per-conversation overrides live in
   // conversation_settings.mentions_only.
   mentions_only: boolean;
-  quiet_hours_enabled: boolean;
   quiet_hours_start?: string; // HH:mm
   quiet_hours_end?: string; // HH:mm
 }
