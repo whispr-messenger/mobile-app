@@ -12,21 +12,44 @@ import React, {
 } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
+import { colors } from "../theme/colors";
+import { detectImageFormatFromUri } from "../utils/imageCompression";
+import { TokenService } from "../services/TokenService";
+import { MediaService } from "../services/MediaService";
+import { UserService } from "../services/UserService";
+import { getApiBaseUrl } from "../services/apiBase";
 
 // Types
 export type Theme = "light" | "dark" | "auto";
 export type Language = "fr" | "en";
 export type FontSize = "small" | "medium" | "large";
+export type BackgroundPreset =
+  | "whispr"
+  | "midnight"
+  | "sunset"
+  | "aurora"
+  | "custom";
+
+type BackgroundGradient = readonly [string, string, string];
 
 export interface GlobalSettings {
   theme: Theme;
   language: Language;
   fontSize: FontSize;
+  backgroundPreset: BackgroundPreset;
+  customBackgroundUri?: string | null;
+  customBackgroundVersion?: number;
+  customBackgroundRemoteMediaId?: string | null;
+  customBackgroundRemoteUrl?: string | null;
 }
 
 interface ThemeContextType {
   settings: GlobalSettings;
   updateSettings: (newSettings: Partial<GlobalSettings>) => Promise<void>;
+  saveCustomBackground: (sourceUri: string) => Promise<void>;
+  clearCustomBackground: () => Promise<void>;
   getThemeColors: () => ThemeColors;
   getFontSize: (
     size: "xs" | "sm" | "base" | "lg" | "xl" | "xxl" | "xxxl",
@@ -55,12 +78,330 @@ interface ThemeColors {
 }
 
 const STORAGE_KEY = "whispr.globalSettings.v1";
+const VISUAL_CACHE_KEY = "whispr.globalSettings.visual-cache.v1";
+
+export const BACKGROUND_PRESET_GRADIENTS: Record<
+  BackgroundPreset,
+  BackgroundGradient
+> = {
+  whispr: ["#0B1124", "#3C2E7C", "#FE7A5C"],
+  midnight: ["#050816", "#172554", "#312E81"],
+  sunset: ["#1A102C", "#7C2D12", "#FE7A5C"],
+  aurora: ["#06141F", "#0F766E", "#6774BD"],
+  custom: [
+    "rgba(6, 12, 24, 0.22)",
+    "rgba(34, 28, 62, 0.14)",
+    "rgba(254, 122, 92, 0.1)",
+  ],
+};
+
+const CUSTOM_BACKGROUND_DIR = "whispr-backgrounds";
+const CUSTOM_BACKGROUND_BASENAME = "current-background";
+const CUSTOM_BACKGROUND_VARIANTS = [
+  "jpg",
+  "gif",
+  "png",
+  "webp",
+  "heic",
+  "heif",
+];
+
+function isBackgroundPreset(value: unknown): value is BackgroundPreset {
+  return (
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(BACKGROUND_PRESET_GRADIENTS, value)
+  );
+}
+
+function normalizeSettings(
+  stored: Partial<GlobalSettings> | null | undefined,
+): GlobalSettings {
+  const backgroundPreset = isBackgroundPreset(stored?.backgroundPreset)
+    ? stored.backgroundPreset
+    : defaultSettings.backgroundPreset;
+  const customBackgroundUri =
+    typeof stored?.customBackgroundUri === "string"
+      ? stored.customBackgroundUri
+      : null;
+  const customBackgroundVersion =
+    typeof stored?.customBackgroundVersion === "number"
+      ? stored.customBackgroundVersion
+      : 0;
+
+  return {
+    ...defaultSettings,
+    ...(stored ?? {}),
+    backgroundPreset:
+      backgroundPreset === "custom" && !customBackgroundUri
+        ? defaultSettings.backgroundPreset
+        : backgroundPreset,
+    customBackgroundUri,
+    customBackgroundVersion,
+    customBackgroundRemoteMediaId:
+      typeof stored?.customBackgroundRemoteMediaId === "string"
+        ? stored.customBackgroundRemoteMediaId
+        : null,
+    customBackgroundRemoteUrl:
+      typeof stored?.customBackgroundRemoteUrl === "string"
+        ? stored.customBackgroundRemoteUrl
+        : null,
+  };
+}
+
+function shouldPersistVisualCache(settings: GlobalSettings) {
+  return (
+    settings.theme !== defaultSettings.theme ||
+    settings.backgroundPreset !== defaultSettings.backgroundPreset ||
+    !!settings.customBackgroundUri
+  );
+}
+
+function buildVisualCachePayload(
+  settings: GlobalSettings,
+): Partial<GlobalSettings> {
+  return {
+    theme: settings.theme,
+    backgroundPreset: settings.backgroundPreset,
+    customBackgroundUri: settings.customBackgroundUri ?? null,
+    customBackgroundVersion: settings.customBackgroundVersion ?? 0,
+    customBackgroundRemoteMediaId:
+      settings.customBackgroundRemoteMediaId ?? null,
+    customBackgroundRemoteUrl: settings.customBackgroundRemoteUrl ?? null,
+  };
+}
+
+async function persistSettingsCaches(settings: GlobalSettings) {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  if (shouldPersistVisualCache(settings)) {
+    await AsyncStorage.setItem(
+      VISUAL_CACHE_KEY,
+      JSON.stringify(buildVisualCachePayload(settings)),
+    );
+    return;
+  }
+  await AsyncStorage.removeItem(VISUAL_CACHE_KEY).catch(() => {});
+}
+
+function applyRuntimeBackgroundGradient(gradient: BackgroundGradient) {
+  const appGradient = colors.background.gradient.app as unknown as string[];
+  const authGradient = colors.background.gradient.auth as unknown as string[];
+  appGradient.splice(0, appGradient.length, ...gradient);
+  authGradient.splice(0, authGradient.length, ...gradient);
+}
+
+function getCustomBackgroundTargetUri(extension = "jpg") {
+  const root = FileSystem.documentDirectory as string | undefined;
+  if (!root) {
+    throw new Error("No persistent file-system directory available");
+  }
+  return `${root}${CUSTOM_BACKGROUND_DIR}/${CUSTOM_BACKGROUND_BASENAME}.${extension}`;
+}
+
+async function deleteAllCustomBackgroundVariants() {
+  await Promise.all(
+    CUSTOM_BACKGROUND_VARIANTS.map((ext) =>
+      FileSystem.deleteAsync(getCustomBackgroundTargetUri(ext), {
+        idempotent: true,
+      }).catch(() => {}),
+    ),
+  );
+}
+
+async function findExistingCustomBackgroundUri(): Promise<string | null> {
+  for (const ext of CUSTOM_BACKGROUND_VARIANTS) {
+    const candidate = getCustomBackgroundTargetUri(ext);
+    try {
+      const info = await FileSystem.getInfoAsync(candidate);
+      if (info.exists) return candidate;
+    } catch {
+      // Ignore a single variant probe and keep scanning the others.
+    }
+  }
+  return null;
+}
+
+async function resolvePersistedSettings(
+  rawSettings: Partial<GlobalSettings> | null | undefined,
+): Promise<GlobalSettings> {
+  const normalized = normalizeSettings(rawSettings);
+  if (normalized.backgroundPreset !== "custom") {
+    return normalized;
+  }
+
+  const targetUri = normalized.customBackgroundUri;
+  if (!targetUri) {
+    const fallbackUri = await findExistingCustomBackgroundUri();
+    if (fallbackUri) {
+      return {
+        ...normalized,
+        backgroundPreset: "custom",
+        customBackgroundUri: fallbackUri,
+      };
+    }
+    return {
+      ...normalized,
+      backgroundPreset: defaultSettings.backgroundPreset,
+      customBackgroundUri: null,
+      customBackgroundVersion: 0,
+      customBackgroundRemoteMediaId: normalized.customBackgroundRemoteMediaId,
+      customBackgroundRemoteUrl: normalized.customBackgroundRemoteUrl,
+    };
+  }
+  try {
+    const info = await FileSystem.getInfoAsync(targetUri);
+    if (info.exists) {
+      return {
+        ...normalized,
+        customBackgroundUri: targetUri,
+      };
+    }
+  } catch (error) {
+    console.warn("Failed to inspect persisted custom background", error);
+  }
+
+  const fallbackUri = await findExistingCustomBackgroundUri();
+  if (fallbackUri) {
+    return {
+      ...normalized,
+      backgroundPreset: "custom",
+      customBackgroundUri: fallbackUri,
+    };
+  }
+
+  return {
+    ...normalized,
+    backgroundPreset: defaultSettings.backgroundPreset,
+    customBackgroundUri: null,
+    customBackgroundVersion: 0,
+    customBackgroundRemoteMediaId: normalized.customBackgroundRemoteMediaId,
+    customBackgroundRemoteUrl: normalized.customBackgroundRemoteUrl,
+  };
+}
+
+function getFileMimeType(uri: string) {
+  const format = detectImageFormatFromUri(uri);
+  switch (format) {
+    case "gif":
+      return "image/gif";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "heic":
+      return "image/heic";
+    default:
+      return "image/jpeg";
+  }
+}
+
+function buildRemoteBackgroundBlobUrl(mediaId: string) {
+  return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`;
+}
+
+async function downloadRemoteBackgroundToLocal(
+  mediaId: string | null | undefined,
+  remoteUrl: string | null | undefined,
+): Promise<string | null> {
+  const sourceUrl =
+    remoteUrl || (mediaId ? buildRemoteBackgroundBlobUrl(mediaId) : null);
+  if (!sourceUrl) return null;
+
+  const extension =
+    detectImageFormatFromUri(remoteUrl || mediaId || "") ||
+    (mediaId ? "jpg" : "jpg");
+  const targetUri = getCustomBackgroundTargetUri(extension);
+  const token = await TokenService.getAccessToken().catch(() => null);
+  const targetDir = targetUri.slice(0, targetUri.lastIndexOf("/"));
+
+  await FileSystem.makeDirectoryAsync(targetDir, {
+    intermediates: true,
+  }).catch(() => {});
+  await deleteAllCustomBackgroundVariants();
+
+  try {
+    await FileSystem.downloadAsync(sourceUrl, targetUri, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    return targetUri;
+  } catch (error) {
+    console.warn(
+      "Failed to restore custom background from remote media",
+      error,
+    );
+    return null;
+  }
+}
+
+async function hydrateRemoteBackgroundFallback(
+  current: GlobalSettings,
+): Promise<GlobalSettings> {
+  const remoteMediaId = current.customBackgroundRemoteMediaId;
+  const remoteUrl = current.customBackgroundRemoteUrl;
+
+  if (remoteMediaId || remoteUrl) {
+    const restoredUri = await downloadRemoteBackgroundToLocal(
+      remoteMediaId,
+      remoteUrl,
+    );
+    if (restoredUri) {
+      return {
+        ...current,
+        backgroundPreset: "custom",
+        customBackgroundUri: restoredUri,
+        customBackgroundVersion: Date.now(),
+      };
+    }
+  }
+
+  const token = await TokenService.getAccessToken().catch(() => null);
+  if (!token) {
+    return current;
+  }
+
+  try {
+    const profile = await UserService.getInstance().getProfile();
+    const profileMediaId = profile.profile?.backgroundMediaId;
+    const profileRemoteUrl = profile.profile?.backgroundMediaUrl;
+    if (!profileMediaId && !profileRemoteUrl) {
+      return current;
+    }
+
+    const restoredUri = await downloadRemoteBackgroundToLocal(
+      profileMediaId,
+      profileRemoteUrl,
+    );
+    if (!restoredUri) {
+      return {
+        ...current,
+        customBackgroundRemoteMediaId: profileMediaId ?? null,
+        customBackgroundRemoteUrl: profileRemoteUrl ?? null,
+      };
+    }
+
+    return {
+      ...current,
+      backgroundPreset: "custom",
+      customBackgroundUri: restoredUri,
+      customBackgroundVersion: Date.now(),
+      customBackgroundRemoteMediaId: profileMediaId ?? null,
+      customBackgroundRemoteUrl: profileRemoteUrl ?? null,
+    };
+  } catch (error) {
+    console.warn("Failed to hydrate remote background fallback", error);
+    return current;
+  }
+}
 
 // Default settings
 const defaultSettings: GlobalSettings = {
   theme: "dark",
   language: "fr",
   fontSize: "medium",
+  backgroundPreset: "whispr",
+  customBackgroundUri: null,
+  customBackgroundVersion: 0,
+  customBackgroundRemoteMediaId: null,
+  customBackgroundRemoteUrl: null,
 };
 
 // Localized texts
@@ -163,6 +504,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.security": "Sécurité",
     "settings.account": "Compte",
     "settings.theme": "Thème",
+    "settings.background": "Arrière-plan",
     "settings.language": "Langue",
     "settings.fontSize": "Taille de police",
     "settings.myProfile": "Mon profil",
@@ -172,6 +514,13 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.theme.light": "Clair",
     "settings.theme.dark": "Sombre",
     "settings.theme.auto": "Automatique",
+    "settings.background.whispr": "Whispr",
+    "settings.background.midnight": "Minuit",
+    "settings.background.sunset": "Sunset",
+    "settings.background.aurora": "Aurora",
+    "settings.background.custom": "Photo personnalisée",
+    "settings.background.upload": "Choisir une photo",
+    "settings.background.remove": "Retirer la photo",
     "settings.language.fr": "Français",
     "settings.language.en": "Anglais",
     "settings.fontSize.small": "Petit",
@@ -465,6 +814,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.security": "Security",
     "settings.account": "Account",
     "settings.theme": "Theme",
+    "settings.background": "Background",
     "settings.language": "Language",
     "settings.fontSize": "Font size",
     "settings.myProfile": "My profile",
@@ -474,6 +824,13 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "settings.theme.light": "Light",
     "settings.theme.dark": "Dark",
     "settings.theme.auto": "Auto",
+    "settings.background.whispr": "Whispr",
+    "settings.background.midnight": "Midnight",
+    "settings.background.sunset": "Sunset",
+    "settings.background.aurora": "Aurora",
+    "settings.background.custom": "Custom photo",
+    "settings.background.upload": "Choose a photo",
+    "settings.background.remove": "Remove photo",
     "settings.language.fr": "French",
     "settings.language.en": "English",
     "settings.fontSize.small": "Small",
@@ -756,13 +1113,35 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored) as GlobalSettings;
+        const [[, visualCached], [, stored]] = await AsyncStorage.multiGet([
+          VISUAL_CACHE_KEY,
+          STORAGE_KEY,
+        ]);
+        const preferredSnapshot = visualCached || stored;
+        if (preferredSnapshot) {
+          let parsed = await resolvePersistedSettings(
+            JSON.parse(preferredSnapshot) as Partial<GlobalSettings>,
+          );
+          parsed = await hydrateRemoteBackgroundFallback(parsed);
+          applyRuntimeBackgroundGradient(
+            BACKGROUND_PRESET_GRADIENTS[parsed.backgroundPreset],
+          );
           setSettings(parsed);
+          await persistSettingsCaches(parsed).catch(() => {});
+        } else {
+          const hydrated =
+            await hydrateRemoteBackgroundFallback(defaultSettings);
+          applyRuntimeBackgroundGradient(
+            BACKGROUND_PRESET_GRADIENTS[hydrated.backgroundPreset],
+          );
+          setSettings(hydrated);
+          await persistSettingsCaches(hydrated).catch(() => {});
         }
       } catch (error) {
         console.error("Error loading settings:", error);
+        applyRuntimeBackgroundGradient(
+          BACKGROUND_PRESET_GRADIENTS[defaultSettings.backgroundPreset],
+        );
       } finally {
         setIsLoaded(true);
       }
@@ -772,19 +1151,122 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
 
   // Update settings
   const updateSettings = async (newSettings: Partial<GlobalSettings>) => {
-    const updated = { ...settings, ...newSettings };
+    const updated = normalizeSettings({ ...settings, ...newSettings });
     setSettings(updated);
+    applyRuntimeBackgroundGradient(
+      BACKGROUND_PRESET_GRADIENTS[updated.backgroundPreset],
+    );
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      await persistSettingsCaches(updated);
     } catch (error) {
       console.error("Error saving settings:", error);
     }
   };
 
+  const saveCustomBackground = async (sourceUri: string) => {
+    const format = detectImageFormatFromUri(sourceUri);
+    const preserveAnimatedGif = format === "gif";
+    const targetUri = getCustomBackgroundTargetUri(
+      preserveAnimatedGif ? "gif" : "jpg",
+    );
+    const targetDir = targetUri.slice(0, targetUri.lastIndexOf("/"));
+
+    await FileSystem.makeDirectoryAsync(targetDir, {
+      intermediates: true,
+    }).catch(() => {});
+    await deleteAllCustomBackgroundVariants();
+
+    let renderedUri = sourceUri;
+    if (!preserveAnimatedGif) {
+      const rendered = await ImageManipulator.manipulateAsync(sourceUri, [], {
+        compress: 0.92,
+        format: ImageManipulator.SaveFormat.JPEG,
+      });
+      renderedUri = rendered.uri;
+    }
+
+    await FileSystem.copyAsync({
+      from: renderedUri,
+      to: targetUri,
+    });
+    if (renderedUri !== sourceUri) {
+      await FileSystem.deleteAsync(renderedUri, {
+        idempotent: true,
+      }).catch(() => {});
+    }
+
+    await updateSettings({
+      backgroundPreset: "custom",
+      customBackgroundUri: targetUri,
+      customBackgroundVersion: Date.now(),
+    });
+
+    try {
+      const tokenPayload = TokenService.decodeAccessToken(
+        (await TokenService.getAccessToken()) || "",
+      );
+      const ownerId = tokenPayload?.sub;
+      if (!ownerId) return;
+
+      const fileName =
+        sourceUri.split("/").pop() ||
+        `background.${preserveAnimatedGif ? "gif" : "jpg"}`;
+      const uploadResult = await MediaService.uploadMedia(
+        {
+          uri: targetUri,
+          name: fileName,
+          type: getFileMimeType(targetUri),
+        },
+        undefined,
+        {
+          context: "message",
+          ownerId,
+        },
+      );
+
+      const remoteSettings: Partial<GlobalSettings> = {
+        customBackgroundRemoteMediaId: uploadResult.id,
+        customBackgroundRemoteUrl: uploadResult.url ?? null,
+      };
+
+      await updateSettings(remoteSettings);
+
+      await UserService.getInstance()
+        .updateProfileBackground(uploadResult.id, uploadResult.url ?? null)
+        .catch(() => {});
+    } catch (error) {
+      console.warn("Failed to sync custom background to backend", error);
+    }
+  };
+
+  const clearCustomBackground = async () => {
+    await deleteAllCustomBackgroundVariants();
+
+    await updateSettings({
+      backgroundPreset: defaultSettings.backgroundPreset,
+      customBackgroundUri: null,
+      customBackgroundVersion: 0,
+      customBackgroundRemoteMediaId: null,
+      customBackgroundRemoteUrl: null,
+    });
+
+    await UserService.getInstance()
+      .updateProfileBackground(null, null)
+      .catch(() => {});
+  };
+
   // Get theme colors based on current theme (delegates to the pure helper
   // so the resolution logic can be unit-tested without mounting RN).
-  const getThemeColors = (): ThemeColors =>
-    resolveThemeColors(settings.theme, systemColorScheme);
+  const getThemeColors = (): ThemeColors => {
+    const resolved = resolveThemeColors(settings.theme, systemColorScheme);
+    return {
+      ...resolved,
+      background: {
+        ...resolved.background,
+        gradient: BACKGROUND_PRESET_GRADIENTS[settings.backgroundPreset],
+      },
+    };
+  };
 
   // Get font size with multiplier
   const getFontSize = (
@@ -803,6 +1285,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
   const value: ThemeContextType = {
     settings,
     updateSettings,
+    saveCustomBackground,
+    clearCustomBackground,
     getThemeColors,
     getFontSize,
     getLocalizedText,

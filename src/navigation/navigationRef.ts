@@ -1,4 +1,7 @@
-import { createNavigationContainerRef } from "@react-navigation/native";
+import {
+  CommonActions,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
 import type { AuthStackParamList } from "./AuthNavigator";
 
 /**
@@ -18,5 +21,19 @@ export function navigate<RouteName extends keyof AuthStackParamList>(
     // Cast is safe — the generic constraints match what React Navigation
     // expects, but its overloaded signature is hard to express in TS.
     (navigationRef.navigate as (n: string, p?: unknown) => void)(name, params);
+  }
+}
+
+export function switchToRootTab<RouteName extends keyof AuthStackParamList>(
+  name: RouteName,
+  params?: AuthStackParamList[RouteName],
+): void {
+  if (navigationRef.isReady()) {
+    navigationRef.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name, params }],
+      }),
+    );
   }
 }
