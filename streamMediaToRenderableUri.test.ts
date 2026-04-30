@@ -17,7 +17,10 @@ jest.mock("react-native", () => ({
   Platform: { OS: "web" },
 }));
 
-import { streamMediaToRenderableUriThrottled } from "./src/hooks/useResolvedMediaUrl";
+import {
+  probeMediaUrlThrottled,
+  streamMediaToRenderableUriThrottled,
+} from "./src/hooks/useResolvedMediaUrl";
 
 // The wrapper calls the inner function which on web hits URL.createObjectURL.
 // Make Blob round-trippable through that path in jsdom.
@@ -140,7 +143,7 @@ describe("streamMediaToRenderableUriThrottled", () => {
     expect(m).toHaveBeenCalledTimes(4);
   });
 
-  it("caps concurrent in-flight fetches at 6", async () => {
+  it("caps concurrent in-flight fetches at 4", async () => {
     let inFlight = 0;
     let peak = 0;
     const releasers: Array<() => void> = [];
@@ -167,8 +170,8 @@ describe("streamMediaToRenderableUriThrottled", () => {
 
     // Let the slot pool saturate.
     await new Promise<void>((r) => setTimeout(r, 30));
-    expect(peak).toBe(6);
-    expect(releasers).toHaveLength(6);
+    expect(peak).toBe(4);
+    expect(releasers).toHaveLength(4);
 
     // Release one at a time; each release should let one queued caller in.
     while (releasers.length > 0) {
@@ -177,6 +180,71 @@ describe("streamMediaToRenderableUriThrottled", () => {
     }
 
     await Promise.all(calls);
-    expect(peak).toBe(6);
+    expect(peak).toBe(4);
   }, 5_000);
+});
+
+describe("probeMediaUrlThrottled", () => {
+  it("returns the response on first-try 2xx", async () => {
+    const m = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => ({ url: "https://example.test/x" }),
+    }));
+    global.fetch = m as unknown as typeof fetch;
+    const res = await probeMediaUrlThrottled("/media/v1/abc/thumbnail", {});
+    expect(res.status).toBe(200);
+    expect(m).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries on 429 and resolves once a 200 lands", async () => {
+    let n = 0;
+    global.fetch = jest.fn(async () => {
+      n += 1;
+      if (n < 3) {
+        return { ok: false, status: 429 } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "application/json" },
+        json: async () => ({ url: null }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const res = await probeMediaUrlThrottled("/media/v1/abc/thumbnail", {});
+    expect(res.status).toBe(200);
+    expect(n).toBe(3);
+  });
+
+  it("returns the 429 response after maxAttempts (does NOT throw)", async () => {
+    let n = 0;
+    global.fetch = jest.fn(async () => {
+      n += 1;
+      return { ok: false, status: 429 } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const res = await probeMediaUrlThrottled("/media/v1/abc/thumbnail", {});
+    expect(res.status).toBe(429);
+    expect(n).toBe(4);
+  });
+
+  it("does NOT retry on non-retryable status (404)", async () => {
+    const m = jest.fn(async () => ({
+      ok: false,
+      status: 404,
+    }));
+    global.fetch = m as unknown as typeof fetch;
+    const res = await probeMediaUrlThrottled("/media/v1/abc/thumbnail", {});
+    expect(res.status).toBe(404);
+    expect(m).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates a thrown network error (no Response to return)", async () => {
+    global.fetch = jest.fn(async () => {
+      throw new Error("offline");
+    }) as unknown as typeof fetch;
+    await expect(
+      probeMediaUrlThrottled("/media/v1/abc/thumbnail", {}),
+    ).rejects.toThrow(/offline/);
+  });
 });

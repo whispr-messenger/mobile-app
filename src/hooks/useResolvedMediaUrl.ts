@@ -71,16 +71,18 @@ export async function streamMediaToRenderableUri(
   });
 }
 
-// /blob?stream=1 is rate-limited at 30 req/s/IP server-side (WHISPR-1192).
-// A chat screen routinely opens with ~12 image messages, each triggering a
-// stream fetch (and thumbnails on top), so the burst hits the throttle and
-// the bare streamMediaToRenderableUri call surfaces 429 directly — the
-// hook's catch block then flips state.error to true and the UI shows
-// "Échec du chargement" for a transient capacity problem. Cap concurrent
-// stream fetches comfortably below 30 req/s and retry transient
-// 429/503/network failures with exponential backoff. Mirrors the strategy
-// already used for avatars in src/components/Chat/Avatar.tsx.
-const MAX_CONCURRENT_STREAM_FETCHES = 6;
+// media-service applies several throttle tiers (short=30/1s, medium=20/2s,
+// long=100/60s — WHISPR-1192). Opening a chat screen first-time used to
+// fire two requests per image (probe /blob for the JSON envelope, then
+// /blob?stream=1 for the bytes), and the medium=20/2s window collapsed at
+// ~10 images. The probe is dead weight on /blob — the JSON `url` field is
+// no longer consumed (WHISPR-1216) and only /thumbnail can legitimately
+// answer `{ url: null }`. We now skip the probe on /blob and keep it on
+// /thumbnail. Even with that halving the burst can still spike above the
+// medium tier under heavier conversations, so cap concurrent slot users
+// (probe + stream both share the pool) and retry transient 429/503/network
+// failures with exponential backoff.
+const MAX_CONCURRENT_STREAM_FETCHES = 4;
 
 let activeStreamFetches = 0;
 const streamFetchQueue: Array<() => void> = [];
@@ -141,6 +143,35 @@ export async function streamMediaToRenderableUriThrottled(
   throw new Error("streamMediaToRenderableUri retry loop exhausted");
 }
 
+// Probe the metadata endpoint (`/blob` or `/thumbnail` without `?stream=1`)
+// inside the same slot pool the stream phase uses, so a chat-screen burst
+// cannot starve the medium throttle window with a probe-then-stream
+// hammer. Retries 429/503 with the same exponential backoff as
+// streamMediaToRenderableUriThrottled and surfaces every other status as a
+// resolved Response (caller decides). Network errors propagate as throws.
+export async function probeMediaUrlThrottled(
+  uri: string,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await acquireStreamSlot();
+    let res: Response;
+    try {
+      res = await fetch(uri, { headers, redirect: "follow" });
+    } finally {
+      releaseStreamSlot();
+    }
+    if (res.ok) return res;
+    if (res.status !== 429 && res.status !== 503) return res;
+    if (attempt === maxAttempts) return res;
+    const delayMs = Math.min(1000, 100 * 2 ** (attempt - 1));
+    await streamSleep(delayMs);
+  }
+  // Loop above always returns; this is here to satisfy the type checker.
+  throw new Error("probeMediaUrl retry loop exhausted");
+}
+
 export interface ResolvedMediaUrl {
   resolvedUri: string;
   loading: boolean;
@@ -194,44 +225,47 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        // Probe the endpoint first. We don't use the returned presigned
-        // URL (see WHISPR-1216) but the JSON response tells us whether
-        // the blob exists at all — `/thumbnail` legitimately returns
-        // `{ url: null }` when no thumbnail is stored.
-        const response = await fetch(uri, {
-          headers,
-          redirect: "follow",
-        });
+        // /thumbnail can legitimately return `{ url: null }` when no
+        // thumbnail is stored — we still need to probe it to detect that
+        // case (otherwise we'd stream a 404 and surface it as an error).
+        // /blob always has bytes, so we skip the probe entirely there
+        // and go straight to stream — halves the per-image request count
+        // against the throttle (medium=20/2s) and removes the silent 429
+        // failure that landed straight in setError(true).
+        const isThumbnail = uri.includes("/thumbnail");
 
-        if (cancelled) return;
-
-        if (!response.ok) {
-          console.warn(
-            `[useResolvedMediaUrl] Failed to resolve media URL: HTTP ${response.status}`,
-          );
-          setError(true);
-          return;
-        }
-
-        let blobExists = true;
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          try {
-            const body = (await response.json()) as { url?: string | null };
-            if (body && "url" in body && body.url === null) {
-              blobExists = false;
-            }
-          } catch {
-            // Unparseable JSON → assume the blob exists; the proxy will
-            // give us an explicit status if it really is gone.
+        if (isThumbnail) {
+          const probeRes = await probeMediaUrlThrottled(uri, headers);
+          if (cancelled) return;
+          if (!probeRes.ok) {
+            console.warn(
+              `[useResolvedMediaUrl] Failed to resolve media URL: HTTP ${probeRes.status}`,
+            );
+            setError(true);
+            return;
           }
-        }
-        // Legacy 302 path: response.url would be the presigned URL. We
-        // intentionally don't read it — proceed to stream below.
 
-        if (!blobExists) {
-          setResolvedUri("");
-          return;
+          let blobExists = true;
+          const contentType = probeRes.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            try {
+              const body = (await probeRes.json()) as {
+                url?: string | null;
+              };
+              if (body && "url" in body && body.url === null) {
+                blobExists = false;
+              }
+            } catch {
+              // Unparseable JSON → assume the thumbnail exists; the
+              // stream call below will surface an explicit 404 if it
+              // really is gone.
+            }
+          }
+
+          if (!blobExists) {
+            setResolvedUri("");
+            return;
+          }
         }
 
         // WHISPR-1216 — always proxy through the authenticated /blob?stream=1
