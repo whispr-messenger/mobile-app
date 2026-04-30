@@ -56,7 +56,7 @@ export const OfflineBanner: React.FC<OfflineBannerProps> = ({
       />
       <Text style={styles.text}>
         {isReconnecting
-          ? "Reconnexion en cours..."
+          ? "Reconnexion en cours"
           : "Hors ligne — les messages seront envoyés à la reconnexion"}
       </Text>
     </Animated.View>

@@ -9,9 +9,19 @@ const PREPROD_PORT = "8084";
 const projectRoot = path.resolve(__dirname, "..");
 
 const rawArgs = process.argv.slice(2);
-const mode = rawArgs[0];
-const passthroughArgs = rawArgs.slice(1);
 const dryRun = rawArgs.includes("--dry-run");
+const normalizedArgs = rawArgs.filter((arg) => arg !== "--dry-run");
+const preprodAliases = new Set(["preprod", "--preprod"]);
+const envWantsPreprod =
+  process.env.npm_config_preprod === "true" ||
+  process.env.npm_config_preprod === "1";
+const envWantsBuild =
+  process.env.npm_config_build === "true" ||
+  process.env.npm_config_build === "1";
+const isPreprod =
+  envWantsPreprod || normalizedArgs.some((arg) => preprodAliases.has(arg));
+const mode = isPreprod ? "preprod" : normalizedArgs[0];
+const passthroughArgs = normalizedArgs.filter((arg) => !preprodAliases.has(arg));
 
 function ensureDir(dirPath) {
   mkdirSync(dirPath, { recursive: true });
@@ -62,7 +72,21 @@ if (mode === "preprod") {
     EXPO_PUBLIC_API_BASE_URL: PREPROD_API_BASE_URL,
   };
 
-  runExpo(["run:ios", "--port", PREPROD_PORT, ...passthroughArgs], env);
+  const buildOnly = envWantsBuild || passthroughArgs.includes("--build");
+  const hostArgPresent = passthroughArgs.some((arg) =>
+    arg === "--host" || arg.startsWith("--host="),
+  );
+  const finalArgs = buildOnly
+    ? ["run:ios", "--port", PREPROD_PORT]
+    : [
+        "start",
+        "--dev-client",
+        "--port",
+        PREPROD_PORT,
+        ...(hostArgPresent ? [] : ["--host", "lan"]),
+      ];
+
+  runExpo(finalArgs.concat(passthroughArgs.filter((arg) => arg !== "--build")), env);
 } else {
-  runExpo(["start", ...rawArgs.filter((arg) => arg !== "--dry-run")], process.env);
+  runExpo(["start", ...normalizedArgs], process.env);
 }

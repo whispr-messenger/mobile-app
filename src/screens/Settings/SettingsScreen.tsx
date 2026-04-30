@@ -13,7 +13,9 @@ import {
   Switch,
   Alert,
   Platform,
+  InteractionManager,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +24,7 @@ import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
+import type { BackgroundPreset } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { useIsStaff, useModerationStore } from "../../store/moderationStore";
 import { UserService, PrivacySettings } from "../../services/UserService";
@@ -31,6 +34,7 @@ import {
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
+import { switchToRootTab } from "../../navigation/navigationRef";
 import {
   DEFAULT_MODERATION_MODEL,
   getModerationModelVersion,
@@ -59,6 +63,8 @@ export const SettingsScreen: React.FC = () => {
   const {
     settings,
     updateSettings,
+    saveCustomBackground,
+    clearCustomBackground,
     getThemeColors,
     getFontSize,
     getLocalizedText,
@@ -69,7 +75,17 @@ export const SettingsScreen: React.FC = () => {
   const isStaff = useIsStaff();
   const insets = useSafeAreaInsets();
 
+  const handleBackPress = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    switchToRootTab("ConversationsList");
+  }, [navigation]);
+
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [showBackgroundModal, setShowBackgroundModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showFontSizeModal, setShowFontSizeModal] = useState(false);
   const [showModerationModelModal, setShowModerationModelModal] =
@@ -349,7 +365,7 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleSelect = async (
-    type: "theme" | "language" | "fontSize" | "privacy",
+    type: "theme" | "background" | "language" | "fontSize" | "privacy",
     value: string,
   ) => {
     try {
@@ -360,6 +376,58 @@ export const SettingsScreen: React.FC = () => {
         setTimeout(async () => {
           await updateSettings({ theme: value as "light" | "dark" | "auto" });
         }, 100);
+      } else if (type === "background") {
+        setShowBackgroundModal(false);
+        if (value === "custom-upload") {
+          InteractionManager.runAfterInteractions(async () => {
+            try {
+              await new Promise((resolve) => setTimeout(resolve, 250));
+              const { status } =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert(
+                  "Permission refusée",
+                  "L'accès à la galerie est requis pour choisir un arrière-plan.",
+                );
+                return;
+              }
+
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ["images"],
+                allowsEditing: true,
+                quality: 0.9,
+              });
+
+              if (!result.canceled && result.assets[0]?.uri) {
+                await saveCustomBackground(result.assets[0].uri);
+              }
+            } catch (error) {
+              console.error("Error saving custom background:", error);
+              Alert.alert(
+                "Erreur",
+                "Impossible d'utiliser cette image comme arrière-plan.",
+              );
+            }
+          });
+        } else if (value === "custom-remove") {
+          setTimeout(async () => {
+            try {
+              await clearCustomBackground();
+            } catch (error) {
+              console.error("Error clearing custom background:", error);
+              Alert.alert(
+                "Erreur",
+                "Impossible de supprimer l'arrière-plan personnalisé.",
+              );
+            }
+          }, 100);
+        } else {
+          setTimeout(async () => {
+            await updateSettings({
+              backgroundPreset: value as BackgroundPreset,
+            });
+          }, 100);
+        }
       } else if (type === "language") {
         setShowLanguageModal(false);
         setTimeout(async () => {
@@ -436,6 +504,40 @@ export const SettingsScreen: React.FC = () => {
       [{ text: "OK" }],
     );
   };
+
+  const backgroundPresetLabel =
+    getLocalizedText(`settings.background.${settings.backgroundPreset}`) ||
+    settings.backgroundPreset;
+  const backgroundOptions = [
+    {
+      label: getLocalizedText("settings.background.whispr"),
+      value: "whispr",
+    },
+    {
+      label: getLocalizedText("settings.background.midnight"),
+      value: "midnight",
+    },
+    {
+      label: getLocalizedText("settings.background.sunset"),
+      value: "sunset",
+    },
+    {
+      label: getLocalizedText("settings.background.aurora"),
+      value: "aurora",
+    },
+    {
+      label: getLocalizedText("settings.background.upload"),
+      value: "custom-upload",
+    },
+    ...(settings.customBackgroundUri
+      ? [
+          {
+            label: getLocalizedText("settings.background.remove"),
+            value: "custom-remove",
+          },
+        ]
+      : []),
+  ];
 
   const SettingItem = ({
     label,
@@ -602,7 +704,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={handleBackPress}
             accessibilityRole="button"
             accessibilityLabel="Retour"
             accessibilityHint="Ferme les réglages"
@@ -937,6 +1039,11 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => setShowThemeModal(true)}
           />
           <SettingItem
+            label={getLocalizedText("settings.background")}
+            value={backgroundPresetLabel}
+            onPress={() => setShowBackgroundModal(true)}
+          />
+          <SettingItem
             label={getLocalizedText("settings.language")}
             value={
               settings.language === "fr"
@@ -1120,6 +1227,17 @@ export const SettingsScreen: React.FC = () => {
         ]}
         selectedValue={settings.theme}
         onSelect={(value) => handleSelect("theme", value)}
+        cancelLabel={getLocalizedText("common.cancel")}
+        layout="vertical"
+      />
+
+      <SettingsChoiceAlert
+        visible={showBackgroundModal}
+        onClose={() => setShowBackgroundModal(false)}
+        title={getLocalizedText("settings.background")}
+        options={backgroundOptions}
+        selectedValue={settings.backgroundPreset}
+        onSelect={(value) => handleSelect("background", value)}
         cancelLabel={getLocalizedText("common.cancel")}
         layout="vertical"
       />
