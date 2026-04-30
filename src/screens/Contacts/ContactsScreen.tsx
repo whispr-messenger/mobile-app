@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  ScrollView,
 } from "react-native";
 import {
   SafeAreaView,
@@ -22,6 +23,7 @@ import {
 } from "react-native-safe-area-context";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
@@ -40,7 +42,7 @@ import { EditContactModal } from "../../components/Contacts/EditContactModal";
 import { SyncContactsModal } from "../../components/Contacts/SyncContactsModal";
 import { DeleteContactModal } from "../../components/Contacts/DeleteContactModal";
 import { useTheme } from "../../context/ThemeContext";
-import { colors } from "../../theme/colors";
+import { colors, withOpacity } from "../../theme/colors";
 import { useAuth } from "../../context/AuthContext";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import {
@@ -59,15 +61,12 @@ export const ContactsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sortBy, setSortBy] = useState<ContactSearchParams["sort"]>("name");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
-  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
   const [contactRequests, setContactRequests] = useState<ContactRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const { getThemeColors } = useTheme();
@@ -97,7 +96,6 @@ export const ContactsScreen: React.FC = () => {
         contactsAPI.getContacts(),
         getFavoriteIds(),
       ]);
-      setFavoriteIds(favIds);
       setContacts(
         result.contacts.map((c) => ({ ...c, is_favorite: favIds.has(c.id) })),
       );
@@ -228,16 +226,6 @@ export const ContactsScreen: React.FC = () => {
   // Handle favorite toggle (client-side via AsyncStorage)
   const handleToggleFavorite = useCallback(async (contact: Contact) => {
     const newFavorite = await toggleFavorite(contact.id);
-    // Update local state immediately for responsiveness
-    setFavoriteIds((prev) => {
-      const next = new Set(prev);
-      if (newFavorite) {
-        next.add(contact.id);
-      } else {
-        next.delete(contact.id);
-      }
-      return next;
-    });
     setContacts((prev) =>
       prev.map((c) =>
         c.id === contact.id ? { ...c, is_favorite: newFavorite } : c,
@@ -291,236 +279,227 @@ export const ContactsScreen: React.FC = () => {
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: "transparent" }]}>
-          <Text
-            style={[styles.headerTitle, { color: themeColors.text.primary }]}
-          >
-            Contacts
-          </Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerIconButton}
-              onPress={() => navigation.navigate("MyQRCode")}
-              accessibilityLabel="Mon QR code"
-            >
-              <Ionicons
-                name="qr-code-outline"
-                size={24}
-                color={themeColors.text.primary}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.headerIconButton}
-              onPress={() => setShowAddModal(true)}
-              accessibilityLabel="Ajouter un contact"
-            >
-              <Ionicons name="add" size={24} color={themeColors.text.primary} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <View style={styles.topSection}>
+          <BlurView intensity={40} tint="dark" style={styles.headerBlur}>
+            <View style={styles.header}>
+              <View style={styles.headerCopy}>
+                <Text
+                  style={[
+                    styles.headerTitle,
+                    { color: themeColors.text.primary },
+                  ]}
+                >
+                  Contacts
+                </Text>
+                <Text style={styles.headerSubtitle}>Vos contact Whispr.</Text>
+              </View>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.headerIconButton}
+                  onPress={() => navigation.navigate("MyQRCode")}
+                  accessibilityLabel="Mon QR code"
+                >
+                  <Ionicons
+                    name="qr-code-outline"
+                    size={22}
+                    color={themeColors.text.primary}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.headerIconButton}
+                  onPress={() => setShowAddModal(true)}
+                  accessibilityLabel="Ajouter un contact"
+                >
+                  <Ionicons
+                    name="add"
+                    size={22}
+                    color={themeColors.text.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </BlurView>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View
-            style={[
-              styles.searchBar,
-              { backgroundColor: "rgba(255, 255, 255, 0.15)" },
-            ]}
-          >
-            <Ionicons
-              name="search-outline"
-              size={20}
-              color="rgba(255, 255, 255, 0.7)"
-              style={styles.searchIcon}
-            />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text.light }]}
-              placeholder="Rechercher un contact"
-              placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              value={searchQuery}
-              onChangeText={handleSearchChange}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => handleSearchChange("")}
-                style={styles.clearButton}
-              >
+          <BlurView intensity={34} tint="dark" style={styles.searchShell}>
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBar}>
                 <Ionicons
-                  name="close-circle"
+                  name="search-outline"
                   size={20}
                   color="rgba(255, 255, 255, 0.7)"
+                  style={styles.searchIcon}
                 />
-              </TouchableOpacity>
-            )}
+                <TextInput
+                  style={[styles.searchInput, { color: colors.text.light }]}
+                  placeholder="Rechercher un contact"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  value={searchQuery}
+                  onChangeText={handleSearchChange}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => handleSearchChange("")}
+                    style={styles.clearButton}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color="rgba(255, 255, 255, 0.7)"
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </BlurView>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContainer}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                sortBy === "name" && styles.filterButtonActivePrimary,
+              ]}
+              onPress={() => setSortBy("name")}
+            >
+              <Ionicons
+                name="text-outline"
+                size={16}
+                color={
+                  sortBy === "name"
+                    ? colors.text.light
+                    : themeColors.text.secondary
+                }
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  sortBy === "name" && styles.filterTextActive,
+                  sortBy !== "name" && {
+                    color: themeColors.text.secondary,
+                  },
+                ]}
+              >
+                A-Z
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                sortBy === "added_at" && styles.filterButtonActivePrimary,
+              ]}
+              onPress={() => setSortBy("added_at")}
+            >
+              <Ionicons
+                name="time-outline"
+                size={16}
+                color={
+                  sortBy === "added_at"
+                    ? colors.text.light
+                    : themeColors.text.secondary
+                }
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  sortBy === "added_at" && styles.filterTextActive,
+                  sortBy !== "added_at" && {
+                    color: themeColors.text.secondary,
+                  },
+                ]}
+              >
+                Récent
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                sortBy === "last_seen" && styles.filterButtonActivePrimary,
+              ]}
+              onPress={() => setSortBy("last_seen")}
+            >
+              <Ionicons
+                name="pulse-outline"
+                size={16}
+                color={
+                  sortBy === "last_seen"
+                    ? colors.text.light
+                    : themeColors.text.secondary
+                }
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  sortBy === "last_seen" && styles.filterTextActive,
+                  sortBy !== "last_seen" && {
+                    color: themeColors.text.secondary,
+                  },
+                ]}
+              >
+                Actif
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                showFavoritesOnly && styles.filterButtonActivePrimary,
+              ]}
+              onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            >
+              <Ionicons
+                name="star"
+                size={16}
+                color={
+                  showFavoritesOnly
+                    ? colors.text.light
+                    : themeColors.text.secondary
+                }
+              />
+            </TouchableOpacity>
+          </ScrollView>
+
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowSyncModal(true)}
+            >
+              <Ionicons
+                name="sync"
+                size={16}
+                color={themeColors.text.secondary}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
+                Synchroniser
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => {
+                navigation.navigate("BlockedUsers");
+              }}
+            >
+              <Ionicons
+                name="ban-outline"
+                size={16}
+                color={themeColors.text.secondary}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  { color: themeColors.text.secondary },
+                ]}
+              >
+                Bloqués
+              </Text>
+            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Sort + Filters */}
-        <View style={styles.filtersContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              sortBy === "name" && { backgroundColor: colors.primary.main },
-              sortBy !== "name" && {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-              },
-            ]}
-            onPress={() => setSortBy("name")}
-          >
-            <Ionicons
-              name="text-outline"
-              size={16}
-              color={
-                sortBy === "name"
-                  ? colors.text.light
-                  : themeColors.text.secondary
-              }
-            />
-            <Text
-              style={[
-                styles.filterText,
-                {
-                  color:
-                    sortBy === "name"
-                      ? colors.text.light
-                      : themeColors.text.secondary,
-                },
-              ]}
-            >
-              A-Z
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              sortBy === "added_at" && { backgroundColor: colors.primary.main },
-              sortBy !== "added_at" && {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-              },
-            ]}
-            onPress={() => setSortBy("added_at")}
-          >
-            <Ionicons
-              name="time-outline"
-              size={16}
-              color={
-                sortBy === "added_at"
-                  ? colors.text.light
-                  : themeColors.text.secondary
-              }
-            />
-            <Text
-              style={[
-                styles.filterText,
-                {
-                  color:
-                    sortBy === "added_at"
-                      ? colors.text.light
-                      : themeColors.text.secondary,
-                },
-              ]}
-            >
-              Récent
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              sortBy === "last_seen" && {
-                backgroundColor: colors.primary.main,
-              },
-              sortBy !== "last_seen" && {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-              },
-            ]}
-            onPress={() => setSortBy("last_seen")}
-          >
-            <Ionicons
-              name="pulse-outline"
-              size={16}
-              color={
-                sortBy === "last_seen"
-                  ? colors.text.light
-                  : themeColors.text.secondary
-              }
-            />
-            <Text
-              style={[
-                styles.filterText,
-                {
-                  color:
-                    sortBy === "last_seen"
-                      ? colors.text.light
-                      : themeColors.text.secondary,
-                },
-              ]}
-            >
-              Actif
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              showFavoritesOnly && { backgroundColor: colors.primary.main },
-              !showFavoritesOnly && {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-              },
-            ]}
-            onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
-          >
-            <Ionicons
-              name="star"
-              size={16}
-              color={
-                showFavoritesOnly
-                  ? colors.text.light
-                  : themeColors.text.secondary
-              }
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Actions */}
-        <View style={styles.filtersContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              { backgroundColor: "rgba(255, 255, 255, 0.1)" },
-            ]}
-            onPress={() => setShowSyncModal(true)}
-          >
-            <Ionicons
-              name="sync"
-              size={16}
-              color={themeColors.text.secondary}
-            />
-            <Text
-              style={[styles.filterText, { color: themeColors.text.secondary }]}
-            >
-              Synchroniser
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              { backgroundColor: "rgba(255, 255, 255, 0.1)" },
-            ]}
-            onPress={() => {
-              navigation.navigate("BlockedUsers");
-            }}
-          >
-            <Ionicons
-              name="ban-outline"
-              size={16}
-              color={themeColors.text.secondary}
-            />
-            <Text
-              style={[styles.filterText, { color: themeColors.text.secondary }]}
-            >
-              Bloqués
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Contact Requests */}
@@ -533,87 +512,83 @@ export const ContactsScreen: React.FC = () => {
             </Text>
           </View>
         ) : pendingRequests.length > 0 ? (
-          <View style={styles.requestsContainer}>
-            <Text
-              style={[
-                styles.requestsTitle,
-                { color: themeColors.text.primary },
-              ]}
-            >
-              Demandes de contact
-            </Text>
-            {pendingRequests.map((request) => {
-              const isIncoming = request.recipient_id === userId;
-              const user = isIncoming
-                ? request.requester_user
-                : request.recipient_user;
-              const displayName =
-                user?.first_name || user?.username || "Utilisateur";
+          <BlurView intensity={34} tint="dark" style={styles.requestsBlur}>
+            <View style={styles.requestsContainer}>
+              <Text
+                style={[
+                  styles.requestsTitle,
+                  { color: themeColors.text.primary },
+                ]}
+              >
+                Demandes de contact
+              </Text>
+              {pendingRequests.map((request) => {
+                const isIncoming = request.recipient_id === userId;
+                const user = isIncoming
+                  ? request.requester_user
+                  : request.recipient_user;
+                const displayName =
+                  user?.first_name || user?.username || "Utilisateur";
 
-              return (
-                <View
-                  key={request.id}
-                  style={[
-                    styles.requestItem,
-                    { backgroundColor: themeColors.background.secondary },
-                  ]}
-                >
-                  <View style={styles.requestInfo}>
-                    <Text
-                      style={[
-                        styles.requestName,
-                        { color: themeColors.text.primary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {displayName}
-                    </Text>
-                    {user?.username && (
+                return (
+                  <View key={request.id} style={styles.requestItem}>
+                    <View style={styles.requestInfo}>
                       <Text
                         style={[
-                          styles.requestSubtitle,
-                          { color: themeColors.text.secondary },
+                          styles.requestName,
+                          { color: themeColors.text.primary },
                         ]}
                         numberOfLines={1}
                       >
-                        {formatUsername(user.username)}
+                        {displayName}
                       </Text>
+                      {user?.username && (
+                        <Text
+                          style={[
+                            styles.requestSubtitle,
+                            { color: themeColors.text.secondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {formatUsername(user.username)}
+                        </Text>
+                      )}
+                    </View>
+                    {isIncoming && (
+                      <View style={styles.requestActions}>
+                        <TouchableOpacity
+                          style={[
+                            styles.requestButton,
+                            styles.requestAcceptButton,
+                          ]}
+                          onPress={() => handleAcceptRequest(request)}
+                        >
+                          <Ionicons
+                            name="checkmark"
+                            size={16}
+                            color={colors.text.light}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.requestButton,
+                            styles.requestRefuseButton,
+                          ]}
+                          onPress={() => handleRefuseRequest(request)}
+                        >
+                          <Ionicons
+                            name="close"
+                            size={16}
+                            color={colors.text.light}
+                          />
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
-                  {isIncoming && (
-                    <View style={styles.requestActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.requestButton,
-                          styles.requestAcceptButton,
-                        ]}
-                        onPress={() => handleAcceptRequest(request)}
-                      >
-                        <Ionicons
-                          name="checkmark"
-                          size={16}
-                          color={colors.text.light}
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.requestButton,
-                          styles.requestRefuseButton,
-                        ]}
-                        onPress={() => handleRefuseRequest(request)}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={16}
-                          color={colors.text.light}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </BlurView>
         ) : null}
 
         {/* Contacts List */}
@@ -663,6 +638,7 @@ export const ContactsScreen: React.FC = () => {
             contentContainerStyle={[
               styles.listContent,
               {
+                paddingTop: 8,
                 paddingBottom: insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE,
               },
             ]}
@@ -717,41 +693,74 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  topSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  headerBlur: {
+    borderRadius: 28,
+    overflow: "hidden",
+  },
   header: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 28,
+    backgroundColor: "rgba(11,17,36,0.2)",
   },
-  backButton: {
-    marginRight: 12,
+  headerCopy: {
+    flex: 1,
+    paddingRight: 12,
   },
   headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 30,
+    fontFamily: "Inter_700Bold",
+  },
+  headerSubtitle: {
+    marginTop: 8,
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
   },
   headerIconButton: {
-    padding: 4,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  searchShell: {
+    marginTop: 14,
+    borderRadius: 22,
+    overflow: "hidden",
   },
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(11,17,36,0.18)",
+    borderRadius: 22,
+    padding: 10,
   },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   searchIcon: {
     marginRight: 8,
@@ -764,25 +773,41 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   filtersContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingTop: 12,
+    paddingBottom: 4,
     gap: 8,
+    paddingRight: 16,
   },
   filterButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
     gap: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
   filterButtonActive: {
     // Active state handled by backgroundColor
   },
+  filterButtonActivePrimary: {
+    backgroundColor: withOpacity(colors.primary.main, 0.92),
+    borderColor: withOpacity(colors.primary.light, 0.34),
+  },
   filterText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: "Inter_600SemiBold",
+  },
+  filterTextActive: {
+    color: colors.text.light,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   listContent: {
     paddingBottom: 16,
@@ -806,20 +831,34 @@ const styles = StyleSheet.create({
   },
   requestsContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(11,17,36,0.18)",
+    borderRadius: 24,
+  },
+  requestsBlur: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 24,
+    overflow: "hidden",
   },
   requestsTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
+    fontFamily: "Inter_700Bold",
+    marginBottom: 10,
   },
   requestItem: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: 18,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginBottom: 8,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   requestInfo: {
     flex: 1,
@@ -827,11 +866,11 @@ const styles = StyleSheet.create({
   },
   requestName: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
   },
   requestSubtitle: {
     fontSize: 13,
-    marginTop: 2,
+    marginTop: 4,
   },
   requestActions: {
     flexDirection: "row",

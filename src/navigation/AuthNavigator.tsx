@@ -55,6 +55,8 @@ import { contactsAPI } from "../services/contacts/api";
 import { TokenService } from "../services/TokenService";
 import { UserService } from "../services/UserService";
 import { NotificationService } from "../services/NotificationService";
+import { systemCallProvider } from "../services/calls/systemCallProvider";
+import { initCallNotificationBridge } from "../services/calls/callNotificationBridge";
 import Constants from "expo-constants";
 import type { AuthPurpose } from "../types/auth";
 import type {
@@ -204,6 +206,7 @@ export const AuthNavigator: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
+    const cleanupCallNotifications = initCallNotificationBridge();
     const preload = async () => {
       const token = await TokenService.getAccessToken();
       if (!token || cancelled) return;
@@ -218,6 +221,7 @@ export const AuthNavigator: React.FC = () => {
     };
 
     preload().catch(() => {});
+    void systemCallProvider.initialize().catch(() => {});
     try {
       require("../screens/Contacts/QRCodeScannerScreen");
     } catch {}
@@ -231,6 +235,7 @@ export const AuthNavigator: React.FC = () => {
     }
     return () => {
       cancelled = true;
+      cleanupCallNotifications();
     };
   }, [hasCallsSupport, isAuthenticated, userId]);
 

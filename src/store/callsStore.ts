@@ -29,6 +29,8 @@ export interface ActiveCall {
   liveKitToken: string;
   type: CallType;
   room: Room | null;
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 export interface IncomingCallInfo {
@@ -36,6 +38,8 @@ export interface IncomingCallInfo {
   initiatorId: string;
   conversationId: string;
   type: CallType;
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 interface CallsState {
@@ -45,6 +49,8 @@ interface CallsState {
     conversationId: string,
     type: CallType,
     participants: string[],
+    displayName?: string,
+    avatarUrl?: string,
   ) => Promise<void>;
   acceptIncoming: () => Promise<void>;
   declineIncoming: () => Promise<void>;
@@ -57,7 +63,13 @@ export const useCallsStore = create<CallsState>((set, get) => ({
   active: null,
   incoming: null,
 
-  initiate: async (conversationId, type, participants) => {
+  initiate: async (
+    conversationId,
+    type,
+    participants,
+    displayName,
+    avatarUrl,
+  ) => {
     const resp = await callsApi.initiate(conversationId, type, participants);
     const provider = getCallsLiveKit();
     const room = await provider.connect({
@@ -85,6 +97,8 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         liveKitToken: resp.livekit_token,
         type,
         room,
+        displayName,
+        avatarUrl,
       },
     });
   },
@@ -127,6 +141,8 @@ export const useCallsStore = create<CallsState>((set, get) => ({
         liveKitToken: resp.livekit_token,
         type: inc.type,
         room,
+        displayName: inc.displayName,
+        avatarUrl: inc.avatarUrl,
       },
       incoming: null,
     });

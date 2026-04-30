@@ -16,6 +16,7 @@ import { useModerationStore } from "../store/moderationStore";
 import { useCallsStore } from "../store/callsStore";
 import { onSessionExpired } from "../services/sessionEvents";
 import { useBadgeSync } from "../hooks/useBadgeSync";
+import { systemCallProvider } from "../services/calls/systemCallProvider";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -91,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     usePresenceStore.getState().reset();
     useModerationStore.getState().reset();
     useCallsStore.getState().reset();
+    await systemCallProvider.resetAll().catch(() => {});
 
     // Best-effort server-side logout. Swallow failures so the local
     // cleanup still happens if the server is unreachable.

@@ -11,6 +11,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import { useCallsStore } from "../../store/callsStore";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { systemCallProvider } from "../../services/calls/systemCallProvider";
 
 type Nav = StackNavigationProp<AuthStackParamList>;
 
@@ -37,8 +38,12 @@ export const IncomingCallScreen: React.FC = () => {
   const navigation = useNavigation<Nav>();
 
   const onAccept = async () => {
+    const callId = incoming?.callId;
     try {
       await acceptIncoming();
+      if (callId) {
+        await systemCallProvider.markCallConnected(callId);
+      }
       navigation.reset({
         index: 0,
         routes: [{ name: "InCall" }],
@@ -61,8 +66,12 @@ export const IncomingCallScreen: React.FC = () => {
   };
 
   const onDecline = async () => {
+    const callId = incoming?.callId;
     try {
       await declineIncoming();
+      if (callId) {
+        await systemCallProvider.endCall(callId, 5);
+      }
     } catch (err) {
       console.error("Failed to decline call", err);
     }
@@ -79,7 +88,7 @@ export const IncomingCallScreen: React.FC = () => {
         Appel {incoming.type === "video" ? "vidéo" : "audio"} entrant
       </Text>
       <Text style={styles.caller} numberOfLines={1}>
-        {incoming.initiatorId}
+        {incoming.displayName ?? incoming.initiatorId}
       </Text>
       <View style={styles.actions}>
         <TouchableOpacity
