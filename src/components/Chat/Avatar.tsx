@@ -187,9 +187,6 @@ export const Avatar: React.FC<AvatarProps> = ({
   isOnline = false,
 }) => {
   const [imageError, setImageError] = React.useState(false);
-  const [resolvedUri, setResolvedUri] = React.useState<string | undefined>(
-    undefined,
-  );
   const triedAuthResolveRef = React.useRef(false);
 
   const effectiveCandidate = React.useMemo(() => {
@@ -247,6 +244,18 @@ export const Avatar: React.FC<AvatarProps> = ({
     return { uri: undefined, mediaId: undefined };
   }, [uri]);
 
+  // Stable key: gating reset on `uri` directly drops a resolved dataUrl on
+  // unrelated re-renders (e.g. Zustand subscriptions in ConversationItem),
+  // producing flicker.
+  const avatarKey = effectiveCandidate.mediaId ?? effectiveCandidate.uri;
+
+  const [resolvedUri, setResolvedUri] = React.useState<string | undefined>(
+    () => {
+      const id = effectiveCandidate.mediaId;
+      return id ? resolvedCache.get(id) : undefined;
+    },
+  );
+
   const effectiveUri = resolvedUri ?? effectiveCandidate.uri;
 
   const initials =
@@ -257,12 +266,16 @@ export const Avatar: React.FC<AvatarProps> = ({
       .toUpperCase()
       .slice(0, 2) || "?";
 
-  // Reset error state when URI changes
-  React.useEffect(() => {
+  const lastAvatarKeyRef = React.useRef(avatarKey);
+  if (lastAvatarKeyRef.current !== avatarKey) {
+    lastAvatarKeyRef.current = avatarKey;
+    const cached = effectiveCandidate.mediaId
+      ? resolvedCache.get(effectiveCandidate.mediaId)
+      : undefined;
+    setResolvedUri(cached);
     setImageError(false);
-    setResolvedUri(undefined);
     triedAuthResolveRef.current = false;
-  }, [uri]);
+  }
 
   // Pre-resolve through `?stream=1` when we know the mediaId, so <Image>
   // never hits `/blob` directly (which returns a JSON envelope it can't
