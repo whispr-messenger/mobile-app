@@ -145,22 +145,27 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     setGroupAvatars,
   ]);
 
-  const translateX = useSharedValue(50);
+  const translateY = useSharedValue(20);
   const opacity = useSharedValue(0);
 
   React.useEffect(() => {
     const delay = index * 50;
-    setTimeout(() => {
-      translateX.value = withSpring(0, {
+    const timeout = setTimeout(() => {
+      translateY.value = withSpring(0, {
         damping: 15,
         stiffness: 150,
       });
       opacity.value = withTiming(1, { duration: 300 });
     }, delay);
-  }, [index, translateX, opacity]);
+    return () => clearTimeout(timeout);
+    // Mount-only animation: keep deps empty so re-ordering (e.g. when the
+    // search query filters the list) doesn't replay it and create visual
+    // artefacts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
+    transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
   }));
 
@@ -187,7 +192,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     }
 
     if (diffMinutes < 60) {
-      return `${diffMinutes}min`;
+      return `${diffMinutes}m`;
     }
 
     if (diffDays === 0) {
@@ -352,31 +357,6 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                   style={styles.mutedIcon}
                 />
               )}
-            </View>
-            {lastMessageContent ? (
-              <Text
-                style={[
-                  styles.lastMessage,
-                  { color: "rgba(255, 255, 255, 0.7)" },
-                ]}
-                numberOfLines={1}
-              >
-                {lastMessageContent}
-              </Text>
-            ) : (
-              <Text
-                style={[
-                  styles.lastMessage,
-                  { color: "rgba(255, 255, 255, 0.4)", fontStyle: "italic" },
-                ]}
-                numberOfLines={1}
-              >
-                Pas encore de messages
-              </Text>
-            )}
-          </View>
-          <View style={styles.metaContainer}>
-            <View style={styles.metaRow}>
               {formattedTime ? (
                 <Text
                   style={[
@@ -396,22 +376,45 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 />
               )}
             </View>
-            {conversation.unread_count ? (
-              conversation.unread_count > 0 && getBadgeColor ? (
-                <View
+            <View style={styles.lastMessageRow}>
+              {lastMessageContent ? (
+                <Text
                   style={[
-                    styles.unreadBadge,
-                    { backgroundColor: getBadgeColor },
+                    styles.lastMessage,
+                    { color: "rgba(255, 255, 255, 0.7)" },
                   ]}
+                  numberOfLines={1}
                 >
-                  <Text style={styles.unreadText}>
-                    {conversation.unread_count > 99
-                      ? "99+"
-                      : String(conversation.unread_count)}
-                  </Text>
-                </View>
-              ) : null
-            ) : null}
+                  {lastMessageContent}
+                </Text>
+              ) : (
+                <Text
+                  style={[
+                    styles.lastMessage,
+                    { color: "rgba(255, 255, 255, 0.4)", fontStyle: "italic" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Pas encore de messages
+                </Text>
+              )}
+              {conversation.unread_count ? (
+                conversation.unread_count > 0 && getBadgeColor ? (
+                  <View
+                    style={[
+                      styles.unreadBadge,
+                      { backgroundColor: getBadgeColor },
+                    ]}
+                  >
+                    <Text style={styles.unreadText}>
+                      {conversation.unread_count > 99
+                        ? "99+"
+                        : String(conversation.unread_count)}
+                    </Text>
+                  </View>
+                ) : null
+              ) : null}
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -462,7 +465,6 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
-    marginRight: 8,
   },
   nameRow: {
     flexDirection: "row",
@@ -472,24 +474,24 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "600",
-    flex: 1,
+    flexShrink: 1,
   },
   mutedIcon: {
     marginLeft: 4,
   },
-  lastMessage: {
-    fontSize: 14,
-  },
-  metaContainer: {
-    alignItems: "flex-end",
-  },
-  metaRow: {
+  lastMessageRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+  },
+  lastMessage: {
+    fontSize: 14,
+    flex: 1,
+    marginRight: 8,
   },
   timestamp: {
     fontSize: 12,
+    marginLeft: "auto",
+    paddingLeft: 8,
   },
   pinIcon: {
     marginLeft: 4,
