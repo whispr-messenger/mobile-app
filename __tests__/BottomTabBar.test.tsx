@@ -4,6 +4,9 @@ import { render, fireEvent } from "@testing-library/react-native";
 const mockNavigate = jest.fn();
 jest.mock("../src/navigation/navigationRef", () => ({
   navigate: (...args: any[]) => mockNavigate(...args),
+  // BottomTabBar now uses switchToRootTab to reset to a tab without stacking;
+  // tests assert on mockNavigate via this proxy.
+  switchToRootTab: (...args: any[]) => mockNavigate(...args),
 }));
 
 let mockUnreadTotal = 0;

@@ -43,14 +43,14 @@ describe('CallControls', () => {
   it('fires onToggleMute when mic button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Micro'));
+    fireEvent.press(getByLabelText('Couper micro'));
     expect(props.onToggleMute).toHaveBeenCalledTimes(1);
   });
 
   it('fires onToggleCamera when camera button is pressed', () => {
     const props = makeProps();
     const { getByLabelText } = render(<CallControls {...props} />);
-    fireEvent.press(getByLabelText('Caméra'));
+    fireEvent.press(getByLabelText('Couper caméra'));
     expect(props.onToggleCamera).toHaveBeenCalledTimes(1);
   });
 
