@@ -30,14 +30,31 @@ export const formatUsername = (username: string | undefined | null): string => {
   return `@${clean}`;
 };
 
+const USERNAME_INVALID_CHARS_RE = /[^\p{L}\p{N}_]/gu;
+const USERNAME_HAS_ALNUM_RE = /[\p{L}\p{N}]/u;
+const USERNAME_VALID_RE = /^[\p{L}\p{N}_]+$/u;
+
 export const normalizeUsername = (
   username: string | undefined | null,
 ): string => {
-  const raw = (username ?? "").trim().replace(/^@+/, "").toLowerCase();
+  const raw = (username ?? "")
+    .normalize("NFC")
+    .trim()
+    .replace(/^@+/, "")
+    .toLocaleLowerCase();
   if (!raw) return "";
-  const normalized = raw.replace(/[^a-z0-9_]/g, "_").slice(0, 20);
-  if (!/[a-z0-9]/.test(normalized)) return "";
+  const sanitized = raw.replace(USERNAME_INVALID_CHARS_RE, "_");
+  const normalized = Array.from(sanitized).slice(0, 20).join("");
+  if (!USERNAME_HAS_ALNUM_RE.test(normalized)) return "";
   return normalized;
+};
+
+export const isValidUsername = (
+  username: string | undefined | null,
+): boolean => {
+  const value = (username ?? "").normalize("NFC").trim();
+  if (!value) return false;
+  return USERNAME_VALID_RE.test(value) && USERNAME_HAS_ALNUM_RE.test(value);
 };
 
 interface ConversationLike {
