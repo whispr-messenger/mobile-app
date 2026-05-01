@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
-import { NativeModules, Platform, Text, View } from "react-native";
+import { CallsUnavailableScreen } from "../screens/Calls/CallsUnavailableScreen";
+import { isCallsAvailable } from "../hooks/useCallsAvailable";
 import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
 import { OtpScreen } from "../screens/Auth/OtpScreen";
@@ -57,7 +58,6 @@ import { UserService } from "../services/UserService";
 import { NotificationService } from "../services/NotificationService";
 import { systemCallProvider } from "../services/calls/systemCallProvider";
 import { initCallNotificationBridge } from "../services/calls/callNotificationBridge";
-import Constants from "expo-constants";
 import type { AuthPurpose } from "../types/auth";
 import type {
   Report,
@@ -153,15 +153,11 @@ export const AuthNavigator: React.FC = () => {
     boolean | null
   >(null);
   const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
-  // Web (PWA Safari) uses the browser's built-in WebRTC via livekit-client,
-  // so calls work without a native module. The CallsUnavailableScreen
-  // guard only applies to native builds (Expo Go) that lack the
-  // @livekit/react-native-webrtc native bindings.
-  const hasCallsSupport = useMemo(() => {
-    if (Platform.OS === "web") return true;
-    const native = NativeModules as Record<string, unknown>;
-    return Boolean(native?.WebRTCModule || native?.LivekitReactNativeWebRTC);
-  }, []);
+  // Source de vérité unique pour la disponibilité des appels (Expo Go,
+  // module natif WebRTC manquant, web). Mémorisé : la dispo ne change pas
+  // pendant la durée de vie de l'app — un nouveau native module ne peut
+  // pas apparaître sans rebuild.
+  const hasCallsSupport = useMemo(isCallsAvailable, []);
 
   // WHISPR-1060: drain any offline-queued messages left over from a
   // previous session as soon as the authenticated tree mounts, and keep
@@ -225,7 +221,7 @@ export const AuthNavigator: React.FC = () => {
     try {
       require("../screens/Contacts/QRCodeScannerScreen");
     } catch {}
-    if (Constants.appOwnership !== "expo" && hasCallsSupport) {
+    if (hasCallsSupport) {
       try {
         require("../screens/Calls/CallsScreen");
         require("../screens/Calls/IncomingCallScreen");
@@ -251,22 +247,6 @@ export const AuthNavigator: React.FC = () => {
     : profileSetupPending
       ? "ProfileSetup"
       : "ConversationsList";
-
-  const CallsUnavailableScreen = () => (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 24,
-      }}
-    >
-      <Text style={{ textAlign: "center", opacity: 0.8 }}>
-        Les appels ne sont pas disponibles sur ce build. Recompilez le dev
-        client avec le module WebRTC natif.
-      </Text>
-    </View>
-  );
 
   return (
     <Stack.Navigator

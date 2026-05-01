@@ -52,6 +52,11 @@ import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { useCallsStore } from "../../store/callsStore";
 import { systemCallProvider } from "../../services/calls/systemCallProvider";
+import {
+  useCallsAvailable,
+  getCallsUnavailableMessage,
+} from "../../hooks/useCallsAvailable";
+import Toast, { ToastType } from "../../components/Toast/Toast";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -203,6 +208,12 @@ export const ChatScreen: React.FC = () => {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageWithRelations | null>(null);
+  const callsAvailability = useCallsAvailable();
+  const [callsToast, setCallsToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: ToastType;
+  }>({ visible: false, message: "", type: "info" });
   const [forwardSending, setForwardSending] = useState(false);
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [reportSheetMessage, setReportSheetMessage] =
@@ -1467,6 +1478,14 @@ export const ChatScreen: React.FC = () => {
   const handleInitiateCall = useCallback(
     async (type: "audio" | "video") => {
       if (!conversation) return;
+      if (!callsAvailability.available) {
+        setCallsToast({
+          visible: true,
+          message: getCallsUnavailableMessage(callsAvailability.reason),
+          type: "warning",
+        });
+        return;
+      }
       const displayName = getConversationDisplayName(conversation);
       const avatarUrl =
         conversation.type === "direct"
@@ -1507,7 +1526,14 @@ export const ChatScreen: React.FC = () => {
         console.error("Failed to initiate call", err);
       }
     },
-    [conversation, conversationMembers, conversationId, userId, navigation],
+    [
+      conversation,
+      conversationMembers,
+      conversationId,
+      userId,
+      navigation,
+      callsAvailability,
+    ],
   );
 
   const resolveReactorDisplayName = useCallback(
@@ -2234,6 +2260,7 @@ export const ChatScreen: React.FC = () => {
           onScheduledPress={handleScheduledPress}
           onAudioCallPress={() => handleInitiateCall("audio")}
           onVideoCallPress={() => handleInitiateCall("video")}
+          callsAvailable={callsAvailability.available}
         />
         {isOtherUserContact === false && (
           <View style={styles.notContactBanner}>
@@ -2575,6 +2602,13 @@ export const ChatScreen: React.FC = () => {
             </View>
           </View>
         </Modal>
+        <Toast
+          visible={callsToast.visible}
+          message={callsToast.message}
+          type={callsToast.type}
+          duration={4000}
+          onHide={() => setCallsToast((t) => ({ ...t, visible: false }))}
+        />
       </SafeAreaView>
     </LinearGradient>
   );
