@@ -52,8 +52,10 @@ interface ConversationLike {
  * True when the given string looks like a raw UUID v1-v5 (backend sometimes
  * leaks the user_id straight into display_name when enrichment fails).
  */
-const UUID_RE =
+export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isValidUuid = (value: string | undefined | null): boolean =>
+  !!value && UUID_RE.test(value.trim());
 const isUuidLike = (value: string): boolean => UUID_RE.test(value.trim());
 
 /**
