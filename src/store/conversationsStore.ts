@@ -91,7 +91,20 @@ export type ConversationsStatus =
   | "loaded"
   | "error";
 
+export type ArchivedStatus = "idle" | "loading" | "loaded" | "error";
+
 export type GroupAvatar = { uri?: string; name: string };
+
+const ARCHIVED_PAGE_SIZE = 50;
+
+interface ArchivedState {
+  items: Conversation[];
+  status: ArchivedStatus;
+  error: string | null;
+  offset: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+}
 
 interface ConversationsState {
   conversations: Conversation[];
@@ -99,6 +112,7 @@ interface ConversationsState {
   error: string | null;
   manuallyUnreadIds: Set<string>;
   groupAvatars: Record<string, GroupAvatar[]>;
+  archived: ArchivedState;
   _gracePeriodTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -110,7 +124,11 @@ interface ConversationsActions {
   applyNewMessage: (message: Message, currentUserId?: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   removeConversationLocal: (id: string) => void;
-  archiveConversation: (id: string) => void;
+  archiveConversation: (id: string) => Promise<void>;
+  unarchiveConversation: (id: string) => Promise<void>;
+  applyArchiveBroadcast: (conversationId: string, archived: boolean) => void;
+  fetchArchivedConversations: () => Promise<void>;
+  loadMoreArchivedConversations: () => Promise<void>;
   muteConversation: (id: string) => Promise<void>;
   pinConversation: (id: string) => void;
   markAsUnread: (id: string) => Promise<void>;
@@ -127,6 +145,15 @@ interface ConversationsActions {
   ) => void;
 }
 
+const initialArchivedState: ArchivedState = {
+  items: [],
+  status: "idle",
+  error: null,
+  offset: 0,
+  hasMore: false,
+  loadingMore: false,
+};
+
 export const useConversationsStore = create<
   ConversationsState & ConversationsActions
 >((set, get) => ({
@@ -135,6 +162,7 @@ export const useConversationsStore = create<
   error: null,
   manuallyUnreadIds: new Set<string>(),
   groupAvatars: {},
+  archived: { ...initialArchivedState },
   _gracePeriodTimer: null,
 
   reset: () => {
@@ -148,6 +176,7 @@ export const useConversationsStore = create<
       error: null,
       manuallyUnreadIds: new Set<string>(),
       groupAvatars: {},
+      archived: { ...initialArchivedState },
       _gracePeriodTimer: null,
     });
   },
@@ -469,13 +498,240 @@ export const useConversationsStore = create<
     ).catch(() => {});
   },
 
-  archiveConversation: (id) => {
-    const { conversations } = get();
+  archiveConversation: async (id) => {
+    const { conversations, archived } = get();
+    const target = conversations.find((c) => c.id === id);
+
+    // Optimistic update : flag is_archived côté liste principale.
+    // L'écran principal filtre déjà sur !is_archived, donc la conv disparaît.
     set({
       conversations: conversations.map((c) =>
-        c.id === id ? { ...c, is_archived: !c.is_archived } : c,
+        c.id === id ? { ...c, is_archived: true } : c,
       ),
     });
+
+    try {
+      await messagingAPI.archiveConversation(id);
+
+      // Si la liste archivée a déjà été chargée et que la conv n'y figure pas,
+      // on l'y insère localement pour rester cohérent (sans refetch).
+      if (target && archived.status === "loaded") {
+        const alreadyListed = archived.items.some((c) => c.id === id);
+        if (!alreadyListed) {
+          set({
+            archived: {
+              ...archived,
+              items: [{ ...target, is_archived: true }, ...archived.items],
+              offset: archived.offset + 1,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      const apiErr = err as Error & { status?: number };
+      // 422 : déjà archivée côté serveur (race avec un autre device).
+      // L'état serveur est déjà celui qu'on voulait, on garde l'optimistic.
+      if (apiErr.status === 422) return;
+      // 404 : conv inexistante / soft-deletée — la retirer définitivement.
+      if (apiErr.status === 404) {
+        set({
+          conversations: get().conversations.filter((c) => c.id !== id),
+        });
+        cacheService.saveConversations(get().conversations).catch(() => {});
+        throw err;
+      }
+      // Tout le reste : rollback.
+      set({ conversations });
+      throw err;
+    }
+  },
+
+  unarchiveConversation: async (id) => {
+    const { conversations, archived } = get();
+    const wasInMain = conversations.find((c) => c.id === id);
+    const archivedItem = archived.items.find((c) => c.id === id);
+
+    // Optimistic : retirer de la liste archivée + remettre is_archived=false
+    // dans la liste principale (l'ajouter si absente — ex. ouverte uniquement
+    // depuis l'écran archivées).
+    const nextArchivedItems = archived.items.filter((c) => c.id !== id);
+    const nextMain = wasInMain
+      ? conversations.map((c) =>
+          c.id === id ? { ...c, is_archived: false } : c,
+        )
+      : archivedItem
+        ? [{ ...archivedItem, is_archived: false }, ...conversations]
+        : conversations;
+
+    set({
+      conversations: nextMain,
+      archived: {
+        ...archived,
+        items: nextArchivedItems,
+        offset: Math.max(0, archived.offset - (archivedItem ? 1 : 0)),
+      },
+    });
+
+    try {
+      await messagingAPI.unarchiveConversation(id);
+    } catch (err) {
+      const apiErr = err as Error & { status?: number };
+      // 422 : déjà désarchivée — on garde l'optimistic.
+      if (apiErr.status === 422) return;
+      // 404 : conv soft-deletée — la retirer partout (déjà retirée de
+      // archived.items, on enlève aussi de main si on l'y avait remise).
+      if (apiErr.status === 404) {
+        set({
+          conversations: get().conversations.filter((c) => c.id !== id),
+        });
+        cacheService.saveConversations(get().conversations).catch(() => {});
+        throw err;
+      }
+      // Rollback complet.
+      set({ conversations, archived });
+      throw err;
+    }
+  },
+
+  /**
+   * Synchronisation depuis le broadcast WS `conversation_archived`. Source
+   * de vérité quand un autre device de l'utilisateur (ou notre propre POST
+   * suite à un optimistic) confirme l'état serveur.
+   */
+  applyArchiveBroadcast: (conversationId, archivedFlag) => {
+    const { conversations, archived } = get();
+    const inMain = conversations.find((c) => c.id === conversationId);
+    const inArchived = archived.items.find((c) => c.id === conversationId);
+
+    if (archivedFlag) {
+      // Marquer comme archivée dans la main list ; insérer dans archived si
+      // déjà chargée et absente.
+      const nextMain = inMain
+        ? conversations.map((c) =>
+            c.id === conversationId ? { ...c, is_archived: true } : c,
+          )
+        : conversations;
+      const shouldInsertArchived =
+        archived.status === "loaded" && inMain && !inArchived;
+      set({
+        conversations: nextMain,
+        archived: shouldInsertArchived
+          ? {
+              ...archived,
+              items: [{ ...inMain!, is_archived: true }, ...archived.items],
+              offset: archived.offset + 1,
+            }
+          : archived,
+      });
+    } else {
+      const nextMain = inMain
+        ? conversations.map((c) =>
+            c.id === conversationId ? { ...c, is_archived: false } : c,
+          )
+        : inArchived
+          ? [{ ...inArchived, is_archived: false }, ...conversations]
+          : conversations;
+      set({
+        conversations: nextMain,
+        archived: {
+          ...archived,
+          items: archived.items.filter((c) => c.id !== conversationId),
+          offset: Math.max(0, archived.offset - (inArchived ? 1 : 0)),
+        },
+      });
+    }
+  },
+
+  fetchArchivedConversations: async () => {
+    const current = get().archived;
+    set({
+      archived: {
+        ...current,
+        status: "loading",
+        error: null,
+        items: [],
+        offset: 0,
+        hasMore: false,
+      },
+    });
+    try {
+      const { data, meta } = await messagingAPI.getArchivedConversations({
+        limit: ARCHIVED_PAGE_SIZE,
+        offset: 0,
+      });
+      const userId = await getCurrentUserId();
+      const enriched = userId
+        ? await enrichWithDisplayNames(data, userId)
+        : data;
+      set({
+        archived: {
+          items: enriched.map((c) => ({ ...c, is_archived: true })),
+          status: "loaded",
+          error: null,
+          offset: meta.offset + enriched.length,
+          hasMore: meta.has_more,
+          loadingMore: false,
+        },
+      });
+    } catch (err) {
+      logger.error(
+        "conversationsStore",
+        "fetchArchivedConversations error",
+        err,
+      );
+      set({
+        archived: {
+          ...get().archived,
+          status: "error",
+          error: "Failed to load archived conversations",
+        },
+      });
+    }
+  },
+
+  loadMoreArchivedConversations: async () => {
+    const current = get().archived;
+    if (
+      current.loadingMore ||
+      !current.hasMore ||
+      current.status !== "loaded"
+    ) {
+      return;
+    }
+    set({ archived: { ...current, loadingMore: true } });
+    try {
+      const { data, meta } = await messagingAPI.getArchivedConversations({
+        limit: ARCHIVED_PAGE_SIZE,
+        offset: current.offset,
+      });
+      const userId = await getCurrentUserId();
+      const enriched = userId
+        ? await enrichWithDisplayNames(data, userId)
+        : data;
+      // Dédupliquer : la pagination offset sur données mutables peut produire
+      // des doublons si une conv archivée a son updated_at qui change entre
+      // deux pages. On filtre par id.
+      const existingIds = new Set(current.items.map((c) => c.id));
+      const fresh = enriched
+        .filter((c) => !existingIds.has(c.id))
+        .map((c) => ({ ...c, is_archived: true }));
+      set({
+        archived: {
+          ...get().archived,
+          items: [...current.items, ...fresh],
+          offset: meta.offset + enriched.length,
+          hasMore: meta.has_more,
+          loadingMore: false,
+        },
+      });
+    } catch (err) {
+      logger.error(
+        "conversationsStore",
+        "loadMoreArchivedConversations error",
+        err,
+      );
+      set({ archived: { ...get().archived, loadingMore: false } });
+    }
   },
 
   muteConversation: async (id) => {

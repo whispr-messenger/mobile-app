@@ -176,6 +176,156 @@ describe("messagingAPI.getConversation / deleteConversation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Archive / unarchive / archived listing
+// ---------------------------------------------------------------------------
+
+const VALID_UUID = "12345678-1234-1234-1234-123456789012";
+
+describe("messagingAPI.archiveConversation", () => {
+  it("POSTs /conversations/:id/archive", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 200, body: {} }));
+    await messagingAPI.archiveConversation(VALID_UUID);
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe(`${BASE}/conversations/${VALID_UUID}/archive`);
+    expect(init.method).toBe("POST");
+  });
+
+  it("rejects malformed UUIDs without hitting the network", async () => {
+    await expect(
+      messagingAPI.archiveConversation("not-a-uuid"),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("propagates the backend error message and status on 422", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        status: 422,
+        body: { error: "Conversation is already archived" },
+      }),
+    );
+
+    await expect(
+      messagingAPI.archiveConversation(VALID_UUID),
+    ).rejects.toMatchObject({
+      status: 422,
+      message: "Conversation is already archived",
+    });
+  });
+
+  it("propagates 404", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ status: 404, body: { error: "Conversation not found" } }),
+    );
+    await expect(
+      messagingAPI.archiveConversation(VALID_UUID),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("messagingAPI.unarchiveConversation", () => {
+  it("DELETEs /conversations/:id/archive", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 200, body: {} }));
+    await messagingAPI.unarchiveConversation(VALID_UUID);
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe(`${BASE}/conversations/${VALID_UUID}/archive`);
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("rejects malformed UUIDs without hitting the network", async () => {
+    await expect(
+      messagingAPI.unarchiveConversation("nope"),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("propagates 422 (not archived)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        status: 422,
+        body: { error: "Conversation is not archived" },
+      }),
+    );
+    await expect(
+      messagingAPI.unarchiveConversation(VALID_UUID),
+    ).rejects.toMatchObject({ status: 422 });
+  });
+});
+
+describe("messagingAPI.getArchivedConversations", () => {
+  it("GETs /conversations/archived and snake-cases the camelCase listing", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          data: [
+            {
+              id: "c-1",
+              type: "direct",
+              isArchived: true,
+              isPinned: false,
+              isMuted: false,
+              insertedAt: "2026-04-01T00:00:00Z",
+              updatedAt: "2026-04-02T00:00:00Z",
+            },
+          ],
+          meta: {
+            count: 1,
+            limit: 50,
+            offset: 0,
+            hasMore: false,
+            userId: "u-1",
+          },
+        },
+      }),
+    );
+
+    const result = await messagingAPI.getArchivedConversations({
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result.data).toHaveLength(1);
+    expect((result.data[0] as any).is_archived).toBe(true);
+    expect((result.data[0] as any).inserted_at).toBe("2026-04-01T00:00:00Z");
+    expect(result.meta).toEqual({
+      count: 1,
+      limit: 50,
+      offset: 0,
+      has_more: false,
+      user_id: "u-1",
+    });
+  });
+
+  it("appends limit and offset query params when provided", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ body: { data: [], meta: {} } }),
+    );
+
+    await messagingAPI.getArchivedConversations({ limit: 25, offset: 50 });
+
+    const url = String(mockFetch.mock.calls[0][0]);
+    expect(url).toContain("limit=25");
+    expect(url).toContain("offset=50");
+  });
+
+  it("returns an empty page with sensible defaults when meta is missing", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: {} }));
+
+    const result = await messagingAPI.getArchivedConversations();
+    expect(result.data).toEqual([]);
+    expect(result.meta.has_more).toBe(false);
+    expect(result.meta.limit).toBe(50);
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 500 }));
+    await expect(messagingAPI.getArchivedConversations()).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
 

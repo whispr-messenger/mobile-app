@@ -17,6 +17,7 @@ import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
 import { TwoFactorVerifyScreen } from "../screens/Security/TwoFactorVerifyScreen";
 import { TwoFactorBackupCodesScreen } from "../screens/Security/TwoFactorBackupCodesScreen";
 import { ConversationsListScreen } from "../screens/Chat/ConversationsListScreen";
+import { ArchivedConversationsScreen } from "../screens/Chat/ArchivedConversationsScreen";
 import { ChatScreen } from "../screens/Chat/ChatScreen";
 import { ContactsScreen } from "../screens/Contacts/ContactsScreen";
 import { BlockedUsersScreen } from "../screens/Contacts/BlockedUsersScreen";
@@ -90,6 +91,7 @@ export type AuthStackParamList = {
   TwoFactorVerify: { secret: string };
   TwoFactorBackupCodes: { codes: string[] };
   ConversationsList: undefined;
+  ArchivedConversations: undefined;
   Chat: { conversationId: string; openSearch?: boolean };
   Contacts: undefined;
   MyQRCode: undefined;
@@ -309,6 +311,10 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="ConversationsList"
         component={ConversationsListScreen}
+      />
+      <Stack.Screen
+        name="ArchivedConversations"
+        component={ArchivedConversationsScreen}
       />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Contacts" component={ContactsScreen} />

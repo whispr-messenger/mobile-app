@@ -16,6 +16,20 @@ jest.mock("./src/services/messaging/api", () => ({
     getConversationMembers: jest.fn().mockResolvedValue([]),
     getUserInfo: jest.fn().mockResolvedValue(null),
     deleteConversation: jest.fn().mockResolvedValue(undefined),
+    archiveConversation: jest.fn().mockResolvedValue(undefined),
+    unarchiveConversation: jest.fn().mockResolvedValue(undefined),
+    getArchivedConversations: jest
+      .fn()
+      .mockResolvedValue({
+        data: [],
+        meta: {
+          count: 0,
+          limit: 50,
+          offset: 0,
+          has_more: false,
+          user_id: "",
+        },
+      }),
   },
 }));
 
@@ -267,6 +281,9 @@ beforeEach(() => {
     mockedMessagingAPI.getConversation,
     mockedMessagingAPI.getUserInfo,
     mockedMessagingAPI.deleteConversation,
+    mockedMessagingAPI.archiveConversation,
+    mockedMessagingAPI.unarchiveConversation,
+    mockedMessagingAPI.getArchivedConversations,
     mockedCacheService.getConversations,
     mockedCacheService.saveConversations,
     mockedTokenService.getAccessToken,
@@ -287,6 +304,12 @@ beforeEach(() => {
   mockedMessagingAPI.getConversation.mockResolvedValue(null);
   mockedMessagingAPI.getUserInfo.mockResolvedValue(null);
   mockedMessagingAPI.deleteConversation.mockResolvedValue(undefined);
+  mockedMessagingAPI.archiveConversation.mockResolvedValue(undefined);
+  mockedMessagingAPI.unarchiveConversation.mockResolvedValue(undefined);
+  mockedMessagingAPI.getArchivedConversations.mockResolvedValue({
+    data: [],
+    meta: { count: 0, limit: 50, offset: 0, has_more: false, user_id: "" },
+  });
   mockedAsyncStorage.getItem.mockResolvedValue(null);
   mockedAsyncStorage.setItem.mockResolvedValue(undefined);
   mockedAsyncStorage.removeItem.mockResolvedValue(undefined);
@@ -595,27 +618,320 @@ describe("conversationsStore — removeConversationLocal", () => {
 // ---------------------------------------------------------------------------
 
 describe("conversationsStore — archiveConversation", () => {
-  it("toggles is_archived", () => {
+  it("flags is_archived optimistically and calls the API", async () => {
     act(() => {
       useConversationsStore
         .getState()
         .applyConversationSummaries([makeConv("c-1")]);
-      useConversationsStore.getState().archiveConversation("c-1");
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().archiveConversation("c-1");
+    });
+
+    expect(mockedMessagingAPI.archiveConversation).toHaveBeenCalledWith("c-1");
+    expect(
+      useConversationsStore.getState().conversations.find((c) => c.id === "c-1")
+        ?.is_archived,
+    ).toBe(true);
+  });
+
+  it("accepts the optimistic state on 422 (already archived)", async () => {
+    act(() => {
+      useConversationsStore
+        .getState()
+        .applyConversationSummaries([makeConv("c-1")]);
+    });
+    const err: Error & { status?: number } = new Error("already archived");
+    err.status = 422;
+    mockedMessagingAPI.archiveConversation.mockRejectedValueOnce(err);
+
+    await act(async () => {
+      await useConversationsStore.getState().archiveConversation("c-1");
     });
 
     expect(
       useConversationsStore.getState().conversations.find((c) => c.id === "c-1")
         ?.is_archived,
     ).toBe(true);
+  });
 
+  it("removes the conversation locally on 404 (not found / soft-deleted)", async () => {
     act(() => {
-      useConversationsStore.getState().archiveConversation("c-1");
+      useConversationsStore
+        .getState()
+        .applyConversationSummaries([makeConv("c-1"), makeConv("c-2")]);
     });
+    const err: Error & { status?: number } = new Error("not found");
+    err.status = 404;
+    mockedMessagingAPI.archiveConversation.mockRejectedValueOnce(err);
+
+    await expect(
+      useConversationsStore.getState().archiveConversation("c-1"),
+    ).rejects.toThrow();
+
+    expect(
+      useConversationsStore.getState().conversations.map((c) => c.id),
+    ).toEqual(["c-2"]);
+  });
+
+  it("rolls back on a generic API failure", async () => {
+    act(() => {
+      useConversationsStore
+        .getState()
+        .applyConversationSummaries([makeConv("c-1")]);
+    });
+    mockedMessagingAPI.archiveConversation.mockRejectedValueOnce(
+      new Error("boom"),
+    );
+
+    await expect(
+      useConversationsStore.getState().archiveConversation("c-1"),
+    ).rejects.toThrow("boom");
 
     expect(
       useConversationsStore.getState().conversations.find((c) => c.id === "c-1")
         ?.is_archived,
     ).toBe(false);
+  });
+});
+
+describe("conversationsStore — unarchiveConversation", () => {
+  it("removes the entry from archived.items optimistically and calls the API", async () => {
+    act(() => {
+      // Seed archived list
+      useConversationsStore.setState({
+        archived: {
+          items: [makeConv("c-1", { is_archived: true })],
+          status: "loaded",
+          error: null,
+          offset: 1,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().unarchiveConversation("c-1");
+    });
+
+    expect(mockedMessagingAPI.unarchiveConversation).toHaveBeenCalledWith(
+      "c-1",
+    );
+    expect(useConversationsStore.getState().archived.items).toHaveLength(0);
+    // The conversation is restored to the main list with is_archived=false
+    const main = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-1");
+    expect(main?.is_archived).toBe(false);
+  });
+
+  it("rolls back archived items on a generic failure", async () => {
+    const archivedItem = makeConv("c-1", { is_archived: true });
+    act(() => {
+      useConversationsStore.setState({
+        archived: {
+          items: [archivedItem],
+          status: "loaded",
+          error: null,
+          offset: 1,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+    });
+    mockedMessagingAPI.unarchiveConversation.mockRejectedValueOnce(
+      new Error("boom"),
+    );
+
+    await expect(
+      useConversationsStore.getState().unarchiveConversation("c-1"),
+    ).rejects.toThrow("boom");
+
+    expect(useConversationsStore.getState().archived.items).toHaveLength(1);
+  });
+
+  it("accepts the optimistic state on 422 (already unarchived)", async () => {
+    act(() => {
+      useConversationsStore.setState({
+        archived: {
+          items: [makeConv("c-1", { is_archived: true })],
+          status: "loaded",
+          error: null,
+          offset: 1,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+    });
+    const err: Error & { status?: number } = new Error("not archived");
+    err.status = 422;
+    mockedMessagingAPI.unarchiveConversation.mockRejectedValueOnce(err);
+
+    await act(async () => {
+      await useConversationsStore.getState().unarchiveConversation("c-1");
+    });
+
+    expect(useConversationsStore.getState().archived.items).toHaveLength(0);
+  });
+});
+
+describe("conversationsStore — applyArchiveBroadcast", () => {
+  it("flags is_archived=true on a known main-list conversation", () => {
+    act(() => {
+      useConversationsStore
+        .getState()
+        .applyConversationSummaries([makeConv("c-1")]);
+      useConversationsStore.getState().applyArchiveBroadcast("c-1", true);
+    });
+
+    expect(
+      useConversationsStore.getState().conversations.find((c) => c.id === "c-1")
+        ?.is_archived,
+    ).toBe(true);
+  });
+
+  it("restores an archived item to the main list on archived=false", () => {
+    const archivedItem = makeConv("c-1", { is_archived: true });
+    act(() => {
+      useConversationsStore.setState({
+        archived: {
+          items: [archivedItem],
+          status: "loaded",
+          error: null,
+          offset: 1,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+      useConversationsStore.getState().applyArchiveBroadcast("c-1", false);
+    });
+
+    const state = useConversationsStore.getState();
+    expect(state.archived.items).toHaveLength(0);
+    expect(state.conversations.find((c) => c.id === "c-1")?.is_archived).toBe(
+      false,
+    );
+  });
+
+  it("inserts into archived.items when the broadcast says archived=true and the list was already loaded", () => {
+    act(() => {
+      useConversationsStore
+        .getState()
+        .applyConversationSummaries([makeConv("c-1")]);
+      useConversationsStore.setState({
+        archived: {
+          items: [],
+          status: "loaded",
+          error: null,
+          offset: 0,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+      useConversationsStore.getState().applyArchiveBroadcast("c-1", true);
+    });
+
+    expect(
+      useConversationsStore.getState().archived.items.map((c) => c.id),
+    ).toEqual(["c-1"]);
+  });
+});
+
+describe("conversationsStore — fetchArchivedConversations / loadMoreArchivedConversations", () => {
+  it("loads the first page and stores has_more / offset", async () => {
+    mockedMessagingAPI.getArchivedConversations.mockResolvedValueOnce({
+      data: [makeConv("c-a"), makeConv("c-b")],
+      meta: {
+        count: 2,
+        limit: 50,
+        offset: 0,
+        has_more: false,
+        user_id: "u-1",
+      },
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchArchivedConversations();
+    });
+
+    const { archived } = useConversationsStore.getState();
+    expect(archived.status).toBe("loaded");
+    expect(archived.items.map((c) => c.id)).toEqual(["c-a", "c-b"]);
+    expect(archived.hasMore).toBe(false);
+    expect(archived.offset).toBe(2);
+    expect(archived.items.every((c) => c.is_archived === true)).toBe(true);
+  });
+
+  it("sets status=error when the API call rejects", async () => {
+    mockedMessagingAPI.getArchivedConversations.mockRejectedValueOnce(
+      new Error("network down"),
+    );
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchArchivedConversations();
+    });
+
+    expect(useConversationsStore.getState().archived.status).toBe("error");
+  });
+
+  it("loadMoreArchivedConversations appends the next page and dedupes by id", async () => {
+    mockedMessagingAPI.getArchivedConversations
+      .mockResolvedValueOnce({
+        data: [makeConv("c-a"), makeConv("c-b")],
+        meta: {
+          count: 4,
+          limit: 50,
+          offset: 0,
+          has_more: true,
+          user_id: "u-1",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: [makeConv("c-b"), makeConv("c-c")],
+        meta: {
+          count: 4,
+          limit: 50,
+          offset: 2,
+          has_more: false,
+          user_id: "u-1",
+        },
+      });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchArchivedConversations();
+    });
+    await act(async () => {
+      await useConversationsStore.getState().loadMoreArchivedConversations();
+    });
+
+    const { archived } = useConversationsStore.getState();
+    expect(archived.items.map((c) => c.id)).toEqual(["c-a", "c-b", "c-c"]);
+    expect(archived.hasMore).toBe(false);
+  });
+
+  it("loadMoreArchivedConversations is a no-op when hasMore=false", async () => {
+    mockedMessagingAPI.getArchivedConversations.mockResolvedValueOnce({
+      data: [makeConv("c-a")],
+      meta: {
+        count: 1,
+        limit: 50,
+        offset: 0,
+        has_more: false,
+        user_id: "u-1",
+      },
+    });
+    await act(async () => {
+      await useConversationsStore.getState().fetchArchivedConversations();
+    });
+    mockedMessagingAPI.getArchivedConversations.mockClear();
+
+    await act(async () => {
+      await useConversationsStore.getState().loadMoreArchivedConversations();
+    });
+
+    expect(mockedMessagingAPI.getArchivedConversations).not.toHaveBeenCalled();
   });
 });
 
