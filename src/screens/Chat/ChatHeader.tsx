@@ -144,7 +144,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             ]}
             accessibilityRole="button"
             accessibilityLabel="Appel audio"
-            accessibilityState={{ disabled: !callsAvailable }}
           >
             <Ionicons
               name="call-outline"
@@ -162,7 +161,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             ]}
             accessibilityRole="button"
             accessibilityLabel="Appel video"
-            accessibilityState={{ disabled: !callsAvailable }}
           >
             <Ionicons
               name="videocam-outline"
