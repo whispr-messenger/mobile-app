@@ -11,7 +11,6 @@ import {
   Pressable,
   Platform,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Avatar } from "./Avatar";
 import {
   useSharedValue,
@@ -24,12 +23,14 @@ import * as Haptics from "expo-haptics";
 import { MessageWithRelations } from "../../types/messaging";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
-import { DeliveryStatus } from "./DeliveryStatus";
 import { ReactionBar } from "./ReactionBar";
 import { ReplyPreview } from "./ReplyPreview";
 import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
 import { AudioMessage } from "./AudioMessage";
+import { MaskedBubbleSurface } from "./MaskedBubbleSurface";
+import { MessageStatusLabel } from "./MessageStatusLabel";
+import { useMessageSwipe } from "../../context/MessageSwipeContext";
 import { FormattedText } from "../../utils/textFormatter";
 import { isReachableUrl } from "../../utils";
 import { getApiBaseUrl } from "../../services/apiBase";
@@ -172,6 +173,10 @@ interface MessageBubbleProps {
   senderAvatarUrl?: string | null;
   /** True when this message is from the same sender as the previous one (avatar is hidden but space is kept) */
   isConsecutive?: boolean;
+  /** True when this is the last message in a burst from the same sender —
+   * iMessage convention: only the bottom-most consecutive bubble carries a
+   * tail; the others are plain rounded rectangles. */
+  isLastInBurst?: boolean;
   /** When true, the conversation is a group and avatars should be shown for received messages */
   showSenderAvatar?: boolean;
   onReactionPress?: (messageId: string, emoji: string) => void;
@@ -191,6 +196,15 @@ interface MessageBubbleProps {
   };
   /** Called when the user taps "Contester" on a locally blocked image */
   onContest?: (message: MessageWithRelations) => void;
+  /** When true, renders a textual delivery status under the bubble (only the
+   * latest message sent by the current user should set this). */
+  isLastSentByMe?: boolean;
+  /** Group conversation flag — affects "Vu par" wording. */
+  isGroupConversation?: boolean;
+  /** Number of *other* members in the conversation (excludes sender). */
+  otherMembersCount?: number;
+  /** Display name resolver for read-receipt user ids. */
+  resolveMemberName?: (userId: string) => string;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -200,6 +214,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   senderName,
   senderAvatarUrl,
   isConsecutive = false,
+  isLastInBurst = true,
   showSenderAvatar = false,
   onReactionPress,
   onReactionDetailsPress,
@@ -210,10 +225,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   searchQuery,
   pendingAppeal,
   onContest,
+  isLastSentByMe = false,
+  isGroupConversation = false,
+  otherMembersCount = 0,
+  resolveMemberName,
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const swipe = useMessageSwipe();
 
   if (!message || !shouldRenderMessage(message)) {
     return null;
@@ -300,6 +320,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     opacity: opacity.value,
   }));
 
+  const swipeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipe && isSent ? swipe.translateX.value : 0 }],
+  }));
+
+  const swipeTimestampStyle = useAnimatedStyle(() => {
+    // Slide the timestamp in from the right edge of the screen as the user
+    // swipes left. The timestamp lives in absolute positioning at right: 6,
+    // and starts shifted off-screen by +40 px. As the gesture progresses it
+    // translates back toward 0 (its resting visible position).
+    const offset = swipe ? swipe.translateX.value + 40 : 40;
+    return { transform: [{ translateX: Math.max(0, offset) }] };
+  });
+
   const isForwarded =
     !!message.forwarded_from_id || message.metadata?.forwarded === true;
   const isFailed = message.status === "failed";
@@ -314,98 +347,186 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     // Failed message: show error overlay with reason
     if (isFailed && isSent) {
       return (
-        <View
-          style={[
-            styles.sentBubble,
-            {
-              backgroundColor: "rgba(240, 72, 72, 0.15)",
-              borderWidth: 1,
-              borderColor: "rgba(240, 72, 72, 0.4)",
-            },
-          ]}
-        >
-          {hasMedia && firstAttachment && firstAttachment.metadata ? (
-            <MediaMessage
-              uri={resolveMediaUrl(
-                firstAttachment.metadata.media_url ||
-                  firstAttachment.metadata.thumbnail_url,
-                firstAttachment.media_id,
-                "blob",
-              )}
-              type={firstAttachment.media_type as any}
-              filename={firstAttachment.metadata.filename}
-              size={firstAttachment.metadata.size}
-              thumbnailUri={resolveMediaUrl(
-                firstAttachment.metadata.thumbnail_url,
-                firstAttachment.media_id,
-                "thumbnail",
-              )}
-            />
-          ) : null}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 4,
-              paddingTop: hasMedia ? 6 : 0,
-            }}
+        <View style={styles.sentBubbleWrapper}>
+          <MaskedBubbleSurface
+            variant="failed"
+            side="right"
+            showTail={isLastInBurst}
+            contentStyle={styles.bubbleContent}
           >
-            <Text style={{ fontSize: 14, marginRight: 6 }}>⚠️</Text>
-            <Text style={{ color: "#F04848", fontSize: 13, flex: 1 }}>
-              {message.content || "Échec de l'envoi"}
-            </Text>
-          </View>
-          <View style={styles.footer}>
-            <Text style={styles.timestamp}>
-              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-            <DeliveryStatus status="failed" />
-          </View>
-          {(message.metadata as any)?.blockedByModeration === true ? (
-            <View style={styles.appealRow}>
-              {!pendingAppeal && !(message.metadata as any)?.appealRejected ? (
-                <TouchableOpacity
-                  style={styles.contestBtn}
-                  onPress={() => onContest?.(message)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.contestBtnText}>Contester</Text>
-                </TouchableOpacity>
-              ) : null}
-              {pendingAppeal?.status === "pending" ? (
-                <View style={[styles.appealBadge, styles.appealBadgePending]}>
-                  <Text style={styles.appealBadgeText}>
-                    Contestation envoyée
-                  </Text>
-                </View>
-              ) : null}
-              {pendingAppeal?.status === "rejected" ||
-              (message.metadata as any)?.appealRejected ? (
-                <View style={[styles.appealBadge, styles.appealBadgeRejected]}>
-                  <Text style={styles.appealBadgeText}>
-                    Refusée par l'admin
-                  </Text>
-                </View>
-              ) : null}
+            {hasMedia && firstAttachment && firstAttachment.metadata ? (
+              <MediaMessage
+                uri={resolveMediaUrl(
+                  firstAttachment.metadata.media_url ||
+                    firstAttachment.metadata.thumbnail_url,
+                  firstAttachment.media_id,
+                  "blob",
+                )}
+                type={firstAttachment.media_type as any}
+                filename={firstAttachment.metadata.filename}
+                size={firstAttachment.metadata.size}
+                thumbnailUri={resolveMediaUrl(
+                  firstAttachment.metadata.thumbnail_url,
+                  firstAttachment.media_id,
+                  "thumbnail",
+                )}
+              />
+            ) : null}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 4,
+                paddingTop: hasMedia ? 6 : 0,
+              }}
+            >
+              <Text style={{ fontSize: 14, marginRight: 6 }}>⚠️</Text>
+              <Text style={{ color: "#F04848", fontSize: 13, flex: 1 }}>
+                {message.content || "Échec de l'envoi"}
+              </Text>
             </View>
-          ) : null}
+            {(message.metadata as any)?.blockedByModeration === true ? (
+              <View style={styles.appealRow}>
+                {!pendingAppeal &&
+                !(message.metadata as any)?.appealRejected ? (
+                  <TouchableOpacity
+                    style={styles.contestBtn}
+                    onPress={() => onContest?.(message)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.contestBtnText}>Contester</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {pendingAppeal?.status === "pending" ? (
+                  <View style={[styles.appealBadge, styles.appealBadgePending]}>
+                    <Text style={styles.appealBadgeText}>
+                      Contestation envoyée
+                    </Text>
+                  </View>
+                ) : null}
+                {pendingAppeal?.status === "rejected" ||
+                (message.metadata as any)?.appealRejected ? (
+                  <View
+                    style={[styles.appealBadge, styles.appealBadgeRejected]}
+                  >
+                    <Text style={styles.appealBadgeText}>
+                      Refusée par l'admin
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </MaskedBubbleSurface>
         </View>
       );
     }
 
     if (isSent) {
       return (
-        <LinearGradient
-          colors={["#FFB07B", "#F86F71", "#F04882"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.sentBubble}
+        <View style={styles.sentBubbleWrapper}>
+          <MaskedBubbleSurface
+            variant="sent"
+            side="right"
+            showTail={isLastInBurst}
+            contentStyle={styles.bubbleContent}
+          >
+            {isForwarded ? (
+              <Text style={styles.forwardedLabel}>Transféré</Text>
+            ) : null}
+            {message.reply_to ? (
+              <ReplyPreview
+                replyTo={message.reply_to}
+                currentUserId={currentUserId}
+                onPress={() => onReplyPress?.(message.reply_to!.id)}
+              />
+            ) : null}
+            {hasMedia && firstAttachment && firstAttachment.metadata ? (
+              <>
+                {firstAttachment.media_type === "audio" ? (
+                  <AudioMessage
+                    uri={resolveMediaUrl(
+                      firstAttachment.metadata.media_url,
+                      firstAttachment.media_id,
+                      "blob",
+                    )}
+                    duration={firstAttachment.metadata.duration}
+                    isSent={true}
+                  />
+                ) : (
+                  <MediaMessage
+                    uri={resolveMediaUrl(
+                      firstAttachment.metadata.media_url ||
+                        firstAttachment.metadata.thumbnail_url,
+                      firstAttachment.media_id,
+                      "blob",
+                    )}
+                    type={firstAttachment.media_type}
+                    filename={firstAttachment.metadata.filename}
+                    size={firstAttachment.metadata.size}
+                    thumbnailUri={resolveMediaUrl(
+                      firstAttachment.metadata.thumbnail_url,
+                      firstAttachment.media_id,
+                      "thumbnail",
+                    )}
+                  />
+                )}
+              </>
+            ) : null}
+            {displayContent ? (
+              isTombstoned ? (
+                <Text style={[styles.sentText, styles.deletedText]}>
+                  {displayContent}
+                </Text>
+              ) : (
+                <FormattedText
+                  text={displayContent}
+                  style={[styles.sentText, { color: colors.text.light }]}
+                  boldStyle={{ color: colors.text.light }}
+                  italicStyle={{ color: colors.text.light }}
+                  codeStyle={{
+                    color: colors.text.light,
+                    backgroundColor: "rgba(0, 0, 0, 0.2)",
+                  }}
+                />
+              )
+            ) : null}
+            {message.edited_at ? (
+              <View style={styles.footer}>
+                <Text
+                  style={[
+                    styles.editedLabel,
+                    { color: "rgba(255, 255, 255, 0.75)" },
+                  ]}
+                >
+                  édité
+                </Text>
+              </View>
+            ) : null}
+          </MaskedBubbleSurface>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.receivedBubbleWrap}>
+        <MaskedBubbleSurface
+          variant="received"
+          side="left"
+          showTail={isLastInBurst}
+          contentStyle={styles.bubbleContent}
         >
+          {senderName ? (
+            <Text style={styles.senderNameLabel}>{senderName}</Text>
+          ) : null}
           {isForwarded ? (
-            <Text style={styles.forwardedLabel}>Transféré</Text>
+            <Text
+              style={[
+                styles.forwardedLabel,
+                { color: themeColors.text.tertiary },
+              ]}
+            >
+              Transféré
+            </Text>
           ) : null}
           {message.reply_to ? (
             <ReplyPreview
@@ -424,7 +545,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     "blob",
                   )}
                   duration={firstAttachment.metadata.duration}
-                  isSent={true}
+                  isSent={false}
                 />
               ) : (
                 <MediaMessage
@@ -434,7 +555,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     firstAttachment.media_id,
                     "blob",
                   )}
-                  type={firstAttachment.media_type}
+                  type={
+                    firstAttachment.media_type as "image" | "video" | "file"
+                  }
                   filename={firstAttachment.metadata.filename}
                   size={firstAttachment.metadata.size}
                   thumbnailUri={resolveMediaUrl(
@@ -448,152 +571,49 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           ) : null}
           {displayContent ? (
             isTombstoned ? (
-              <Text style={[styles.sentText, styles.deletedText]}>
+              <Text
+                style={[
+                  styles.receivedText,
+                  { color: themeColors.text.primary },
+                  styles.deletedText,
+                ]}
+              >
                 {displayContent}
               </Text>
             ) : (
               <FormattedText
                 text={displayContent}
-                style={[styles.sentText, { color: colors.text.light }]}
-                boldStyle={{ color: colors.text.light }}
-                italicStyle={{ color: colors.text.light }}
+                style={[
+                  styles.receivedText,
+                  { color: themeColors.text.primary },
+                ]}
+                boldStyle={{ color: themeColors.text.primary }}
+                italicStyle={{ color: themeColors.text.primary }}
                 codeStyle={{
+                  color: themeColors.text.primary,
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                }}
+                searchQuery={searchQuery}
+                highlightStyle={{
+                  backgroundColor: colors.primary.main,
                   color: colors.text.light,
-                  backgroundColor: "rgba(0, 0, 0, 0.2)",
                 }}
               />
             )
           ) : null}
-          <View style={styles.footer}>
-            <Text style={styles.timestamp}>
-              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-            {message.edited_at ? (
+          {message.edited_at ? (
+            <View style={styles.footer}>
               <Text
                 style={[
                   styles.editedLabel,
                   { color: themeColors.text.tertiary },
                 ]}
               >
-                {" "}
                 édité
               </Text>
-            ) : null}
-            {message.status ? <DeliveryStatus status={message.status} /> : null}
-          </View>
-        </LinearGradient>
-      );
-    }
-
-    return (
-      <View
-        style={[
-          styles.receivedBubble,
-          { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
-        ]}
-      >
-        {senderName ? (
-          <Text style={styles.senderNameLabel}>{senderName}</Text>
-        ) : null}
-        {isForwarded ? (
-          <Text
-            style={[
-              styles.forwardedLabel,
-              { color: themeColors.text.tertiary },
-            ]}
-          >
-            Transféré
-          </Text>
-        ) : null}
-        {message.reply_to ? (
-          <ReplyPreview
-            replyTo={message.reply_to}
-            currentUserId={currentUserId}
-            onPress={() => onReplyPress?.(message.reply_to!.id)}
-          />
-        ) : null}
-        {hasMedia && firstAttachment && firstAttachment.metadata ? (
-          <>
-            {firstAttachment.media_type === "audio" ? (
-              <AudioMessage
-                uri={resolveMediaUrl(
-                  firstAttachment.metadata.media_url,
-                  firstAttachment.media_id,
-                  "blob",
-                )}
-                duration={firstAttachment.metadata.duration}
-                isSent={false}
-              />
-            ) : (
-              <MediaMessage
-                uri={resolveMediaUrl(
-                  firstAttachment.metadata.media_url ||
-                    firstAttachment.metadata.thumbnail_url,
-                  firstAttachment.media_id,
-                  "blob",
-                )}
-                type={firstAttachment.media_type as "image" | "video" | "file"}
-                filename={firstAttachment.metadata.filename}
-                size={firstAttachment.metadata.size}
-                thumbnailUri={resolveMediaUrl(
-                  firstAttachment.metadata.thumbnail_url,
-                  firstAttachment.media_id,
-                  "thumbnail",
-                )}
-              />
-            )}
-          </>
-        ) : null}
-        {displayContent ? (
-          isTombstoned ? (
-            <Text
-              style={[
-                styles.receivedText,
-                { color: themeColors.text.primary },
-                styles.deletedText,
-              ]}
-            >
-              {displayContent}
-            </Text>
-          ) : (
-            <FormattedText
-              text={displayContent}
-              style={[styles.receivedText, { color: themeColors.text.primary }]}
-              boldStyle={{ color: themeColors.text.primary }}
-              italicStyle={{ color: themeColors.text.primary }}
-              codeStyle={{
-                color: themeColors.text.primary,
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-              }}
-              searchQuery={searchQuery}
-              highlightStyle={{
-                backgroundColor: colors.primary.main,
-                color: colors.text.light,
-              }}
-            />
-          )
-        ) : null}
-        <View style={styles.footer}>
-          <Text
-            style={[styles.timestamp, { color: themeColors.text.tertiary }]}
-          >
-            {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
-          {message.edited_at ? (
-            <Text
-              style={[styles.editedLabel, { color: themeColors.text.tertiary }]}
-            >
-              {" "}
-              édité
-            </Text>
+            </View>
           ) : null}
-        </View>
+        </MaskedBubbleSurface>
       </View>
     );
   };
@@ -603,44 +623,70 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <Pressable
         onLongPress={handleLongPress}
         delayLongPress={300}
+        style={styles.pressableStretch}
         {...(Platform.OS === "web"
           ? ({ onContextMenu: handleContextMenu } as any)
           : {})}
       >
-        <Animated.View
-          style={[
-            isSent ? styles.sentContainer : styles.receivedContainer,
-            animatedStyle,
-          ]}
-        >
-          {shouldRenderAvatarSlot ? (
-            <View style={styles.receivedRow}>
-              <View style={styles.avatarSlot}>
-                {!isConsecutive ? (
-                  <Avatar uri={safeAvatarUri} name={senderName} size={32} />
-                ) : null}
+        <View style={styles.swipeRow}>
+          <Animated.View
+            style={[styles.swipeTimestampWrap, swipeTimestampStyle]}
+            pointerEvents="none"
+          >
+            <Text style={styles.swipeTimestamp}>
+              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          </Animated.View>
+          <Animated.View
+            style={[
+              isSent ? styles.sentContainer : styles.receivedContainer,
+              isLastInBurst ? styles.containerWithTail : styles.containerNoTail,
+              animatedStyle,
+              swipeStyle,
+            ]}
+          >
+            {shouldRenderAvatarSlot ? (
+              <View style={styles.receivedRow}>
+                <View style={styles.avatarSlot}>
+                  {!isConsecutive ? (
+                    <Avatar uri={safeAvatarUri} name={senderName} size={32} />
+                  ) : null}
+                </View>
+                <View style={styles.receivedBubbleWrapper}>
+                  {renderBubbleContent()}
+                </View>
               </View>
-              <View style={styles.receivedBubbleWrapper}>
-                {renderBubbleContent()}
-              </View>
-            </View>
-          ) : (
-            renderBubbleContent()
-          )}
-          {message.reactions && message.reactions.length > 0 ? (
-            <ReactionBar
-              reactions={message.reactions}
-              currentUserId={currentUserId}
-              onReactionPress={handleReactionSelect}
-              onReactionLongPress={
-                onReactionDetailsPress
-                  ? (emoji) => onReactionDetailsPress(message.id, emoji)
-                  : undefined
-              }
-              resolveReactorName={resolveReactorName}
+            ) : (
+              renderBubbleContent()
+            )}
+            {message.reactions && message.reactions.length > 0 ? (
+              <ReactionBar
+                reactions={message.reactions}
+                currentUserId={currentUserId}
+                onReactionPress={handleReactionSelect}
+                onReactionLongPress={
+                  onReactionDetailsPress
+                    ? (emoji) => onReactionDetailsPress(message.id, emoji)
+                    : undefined
+                }
+                resolveReactorName={resolveReactorName}
+              />
+            ) : null}
+          </Animated.View>
+        </View>
+        {isSent && isLastSentByMe ? (
+          <View style={styles.statusLabelRow}>
+            <MessageStatusLabel
+              message={message}
+              isGroup={isGroupConversation}
+              otherMembersCount={otherMembersCount}
+              resolveMemberName={resolveMemberName}
             />
-          ) : null}
-        </Animated.View>
+          </View>
+        ) : null}
       </Pressable>
       <ReactionPicker
         visible={showReactionPicker}
@@ -652,18 +698,58 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 };
 
 const styles = StyleSheet.create({
+  pressableStretch: {
+    alignSelf: "stretch",
+  },
+  statusLabelRow: {
+    alignItems: "flex-end",
+    marginHorizontal: 16,
+    marginBottom: 4,
+  },
+  swipeRow: {
+    position: "relative",
+    alignSelf: "stretch",
+  },
+  swipeTimestampWrap: {
+    position: "absolute",
+    right: 6,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
+  swipeTimestamp: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.85)",
+    includeFontPadding: false,
+    // Subtle shadow so the timestamp stays legible on light gradient
+    // backgrounds (e.g. bottom of the chat where the orange/pink hue lifts).
+    textShadowColor: "rgba(0, 0, 0, 0.4)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   sentContainer: {
     alignItems: "flex-end",
-    marginVertical: 4,
+    marginTop: 4,
     marginHorizontal: 16,
+    position: "relative",
   },
-  sentBubble: {
+  containerWithTail: {
+    // Extra bottom spacing absorbs the tail that extends below the bubble
+    // (~11 px), so consecutive bubbles don't touch each other.
+    marginBottom: 14,
+  },
+  containerNoTail: {
+    // Tight spacing inside a burst — no tail to clear, bubbles can sit close.
+    marginBottom: 2,
+  },
+  sentBubbleWrapper: {
     maxWidth: "75%",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderBottomRightRadius: 4,
-    overflow: "visible", // Allow progress bar to be visible
+    position: "relative",
+  },
+  bubbleContent: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   sentText: {
     color: colors.text.light,
@@ -672,8 +758,9 @@ const styles = StyleSheet.create({
   },
   receivedContainer: {
     alignItems: "flex-start",
-    marginVertical: 4,
+    marginTop: 4,
     marginHorizontal: 16,
+    position: "relative",
   },
   receivedRow: {
     flexDirection: "row",
@@ -687,12 +774,9 @@ const styles = StyleSheet.create({
   receivedBubbleWrapper: {
     flexShrink: 1,
   },
-  receivedBubble: {
+  receivedBubbleWrap: {
     maxWidth: "75%",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderBottomLeftRadius: 4,
+    position: "relative",
   },
   receivedText: {
     fontSize: 15,
@@ -703,11 +787,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     marginTop: 4,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: colors.text.tertiary,
-    marginRight: 4,
   },
   editedLabel: {
     fontSize: 11,
@@ -782,6 +861,7 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.senderName === nextProps.senderName &&
     prevProps.senderAvatarUrl === nextProps.senderAvatarUrl &&
     prevProps.isConsecutive === nextProps.isConsecutive &&
+    prevProps.isLastInBurst === nextProps.isLastInBurst &&
     prevProps.showSenderAvatar === nextProps.showSenderAvatar &&
     prevProps.onReactionDetailsPress === nextProps.onReactionDetailsPress &&
     prevProps.pendingAppeal?.status === nextProps.pendingAppeal?.status &&
@@ -791,6 +871,11 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
       (nextProps.message.metadata as any)?.appealRejected &&
     (prevProps.message.metadata as any)?.media_url ===
       (nextProps.message.metadata as any)?.media_url &&
+    prevProps.isLastSentByMe === nextProps.isLastSentByMe &&
+    prevProps.isGroupConversation === nextProps.isGroupConversation &&
+    prevProps.otherMembersCount === nextProps.otherMembersCount &&
+    JSON.stringify(prevProps.message.delivery_statuses) ===
+      JSON.stringify(nextProps.message.delivery_statuses) &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );
