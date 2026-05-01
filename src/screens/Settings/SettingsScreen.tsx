@@ -19,6 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
@@ -34,7 +35,6 @@ import {
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
-import { switchToRootTab } from "../../navigation/navigationRef";
 import {
   DEFAULT_MODERATION_MODEL,
   getModerationModelVersion,
@@ -74,15 +74,6 @@ export const SettingsScreen: React.FC = () => {
   const { fetchMyRole } = useModerationStore();
   const isStaff = useIsStaff();
   const insets = useSafeAreaInsets();
-
-  const handleBackPress = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-
-    switchToRootTab("ConversationsList");
-  }, [navigation]);
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
@@ -555,10 +546,7 @@ export const SettingsScreen: React.FC = () => {
     icon?: string;
   }) => (
     <TouchableOpacity
-      style={[
-        styles.settingItem,
-        { backgroundColor: themeColors.background.secondary },
-      ]}
+      style={styles.settingItem}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -650,14 +638,13 @@ export const SettingsScreen: React.FC = () => {
         </Text>
       </View>
       <View style={styles.sectionShadow}>
-        <View
-          style={[
-            styles.sectionContent,
-            { backgroundColor: themeColors.background.secondary },
-          ]}
+        <BlurView
+          intensity={Platform.OS === "ios" ? 60 : 80}
+          tint="dark"
+          style={styles.sectionContent}
         >
           {children}
-        </View>
+        </BlurView>
       </View>
     </View>
   );
@@ -694,6 +681,7 @@ export const SettingsScreen: React.FC = () => {
         contentContainerStyle={[
           styles.scrollContent,
           {
+            paddingTop: insets.top + 12,
             paddingBottom: 40 + insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE,
           },
         ]}
@@ -701,33 +689,6 @@ export const SettingsScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews={false}
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackPress}
-            accessibilityRole="button"
-            accessibilityLabel="Retour"
-            accessibilityHint="Ferme les réglages"
-          >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: themeColors.text.primary,
-                fontSize: getFontSize("xxxl"),
-              },
-            ]}
-          >
-            {getLocalizedText("settings.title")}
-          </Text>
-        </View>
-
         {/* Account Settings */}
         <SettingSection
           title={getLocalizedText("settings.account")}
@@ -1344,19 +1305,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontWeight: "bold",
-  },
   section: {
     marginTop: 24,
     paddingHorizontal: 20,
@@ -1383,6 +1331,12 @@ const styles = StyleSheet.create({
   sectionContent: {
     borderRadius: 12,
     overflow: "hidden",
+    backgroundColor:
+      Platform.OS === "ios"
+        ? "rgba(20, 25, 50, 0.35)"
+        : "rgba(20, 25, 50, 0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
   settingItem: {
     flexDirection: "row",
