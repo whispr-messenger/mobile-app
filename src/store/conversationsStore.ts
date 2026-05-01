@@ -399,8 +399,11 @@ export const useConversationsStore = create<
   },
 
   applyNewMessage: async (message, currentUserId) => {
-    const { conversations, _cancelGracePeriod } = get();
-    const index = conversations.findIndex(
+    const { conversations, archived, _cancelGracePeriod } = get();
+    const mainIndex = conversations.findIndex(
+      (conv) => conv.id === message.conversation_id,
+    );
+    const archivedIndex = archived.items.findIndex(
       (conv) => conv.id === message.conversation_id,
     );
     // WHISPR-1050: a message echoed back from our own device still arrives over
@@ -408,57 +411,95 @@ export const useConversationsStore = create<
     // on every send and stays >0 after closing the chat.
     const isOwnMessage = !!currentUserId && message.sender_id === currentUserId;
 
-    if (index === -1) {
-      // Bug C fix: conversation not in the list — fetch it from the API and prepend
-      try {
-        const fetched = await messagingAPI.getConversation(
-          message.conversation_id,
-        );
-        if (fetched) {
-          const newConv: Conversation = {
-            ...fetched,
-            last_message: message,
-            updated_at: message.sent_at,
-            unread_count: isOwnMessage ? 0 : 1,
-          };
-          // Enrich display name for new direct conversations
-          const userId = await getCurrentUserId();
-          if (userId) {
-            const enriched = await enrichWithDisplayNames([newConv], userId);
-            _cancelGracePeriod();
-            set({
-              conversations: [enriched[0], ...get().conversations],
-              status: "loaded",
-            });
-          } else {
-            _cancelGracePeriod();
-            set({
-              conversations: [newConv, ...get().conversations],
-              status: "loaded",
-            });
-          }
-        }
-      } catch (err) {
-        logger.error(
-          "conversationsStore",
-          "applyNewMessage: failed to fetch unknown conversation",
-          err,
-        );
-      }
+    // Conv connue de la liste principale : update + bump au top.
+    // Si elle s'avère archivée (cas multi-device : un autre device a archivé,
+    // le broadcast n'est pas encore arrivé), on la garde dans la main list
+    // mais le filtre is_archived l'occultera. Le broadcast la déplacera vers
+    // archived au prochain tick.
+    if (mainIndex !== -1) {
+      const previousUnread = conversations[mainIndex].unread_count || 0;
+      const updated = {
+        ...conversations[mainIndex],
+        last_message: message,
+        updated_at: message.sent_at,
+        unread_count: isOwnMessage ? previousUnread : previousUnread + 1,
+      };
+      // Bug B fix: move the updated conversation to the top, sorted by recency
+      const next = [
+        updated,
+        ...conversations.filter((_, i) => i !== mainIndex),
+      ];
+      set({ conversations: next });
       return;
     }
 
-    const previousUnread = conversations[index].unread_count || 0;
-    const updated = {
-      ...conversations[index],
-      last_message: message,
-      updated_at: message.sent_at,
-      // WHISPR-1050: hold the counter steady on self-echo.
-      unread_count: isOwnMessage ? previousUnread : previousUnread + 1,
-    };
-    // Bug B fix: move the updated conversation to the top, sorted by recency
-    const next = [updated, ...conversations.filter((_, i) => i !== index)];
-    set({ conversations: next });
+    // Conv connue uniquement de la liste archivée : update sans la sortir
+    // d'archives. Le badge "Archivées" affichera l'unread sans réimporter
+    // la conv dans la liste principale.
+    if (archivedIndex !== -1) {
+      const previousUnread = archived.items[archivedIndex].unread_count || 0;
+      const updated = {
+        ...archived.items[archivedIndex],
+        last_message: message,
+        updated_at: message.sent_at,
+        unread_count: isOwnMessage ? previousUnread : previousUnread + 1,
+      };
+      const nextItems = [
+        updated,
+        ...archived.items.filter((_, i) => i !== archivedIndex),
+      ];
+      set({ archived: { ...archived, items: nextItems } });
+      return;
+    }
+
+    // Conv inconnue des deux listes — fetch et prépend dans la bonne liste
+    // selon son flag is_archived côté serveur.
+    try {
+      const fetched = await messagingAPI.getConversation(
+        message.conversation_id,
+      );
+      if (!fetched) return;
+
+      const newConv: Conversation = {
+        ...fetched,
+        last_message: message,
+        updated_at: message.sent_at,
+        unread_count: isOwnMessage ? 0 : 1,
+      };
+
+      // Enrich display name for new direct conversations
+      const userId = await getCurrentUserId();
+      const enriched = userId
+        ? (await enrichWithDisplayNames([newConv], userId))[0]
+        : newConv;
+
+      if (enriched.is_archived) {
+        // Insérer dans archived.items uniquement si la liste a déjà été
+        // chargée — sinon le badge serait incohérent (compté avant le fetch).
+        const currentArchived = get().archived;
+        if (currentArchived.status === "loaded") {
+          set({
+            archived: {
+              ...currentArchived,
+              items: [enriched, ...currentArchived.items],
+              offset: currentArchived.offset + 1,
+            },
+          });
+        }
+      } else {
+        _cancelGracePeriod();
+        set({
+          conversations: [enriched, ...get().conversations],
+          status: "loaded",
+        });
+      }
+    } catch (err) {
+      logger.error(
+        "conversationsStore",
+        "applyNewMessage: failed to fetch unknown conversation",
+        err,
+      );
+    }
   },
 
   deleteConversation: async (id) => {

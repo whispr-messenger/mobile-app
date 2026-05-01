@@ -1220,3 +1220,123 @@ describe("conversationsStore — grace period & reset", () => {
     jest.useRealTimers();
   });
 });
+
+// ---------------------------------------------------------------------------
+// applyNewMessage — archived conversations
+// ---------------------------------------------------------------------------
+
+describe("conversationsStore — applyNewMessage on archived conversations", () => {
+  function archivedMsg(conversationId: string, senderId: string, id = "m1") {
+    return {
+      id,
+      conversation_id: conversationId,
+      sender_id: senderId,
+      message_type: "text",
+      content: "hi",
+      metadata: {},
+      client_random: 1,
+      sent_at: "2026-04-21T10:00:00Z",
+      is_deleted: false,
+    } as unknown as Parameters<
+      ReturnType<typeof useConversationsStore.getState>["applyNewMessage"]
+    >[0];
+  }
+
+  it("increments unread_count on an archived conversation already in archived.items without surfacing it to the main list", async () => {
+    act(() => {
+      useConversationsStore.setState({
+        archived: {
+          items: [makeConv("c-arch", { is_archived: true, unread_count: 1 })],
+          status: "loaded",
+          error: null,
+          offset: 1,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+    });
+
+    await act(async () => {
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(archivedMsg("c-arch", "other"), "me");
+    });
+
+    const state = useConversationsStore.getState();
+    expect(state.archived.items[0].unread_count).toBe(2);
+    expect(state.conversations.find((c) => c.id === "c-arch")).toBeUndefined();
+  });
+
+  it("does not bump unread on an own-echo to an archived conversation", async () => {
+    act(() => {
+      useConversationsStore.setState({
+        archived: {
+          items: [makeConv("c-arch", { is_archived: true, unread_count: 3 })],
+          status: "loaded",
+          error: null,
+          offset: 1,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+    });
+
+    await act(async () => {
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(archivedMsg("c-arch", "me"), "me");
+    });
+
+    expect(
+      useConversationsStore.getState().archived.items[0].unread_count,
+    ).toBe(3);
+  });
+
+  it("inserts a fetched archived-from-the-server conversation into archived.items, not into the main list", async () => {
+    act(() => {
+      // archived list is loaded but empty
+      useConversationsStore.setState({
+        archived: {
+          items: [],
+          status: "loaded",
+          error: null,
+          offset: 0,
+          hasMore: false,
+          loadingMore: false,
+        },
+      });
+    });
+    mockedMessagingAPI.getConversation.mockResolvedValueOnce(
+      makeConv("c-new", { is_archived: true }),
+    );
+
+    await act(async () => {
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(archivedMsg("c-new", "other"), "me");
+    });
+
+    const state = useConversationsStore.getState();
+    expect(state.archived.items.map((c) => c.id)).toEqual(["c-new"]);
+    expect(state.conversations.find((c) => c.id === "c-new")).toBeUndefined();
+  });
+
+  it("does not silently drop a fetched archived conversation when the archived list has not been loaded yet", async () => {
+    // archived.status = "idle" (default after reset) — we don't insert because
+    // the badge would be inconsistent. The conv is simply ignored until the
+    // user opens the archived screen.
+    mockedMessagingAPI.getConversation.mockResolvedValueOnce(
+      makeConv("c-new", { is_archived: true }),
+    );
+
+    await act(async () => {
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(archivedMsg("c-new", "other"), "me");
+    });
+
+    const state = useConversationsStore.getState();
+    expect(state.archived.items).toHaveLength(0);
+    expect(state.conversations.find((c) => c.id === "c-new")).toBeUndefined();
+  });
+});

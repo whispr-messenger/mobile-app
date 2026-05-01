@@ -78,6 +78,26 @@ export const ConversationsListScreen: React.FC = () => {
   const applyArchiveBroadcast = useConversationsStore(
     (s) => s.applyArchiveBroadcast,
   );
+  // Compte les conversations archivées non lues, sans charger l'écran archivées.
+  // Couvre deux sources : les convs encore en mémoire dans `conversations` qui
+  // ont is_archived=true (cas multi-device — flag posé par broadcast avant que
+  // la conv ne soit déplacée vers archived.items), et celles déjà déplacées
+  // dans archived.items (cas écran archivées déjà visité). manuallyUnreadIds
+  // compte aussi pour rester cohérent avec la liste principale.
+  const archivedUnreadCount = useConversationsStore((s) => {
+    const seen = new Set<string>();
+    let n = 0;
+    for (const c of s.conversations) {
+      if (!c.is_archived) continue;
+      seen.add(c.id);
+      if ((c.unread_count ?? 0) > 0 || s.manuallyUnreadIds.has(c.id)) n += 1;
+    }
+    for (const c of s.archived.items) {
+      if (seen.has(c.id)) continue;
+      if ((c.unread_count ?? 0) > 0 || s.manuallyUnreadIds.has(c.id)) n += 1;
+    }
+    return n;
+  });
   const muteConversation = useConversationsStore((s) => s.muteConversation);
   const pinConversation = useConversationsStore((s) => s.pinConversation);
   const markAsUnread = useConversationsStore((s) => s.markAsUnread);
@@ -524,13 +544,24 @@ export const ConversationsListScreen: React.FC = () => {
                   navigation.navigate("ArchivedConversations");
                 }}
                 style={[styles.headerButton, styles.archiveIconButton]}
-                accessibilityLabel="Voir les conversations archivées"
+                accessibilityLabel={
+                  archivedUnreadCount > 0
+                    ? `Voir les conversations archivées (${archivedUnreadCount} non lues)`
+                    : "Voir les conversations archivées"
+                }
               >
                 <Ionicons
                   name="archive-outline"
                   size={20}
                   color={colors.text.light}
                 />
+                {archivedUnreadCount > 0 && (
+                  <View style={styles.archiveBadge}>
+                    <Text style={styles.archiveBadgeText}>
+                      {archivedUnreadCount > 99 ? "99+" : archivedUnreadCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -795,6 +826,25 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  archiveBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: colors.ui.error,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#1A1F3A",
+  },
+  archiveBadgeText: {
+    color: colors.text.light,
+    fontSize: 10,
+    fontWeight: "700",
   },
   editButtonPill: {
     height: 40,
