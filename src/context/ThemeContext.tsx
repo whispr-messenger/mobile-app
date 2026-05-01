@@ -9,6 +9,8 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useMemo,
+  useRef,
 } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -1104,6 +1106,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [settings, setSettings] = useState<GlobalSettings>(defaultSettings);
+  const settingsRef = useRef<GlobalSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
   // WHISPR-1072: watch the OS-level color scheme so "auto" actually follows
   // the system preference instead of silently defaulting to dark.
@@ -1126,6 +1129,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
           applyRuntimeBackgroundGradient(
             BACKGROUND_PRESET_GRADIENTS[parsed.backgroundPreset],
           );
+          settingsRef.current = parsed;
           setSettings(parsed);
           await persistSettingsCaches(parsed).catch(() => {});
         } else {
@@ -1134,6 +1138,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
           applyRuntimeBackgroundGradient(
             BACKGROUND_PRESET_GRADIENTS[hydrated.backgroundPreset],
           );
+          settingsRef.current = hydrated;
           setSettings(hydrated);
           await persistSettingsCaches(hydrated).catch(() => {});
         }
@@ -1151,7 +1156,11 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
 
   // Update settings
   const updateSettings = async (newSettings: Partial<GlobalSettings>) => {
-    const updated = normalizeSettings({ ...settings, ...newSettings });
+    const updated = normalizeSettings({
+      ...settingsRef.current,
+      ...newSettings,
+    });
+    settingsRef.current = updated;
     setSettings(updated);
     applyRuntimeBackgroundGradient(
       BACKGROUND_PRESET_GRADIENTS[updated.backgroundPreset],
