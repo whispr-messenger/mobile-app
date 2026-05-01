@@ -372,11 +372,11 @@ export const ProfileSetupScreen: React.FC = () => {
               <Input
                 placeholder="Pseudo"
                 value={username}
-                onChangeText={(t) => setUsername(normalizeUsername(t))}
+                onChangeText={setUsername}
                 autoCapitalize="none"
                 containerStyle={styles.inputContainer}
                 error={usernameError}
-                helperText="Seuls minuscules, chiffres et _ (auto-corrigé)"
+                helperText="Lettres Unicode, chiffres et _ autorisés. Normalisé à l'enregistrement."
               />
             </View>
 
