@@ -1,26 +1,46 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { render, waitFor } from "@testing-library/react-native";
 import { Avatar } from "./src/components/Chat/Avatar";
 
 jest.mock("./src/services/TokenService", () => ({
-  TokenService: { getAccessToken: jest.fn().mockResolvedValue(null) },
+  TokenService: { getAccessToken: jest.fn().mockResolvedValue("tok") },
 }));
 jest.mock("./src/services/apiBase", () => ({
   getApiBaseUrl: () => "https://api.test",
 }));
 
-beforeAll(() => {
-  // Avatar pre-resolves media via fetch (?stream=1). Stub it so unit tests
-  // don't hit the network — tests only check the initial render.
+const mockFetchBytes = () => ({
+  ok: true,
+  status: 200,
+  url: "",
+  headers: { get: () => "application/octet-stream" },
+  blob: async () =>
+    new Blob([new Uint8Array([0xff, 0xd8])], { type: "image/jpeg" }),
+});
+
+beforeEach(() => {
+  // Default: every fetch returns image bytes through the ?stream=1 proxy.
+  // Tests that need a different behaviour override this.
   (global as unknown as { fetch: jest.Mock }).fetch = jest
     .fn()
-    .mockImplementation(
-      () => new Promise(() => undefined),
+    .mockImplementation(() =>
+      Promise.resolve(mockFetchBytes() as unknown as Response),
     ) as unknown as typeof fetch;
+
+  // useResolvedMediaUrl produces blob: URLs on web. Mock URL helpers.
+  (global as any).URL.createObjectURL = jest.fn(() => "blob:fake-avatar");
+  (global as any).URL.revokeObjectURL = jest.fn();
+
+  // Force the web path so the hook uses createObjectURL (FileReader is not
+  // reliably available under jest-expo's node environment).
+  const Platform = require("react-native").Platform;
+  Platform.OS = "web";
 });
 
 describe("Avatar", () => {
-  it("renders an image when given a presigned https URL", () => {
+  it("renders an image when given a presigned https URL (no /media/v1 path)", () => {
+    // Plain external URL — the hook leaves it untouched, so the image
+    // renders synchronously and no initials should be visible.
     const url =
       "https://s3.amazonaws.com/bucket/avatar.jpg?X-Amz-Signature=abc123";
     const { queryByText } = render(<Avatar uri={url} name="John Doe" />);
@@ -49,37 +69,86 @@ describe("Avatar", () => {
     expect(getByText("?")).toBeTruthy();
   });
 
-  it("accepts a bare UUID (media id) and renders an image", () => {
+  it("shows initials while a media-service URL is resolving and swaps to the image once resolved", async () => {
+    // Bare UUID is normalised to /media/v1/<id>/blob — the hook must stream
+    // it through ?stream=1 before <Image> renders. While loading, the
+    // placeholder initials are visible.
     const { queryByText } = render(
       <Avatar uri="550e8400-e29b-41d4-a716-446655440000" name="Test User" />,
     );
-    expect(queryByText("TU")).toBeNull();
+
+    // Once the stream fetch resolves, the image takes over.
+    await waitFor(() => {
+      expect(queryByText("TU")).toBeNull();
+    });
   });
 
-  it("accepts a relative media path and renders an image", () => {
-    const { queryByText } = render(
+  it("never hits /media/v1/<id>/blob without ?stream=1 (no 401 leak on web)", async () => {
+    const fetchSpy = (global as any).fetch as jest.Mock;
+    render(
+      <Avatar uri="550e8400-e29b-41d4-a716-446655440000" name="Test User" />,
+    );
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+
+    // No call to /blob without the stream=1 query — the bare URL would
+    // trigger a 401 on web because <img> can't carry an Authorization header.
+    const bareBlobCalls = fetchSpy.mock.calls.filter(
+      ([u]: [string]) => u.includes("/blob") && !u.includes("stream=1"),
+    );
+    expect(bareBlobCalls).toHaveLength(0);
+
+    // The actual fetch always carries the bearer token.
+    const streamCall = fetchSpy.mock.calls.find(([u]: [string]) =>
+      u.includes("stream=1"),
+    );
+    expect(streamCall).toBeDefined();
+    expect(streamCall![1].headers.Authorization).toBe("Bearer tok");
+  });
+
+  it("falls back to initials when the resolved URL fetch errors out", async () => {
+    (global as any).fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      url: "",
+      headers: { get: () => null },
+    });
+
+    const { findByText } = render(
+      <Avatar uri="550e8400-e29b-41d4-a716-446655440000" name="Error Person" />,
+    );
+    // Hook surfaces error=true after retries → component shows initials.
+    expect(await findByText("EP")).toBeTruthy();
+  });
+
+  it("normalises a relative /media/v1/public/<id> path through the resolver", async () => {
+    const fetchSpy = (global as any).fetch as jest.Mock;
+    render(
       <Avatar
         uri="/media/v1/public/550e8400-e29b-41d4-a716-446655440000"
         name="Test User"
       />,
     );
-    expect(queryByText("TU")).toBeNull();
-  });
-
-  it("accepts a storage path and renders an image", () => {
-    const { queryByText } = render(
-      <Avatar
-        uri="avatars/aaaa-bbbb-cccc/550e8400-e29b-41d4-a716-446655440000"
-        name="Test User"
-      />,
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+    const streamCall = fetchSpy.mock.calls.find(([u]: [string]) =>
+      u.includes("stream=1"),
     );
-    expect(queryByText("TU")).toBeNull();
+    expect(streamCall![0]).toContain(
+      "/media/v1/550e8400-e29b-41d4-a716-446655440000/blob",
+    );
   });
 
-  it("passes through a plain https URL unchanged", () => {
+  it("passes through a plain https URL unchanged (no resolver fetch)", () => {
+    const fetchSpy = (global as any).fetch as jest.Mock;
     const url = "https://cdn.example.com/avatar.png";
     const { queryByText } = render(<Avatar uri={url} name="Test User" />);
     expect(queryByText("TU")).toBeNull();
+    // No /media/v1 → no stream proxy fetch.
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("shows online badge when showOnlineBadge and isOnline are true", () => {
