@@ -30,7 +30,11 @@ import {
   ProfileFieldRow,
   StatusChip,
 } from "../../components/Profile";
-import { formatUsername, normalizeUsername } from "../../utils";
+import {
+  formatUsername,
+  isValidUsername,
+  normalizeUsername,
+} from "../../utils";
 import { colors, spacing, typography, borderRadius } from "../../theme";
 import { UserService } from "../../services";
 import type { UpdateProfileRequest } from "../../services/UserService";
@@ -385,8 +389,8 @@ export const MyProfileScreen: React.FC = () => {
         if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
         if (v.trim().length < 3) return "Minimum 3 caractères";
         if (v.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-z0-9_]+$/.test(v.trim()))
-          return "Seuls minuscules, chiffres et _ autorisés";
+        if (!isValidUsername(v.trim()))
+          return "Seules les lettres, chiffres et _ sont autorises";
         return null;
 
       case "biography":

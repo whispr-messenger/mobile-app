@@ -22,7 +22,7 @@ import { useAuth } from "../../context/AuthContext";
 import { MediaService } from "../../services/MediaService";
 import { UserService } from "../../services";
 import { profileSetupFlag } from "../../services/profileSetupFlag";
-import { normalizeUsername } from "../../utils";
+import { isValidUsername, normalizeUsername } from "../../utils";
 import { colors, spacing, typography } from "../../theme";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 
@@ -56,6 +56,9 @@ export const ProfileSetupScreen: React.FC = () => {
     }
     if (trimmedUsername.length < 3) {
       return "Minimum 3 caractères";
+    }
+    if (!isValidUsername(trimmedUsername)) {
+      return "Seules les lettres, chiffres et _ sont autorises";
     }
     return undefined;
   })();

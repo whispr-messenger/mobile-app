@@ -253,6 +253,26 @@ describe("ProfileSetupScreen", () => {
     expect(mockReset).not.toHaveBeenCalled();
   });
 
+  it("accepts a cyrillic username and sends it normalized to the API", async () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(
+      <ProfileSetupScreen />,
+    );
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+
+    fireEvent.changeText(getByPlaceholderText("Pseudo"), "Привет_42");
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: "привет_42",
+        }),
+      );
+    });
+  });
+
   it("keeps already-typed values when validation fails so the user does not lose input", async () => {
     const { getByPlaceholderText, getByText, queryByText } = render(
       <ProfileSetupScreen />,
