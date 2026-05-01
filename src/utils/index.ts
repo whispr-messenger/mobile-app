@@ -10,6 +10,19 @@ export { isReachableUrl } from "./urlFilters";
  * Strips any existing leading "@" before prepending one,
  * preventing the "@@username" bug.
  */
+/**
+ * Format a Date / ISO date / timestamp as "HH:MM" using French 24-hour
+ * formatting. Used wherever a time-of-day string appears in the UI
+ * (timestamps, read receipts, scheduled-message previews).
+ */
+export const formatHourMinute = (date: Date | string | number): string => {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export const formatUsername = (username: string | undefined | null): string => {
   if (!username) return "";
   const clean = username.replace(/^@+/, "");
