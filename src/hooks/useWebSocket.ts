@@ -8,7 +8,6 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { AppState } from "react-native";
-import Constants from "expo-constants";
 import {
   getSharedSocket,
   ConnectionState,
@@ -22,11 +21,7 @@ import {
   buildIncomingCallPresentation,
   systemCallProvider,
 } from "../services/calls/systemCallProvider";
-
-const executionEnvironment = (Constants as any)?.executionEnvironment;
-const appOwnership = (Constants as any)?.appOwnership;
-const isExpoGo =
-  executionEnvironment === "storeClient" || appOwnership === "expo";
+import { isCallsAvailable } from "./useCallsAvailable";
 
 /** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
 export interface ReactionRealtimePayload {
@@ -133,7 +128,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         initiator_name?: string;
       }) => {
         if (!data?.call_id) return;
-        if (isExpoGo) return;
+        if (!isCallsAvailable()) return;
         useCallsStore.getState().setIncoming({
           callId: data.call_id,
           initiatorId: data.initiator_id,

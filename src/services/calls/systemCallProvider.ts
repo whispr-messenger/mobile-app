@@ -1,8 +1,8 @@
-import Constants from "expo-constants";
 import * as ExpoCrypto from "expo-crypto";
 import { PermissionsAndroid, Platform } from "react-native";
 import { navigate, navigationRef } from "../../navigation/navigationRef";
 import { useCallsStore, type IncomingCallInfo } from "../../store/callsStore";
+import { isCallsAvailable } from "../../hooks/useCallsAvailable";
 
 type CallKeepModule = typeof import("react-native-call-keeper").default;
 
@@ -24,14 +24,9 @@ export interface NativeCallPresentation {
   hasVideo: boolean;
 }
 
-const executionEnvironment = (Constants as any)?.executionEnvironment;
-const appOwnership = (Constants as any)?.appOwnership;
-const isExpoGo =
-  executionEnvironment === "storeClient" || appOwnership === "expo";
-
 function loadCallKeep(): CallKeepModule | null {
   if (Platform.OS !== "ios" && Platform.OS !== "android") return null;
-  if (isExpoGo) return null;
+  if (!isCallsAvailable()) return null;
   try {
     return require("react-native-call-keeper").default as CallKeepModule;
   } catch {
