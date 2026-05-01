@@ -49,6 +49,15 @@ export const SwipeableConversationItem: React.FC<
   );
   const isUnread = (conversation.unread_count ?? 0) > 0 || isManuallyUnread;
 
+  const handlePress = (conversationId: string) => {
+    if (isSwiping) {
+      swipeableRef.current?.close();
+      setIsSwiping(false);
+      return;
+    }
+    onPress(conversationId);
+  };
+
   const renderRightActions = (
     progress: Animated.AnimatedInterpolation<number>,
     dragX: Animated.AnimatedInterpolation<number>,
@@ -200,7 +209,7 @@ export const SwipeableConversationItem: React.FC<
         friction={2}
         overshootRight={false}
         overshootLeft={false}
-        onBegan={() => setIsSwiping(true)}
+        onSwipeableOpenStartDrag={() => setIsSwiping(true)}
         onSwipeableWillOpen={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }}
@@ -214,7 +223,7 @@ export const SwipeableConversationItem: React.FC<
         >
           <ConversationItem
             conversation={conversation}
-            onPress={onPress}
+            onPress={handlePress}
             index={index}
             editMode={editMode}
             isSelected={isSelected}

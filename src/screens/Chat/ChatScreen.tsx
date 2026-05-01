@@ -164,7 +164,16 @@ export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation<ChatScreenNavigationProp>();
   const { conversationId } = route.params;
-  const [conversation, setConversation] = useState<Conversation | null>(null);
+  // Hydrate from the conversations store so the header (name + avatar)
+  // shows immediately while getConversation() is still in flight. The
+  // store entry has already been enriched with display_name and avatar_url
+  // by enrichSingleConversation() for direct chats.
+  const [conversation, setConversation] = useState<Conversation | null>(() => {
+    const cached = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === conversationId);
+    return cached ?? null;
+  });
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -577,19 +586,26 @@ export const ChatScreen: React.FC = () => {
     try {
       const conv = await messagingAPI.getConversation(conversationId);
 
-      // Resolve display name for direct conversations
-      // The detail endpoint returns members array, not member_user_ids
+      // Resolve display name and avatar for direct conversations.
+      // The detail endpoint returns members array, not member_user_ids,
+      // and does not populate avatar_url for direct chats — we enrich it
+      // from the other user's profile to feed the header avatar.
       const memberIds =
         conv.member_user_ids ||
         conv.members?.map((m: { user_id: string }) => m.user_id);
-      if (conv.type === "direct" && !conv.display_name && memberIds) {
+      if (
+        conv.type === "direct" &&
+        (!conv.display_name || !conv.avatar_url) &&
+        memberIds
+      ) {
         conv.member_user_ids = memberIds;
         const otherUserId = memberIds.find((id: string) => id !== userId);
         if (otherUserId) {
           try {
             const userInfo = await messagingAPI.getUserInfo(otherUserId);
             if (userInfo) {
-              conv.display_name = userInfo.display_name;
+              conv.display_name = conv.display_name || userInfo.display_name;
+              conv.avatar_url = conv.avatar_url || userInfo.avatar_url;
             }
           } catch {}
         }
@@ -623,6 +639,16 @@ export const ChatScreen: React.FC = () => {
       markAsRead(conversationId, lastMsg.id);
     }
   }, [conversationId, messages.length, userId, markAsRead]);
+
+  // Consume the openSearch route param (set by GroupDetails or other screens
+  // that want to drop the user directly into the search UI). Clear it after
+  // use so it doesn't re-trigger on subsequent re-renders or focus events.
+  useEffect(() => {
+    if (route.params?.openSearch) {
+      setShowSearch(true);
+      navigation.setParams({ openSearch: undefined });
+    }
+  }, [route.params?.openSearch, navigation]);
 
   useEffect(() => {
     // Load data
@@ -2255,9 +2281,10 @@ export const ChatScreen: React.FC = () => {
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
           onlineMemberCount={onlineMemberCount}
-          onSearchPress={() => setShowSearch(true)}
-          onInfoPress={handleInfoPress}
-          onScheduledPress={handleScheduledPress}
+          typingNames={typingUsers
+            .map((id) => typingUsersNames[id])
+            .filter(Boolean)}
+          onTitlePress={handleInfoPress}
           onAudioCallPress={() => handleInitiateCall("audio")}
           onVideoCallPress={() => handleInitiateCall("video")}
           callsAvailable={callsAvailability.available}
@@ -2597,6 +2624,59 @@ export const ChatScreen: React.FC = () => {
                       {messages.length} message{messages.length > 1 ? "s" : ""}
                     </Text>
                   </View>
+                  <View style={styles.infoSectionActions}>
+                    <Text style={styles.infoLabel}>ACTIONS</Text>
+                    <TouchableOpacity
+                      style={styles.infoActionRow}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        setShowSearch(true);
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Rechercher dans la conversation"
+                    >
+                      <Ionicons
+                        name="search"
+                        size={20}
+                        color={colors.text.light}
+                        style={styles.infoActionIcon}
+                      />
+                      <Text style={styles.infoActionLabel}>
+                        Rechercher des messages
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={withOpacity(colors.text.light, 0.4)}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.infoActionRow}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        handleScheduledPress();
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Messages programmés"
+                    >
+                      <Ionicons
+                        name="timer-outline"
+                        size={20}
+                        color={colors.text.light}
+                        style={styles.infoActionIcon}
+                      />
+                      <Text style={styles.infoActionLabel}>
+                        Messages programmés
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={withOpacity(colors.text.light, 0.4)}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </ScrollView>
               </LinearGradient>
             </View>
@@ -2773,5 +2853,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text.light,
     letterSpacing: 0.2,
+  },
+  infoSectionActions: {
+    marginBottom: 24,
+  },
+  infoActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: withOpacity(colors.text.light, 0.06),
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  infoActionIcon: {
+    marginRight: 14,
+  },
+  infoActionLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.light,
+    fontWeight: "500",
   },
 });
