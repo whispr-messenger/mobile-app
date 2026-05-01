@@ -764,9 +764,7 @@ export const MyProfileScreen: React.FC = () => {
                   <TextInput
                     style={styles.input}
                     value={profile.username}
-                    onChangeText={(text) =>
-                      handleFieldChange("username", normalizeUsername(text))
-                    }
+                    onChangeText={(text) => handleFieldChange("username", text)}
                     placeholder="@nomdutilisateur"
                     placeholderTextColor={colors.text.placeholder}
                     autoCapitalize="none"
@@ -778,7 +776,8 @@ export const MyProfileScreen: React.FC = () => {
                   )}
                   {!fieldErrors.username && (
                     <Text style={styles.fieldHelperText}>
-                      Seuls minuscules, chiffres et _ (auto-corrigé)
+                      Lettres Unicode, chiffres et _ autorisés. Normalisé à
+                      l'enregistrement.
                     </Text>
                   )}
                 </View>

@@ -1,13 +1,11 @@
 /**
- * Tests for MessageInput — specifically the Safari/web voice recording fix.
- *
- * Bug: on iOS Safari, expo-av's HIGH_QUALITY preset forces `audio/webm`,
- * which Safari refuses with NotSupportedError. Safari (iOS + macOS) only
- * supports `audio/mp4`. `buildRecordingOptions` negotiates a compatible MIME
- * type on web and leaves native platforms untouched.
+ * Tests for MessageInput:
+ * - Safari/web voice recording MIME fix
+ * - auto-resize behaviour for the chat composer
  */
 
 import { Platform } from "react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 
 // expo-av must be mocked before MessageInput is imported.
 jest.mock(
@@ -26,7 +24,48 @@ jest.mock(
   { virtual: true },
 );
 
-import { buildRecordingOptions } from "./src/components/Chat/MessageInput";
+jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
+  NotificationFeedbackType: { Success: "success" },
+}));
+jest.mock("expo-linear-gradient", () => ({
+  LinearGradient: ({ children }: any) => children,
+}));
+jest.mock("expo-image-picker", () => ({
+  requestMediaLibraryPermissionsAsync: jest
+    .fn()
+    .mockResolvedValue({ status: "granted" }),
+  launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true }),
+  MediaTypeOptions: { Images: "Images" },
+}));
+jest.mock("./src/context/ThemeContext", () => ({
+  useTheme: () => ({
+    getThemeColors: () => ({
+      primary: "#6200ee",
+      text: { primary: "#fff", secondary: "#aaa", tertiary: "#666" },
+    }),
+  }),
+}));
+jest.mock("./src/components/Chat/ReplyPreview", () => ({
+  ReplyPreview: () => null,
+}));
+jest.mock("./src/components/Chat/Avatar", () => ({
+  Avatar: () => null,
+}));
+jest.mock("./src/components/Chat/CameraCapture", () => ({
+  CameraCapture: () => null,
+}));
+jest.mock("./src/components/Chat/EmojiPickerSheet", () => ({
+  EmojiPickerSheet: () => null,
+}));
+
+import {
+  buildRecordingOptions,
+  MessageInput,
+} from "./src/components/Chat/MessageInput";
 
 type MediaRecorderLike = { isTypeSupported?: (mime: string) => boolean };
 
@@ -96,5 +135,122 @@ describe("buildRecordingOptions", () => {
     const opts = buildRecordingOptions();
 
     expect(opts).toBe(expected);
+  });
+});
+
+describe("MessageInput auto-resize", () => {
+  it("renders a multiline composer that grows with content size", () => {
+    const { getByPlaceholderText, getByTestId } = render(
+      <MessageInput onSend={jest.fn()} placeholder="Votre message" />,
+    );
+
+    const input = getByPlaceholderText("Votre message");
+    const shell = getByTestId("message-composer-shell");
+    const measure = getByTestId("message-composer-measure");
+
+    expect(input.props.multiline).toBe(true);
+    expect(input.props.scrollEnabled).toBe(false);
+
+    fireEvent(shell, "layout", {
+      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
+    });
+    fireEvent.changeText(input, "Bonjour\ncomment\nca va");
+    fireEvent(measure, "textLayout", {
+      nativeEvent: { lines: [{}, {}, {}] },
+    });
+
+    const updatedInput = getByTestId("message-composer-input");
+
+    expect(shell.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          height: 80,
+        }),
+      ]),
+    );
+    expect(updatedInput.props.scrollEnabled).toBe(false);
+  });
+
+  it("caps the composer height and enables internal scrolling past the max height", () => {
+    const { getByPlaceholderText, getByTestId } = render(
+      <MessageInput onSend={jest.fn()} placeholder="Votre message" />,
+    );
+
+    const input = getByPlaceholderText("Votre message");
+    const shell = getByTestId("message-composer-shell");
+    const measure = getByTestId("message-composer-measure");
+
+    fireEvent(shell, "layout", {
+      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
+    });
+    fireEvent.changeText(
+      input,
+      "Une ligne\nDeux lignes\nTrois lignes\nQuatre lignes\nCinq lignes\nSix lignes",
+    );
+
+    fireEvent(measure, "textLayout", {
+      nativeEvent: { lines: [{}, {}, {}, {}, {}, {}, {}] },
+    });
+
+    const updatedInput = getByTestId("message-composer-input");
+
+    expect(shell.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          height: 120,
+        }),
+      ]),
+    );
+    expect(updatedInput.props.scrollEnabled).toBe(true);
+  });
+
+  it("grows stably when the user inserts manual line breaks", () => {
+    const { getByPlaceholderText, getByTestId } = render(
+      <MessageInput onSend={jest.fn()} placeholder="Votre message" />,
+    );
+
+    const input = getByPlaceholderText("Votre message");
+    const shell = getByTestId("message-composer-shell");
+    const measure = getByTestId("message-composer-measure");
+
+    fireEvent(shell, "layout", {
+      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
+    });
+    fireEvent.changeText(input, "Premiere ligne\n");
+    fireEvent(measure, "textLayout", {
+      nativeEvent: { lines: [{}] },
+    });
+
+    expect(shell.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          height: 60,
+        }),
+      ]),
+    );
+  });
+
+  it("keeps the composer at the minimum height while the input is empty", () => {
+    const { getByTestId } = render(
+      <MessageInput onSend={jest.fn()} placeholder="Votre message" />,
+    );
+
+    const shell = getByTestId("message-composer-shell");
+    const measure = getByTestId("message-composer-measure");
+
+    fireEvent(shell, "layout", {
+      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
+    });
+    fireEvent(measure, "textLayout", {
+      nativeEvent: { lines: [{}] },
+    });
+
+    expect(shell.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          height: 40,
+        }),
+      ]),
+    );
   });
 });
