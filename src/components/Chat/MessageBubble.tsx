@@ -2,7 +2,7 @@
  * MessageBubble - Individual message display component
  */
 
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,10 @@ import {
 } from "react-native-reanimated";
 import Animated from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { MessageWithRelations } from "../../types/messaging";
+import type {
+  MessageLinkPreview,
+  MessageWithRelations,
+} from "../../types/messaging";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { ReactionBar } from "./ReactionBar";
@@ -28,12 +31,18 @@ import { ReplyPreview } from "./ReplyPreview";
 import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
 import { AudioMessage } from "./AudioMessage";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import { MaskedBubbleSurface } from "./MaskedBubbleSurface";
 import { MessageStatusLabel } from "./MessageStatusLabel";
 import { useMessageSwipe } from "../../context/MessageSwipeContext";
 import { FormattedText } from "../../utils/textFormatter";
 import { isReachableUrl, formatHourMinute } from "../../utils";
 import { getApiBaseUrl } from "../../services/apiBase";
+import {
+  extractFirstUrl,
+  getLinkPreview,
+  normalizeLinkPreview,
+} from "../../services/linkPreview";
 
 /**
  * True when a URL hostname points to the internal cluster (unreachable from
@@ -233,6 +242,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [linkPreview, setLinkPreview] = useState<MessageLinkPreview | null>(
+    null,
+  );
   const swipe = useMessageSwipe();
 
   if (!message || !shouldRenderMessage(message)) {
@@ -270,6 +282,53 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     : hasMedia && isDefaultMediaText
       ? "" // Don't show default text for media without caption
       : message.content || "";
+
+  const firstLinkInMessage = useMemo(
+    () => extractFirstUrl(message.content),
+    [message.content],
+  );
+  const metadataLinkPreview = useMemo(
+    () =>
+      normalizeLinkPreview(
+        (message.metadata as { link_preview?: Partial<MessageLinkPreview> })
+          ?.link_preview,
+      ),
+    [message.metadata],
+  );
+
+  useEffect(() => {
+    if (
+      isTombstoned ||
+      message.message_type !== "text" ||
+      (!firstLinkInMessage && !metadataLinkPreview)
+    ) {
+      setLinkPreview(metadataLinkPreview);
+      return;
+    }
+
+    if (metadataLinkPreview) {
+      setLinkPreview(metadataLinkPreview);
+      return;
+    }
+
+    let cancelled = false;
+    setLinkPreview(null);
+
+    void getLinkPreview(firstLinkInMessage!).then((preview) => {
+      if (!cancelled) {
+        setLinkPreview(preview);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    firstLinkInMessage,
+    isTombstoned,
+    message.message_type,
+    metadataLinkPreview,
+  ]);
 
   const handleLongPress = () => {
     if (Platform.OS !== "web") {
@@ -490,6 +549,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 />
               )
             ) : null}
+            {linkPreview ? (
+              <LinkPreviewCard preview={linkPreview} isSent={true} />
+            ) : null}
             {message.edited_at ? (
               <View style={styles.footer}>
                 <Text
@@ -600,6 +662,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 }}
               />
             )
+          ) : null}
+          {linkPreview ? (
+            <LinkPreviewCard preview={linkPreview} isSent={false} />
           ) : null}
           {message.edited_at ? (
             <View style={styles.footer}>
