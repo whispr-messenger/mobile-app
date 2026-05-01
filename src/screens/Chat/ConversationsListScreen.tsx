@@ -444,7 +444,10 @@ export const ConversationsListScreen: React.FC = () => {
         initialNumToRender={15}
         windowSize={10}
         getItemLayout={getItemLayout}
-        showsVerticalScrollIndicator={false}
+        // WHISPR-1254 — sur web on garde l'indicateur visible pour qu'il
+        // soit clair que la liste scrolle; sur natif on conserve le look
+        // d'origine.
+        showsVerticalScrollIndicator={Platform.OS === "web"}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -703,10 +706,19 @@ export const ConversationsListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    // WHISPR-1254 — sur react-native-web, flex:1 seul ne propage pas la
+    // hauteur disponible jusqu'aux enfants si l'ancêtre racine (#root) ne
+    // borne pas son propre contenu. height:100% force le wrapper racine à
+    // occuper exactement la hauteur du viewport.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
   },
   container: {
     flex: 1,
     backgroundColor: "transparent",
+    // WHISPR-1254 — minHeight:0 est requis par CSS flexbox pour qu'un
+    // enfant scrollable (FlatList) puisse overflow au lieu de pousser le
+    // parent. Sans ça, les conversations dépassent le viewport.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   header: {
     flexDirection: "row",
@@ -774,10 +786,12 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: "transparent",
+    // WHISPR-1254 — même raison que .container : permettre l'overflow
+    // vertical natif côté react-native-web.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   listContent: {
     paddingVertical: 8,
-    flexGrow: 1,
     backgroundColor: "transparent",
   },
   loadingContainer: {
