@@ -12,7 +12,6 @@ import {
   StyleSheet,
   Text,
   Alert,
-  FlatList,
   ScrollView,
   NativeModules,
   Platform,
@@ -28,6 +27,11 @@ import { ReplyPreview } from "./ReplyPreview";
 import { Avatar } from "./Avatar";
 import { CameraCapture, CameraCaptureResult } from "./CameraCapture";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
+
+const MIN_INPUT_HEIGHT = 40;
+const MAX_INPUT_HEIGHT = 120;
+const INPUT_VERTICAL_PADDING = 10;
+const INPUT_LINE_HEIGHT = 20;
 
 let AudioModule: any = null;
 let triedLoadingAudioModule = false;
@@ -109,6 +113,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
+  const [composerWidth, setComposerWidth] = useState(0);
   const recordingRef = useRef<any>(null);
   const recordingMimeRef = useRef<string | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -124,6 +130,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setText(editingMessage.content);
     } else if (!replyingTo) {
       setText("");
+      setInputHeight(MIN_INPUT_HEIGHT);
     }
   }, [editingMessage, replyingTo]);
 
@@ -176,10 +183,44 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleTextChange = useCallback(
     (newText: string) => {
       setText(newText);
+      if (!newText) {
+        setInputHeight(MIN_INPUT_HEIGHT);
+      }
       updateMentionState(newText);
       updateTypingState(newText.trim());
     },
     [updateMentionState, updateTypingState],
+  );
+
+  const updateInputHeightFromLineCount = useCallback((lineCount: number) => {
+    const nextHeight = Math.max(
+      MIN_INPUT_HEIGHT,
+      Math.min(
+        MAX_INPUT_HEIGHT,
+        lineCount * INPUT_LINE_HEIGHT + INPUT_VERTICAL_PADDING * 2,
+      ),
+    );
+    setInputHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+  }, []);
+
+  const handleMeasuredTextLayout = useCallback(
+    (event: { nativeEvent: { lines?: Array<unknown> } }) => {
+      if (!text.trim()) {
+        setInputHeight((prev) =>
+          prev === MIN_INPUT_HEIGHT ? prev : MIN_INPUT_HEIGHT,
+        );
+        return;
+      }
+
+      const measuredLineCount = Math.max(
+        1,
+        event.nativeEvent.lines?.length ?? 1,
+      );
+      const explicitLineCount = Math.max(1, text.split("\n").length);
+      const lineCount = Math.max(measuredLineCount, explicitLineCount);
+      updateInputHeightFromLineCount(lineCount);
+    },
+    [text, updateInputHeightFromLineCount],
   );
 
   const handleMentionSelect = useCallback(
@@ -232,6 +273,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         mentions.length > 0 ? mentions : undefined,
       );
       setText("");
+      setInputHeight(MIN_INPUT_HEIGHT);
       setShowMentions(false);
       onCancelReply?.();
       onCancelEdit?.();
@@ -623,14 +665,42 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 </TouchableOpacity>
               </View>
             )}
-            <View style={styles.inputWrapper}>
+            <View
+              testID="message-composer-shell"
+              style={[
+                styles.inputWrapper,
+                {
+                  height: inputHeight,
+                  backgroundColor: "rgba(26, 31, 58, 0.6)",
+                },
+              ]}
+              onLayout={(event) => {
+                const nextWidth = Math.round(event.nativeEvent.layout.width);
+                setComposerWidth((prev) =>
+                  prev === nextWidth ? prev : nextWidth,
+                );
+              }}
+            >
+              <Text
+                testID="message-composer-measure"
+                pointerEvents="none"
+                onTextLayout={handleMeasuredTextLayout}
+                style={[
+                  styles.measurementText,
+                  composerWidth > 0
+                    ? { width: composerWidth - 32 }
+                    : styles.measurementTextHidden,
+                ]}
+              >
+                {text || " "}
+              </Text>
               <TextInput
+                testID="message-composer-input"
                 ref={inputRef}
                 style={[
                   styles.input,
                   {
                     color: themeColors.text.primary,
-                    backgroundColor: "rgba(26, 31, 58, 0.6)",
                   },
                 ]}
                 value={text}
@@ -646,6 +716,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                     handleSend();
                   }
                 }}
+                multiline
+                scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
                 placeholder={
                   editingMessage
                     ? "Modifier le message"
@@ -655,6 +727,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 }
                 placeholderTextColor={themeColors.text.tertiary}
                 maxLength={1000}
+                textAlignVertical="top"
               />
               {showMentions &&
                 conversationType === "group" &&
@@ -829,7 +902,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignItems: "center",
+    alignItems: "flex-end",
   },
   attachButtons: {
     flexDirection: "row",
@@ -844,13 +917,29 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flex: 1,
     marginRight: 8,
+    borderRadius: 20,
+    justifyContent: "center",
   },
   input: {
-    borderRadius: 20,
+    flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    maxHeight: 100,
+    paddingVertical: INPUT_VERTICAL_PADDING,
+    minHeight: MIN_INPUT_HEIGHT,
     fontSize: 15,
+    lineHeight: INPUT_LINE_HEIGHT,
+    backgroundColor: "transparent",
+  },
+  measurementText: {
+    position: "absolute",
+    left: 16,
+    top: INPUT_VERTICAL_PADDING,
+    opacity: 0,
+    fontSize: 15,
+    lineHeight: INPUT_LINE_HEIGHT,
+    includeFontPadding: false,
+  },
+  measurementTextHidden: {
+    width: 0,
   },
   mentionsList: {
     position: "absolute",
