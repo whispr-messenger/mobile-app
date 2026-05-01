@@ -23,6 +23,7 @@ interface ChatHeaderProps {
   onScheduledPress?: () => void;
   onAudioCallPress?: () => void;
   onVideoCallPress?: () => void;
+  callsAvailable?: boolean;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -38,6 +39,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onScheduledPress,
   onAudioCallPress,
   onVideoCallPress,
+  callsAvailable = true,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -136,7 +138,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {onAudioCallPress && (
           <TouchableOpacity
             onPress={onAudioCallPress}
-            style={styles.actionButton}
+            style={[
+              styles.actionButton,
+              !callsAvailable && styles.actionButtonDisabled,
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Appel audio"
           >
@@ -150,7 +155,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {onVideoCallPress && (
           <TouchableOpacity
             onPress={onVideoCallPress}
-            style={styles.actionButton}
+            style={[
+              styles.actionButton,
+              !callsAvailable && styles.actionButtonDisabled,
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Appel video"
           >
@@ -254,5 +262,8 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
     marginLeft: 4,
+  },
+  actionButtonDisabled: {
+    opacity: 0.4,
   },
 });
