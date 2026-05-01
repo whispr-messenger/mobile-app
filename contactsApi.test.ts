@@ -277,6 +277,57 @@ describe("contactsAPI.searchUsers", () => {
     expect(phoneCall).toBeDefined();
   });
 
+  it("does not crash when /search/username and /search/phone return an empty body (WHISPR-1234)", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getBlockedUsers
+    // Backend currently returns 200 + empty body when no match — must not throw.
+    mockFetch.mockResolvedValueOnce(mockResponse({ textBody: "" })); // username
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // name
+    mockFetch.mockResolvedValueOnce(mockResponse({ textBody: "" })); // phone
+
+    await expect(
+      contactsAPI.searchUsers({ username: "+33600000000" }),
+    ).resolves.toEqual([]);
+  });
+
+  it("unwraps the new { user: User } envelope from /search/username (WHISPR-1233)", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getBlockedUsers
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ body: { user: { id: "u-1", username: "ada" } } }),
+    ); // username (new wrapped format)
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // name
+
+    const results = await contactsAPI.searchUsers({ username: "ada" });
+    expect(results).toHaveLength(1);
+    expect(results[0].user.id).toBe("u-1");
+  });
+
+  it("treats { user: null } from /search/username as no result (WHISPR-1233)", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getBlockedUsers
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: { user: null } })); // username
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // name
+
+    await expect(contactsAPI.searchUsers({ username: "ada" })).resolves.toEqual(
+      [],
+    );
+  });
+
+  it("unwraps the new { user: User } envelope from /search/phone (WHISPR-1233)", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getContacts
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // getBlockedUsers
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 404 })); // username
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: [] })); // name
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({ body: { user: { id: "u-9", username: "match" } } }),
+    ); // phone (new wrapped format)
+
+    const results = await contactsAPI.searchUsers({ username: "+33600000000" });
+    expect(results).toHaveLength(1);
+    expect(results[0].user.id).toBe("u-9");
+  });
+
   it("flags is_blocked=true on search hits that are in the blocked list (WHISPR-1215)", async () => {
     // getContacts
     mockFetch.mockResolvedValueOnce(mockResponse({ body: [] }));
