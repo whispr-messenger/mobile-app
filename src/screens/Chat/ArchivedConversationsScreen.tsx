@@ -61,10 +61,12 @@ const SwipeableArchivedItem: React.FC<SwipeableArchivedItemProps> = ({
   index,
 }) => {
   const swipeRef = useRef<Swipeable>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
 
   const renderRightActions = (
     progress: Animated.AnimatedInterpolation<number>,
   ) => {
+    if (!isSwiping) return <View />;
     const scale = progress.interpolate({
       inputRange: [0, 1],
       outputRange: [0.8, 1],
@@ -100,8 +102,15 @@ const SwipeableArchivedItem: React.FC<SwipeableArchivedItemProps> = ({
       rightThreshold={40}
       friction={2}
       overshootRight={false}
+      onSwipeableOpenStartDrag={() => setIsSwiping(true)}
+      onSwipeableWillOpen={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }}
+      onSwipeableClose={() => setIsSwiping(false)}
     >
-      <View style={styles.itemWrapper}>
+      <View
+        style={[styles.itemWrapper, isSwiping && styles.itemWrapperSwiping]}
+      >
         <ConversationItem
           conversation={conversation}
           onPress={onPress}
@@ -336,6 +345,11 @@ const styles = StyleSheet.create({
   },
   itemWrapper: {
     backgroundColor: "transparent",
+    overflow: "hidden",
+  },
+  itemWrapperSwiping: {
+    backgroundColor: "#1A1F3A",
+    borderRadius: 16,
   },
   swipeActions: {
     flexDirection: "row",
