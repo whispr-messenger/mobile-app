@@ -83,7 +83,7 @@ const SwipeableArchivedItem: React.FC<SwipeableArchivedItemProps> = ({
             accessibilityLabel="Désarchiver"
           >
             <Ionicons
-              name="archive-outline"
+              name="arrow-up-circle-outline"
               size={24}
               color={colors.text.light}
             />
