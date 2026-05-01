@@ -43,6 +43,12 @@ import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageBubble } from "../../components/Chat/MessageBubble";
+import { MessageSwipeProvider } from "../../context/MessageSwipeContext";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSharedValue, withSpring } from "react-native-reanimated";
+
+const MESSAGE_SWIPE_DISTANCE = 40;
+const MESSAGE_SWIPE_SPRING = { damping: 18, stiffness: 180 };
 import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
@@ -251,6 +257,30 @@ export const ChatScreen: React.FC = () => {
   const handleSendMediaRef = useRef<typeof handleSendMedia>(null!);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  // Horizontal swipe to reveal per-message timestamps. The shared value is
+  // consumed by every MessageBubble through MessageSwipeProvider, so all rows
+  // translate together without re-rendering.
+  const swipeTranslateX = useSharedValue(0);
+  const swipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX(-10)
+        .failOffsetY([-10, 10])
+        .onUpdate((e) => {
+          // Only allow leftward swipes, capped at MESSAGE_SWIPE_DISTANCE.
+          const next = Math.max(
+            -MESSAGE_SWIPE_DISTANCE,
+            Math.min(0, e.translationX),
+          );
+          swipeTranslateX.value = next;
+        })
+        // onFinalize fires for both completed and cancelled gestures, so a
+        // separate onEnd is redundant.
+        .onFinalize(() => {
+          swipeTranslateX.value = withSpring(0, MESSAGE_SWIPE_SPRING);
+        }),
+    [swipeTranslateX],
+  );
   const initialScrollDoneRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -1674,6 +1704,19 @@ export const ChatScreen: React.FC = () => {
     return result;
   }, [messages]);
 
+  // Id of the most recent message I sent — used to render a textual delivery
+  // status only under that bubble. messages[] is sorted newest-first, so the
+  // first entry whose sender_id matches mine is the latest one.
+  const lastSentByMeId = useMemo(() => {
+    if (!userId) return null;
+    for (const m of messages) {
+      if (m.sender_id === userId && m.message_type !== "system") {
+        return m.id;
+      }
+    }
+    return null;
+  }, [messages, userId]);
+
   // Initial scroll to the newest message once the list has rendered content.
   // Using `scrollToIndex({ index: 0 })` (rather than `scrollToOffset`) is
   // important on react-native-web: the inverted list is implemented via a
@@ -2133,6 +2176,7 @@ export const ChatScreen: React.FC = () => {
       }
 
       const isSent = message.sender_id === userId;
+      const isLastSentByMe = isSent && message.id === lastSentByMeId;
       const isHighlighted = Boolean(
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
@@ -2164,6 +2208,22 @@ export const ChatScreen: React.FC = () => {
         }
       }
 
+      // iMessage convention: only the last bubble in a same-sender burst
+      // carries a tail. The message that comes chronologically AFTER this
+      // one (visually BELOW it in the inverted list, so index - 1) is the
+      // one we compare against. If it's from the same sender, we are not
+      // the last in the burst and the tail is suppressed.
+      let isLastInBurst = true;
+      const next = messagesWithSeparators[index - 1];
+      if (
+        next &&
+        !isDateSeparator(next) &&
+        next.sender_id === message.sender_id &&
+        next.message_type !== "system"
+      ) {
+        isLastInBurst = false;
+      }
+
       return (
         <MessageBubble
           message={message}
@@ -2173,6 +2233,7 @@ export const ChatScreen: React.FC = () => {
           senderAvatarUrl={senderAvatarUrl}
           showSenderAvatar={!isSent && isGroup}
           isConsecutive={isConsecutive}
+          isLastInBurst={isLastInBurst}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
           resolveReactorName={resolveReactorDisplayName}
@@ -2181,6 +2242,10 @@ export const ChatScreen: React.FC = () => {
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
           pendingAppeal={pendingAppeals[message.id]}
+          isLastSentByMe={isLastSentByMe}
+          isGroupConversation={isGroup}
+          otherMembersCount={Math.max(0, conversationMembers.length - 1)}
+          resolveMemberName={resolveReactorDisplayName}
           onContest={(m) => {
             // metadata is already Record<string, any>; no cast needed
             const meta = m.metadata || {};
@@ -2208,6 +2273,7 @@ export const ChatScreen: React.FC = () => {
       searchResults,
       pendingAppeals,
       messagesWithSeparators,
+      lastSentByMeId,
     ],
   );
 
@@ -2374,13 +2440,20 @@ export const ChatScreen: React.FC = () => {
           // Sur web, on emballe la FlatList dans un viewport à overflow borné :
           // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
           // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
+          const wrappedList =
+            Platform.OS === "web" ? (
+              <View style={styles.webListViewport}>{messageList}</View>
+            ) : (
+              <GestureDetector gesture={swipeGesture}>
+                <View style={{ flex: 1 }}>{messageList}</View>
+              </GestureDetector>
+            );
           const chatBody = (
             <>
-              {Platform.OS === "web" ? (
-                <View style={styles.webListViewport}>{messageList}</View>
-              ) : (
-                messageList
-              )}
+              <MessageSwipeProvider translateX={swipeTranslateX}>
+                {wrappedList}
+              </MessageSwipeProvider>
+
               {typingUsers.length > 0 && (
                 <View style={styles.typingContainer}>
                   <TypingIndicator
