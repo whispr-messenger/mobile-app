@@ -1439,6 +1439,75 @@ export const GroupDetailsScreen: React.FC = () => {
           <AnimatedTouchableOpacity
             style={styles.actionButton}
             onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("Chat", {
+                conversationId: conversationKey,
+                openSearch: true,
+              });
+            }}
+            activeOpacity={0.7}
+            entering={FadeInDown.delay(100).duration(300)}
+          >
+            <View style={styles.actionButtonContent}>
+              <View style={styles.actionIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  style={styles.actionIconGradient}
+                >
+                  <Ionicons name="search" size={20} color={colors.text.light} />
+                </LinearGradient>
+              </View>
+              <Text
+                style={[styles.actionButtonText, { color: colors.text.light }]}
+              >
+                Rechercher des messages
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={withOpacity(colors.text.light, 0.4)}
+            />
+          </AnimatedTouchableOpacity>
+          <AnimatedTouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("ScheduledMessages", {
+                conversationId: conversationKey,
+              });
+            }}
+            activeOpacity={0.7}
+            entering={FadeInDown.delay(150).duration(300)}
+          >
+            <View style={styles.actionButtonContent}>
+              <View style={styles.actionIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  style={styles.actionIconGradient}
+                >
+                  <Ionicons
+                    name="timer-outline"
+                    size={20}
+                    color={colors.text.light}
+                  />
+                </LinearGradient>
+              </View>
+              <Text
+                style={[styles.actionButtonText, { color: colors.text.light }]}
+              >
+                Messages programmés
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={withOpacity(colors.text.light, 0.4)}
+            />
+          </AnimatedTouchableOpacity>
+          <AnimatedTouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               setShowLeaveModal(true);
             }}

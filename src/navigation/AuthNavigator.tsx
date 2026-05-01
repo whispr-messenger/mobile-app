@@ -90,7 +90,7 @@ export type AuthStackParamList = {
   TwoFactorVerify: { secret: string };
   TwoFactorBackupCodes: { codes: string[] };
   ConversationsList: undefined;
-  Chat: { conversationId: string };
+  Chat: { conversationId: string; openSearch?: boolean };
   Contacts: undefined;
   MyQRCode: undefined;
   QRCodeScanner: undefined;
