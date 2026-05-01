@@ -72,4 +72,34 @@ describe("ChatHeader back button", () => {
     expect(mockGoBack).not.toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith("ConversationsList");
   });
+
+  it("invokes call handlers and stays clickable when calls are unavailable (so the parent can show a toast)", () => {
+    mockCanGoBack.mockReturnValue(true);
+    const onAudio = jest.fn();
+    const onVideo = jest.fn();
+
+    const { UNSAFE_getAllByType } = render(
+      <ChatHeader
+        conversationName="Alice"
+        conversationType="direct"
+        onAudioCallPress={onAudio}
+        onVideoCallPress={onVideo}
+        callsAvailable={false}
+      />,
+    );
+
+    const TouchableOpacity = require("react-native").TouchableOpacity;
+    const touchables = UNSAFE_getAllByType(TouchableOpacity);
+    // touchables[0] = back, [1] = audio, [2] = video
+    fireEvent.press(touchables[1]);
+    fireEvent.press(touchables[2]);
+
+    expect(onAudio).toHaveBeenCalledTimes(1);
+    expect(onVideo).toHaveBeenCalledTimes(1);
+
+    const audioStyle = Array.isArray(touchables[1].props.style)
+      ? Object.assign({}, ...touchables[1].props.style.filter(Boolean))
+      : touchables[1].props.style;
+    expect(audioStyle.opacity).toBe(0.4);
+  });
 });
