@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Modal,
   Platform,
   InteractionManager,
 } from "react-native";
@@ -77,6 +78,8 @@ export const SettingsScreen: React.FC = () => {
 
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
+  const [showBackgroundImagePicker, setShowBackgroundImagePicker] =
+    useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showFontSizeModal, setShowFontSizeModal] = useState(false);
   const [showModerationModelModal, setShowModerationModelModal] =
@@ -355,6 +358,37 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
+  const handleBackgroundImagePicker = useCallback(async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission refusée",
+          "L'accès à la galerie est requis pour choisir un arrière-plan.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        await saveCustomBackground(result.assets[0].uri);
+        setShowBackgroundImagePicker(false);
+      }
+    } catch (error) {
+      console.error("Error saving custom background:", error);
+      Alert.alert(
+        "Erreur",
+        "Impossible d'utiliser cette image comme arrière-plan.",
+      );
+    }
+  }, [saveCustomBackground]);
+
   const handleSelect = async (
     type: "theme" | "background" | "language" | "fontSize" | "privacy",
     value: string,
@@ -370,35 +404,10 @@ export const SettingsScreen: React.FC = () => {
       } else if (type === "background") {
         setShowBackgroundModal(false);
         if (value === "custom-upload") {
-          InteractionManager.runAfterInteractions(async () => {
-            try {
-              await new Promise((resolve) => setTimeout(resolve, 250));
-              const { status } =
-                await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== "granted") {
-                Alert.alert(
-                  "Permission refusée",
-                  "L'accès à la galerie est requis pour choisir un arrière-plan.",
-                );
-                return;
-              }
-
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ["images"],
-                allowsEditing: true,
-                quality: 0.9,
-              });
-
-              if (!result.canceled && result.assets[0]?.uri) {
-                await saveCustomBackground(result.assets[0].uri);
-              }
-            } catch (error) {
-              console.error("Error saving custom background:", error);
-              Alert.alert(
-                "Erreur",
-                "Impossible d'utiliser cette image comme arrière-plan.",
-              );
-            }
+          InteractionManager.runAfterInteractions(() => {
+            setTimeout(() => {
+              setShowBackgroundImagePicker(true);
+            }, 150);
           });
         } else if (value === "custom-remove") {
           setTimeout(async () => {
@@ -1203,6 +1212,44 @@ export const SettingsScreen: React.FC = () => {
         layout="vertical"
       />
 
+      <Modal
+        visible={showBackgroundImagePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBackgroundImagePicker(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertCard}>
+            <Text style={styles.alertTitle}>Changer l'arrière-plan</Text>
+            <Text style={styles.alertSubtitle}>Sélectionnez une option</Text>
+
+            <TouchableOpacity
+              style={styles.alertAction}
+              onPress={() => {
+                void handleBackgroundImagePicker();
+              }}
+            >
+              <Ionicons
+                name="image"
+                size={18}
+                color="#0A84FF"
+                style={styles.alertIcon}
+              />
+              <Text style={styles.alertActionText}>
+                Choisir depuis la galerie
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.alertCancel}
+              onPress={() => setShowBackgroundImagePicker(false)}
+            >
+              <Text style={styles.alertCancelText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <SettingsChoiceAlert
         visible={showLanguageModal}
         onClose={() => setShowLanguageModal(false)}
@@ -1366,6 +1413,63 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     marginTop: 2,
+  },
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  alertCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#000",
+    textAlign: "center",
+  },
+  alertSubtitle: {
+    fontSize: 14,
+    color: "#545458",
+    textAlign: "center",
+    marginTop: 2,
+    marginBottom: 16,
+  },
+  alertAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  alertIcon: {
+    marginRight: 16,
+  },
+  alertActionText: {
+    fontSize: 16,
+    color: "#000",
+  },
+  alertCancel: {
+    marginTop: 16,
+    alignItems: "center",
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E5EA",
+  },
+  alertCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0A84FF",
   },
 });
 
