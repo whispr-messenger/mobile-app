@@ -9,7 +9,7 @@
  * the join. By masking ONE continuous surface, the seam disappears.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { memo, useState, useCallback } from "react";
 import { View, StyleSheet, LayoutChangeEvent } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -37,7 +37,37 @@ const FAILED_BORDER = "rgba(240, 72, 72, 0.4)";
 const RECEIVED_BG = "rgba(11, 17, 36, 0.35)";
 const RECEIVED_BORDER = "rgba(255, 255, 255, 0.12)";
 
-export const MaskedBubbleSurface: React.FC<MaskedBubbleSurfaceProps> = ({
+const VARIANT_BORDER: Record<Variant, string | null> = {
+  sent: null,
+  received: RECEIVED_BORDER,
+  failed: FAILED_BORDER,
+};
+
+function renderSurface(variant: Variant, w: number, h: number) {
+  const style = { width: w, height: h };
+  if (variant === "received") {
+    return (
+      <BlurView
+        intensity={30}
+        tint="dark"
+        style={[style, { backgroundColor: RECEIVED_BG }]}
+      />
+    );
+  }
+  if (variant === "failed") {
+    return <View style={[style, { backgroundColor: FAILED_BG }]} />;
+  }
+  return (
+    <LinearGradient
+      colors={SENT_GRADIENT}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={style}
+    />
+  );
+}
+
+const MaskedBubbleSurfaceImpl: React.FC<MaskedBubbleSurfaceProps> = ({
   variant,
   side,
   showTail = true,
@@ -61,53 +91,16 @@ export const MaskedBubbleSurface: React.FC<MaskedBubbleSurfaceProps> = ({
   }, []);
 
   // The tail droops down-and-outward from the bubble's bottom corner, so the
-  // background surface must extend both horizontally (a little, for the side
-  // bulge) and vertically (more, for the drop).
+  // surface extends horizontally (slight side bulge) and vertically (drop).
   const tailW = showTail ? BUBBLE_TAIL_WIDTH : 0;
   const tailH = showTail ? BUBBLE_TAIL_HEIGHT + 1 : 0;
   const surfaceW = size ? size.w + tailW : 0;
   const surfaceH = size ? size.h + tailH : 0;
   const surfaceOffsetX = side === "left" ? -tailW : 0;
-
-  const surface = size ? (
-    variant === "received" ? (
-      <BlurView
-        intensity={30}
-        tint="dark"
-        style={{
-          width: surfaceW,
-          height: surfaceH,
-          backgroundColor: RECEIVED_BG,
-        }}
-      />
-    ) : variant === "failed" ? (
-      <View
-        style={{
-          width: surfaceW,
-          height: surfaceH,
-          backgroundColor: FAILED_BG,
-        }}
-      />
-    ) : (
-      <LinearGradient
-        colors={SENT_GRADIENT}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ width: surfaceW, height: surfaceH }}
-      />
-    )
-  ) : null;
-
-  const borderColor =
-    variant === "received"
-      ? RECEIVED_BORDER
-      : variant === "failed"
-        ? FAILED_BORDER
-        : null;
+  const borderColor = VARIANT_BORDER[variant];
 
   return (
     <View style={styles.container}>
-      {/* Background masked surface (gradient or blur), behind the content. */}
       {size ? (
         <View
           pointerEvents="none"
@@ -127,7 +120,7 @@ export const MaskedBubbleSurface: React.FC<MaskedBubbleSurfaceProps> = ({
               />
             }
           >
-            {surface}
+            {renderSurface(variant, surfaceW, surfaceH)}
           </MaskedView>
           {borderColor ? (
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -143,13 +136,14 @@ export const MaskedBubbleSurface: React.FC<MaskedBubbleSurfaceProps> = ({
           ) : null}
         </View>
       ) : null}
-      {/* Foreground content — its layout determines bubble size. */}
       <View onLayout={onLayout} style={contentStyle}>
         {children}
       </View>
     </View>
   );
 };
+
+export const MaskedBubbleSurface = memo(MaskedBubbleSurfaceImpl);
 
 const styles = StyleSheet.create({
   container: {

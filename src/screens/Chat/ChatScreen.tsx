@@ -46,6 +46,9 @@ import { MessageBubble } from "../../components/Chat/MessageBubble";
 import { MessageSwipeProvider } from "../../context/MessageSwipeContext";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSharedValue, withSpring } from "react-native-reanimated";
+
+const MESSAGE_SWIPE_DISTANCE = 40;
+const MESSAGE_SWIPE_SPRING = { damping: 18, stiffness: 180 };
 import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
@@ -264,21 +267,17 @@ export const ChatScreen: React.FC = () => {
         .activeOffsetX(-10)
         .failOffsetY([-10, 10])
         .onUpdate((e) => {
-          // Only allow leftward swipes (negative translation), capped at -40.
-          const next = Math.max(-40, Math.min(0, e.translationX));
+          // Only allow leftward swipes, capped at MESSAGE_SWIPE_DISTANCE.
+          const next = Math.max(
+            -MESSAGE_SWIPE_DISTANCE,
+            Math.min(0, e.translationX),
+          );
           swipeTranslateX.value = next;
         })
-        .onEnd(() => {
-          swipeTranslateX.value = withSpring(0, {
-            damping: 18,
-            stiffness: 180,
-          });
-        })
+        // onFinalize fires for both completed and cancelled gestures, so a
+        // separate onEnd is redundant.
         .onFinalize(() => {
-          swipeTranslateX.value = withSpring(0, {
-            damping: 18,
-            stiffness: 180,
-          });
+          swipeTranslateX.value = withSpring(0, MESSAGE_SWIPE_SPRING);
         }),
     [swipeTranslateX],
   );

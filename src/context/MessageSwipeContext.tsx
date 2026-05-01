@@ -5,7 +5,7 @@
  * right edge. The chat screen owns the SharedValue and the gesture.
  */
 
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import { SharedValue } from "react-native-reanimated";
 
 interface MessageSwipeContextValue {
@@ -25,8 +25,10 @@ export const MessageSwipeProvider: React.FC<ProviderProps> = ({
   translateX,
   children,
 }) => {
+  // Stable identity so consumers don't re-render on every parent render.
+  const value = useMemo(() => ({ translateX }), [translateX]);
   return (
-    <MessageSwipeContext.Provider value={{ translateX }}>
+    <MessageSwipeContext.Provider value={value}>
       {children}
     </MessageSwipeContext.Provider>
   );

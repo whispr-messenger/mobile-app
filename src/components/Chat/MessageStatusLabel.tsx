@@ -7,6 +7,9 @@
 import React from "react";
 import { Text, StyleSheet } from "react-native";
 import { MessageWithRelations } from "../../types/messaging";
+import { formatHourMinute } from "../../utils";
+
+type Status = NonNullable<MessageWithRelations["status"]>;
 
 interface MessageStatusLabelProps {
   message: MessageWithRelations;
@@ -17,11 +20,37 @@ interface MessageStatusLabelProps {
   otherMembersCount?: number;
 }
 
-function formatReadTime(isoDate: string): string {
-  return new Date(isoDate).toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const STATIC_LABELS: Partial<Record<Status, string>> = {
+  sending: "Envoi…",
+  queued: "Envoi…",
+  failed: "Échec d'envoi",
+  sent: "Envoyé",
+  delivered: "Distribué",
+};
+
+function buildReadLabel(
+  message: MessageWithRelations,
+  isGroup: boolean,
+  otherMembersCount: number,
+  resolveMemberName?: (userId: string) => string,
+): string {
+  const readers = (message.delivery_statuses ?? []).filter((d) => !!d.read_at);
+  if (!isGroup) {
+    const reader = readers[0];
+    return reader?.read_at ? `Vu à ${formatHourMinute(reader.read_at)}` : "Vu";
+  }
+  if (readers.length === 0) return "Vu";
+  if (otherMembersCount > 0 && readers.length >= otherMembersCount) {
+    const lastReadAt = readers
+      .map((r) => r.read_at as string)
+      .sort()
+      .pop()!;
+    return `Vu par tous à ${formatHourMinute(lastReadAt)}`;
+  }
+  const names = readers
+    .map((r) => (resolveMemberName ? resolveMemberName(r.user_id) : r.user_id))
+    .filter(Boolean);
+  return names.length > 0 ? `Vu par ${names.join(", ")}` : "Vu";
 }
 
 export const MessageStatusLabel: React.FC<MessageStatusLabelProps> = ({
@@ -30,48 +59,13 @@ export const MessageStatusLabel: React.FC<MessageStatusLabelProps> = ({
   isGroup = false,
   otherMembersCount = 0,
 }) => {
-  const { status, delivery_statuses } = message;
-
+  const { status } = message;
   if (!status) return null;
-
-  let label: string | null = null;
-
-  if (status === "sending" || status === "queued") {
-    label = "Envoi…";
-  } else if (status === "failed") {
-    label = "Échec d'envoi";
-  } else if (status === "sent") {
-    label = "Envoyé";
-  } else if (status === "delivered") {
-    label = "Distribué";
-  } else if (status === "read") {
-    if (isGroup) {
-      const readers = (delivery_statuses ?? []).filter((d) => !!d.read_at);
-      if (readers.length === 0) {
-        label = "Vu";
-      } else if (otherMembersCount > 0 && readers.length >= otherMembersCount) {
-        // Use the most recent read_at across readers for the time stamp.
-        const lastReadAt = readers
-          .map((r) => r.read_at as string)
-          .sort()
-          .pop()!;
-        label = `Vu par tous à ${formatReadTime(lastReadAt)}`;
-      } else {
-        const names = readers
-          .map((r) =>
-            resolveMemberName ? resolveMemberName(r.user_id) : r.user_id,
-          )
-          .filter(Boolean);
-        label = names.length > 0 ? `Vu par ${names.join(", ")}` : "Vu";
-      }
-    } else {
-      const reader = (delivery_statuses ?? []).find((d) => !!d.read_at);
-      label = reader?.read_at ? `Vu à ${formatReadTime(reader.read_at)}` : "Vu";
-    }
-  }
-
+  const label =
+    status === "read"
+      ? buildReadLabel(message, isGroup, otherMembersCount, resolveMemberName)
+      : STATIC_LABELS[status];
   if (!label) return null;
-
   return <Text style={styles.label}>{label}</Text>;
 };
 

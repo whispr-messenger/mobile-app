@@ -32,7 +32,7 @@ import { MaskedBubbleSurface } from "./MaskedBubbleSurface";
 import { MessageStatusLabel } from "./MessageStatusLabel";
 import { useMessageSwipe } from "../../context/MessageSwipeContext";
 import { FormattedText } from "../../utils/textFormatter";
-import { isReachableUrl } from "../../utils";
+import { isReachableUrl, formatHourMinute } from "../../utils";
 import { getApiBaseUrl } from "../../services/apiBase";
 
 /**
@@ -634,10 +634,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             pointerEvents="none"
           >
             <Text style={styles.swipeTimestamp}>
-              {new Date(message.sent_at).toLocaleTimeString("fr-FR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {formatHourMinute(message.sent_at)}
             </Text>
           </Animated.View>
           <Animated.View
@@ -874,9 +871,32 @@ export default memo(MessageBubble, (prevProps, nextProps) => {
     prevProps.isLastSentByMe === nextProps.isLastSentByMe &&
     prevProps.isGroupConversation === nextProps.isGroupConversation &&
     prevProps.otherMembersCount === nextProps.otherMembersCount &&
-    JSON.stringify(prevProps.message.delivery_statuses) ===
-      JSON.stringify(nextProps.message.delivery_statuses) &&
+    // delivery_statuses only feeds MessageStatusLabel, which renders solely
+    // for the last-sent bubble — skip the deep compare elsewhere.
+    (!nextProps.isLastSentByMe ||
+      deliveryStatusesEqual(
+        prevProps.message.delivery_statuses,
+        nextProps.message.delivery_statuses,
+      )) &&
     JSON.stringify(prevProps.message.reactions) ===
       JSON.stringify(nextProps.message.reactions)
   );
 });
+
+function deliveryStatusesEqual(
+  a: MessageWithRelations["delivery_statuses"],
+  b: MessageWithRelations["delivery_statuses"],
+): boolean {
+  if (a === b) return true;
+  const al = a?.length ?? 0;
+  const bl = b?.length ?? 0;
+  if (al !== bl) return false;
+  if (al === 0) return true;
+  // Compare only the fields that affect the rendered status label.
+  for (let i = 0; i < al; i += 1) {
+    const x = a![i];
+    const y = b![i];
+    if (x.user_id !== y.user_id || x.read_at !== y.read_at) return false;
+  }
+  return true;
+}
