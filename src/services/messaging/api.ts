@@ -8,6 +8,12 @@ import { isReachableUrl, isValidUuid } from "../../utils";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
+function extractMediaIdFromUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  const match = url.match(/\/media\/v1\/([^/]+)\/(?:blob|thumbnail)(?:\?|$)/i);
+  return match?.[1];
+}
+
 /**
  * Normalise a backend attachment payload into the MessageAttachment shape the
  * app consumes. The backend returns { file_url, file_name, file_size, mime_type,
@@ -30,7 +36,14 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
   }
 
   const meta = att?.metadata || {};
-  const mediaId = att?.media_id || meta.media_id;
+  const mediaId =
+    att?.media_id ||
+    meta.media_id ||
+    extractMediaIdFromUrl(att?.file_url) ||
+    extractMediaIdFromUrl(meta.media_url) ||
+    extractMediaIdFromUrl(att?.storage_url) ||
+    extractMediaIdFromUrl(att?.thumbnail_url) ||
+    extractMediaIdFromUrl(meta.thumbnail_url);
   const mediaBlobUrl = mediaId
     ? `${getApiBaseUrl()}/media/v1/${mediaId}/blob`
     : null;
@@ -59,7 +72,7 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
   return {
     id: att?.id,
     message_id: att?.message_id || fallbackMessageId,
-    media_id: mediaId || att?.id,
+    media_id: mediaId,
     media_type,
     metadata: {
       filename: att?.file_name || att?.filename || meta.filename,

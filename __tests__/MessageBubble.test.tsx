@@ -194,6 +194,35 @@ describe("MessageBubble — tombstone hides media surface", () => {
     expect(mockMediaSpy).not.toHaveBeenCalled();
   });
 
+  it("reconstructs the real media_id from metadata media_url instead of falling back to message.id", () => {
+    render(
+      <MessageBubble
+        message={{
+          id: "msg-real-id",
+          conversation_id: "conv-1",
+          sender_id: "user-1",
+          content: "Message vocal",
+          message_type: "media",
+          sent_at: new Date("2026-04-24T12:00:00Z").toISOString(),
+          status: "sent",
+          is_deleted: false,
+          delete_for_everyone: false,
+          metadata: {
+            media_type: "audio",
+            media_url: "https://example.test/media/v1/media-real-123/blob",
+            mime_type: "audio/mp4",
+            duration: 6,
+          },
+        } as any}
+        isSent={true}
+        currentUserId="user-1"
+      />,
+    );
+
+    expect(mockAudioSpy).toHaveBeenCalled();
+    expect(mockAudioSpy.mock.calls.at(-1)?.[0]?.mediaId).toBe("media-real-123");
+  });
+
   it("does NOT render AudioMessage when the voice message is deleted for everyone", () => {
     const deleted = {
       ...baseAudioMessage,

@@ -108,6 +108,19 @@ describe("mapBackendAttachment", () => {
     });
     expect(mapped.metadata.duration).toBe(17);
   });
+
+  it("extracts media_id from a media-service blob URL when the backend omits it", () => {
+    const mapped = mapBackendAttachment({
+      id: "a-1",
+      file_url: "https://api.test/media/v1/media-real-123/blob",
+      mime_type: "audio/mp4",
+      file_type: "audio",
+    });
+    expect(mapped.media_id).toBe("media-real-123");
+    expect(mapped.metadata.media_url).toBe(
+      "https://api.test/media/v1/media-real-123/blob",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

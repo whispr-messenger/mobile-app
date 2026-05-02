@@ -49,6 +49,15 @@ interface AudioMessageProps {
   isSent?: boolean;
 }
 
+function isStableMediaId(value?: string): boolean {
+  return (
+    !!value &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
+}
+
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -84,7 +93,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
   );
 
   const shouldCacheNativeAudio =
-    Platform.OS !== "web" && !!mediaId && uriNeedsAuthResolution(uri);
+    Platform.OS !== "web" &&
+    isStableMediaId(mediaId) &&
+    uriNeedsAuthResolution(uri);
   const [nativeAudioUri, setNativeAudioUri] = useState("");
 
   // `/media/v1/:id/blob` returns `{ url, expiresAt }` JSON — not the raw
@@ -94,7 +105,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
   const { resolvedUri: streamedResolvedUri } = useResolvedMediaUrl(
     shouldCacheNativeAudio ? undefined : uri,
   );
-  const resolvedUri = shouldCacheNativeAudio ? nativeAudioUri : streamedResolvedUri;
+  const resolvedUri = shouldCacheNativeAudio
+    ? nativeAudioUri
+    : streamedResolvedUri;
 
   useEffect(() => {
     if (!shouldCacheNativeAudio || !mediaId) {
@@ -247,7 +260,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={
-          isPlaying ? "Mettre en pause le message vocal" : "Lire le message vocal"
+          isPlaying
+            ? "Mettre en pause le message vocal"
+            : "Lire le message vocal"
         }
       >
         <Ionicons
