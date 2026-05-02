@@ -18,18 +18,16 @@ jest.mock("./src/services/messaging/api", () => ({
     deleteConversation: jest.fn().mockResolvedValue(undefined),
     archiveConversation: jest.fn().mockResolvedValue(undefined),
     unarchiveConversation: jest.fn().mockResolvedValue(undefined),
-    getArchivedConversations: jest
-      .fn()
-      .mockResolvedValue({
-        data: [],
-        meta: {
-          count: 0,
-          limit: 50,
-          offset: 0,
-          has_more: false,
-          user_id: "",
-        },
-      }),
+    getArchivedConversations: jest.fn().mockResolvedValue({
+      data: [],
+      meta: {
+        count: 0,
+        limit: 50,
+        offset: 0,
+        has_more: false,
+        user_id: "",
+      },
+    }),
   },
 }));
 
@@ -862,6 +860,42 @@ describe("conversationsStore — fetchArchivedConversations / loadMoreArchivedCo
     expect(archived.hasMore).toBe(false);
     expect(archived.offset).toBe(2);
     expect(archived.items.every((c) => c.is_archived === true)).toBe(true);
+  });
+
+  it("preserves last_message and unread_count returned by the backend (WHISPR-1263)", async () => {
+    const lastMessage = {
+      id: "m-1",
+      conversation_id: "c-a",
+      sender_id: "other",
+      content: "hello from archived",
+      sent_at: "2026-04-25T10:00:00Z",
+    } as unknown as Record<string, unknown>;
+
+    mockedMessagingAPI.getArchivedConversations.mockResolvedValueOnce({
+      data: [
+        makeConv("c-a", { last_message: lastMessage, unread_count: 3 }),
+        makeConv("c-b", { last_message: null, unread_count: 0 }),
+      ],
+      meta: {
+        count: 2,
+        limit: 50,
+        offset: 0,
+        has_more: false,
+        user_id: "u-1",
+      },
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchArchivedConversations();
+    });
+
+    const { archived } = useConversationsStore.getState();
+    const first = archived.items.find((c) => c.id === "c-a");
+    const second = archived.items.find((c) => c.id === "c-b");
+    expect(first?.last_message).toEqual(lastMessage);
+    expect(first?.unread_count).toBe(3);
+    expect(second?.last_message).toBeNull();
+    expect(second?.unread_count).toBe(0);
   });
 
   it("sets status=error when the API call rejects", async () => {
