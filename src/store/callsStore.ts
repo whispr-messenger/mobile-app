@@ -1,21 +1,18 @@
 import { create } from "zustand";
-import Constants from "expo-constants";
 import { callsApi } from "../services/calls/callsApi";
+import {
+  getCallsAvailability,
+  getCallsUnavailableMessage,
+} from "../hooks/useCallsAvailable";
 import type { CallStatus, CallType } from "../types/calls";
 import type { Room } from "livekit-client";
 
 declare const require: (path: string) => any;
 
-const executionEnvironment = (Constants as any)?.executionEnvironment;
-const appOwnership = (Constants as any)?.appOwnership;
-const isExpoGo =
-  executionEnvironment === "storeClient" || appOwnership === "expo";
-
 function getCallsLiveKit() {
-  if (isExpoGo) {
-    throw new Error(
-      "Calls are not supported in Expo Go. Use a development build.",
-    );
+  const { available, reason } = getCallsAvailability();
+  if (!available) {
+    throw new Error(getCallsUnavailableMessage(reason));
   }
   const mod =
     require("../services/calls/liveKitProvider") as typeof import("../services/calls/liveKitProvider");

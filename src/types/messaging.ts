@@ -102,6 +102,16 @@ export interface MessageAttachment {
   created_at: string;
 }
 
+export interface MessageLinkPreview {
+  url: string;
+  canonicalUrl?: string;
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  siteName?: string;
+  domain?: string;
+}
+
 export interface MessageWithRelations extends MessageWithStatus {
   reply_to?: Message;
   reactions?: MessageReaction[];

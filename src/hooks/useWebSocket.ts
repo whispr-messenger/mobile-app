@@ -8,7 +8,6 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { AppState } from "react-native";
-import Constants from "expo-constants";
 import {
   getSharedSocket,
   ConnectionState,
@@ -22,11 +21,7 @@ import {
   buildIncomingCallPresentation,
   systemCallProvider,
 } from "../services/calls/systemCallProvider";
-
-const executionEnvironment = (Constants as any)?.executionEnvironment;
-const appOwnership = (Constants as any)?.appOwnership;
-const isExpoGo =
-  executionEnvironment === "storeClient" || appOwnership === "expo";
+import { isCallsAvailable } from "./useCallsAvailable";
 
 /** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
 export interface ReactionRealtimePayload {
@@ -43,6 +38,7 @@ interface UseWebSocketOptions {
   onMessageDeleted?: (messageId: string, deleteForEveryone: boolean) => void;
   onConversationUpdate?: (conversation: Conversation) => void;
   onConversationSummaries?: (conversations: Conversation[]) => void;
+  onConversationArchived?: (conversationId: string, archived: boolean) => void;
   onTyping?: (userId: string, typing: boolean) => void;
   onDeliveryStatus?: (messageId: string, status: string) => void;
   onContactRequest?: (request: any) => void;
@@ -118,6 +114,19 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           callbacksRef.current.onConversationSummaries?.(conversations);
         }
       },
+      // conversation_archived: { conversation_id, archived, timestamp }.
+      // Source de vérité multi-device pour l'état d'archivage.
+      onConvArchived: (data: {
+        conversation_id?: string;
+        archived?: boolean;
+      }) => {
+        if (data?.conversation_id && typeof data.archived === "boolean") {
+          callbacksRef.current.onConversationArchived?.(
+            data.conversation_id,
+            data.archived,
+          );
+        }
+      },
       onContactReq: (data: { request: any }) => {
         callbacksRef.current.onContactRequest?.(data.request);
       },
@@ -133,7 +142,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         initiator_name?: string;
       }) => {
         if (!data?.call_id) return;
-        if (isExpoGo) return;
+        if (!isCallsAvailable()) return;
         useCallsStore.getState().setIncoming({
           callId: data.call_id,
           initiatorId: data.initiator_id,
@@ -194,12 +203,14 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.off("new_message", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
+    userChannel.off("conversation_archived", userHandlers.onConvArchived);
     userChannel.off("incoming_call", userHandlers.onIncomingCall);
     userChannel.off("call_ended", userHandlers.onCallEnded);
 
     userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
+    userChannel.on("conversation_archived", userHandlers.onConvArchived);
     userChannel.on("incoming_call", userHandlers.onIncomingCall);
     userChannel.on("call_ended", userHandlers.onCallEnded);
 
@@ -207,6 +218,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       userChannel.off("new_message", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
+      userChannel.off("conversation_archived", userHandlers.onConvArchived);
       userChannel.off("incoming_call", userHandlers.onIncomingCall);
       userChannel.off("call_ended", userHandlers.onCallEnded);
     };

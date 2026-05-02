@@ -43,6 +43,12 @@ import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageBubble } from "../../components/Chat/MessageBubble";
+import { MessageSwipeProvider } from "../../context/MessageSwipeContext";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSharedValue, withSpring } from "react-native-reanimated";
+
+const MESSAGE_SWIPE_DISTANCE = 40;
+const MESSAGE_SWIPE_SPRING = { damping: 18, stiffness: 180 };
 import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
@@ -52,6 +58,11 @@ import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { useCallsStore } from "../../store/callsStore";
 import { systemCallProvider } from "../../services/calls/systemCallProvider";
+import {
+  useCallsAvailable,
+  getCallsUnavailableMessage,
+} from "../../hooks/useCallsAvailable";
+import Toast, { ToastType } from "../../components/Toast/Toast";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -159,7 +170,16 @@ export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation<ChatScreenNavigationProp>();
   const { conversationId } = route.params;
-  const [conversation, setConversation] = useState<Conversation | null>(null);
+  // Hydrate from the conversations store so the header (name + avatar)
+  // shows immediately while getConversation() is still in flight. The
+  // store entry has already been enriched with display_name and avatar_url
+  // by enrichSingleConversation() for direct chats.
+  const [conversation, setConversation] = useState<Conversation | null>(() => {
+    const cached = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === conversationId);
+    return cached ?? null;
+  });
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -203,6 +223,12 @@ export const ChatScreen: React.FC = () => {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageWithRelations | null>(null);
+  const callsAvailability = useCallsAvailable();
+  const [callsToast, setCallsToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: ToastType;
+  }>({ visible: false, message: "", type: "info" });
   const [forwardSending, setForwardSending] = useState(false);
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [reportSheetMessage, setReportSheetMessage] =
@@ -231,6 +257,30 @@ export const ChatScreen: React.FC = () => {
   const handleSendMediaRef = useRef<typeof handleSendMedia>(null!);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  // Horizontal swipe to reveal per-message timestamps. The shared value is
+  // consumed by every MessageBubble through MessageSwipeProvider, so all rows
+  // translate together without re-rendering.
+  const swipeTranslateX = useSharedValue(0);
+  const swipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX(-10)
+        .failOffsetY([-10, 10])
+        .onUpdate((e) => {
+          // Only allow leftward swipes, capped at MESSAGE_SWIPE_DISTANCE.
+          const next = Math.max(
+            -MESSAGE_SWIPE_DISTANCE,
+            Math.min(0, e.translationX),
+          );
+          swipeTranslateX.value = next;
+        })
+        // onFinalize fires for both completed and cancelled gestures, so a
+        // separate onEnd is redundant.
+        .onFinalize(() => {
+          swipeTranslateX.value = withSpring(0, MESSAGE_SWIPE_SPRING);
+        }),
+    [swipeTranslateX],
+  );
   const initialScrollDoneRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -566,19 +616,26 @@ export const ChatScreen: React.FC = () => {
     try {
       const conv = await messagingAPI.getConversation(conversationId);
 
-      // Resolve display name for direct conversations
-      // The detail endpoint returns members array, not member_user_ids
+      // Resolve display name and avatar for direct conversations.
+      // The detail endpoint returns members array, not member_user_ids,
+      // and does not populate avatar_url for direct chats — we enrich it
+      // from the other user's profile to feed the header avatar.
       const memberIds =
         conv.member_user_ids ||
         conv.members?.map((m: { user_id: string }) => m.user_id);
-      if (conv.type === "direct" && !conv.display_name && memberIds) {
+      if (
+        conv.type === "direct" &&
+        (!conv.display_name || !conv.avatar_url) &&
+        memberIds
+      ) {
         conv.member_user_ids = memberIds;
         const otherUserId = memberIds.find((id: string) => id !== userId);
         if (otherUserId) {
           try {
             const userInfo = await messagingAPI.getUserInfo(otherUserId);
             if (userInfo) {
-              conv.display_name = userInfo.display_name;
+              conv.display_name = conv.display_name || userInfo.display_name;
+              conv.avatar_url = conv.avatar_url || userInfo.avatar_url;
             }
           } catch {}
         }
@@ -612,6 +669,16 @@ export const ChatScreen: React.FC = () => {
       markAsRead(conversationId, lastMsg.id);
     }
   }, [conversationId, messages.length, userId, markAsRead]);
+
+  // Consume the openSearch route param (set by GroupDetails or other screens
+  // that want to drop the user directly into the search UI). Clear it after
+  // use so it doesn't re-trigger on subsequent re-renders or focus events.
+  useEffect(() => {
+    if (route.params?.openSearch) {
+      setShowSearch(true);
+      navigation.setParams({ openSearch: undefined });
+    }
+  }, [route.params?.openSearch, navigation]);
 
   useEffect(() => {
     // Load data
@@ -1467,6 +1534,14 @@ export const ChatScreen: React.FC = () => {
   const handleInitiateCall = useCallback(
     async (type: "audio" | "video") => {
       if (!conversation) return;
+      if (!callsAvailability.available) {
+        setCallsToast({
+          visible: true,
+          message: getCallsUnavailableMessage(callsAvailability.reason),
+          type: "warning",
+        });
+        return;
+      }
       const displayName = getConversationDisplayName(conversation);
       const avatarUrl =
         conversation.type === "direct"
@@ -1507,7 +1582,14 @@ export const ChatScreen: React.FC = () => {
         console.error("Failed to initiate call", err);
       }
     },
-    [conversation, conversationMembers, conversationId, userId, navigation],
+    [
+      conversation,
+      conversationMembers,
+      conversationId,
+      userId,
+      navigation,
+      callsAvailability,
+    ],
   );
 
   const resolveReactorDisplayName = useCallback(
@@ -1621,6 +1703,19 @@ export const ChatScreen: React.FC = () => {
 
     return result;
   }, [messages]);
+
+  // Id of the most recent message I sent — used to render a textual delivery
+  // status only under that bubble. messages[] is sorted newest-first, so the
+  // first entry whose sender_id matches mine is the latest one.
+  const lastSentByMeId = useMemo(() => {
+    if (!userId) return null;
+    for (const m of messages) {
+      if (m.sender_id === userId && m.message_type !== "system") {
+        return m.id;
+      }
+    }
+    return null;
+  }, [messages, userId]);
 
   // Initial scroll to the newest message once the list has rendered content.
   // Using `scrollToIndex({ index: 0 })` (rather than `scrollToOffset`) is
@@ -2081,6 +2176,7 @@ export const ChatScreen: React.FC = () => {
       }
 
       const isSent = message.sender_id === userId;
+      const isLastSentByMe = isSent && message.id === lastSentByMeId;
       const isHighlighted = Boolean(
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
@@ -2112,6 +2208,22 @@ export const ChatScreen: React.FC = () => {
         }
       }
 
+      // iMessage convention: only the last bubble in a same-sender burst
+      // carries a tail. The message that comes chronologically AFTER this
+      // one (visually BELOW it in the inverted list, so index - 1) is the
+      // one we compare against. If it's from the same sender, we are not
+      // the last in the burst and the tail is suppressed.
+      let isLastInBurst = true;
+      const next = messagesWithSeparators[index - 1];
+      if (
+        next &&
+        !isDateSeparator(next) &&
+        next.sender_id === message.sender_id &&
+        next.message_type !== "system"
+      ) {
+        isLastInBurst = false;
+      }
+
       return (
         <MessageBubble
           message={message}
@@ -2121,6 +2233,7 @@ export const ChatScreen: React.FC = () => {
           senderAvatarUrl={senderAvatarUrl}
           showSenderAvatar={!isSent && isGroup}
           isConsecutive={isConsecutive}
+          isLastInBurst={isLastInBurst}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
           resolveReactorName={resolveReactorDisplayName}
@@ -2129,6 +2242,10 @@ export const ChatScreen: React.FC = () => {
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
           pendingAppeal={pendingAppeals[message.id]}
+          isLastSentByMe={isLastSentByMe}
+          isGroupConversation={isGroup}
+          otherMembersCount={Math.max(0, conversationMembers.length - 1)}
+          resolveMemberName={resolveReactorDisplayName}
           onContest={(m) => {
             // metadata is already Record<string, any>; no cast needed
             const meta = m.metadata || {};
@@ -2156,6 +2273,7 @@ export const ChatScreen: React.FC = () => {
       searchResults,
       pendingAppeals,
       messagesWithSeparators,
+      lastSentByMeId,
     ],
   );
 
@@ -2229,11 +2347,13 @@ export const ChatScreen: React.FC = () => {
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
           onlineMemberCount={onlineMemberCount}
-          onSearchPress={() => setShowSearch(true)}
-          onInfoPress={handleInfoPress}
-          onScheduledPress={handleScheduledPress}
+          typingNames={typingUsers
+            .map((id) => typingUsersNames[id])
+            .filter(Boolean)}
+          onTitlePress={handleInfoPress}
           onAudioCallPress={() => handleInitiateCall("audio")}
           onVideoCallPress={() => handleInitiateCall("video")}
+          callsAvailable={callsAvailability.available}
         />
         {isOtherUserContact === false && (
           <View style={styles.notContactBanner}>
@@ -2320,13 +2440,20 @@ export const ChatScreen: React.FC = () => {
           // Sur web, on emballe la FlatList dans un viewport à overflow borné :
           // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
           // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
+          const wrappedList =
+            Platform.OS === "web" ? (
+              <View style={styles.webListViewport}>{messageList}</View>
+            ) : (
+              <GestureDetector gesture={swipeGesture}>
+                <View style={{ flex: 1 }}>{messageList}</View>
+              </GestureDetector>
+            );
           const chatBody = (
             <>
-              {Platform.OS === "web" ? (
-                <View style={styles.webListViewport}>{messageList}</View>
-              ) : (
-                messageList
-              )}
+              <MessageSwipeProvider translateX={swipeTranslateX}>
+                {wrappedList}
+              </MessageSwipeProvider>
+
               {typingUsers.length > 0 && (
                 <View style={styles.typingContainer}>
                   <TypingIndicator
@@ -2570,11 +2697,71 @@ export const ChatScreen: React.FC = () => {
                       {messages.length} message{messages.length > 1 ? "s" : ""}
                     </Text>
                   </View>
+                  <View style={styles.infoSectionActions}>
+                    <Text style={styles.infoLabel}>ACTIONS</Text>
+                    <TouchableOpacity
+                      style={styles.infoActionRow}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        setShowSearch(true);
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Rechercher dans la conversation"
+                    >
+                      <Ionicons
+                        name="search"
+                        size={20}
+                        color={colors.text.light}
+                        style={styles.infoActionIcon}
+                      />
+                      <Text style={styles.infoActionLabel}>
+                        Rechercher des messages
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={withOpacity(colors.text.light, 0.4)}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.infoActionRow}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        handleScheduledPress();
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Messages programmés"
+                    >
+                      <Ionicons
+                        name="timer-outline"
+                        size={20}
+                        color={colors.text.light}
+                        style={styles.infoActionIcon}
+                      />
+                      <Text style={styles.infoActionLabel}>
+                        Messages programmés
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={withOpacity(colors.text.light, 0.4)}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </ScrollView>
               </LinearGradient>
             </View>
           </View>
         </Modal>
+        <Toast
+          visible={callsToast.visible}
+          message={callsToast.message}
+          type={callsToast.type}
+          duration={4000}
+          onHide={() => setCallsToast((t) => ({ ...t, visible: false }))}
+        />
       </SafeAreaView>
     </LinearGradient>
   );
@@ -2739,5 +2926,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text.light,
     letterSpacing: 0.2,
+  },
+  infoSectionActions: {
+    marginBottom: 24,
+  },
+  infoActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: withOpacity(colors.text.light, 0.06),
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  infoActionIcon: {
+    marginRight: 14,
+  },
+  infoActionLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.light,
+    fontWeight: "500",
   },
 });

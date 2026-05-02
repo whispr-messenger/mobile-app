@@ -95,9 +95,18 @@ jest.mock("../src/services/MediaService", () => ({
 jest.mock("../src/services/SchedulingService", () => ({
   SchedulingService: { createScheduledMessage: jest.fn() },
 }));
-jest.mock("../src/store/conversationsStore", () => ({
-  useConversationsStore: (selector: any) => selector({ conversations: [] }),
-}));
+jest.mock("../src/store/conversationsStore", () => {
+  const state = {
+    conversations: [],
+    resetUnreadCount: jest.fn(),
+    applyConversationUpdate: jest.fn(),
+    setGroupAvatars: jest.fn(),
+    groupAvatars: {},
+  };
+  const useConversationsStore: any = (selector: any) => selector(state);
+  useConversationsStore.getState = () => state;
+  return { useConversationsStore };
+});
 jest.mock("../src/store/presenceStore", () => ({
   usePresenceStore: (selector: any) =>
     selector({ onlineUserIds: new Set(), lastSeenAt: {} }),

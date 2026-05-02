@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Modal,
   Platform,
   InteractionManager,
 } from "react-native";
@@ -19,6 +20,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
@@ -34,7 +36,6 @@ import {
 } from "../../services/NotificationService";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
-import { switchToRootTab } from "../../navigation/navigationRef";
 import {
   DEFAULT_MODERATION_MODEL,
   getModerationModelVersion,
@@ -75,17 +76,10 @@ export const SettingsScreen: React.FC = () => {
   const isStaff = useIsStaff();
   const insets = useSafeAreaInsets();
 
-  const handleBackPress = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-
-    switchToRootTab("ConversationsList");
-  }, [navigation]);
-
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
+  const [showBackgroundImagePicker, setShowBackgroundImagePicker] =
+    useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showFontSizeModal, setShowFontSizeModal] = useState(false);
   const [showModerationModelModal, setShowModerationModelModal] =
@@ -370,6 +364,37 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
+  const handleBackgroundImagePicker = useCallback(async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission refusée",
+          "L'accès à la galerie est requis pour choisir un arrière-plan.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets[0]?.uri) {
+        await saveCustomBackground(result.assets[0].uri);
+        setShowBackgroundImagePicker(false);
+      }
+    } catch (error) {
+      console.error("Error saving custom background:", error);
+      Alert.alert(
+        "Erreur",
+        "Impossible d'utiliser cette image comme arrière-plan.",
+      );
+    }
+  }, [saveCustomBackground]);
+
   const handleSelect = async (
     type: "theme" | "background" | "language" | "fontSize" | "privacy",
     value: string,
@@ -385,35 +410,10 @@ export const SettingsScreen: React.FC = () => {
       } else if (type === "background") {
         setShowBackgroundModal(false);
         if (value === "custom-upload") {
-          InteractionManager.runAfterInteractions(async () => {
-            try {
-              await new Promise((resolve) => setTimeout(resolve, 250));
-              const { status } =
-                await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== "granted") {
-                Alert.alert(
-                  "Permission refusée",
-                  "L'accès à la galerie est requis pour choisir un arrière-plan.",
-                );
-                return;
-              }
-
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ["images"],
-                allowsEditing: true,
-                quality: 0.9,
-              });
-
-              if (!result.canceled && result.assets[0]?.uri) {
-                await saveCustomBackground(result.assets[0].uri);
-              }
-            } catch (error) {
-              console.error("Error saving custom background:", error);
-              Alert.alert(
-                "Erreur",
-                "Impossible d'utiliser cette image comme arrière-plan.",
-              );
-            }
+          InteractionManager.runAfterInteractions(() => {
+            setTimeout(() => {
+              setShowBackgroundImagePicker(true);
+            }, 150);
           });
         } else if (value === "custom-remove") {
           setTimeout(async () => {
@@ -561,10 +561,7 @@ export const SettingsScreen: React.FC = () => {
     icon?: string;
   }) => (
     <TouchableOpacity
-      style={[
-        styles.settingItem,
-        { backgroundColor: themeColors.background.secondary },
-      ]}
+      style={styles.settingItem}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -656,14 +653,13 @@ export const SettingsScreen: React.FC = () => {
         </Text>
       </View>
       <View style={styles.sectionShadow}>
-        <View
-          style={[
-            styles.sectionContent,
-            { backgroundColor: themeColors.background.secondary },
-          ]}
+        <BlurView
+          intensity={Platform.OS === "ios" ? 60 : 80}
+          tint="dark"
+          style={styles.sectionContent}
         >
           {children}
-        </View>
+        </BlurView>
       </View>
     </View>
   );
@@ -700,6 +696,7 @@ export const SettingsScreen: React.FC = () => {
         contentContainerStyle={[
           styles.scrollContent,
           {
+            paddingTop: insets.top + 12,
             paddingBottom: 40 + insets.bottom + FLOATING_TAB_BAR_RESERVED_SPACE,
           },
         ]}
@@ -707,33 +704,6 @@ export const SettingsScreen: React.FC = () => {
         keyboardShouldPersistTaps="handled"
         removeClippedSubviews={false}
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackPress}
-            accessibilityRole="button"
-            accessibilityLabel="Retour"
-            accessibilityHint="Ferme les réglages"
-          >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
-          <Text
-            style={[
-              styles.title,
-              {
-                color: themeColors.text.primary,
-                fontSize: getFontSize("xxxl"),
-              },
-            ]}
-          >
-            {getLocalizedText("settings.title")}
-          </Text>
-        </View>
-
         {/* Account Settings */}
         <SettingSection
           title={getLocalizedText("settings.account")}
@@ -1248,6 +1218,44 @@ export const SettingsScreen: React.FC = () => {
         layout="vertical"
       />
 
+      <Modal
+        visible={showBackgroundImagePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBackgroundImagePicker(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertCard}>
+            <Text style={styles.alertTitle}>Changer l'arrière-plan</Text>
+            <Text style={styles.alertSubtitle}>Sélectionnez une option</Text>
+
+            <TouchableOpacity
+              style={styles.alertAction}
+              onPress={() => {
+                void handleBackgroundImagePicker();
+              }}
+            >
+              <Ionicons
+                name="image"
+                size={18}
+                color="#0A84FF"
+                style={styles.alertIcon}
+              />
+              <Text style={styles.alertActionText}>
+                Choisir depuis la galerie
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.alertCancel}
+              onPress={() => setShowBackgroundImagePicker(false)}
+            >
+              <Text style={styles.alertCancelText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <SettingsChoiceAlert
         visible={showLanguageModal}
         onClose={() => setShowLanguageModal(false)}
@@ -1350,19 +1358,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontWeight: "bold",
-  },
   section: {
     marginTop: 24,
     paddingHorizontal: 20,
@@ -1389,6 +1384,12 @@ const styles = StyleSheet.create({
   sectionContent: {
     borderRadius: 12,
     overflow: "hidden",
+    backgroundColor:
+      Platform.OS === "ios"
+        ? "rgba(20, 25, 50, 0.35)"
+        : "rgba(20, 25, 50, 0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
   settingItem: {
     flexDirection: "row",
@@ -1418,6 +1419,63 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     marginTop: 2,
+  },
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  alertCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#000",
+    textAlign: "center",
+  },
+  alertSubtitle: {
+    fontSize: 14,
+    color: "#545458",
+    textAlign: "center",
+    marginTop: 2,
+    marginBottom: 16,
+  },
+  alertAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  alertIcon: {
+    marginRight: 16,
+  },
+  alertActionText: {
+    fontSize: 16,
+    color: "#000",
+  },
+  alertCancel: {
+    marginTop: 16,
+    alignItems: "center",
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E5EA",
+  },
+  alertCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#0A84FF",
   },
 });
 

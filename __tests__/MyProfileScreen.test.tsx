@@ -209,4 +209,35 @@ describe("MyProfileScreen — save flow", () => {
       );
     });
   });
+
+  it("allows typing a cyrillic username in edit mode and normalizes it on save", async () => {
+    const services = require("./src/services") as {
+      UserService: {
+        getInstance: () => {
+          updateProfile: jest.Mock;
+        };
+      };
+    };
+    const mockInstance = services.UserService.getInstance();
+    (mockInstance.updateProfile as jest.Mock).mockClear();
+
+    const { getByLabelText, getByText, getByDisplayValue } = render(
+      <MyProfileScreen />,
+    );
+    await waitFor(() => expect(getByText("John Doe")).toBeTruthy());
+
+    fireEvent.press(getByLabelText("Modifier le profil"));
+    const usernameInput = getByDisplayValue("johndoe");
+    fireEvent.changeText(usernameInput, "ДАЛМ1");
+
+    expect(usernameInput.props.value).toBe("ДАЛМ1");
+
+    fireEvent.press(getByText("Sauvegarder"));
+
+    await waitFor(() => {
+      expect(mockInstance.updateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ username: "далм1" }),
+      );
+    });
+  });
 });

@@ -22,6 +22,7 @@ import { useConversationsStore } from "../../store/conversationsStore";
 import { useAuth } from "../../context/AuthContext";
 import { getConversationDisplayName } from "../../utils";
 import { messagingAPI } from "../../services/messaging/api";
+import { buildConversationPreviewSnippet } from "../../utils/conversationPreview";
 
 const EMPTY_GROUP_AVATARS: Array<{ uri?: string; name: string }> = [];
 
@@ -40,8 +41,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   editMode = false,
   isSelected = false,
 }) => {
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+  useTheme();
   const { userId: currentUserId } = useAuth();
   const onlineUserIds = usePresenceStore((s) => s.onlineUserIds);
 
@@ -77,6 +77,10 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       meta.image_url
     );
   }, [conversation]);
+
+  const [lastSenderName, setLastSenderName] = React.useState<
+    string | undefined
+  >(undefined);
 
   const triedGroupAvatarFetchRef = React.useRef(false);
 
@@ -145,22 +149,75 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     setGroupAvatars,
   ]);
 
-  const translateX = useSharedValue(50);
+  React.useEffect(() => {
+    const lastMessage = conversation.last_message;
+    if (!lastMessage || lastMessage.sender_id === currentUserId) {
+      setLastSenderName(undefined);
+      return;
+    }
+
+    const metadata = (lastMessage.metadata ?? {}) as {
+      sender_display_name?: string;
+      sender_name?: string;
+      display_name?: string;
+      username?: string;
+    };
+    const immediateLabel =
+      metadata.sender_display_name ||
+      metadata.sender_name ||
+      metadata.display_name ||
+      metadata.username;
+    if (immediateLabel) {
+      setLastSenderName(immediateLabel);
+      return;
+    }
+
+    if (conversation.type !== "group") {
+      setLastSenderName(undefined);
+      return;
+    }
+
+    let cancelled = false;
+    messagingAPI
+      .getUserInfo(lastMessage.sender_id)
+      .then((userInfo) => {
+        if (cancelled) return;
+        setLastSenderName(
+          userInfo?.display_name || userInfo?.username || undefined,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLastSenderName(undefined);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation.last_message, conversation.type, currentUserId]);
+
+  const translateY = useSharedValue(20);
   const opacity = useSharedValue(0);
 
   React.useEffect(() => {
     const delay = index * 50;
-    setTimeout(() => {
-      translateX.value = withSpring(0, {
+    const timeout = setTimeout(() => {
+      translateY.value = withSpring(0, {
         damping: 15,
         stiffness: 150,
       });
       opacity.value = withTiming(1, { duration: 300 });
     }, delay);
-  }, [index, translateX, opacity]);
+    return () => clearTimeout(timeout);
+    // Mount-only animation: keep deps empty so re-ordering (e.g. when the
+    // search query filters the list) doesn't replay it and create visual
+    // artefacts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
+    transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
   }));
 
@@ -187,7 +244,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     }
 
     if (diffMinutes < 60) {
-      return `${diffMinutes}min`;
+      return `${diffMinutes}m`;
     }
 
     if (diffDays === 0) {
@@ -220,35 +277,15 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     return colors.ui.error; // Red for high counts
   }, [conversation.unread_count]);
 
-  // Media-aware last message preview
-  const getLastMessagePreview = () => {
-    const msg = conversation.last_message;
-    if (!msg) return "";
-    if (
-      msg.content === "Photo" ||
-      (msg.message_type === "media" && msg.content?.startsWith("Photo"))
-    )
-      return "Photo";
-    if (
-      msg.content === "Vidéo" ||
-      (msg.message_type === "media" && msg.content?.startsWith("Vidéo"))
-    )
-      return "Vidéo";
-    if (
-      msg.content === "Message vocal" ||
-      (msg.message_type === "media" && msg.content?.startsWith("Message vocal"))
-    )
-      return "Message vocal";
-    if (
-      msg.content === "Fichier" ||
-      (msg.message_type === "media" && msg.content?.startsWith("Fichier"))
-    )
-      return "Fichier";
-
-    return msg.content || "";
-  };
-
-  const lastMessageContent = getLastMessagePreview();
+  const lastMessagePreview = useMemo(
+    () =>
+      buildConversationPreviewSnippet({
+        conversation,
+        currentUserId,
+        senderLabel: lastSenderName,
+      }),
+    [conversation, currentUserId, lastSenderName],
+  );
   const displayName = getConversationDisplayName(conversation);
 
   const isEditMode = editMode === true;
@@ -352,31 +389,6 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                   style={styles.mutedIcon}
                 />
               )}
-            </View>
-            {lastMessageContent ? (
-              <Text
-                style={[
-                  styles.lastMessage,
-                  { color: "rgba(255, 255, 255, 0.7)" },
-                ]}
-                numberOfLines={1}
-              >
-                {lastMessageContent}
-              </Text>
-            ) : (
-              <Text
-                style={[
-                  styles.lastMessage,
-                  { color: "rgba(255, 255, 255, 0.4)", fontStyle: "italic" },
-                ]}
-                numberOfLines={1}
-              >
-                Pas encore de messages
-              </Text>
-            )}
-          </View>
-          <View style={styles.metaContainer}>
-            <View style={styles.metaRow}>
               {formattedTime ? (
                 <Text
                   style={[
@@ -396,22 +408,53 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                 />
               )}
             </View>
-            {conversation.unread_count ? (
-              conversation.unread_count > 0 && getBadgeColor ? (
-                <View
+            <View style={styles.lastMessageRow}>
+              {!lastMessagePreview.isPlaceholder ? (
+                <Text
                   style={[
-                    styles.unreadBadge,
-                    { backgroundColor: getBadgeColor },
+                    styles.lastMessage,
+                    { color: "rgba(255, 255, 255, 0.7)" },
+                    (conversation.unread_count ?? 0) > 0 &&
+                      styles.lastMessageUnread,
                   ]}
+                  numberOfLines={1}
                 >
-                  <Text style={styles.unreadText}>
-                    {conversation.unread_count > 99
-                      ? "99+"
-                      : String(conversation.unread_count)}
-                  </Text>
-                </View>
-              ) : null
-            ) : null}
+                  {lastMessagePreview.prefix ? (
+                    <Text style={styles.lastMessagePrefix}>
+                      {lastMessagePreview.prefix}
+                      {": "}
+                    </Text>
+                  ) : null}
+                  {lastMessagePreview.body}
+                </Text>
+              ) : (
+                <Text
+                  style={[
+                    styles.lastMessage,
+                    { color: "rgba(255, 255, 255, 0.4)", fontStyle: "italic" },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {lastMessagePreview.body}
+                </Text>
+              )}
+              {conversation.unread_count ? (
+                conversation.unread_count > 0 && getBadgeColor ? (
+                  <View
+                    style={[
+                      styles.unreadBadge,
+                      { backgroundColor: getBadgeColor },
+                    ]}
+                  >
+                    <Text style={styles.unreadText}>
+                      {conversation.unread_count > 99
+                        ? "99+"
+                        : String(conversation.unread_count)}
+                    </Text>
+                  </View>
+                ) : null
+              ) : null}
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -462,7 +505,6 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
-    marginRight: 8,
   },
   nameRow: {
     flexDirection: "row",
@@ -472,24 +514,31 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: "600",
-    flex: 1,
+    flexShrink: 1,
   },
   mutedIcon: {
     marginLeft: 4,
   },
-  lastMessage: {
-    fontSize: 14,
-  },
-  metaContainer: {
-    alignItems: "flex-end",
-  },
-  metaRow: {
+  lastMessageRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+  },
+  lastMessage: {
+    fontSize: 14,
+    flex: 1,
+    marginRight: 8,
+  },
+  lastMessageUnread: {
+    fontWeight: "500",
+  },
+  lastMessagePrefix: {
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "600",
   },
   timestamp: {
     fontSize: 12,
+    marginLeft: "auto",
+    paddingLeft: 8,
   },
   pinIcon: {
     marginLeft: 4,
@@ -517,6 +566,8 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
     "isSelected" in prevProps ? prevProps.isSelected : false;
   const nextIsSelected =
     "isSelected" in nextProps ? nextProps.isSelected : false;
+  const prevLastMessage = prevProps.conversation.last_message;
+  const nextLastMessage = nextProps.conversation.last_message;
 
   return (
     prevProps.conversation.id === nextProps.conversation.id &&
@@ -528,6 +579,14 @@ export default memo(ConversationItem, (prevProps, nextProps) => {
     prevProps.conversation.display_name ===
       nextProps.conversation.display_name &&
     prevProps.conversation.avatar_url === nextProps.conversation.avatar_url &&
+    prevLastMessage?.id === nextLastMessage?.id &&
+    prevLastMessage?.content === nextLastMessage?.content &&
+    prevLastMessage?.sender_id === nextLastMessage?.sender_id &&
+    prevLastMessage?.message_type === nextLastMessage?.message_type &&
+    prevLastMessage?.is_deleted === nextLastMessage?.is_deleted &&
+    prevLastMessage?.edited_at === nextLastMessage?.edited_at &&
+    JSON.stringify(prevLastMessage?.metadata) ===
+      JSON.stringify(nextLastMessage?.metadata) &&
     prevEditMode === nextEditMode &&
     prevIsSelected === nextIsSelected
   );

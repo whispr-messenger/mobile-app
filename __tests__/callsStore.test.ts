@@ -35,6 +35,11 @@ jest.mock("expo-constants", () => ({
   },
 }));
 
+jest.mock("react-native", () => ({
+  Platform: { OS: "ios" },
+  NativeModules: { WebRTCModule: {} },
+}));
+
 import { useCallsStore } from "../src/store/callsStore";
 import { callsLiveKit } from "../src/services/calls/liveKitProvider";
 

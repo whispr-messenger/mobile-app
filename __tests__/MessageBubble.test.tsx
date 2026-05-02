@@ -6,8 +6,7 @@
  * but the UI must hide the access surface.
  */
 
-import React from "react";
-import { render } from "@testing-library/react-native";
+import { render, waitFor } from "@testing-library/react-native";
 
 // Inline mock for react-native-reanimated to avoid ESM parse error
 jest.mock("react-native-reanimated", () => {
@@ -53,6 +52,33 @@ jest.mock("../src/services/apiBase", () => ({
 
 jest.mock("../src/services/TokenService", () => ({
   TokenService: { getAccessToken: jest.fn().mockResolvedValue("tok") },
+}));
+
+const mockExtractFirstUrl = jest.fn((text?: string | null) => {
+  const match = text?.match(/https?:\/\/\S+/i);
+  return match ? match[0].replace(/[),.!?:;]+$/, "") : null;
+});
+const mockGetLinkPreview = jest.fn();
+const mockNormalizeLinkPreview = jest.fn((raw?: any) => {
+  if (!raw?.url && !raw?.canonicalUrl) {
+    return null;
+  }
+  const url = raw.canonicalUrl || raw.url;
+  return {
+    url,
+    canonicalUrl: raw.canonicalUrl || url,
+    title: raw.title,
+    description: raw.description,
+    imageUrl: raw.imageUrl,
+    siteName: raw.siteName,
+    domain: raw.domain || "example.test",
+  };
+});
+
+jest.mock("./src/services/linkPreview", () => ({
+  extractFirstUrl: (text?: string | null) => mockExtractFirstUrl(text),
+  getLinkPreview: (url: string) => mockGetLinkPreview(url),
+  normalizeLinkPreview: (raw?: any) => mockNormalizeLinkPreview(raw),
 }));
 
 // AudioMessage and MediaMessage are spied so we can prove they are NOT
@@ -113,9 +139,27 @@ const baseAudioMessage = {
   ],
 };
 
+const baseTextMessage = {
+  id: "msg-text-1",
+  conversation_id: "conv-1",
+  sender_id: "user-2",
+  content: "Voici un lien https://example.test/article",
+  message_type: "text" as const,
+  sent_at: new Date("2026-04-24T12:00:00Z").toISOString(),
+  status: "sent" as const,
+  is_deleted: false,
+  delete_for_everyone: false,
+  metadata: {},
+  attachments: [],
+};
+
 beforeEach(() => {
   mockAudioSpy.mockClear();
   mockMediaSpy.mockClear();
+  mockExtractFirstUrl.mockClear();
+  mockGetLinkPreview.mockReset();
+  mockNormalizeLinkPreview.mockClear();
+  mockGetLinkPreview.mockResolvedValue(null);
 });
 
 describe("MessageBubble — tombstone hides media surface", () => {
@@ -230,5 +274,63 @@ describe("MessageBubble — tombstone hides media surface", () => {
     expect(mockAudioSpy).not.toHaveBeenCalled();
     expect(mockMediaSpy).not.toHaveBeenCalled();
     expect(queryByText("[Message supprimé]")).not.toBeNull();
+  });
+});
+
+describe("MessageBubble — link previews", () => {
+  it("renders a fetched preview for text messages containing a link", async () => {
+    mockGetLinkPreview.mockResolvedValueOnce({
+      url: "https://openai.com/",
+      canonicalUrl: "https://openai.com/",
+      title: "OpenAI",
+      description: "AI research and products",
+      siteName: "OpenAI",
+      domain: "openai.com",
+    });
+
+    const { queryByText } = render(
+      <MessageBubble
+        message={{
+          ...baseTextMessage,
+          content: "Regarde https://openai.com/",
+        } as any}
+        isSent={false}
+        currentUserId="user-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(queryByText("OpenAI")).not.toBeNull();
+    });
+
+    expect(mockGetLinkPreview).toHaveBeenCalledWith("https://openai.com/");
+  });
+
+  it("prefers the preview already present in metadata without refetching", async () => {
+    const { queryByText } = render(
+      <MessageBubble
+        message={{
+          ...baseTextMessage,
+          metadata: {
+            link_preview: {
+              url: "https://whispr.app/blog",
+              canonicalUrl: "https://whispr.app/blog",
+              title: "Whispr Blog",
+              description: "Dernieres actus produit",
+              siteName: "Whispr",
+              domain: "whispr.app",
+            },
+          },
+        } as any}
+        isSent={true}
+        currentUserId="user-1"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(queryByText("Whispr Blog")).not.toBeNull();
+    });
+
+    expect(mockGetLinkPreview).not.toHaveBeenCalled();
   });
 });
