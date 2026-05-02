@@ -150,14 +150,16 @@ describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => 
 
     const { UNSAFE_getAllByType } = render(
       <AudioMessage
-        uri="https://whispr.devzeyu.com/media/v1/abc/blob"
-        mediaId="abc"
+        uri="https://whispr.devzeyu.com/media/v1/ad809f7e-e118-414a-8a8f-ac9d720aec85/blob"
+        mediaId="ad809f7e-e118-414a-8a8f-ac9d720aec85"
         duration={3}
       />,
     );
 
     await waitFor(() => {
-      expect(mockDownloadAudioToCacheFile).toHaveBeenCalledWith("abc");
+      expect(mockDownloadAudioToCacheFile).toHaveBeenCalledWith(
+        "ad809f7e-e118-414a-8a8f-ac9d720aec85",
+      );
     });
 
     const Touchable = require("react-native").TouchableOpacity;
