@@ -71,6 +71,7 @@ export interface UploadMediaResult {
   filename: string;
   mime_type: string;
   size: number;
+  duration?: number;
 }
 
 export type UploadMediaContext = "message" | "avatar" | "group_icon";
@@ -114,6 +115,8 @@ const CONTEXT_MIME_ALLOWLIST: Record<
     "audio/wav",
     "audio/mp4",
     "audio/aac",
+    "audio/x-caf",
+    "audio/x-m4a",
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -142,7 +145,14 @@ export function isUploadValidationError(
 }
 
 function normalizeMime(raw: string): string {
-  return raw.split(";")[0].trim().toLowerCase();
+  const mime = raw.split(";")[0].trim().toLowerCase();
+  switch (mime) {
+    case "audio/x-m4a":
+    case "audio/m4a":
+      return "audio/mp4";
+    default:
+      return mime;
+  }
 }
 
 async function readFileSize(uri: string): Promise<number | null> {
@@ -213,6 +223,11 @@ const normaliseUpload = (raw: any): UploadMediaResult => {
     thumbnail_url: id
       ? `${getMediaBaseUrl()}/${encodeURIComponent(id)}/thumbnail`
       : (raw?.thumbnailUrl ?? raw?.thumbnail_url ?? undefined),
+    duration:
+      raw?.duration ??
+      raw?.metadata?.duration ??
+      raw?.audioDuration ??
+      raw?.audio_duration,
   };
 };
 
@@ -226,10 +241,15 @@ export const MediaService = {
     onProgress?: (percent: number) => void,
     meta?: { context?: UploadMediaContext; ownerId?: string },
   ): Promise<UploadMediaResult> {
+    const normalizedFile = {
+      ...file,
+      type: normalizeMime(file.type),
+    };
+
     // WHISPR-1220 — fail fast before consuming the upload bandwidth.
     // Default to "message" (the most permissive context) when the caller
     // doesn't pass one, mirroring the server which uses the same default.
-    await validateUpload(file, meta?.context ?? "message");
+    await validateUpload(normalizedFile, meta?.context ?? "message");
 
     const token = await TokenService.getAccessToken();
     const headers: Record<string, string> = {};
@@ -244,27 +264,28 @@ export const MediaService = {
       try {
         const response = await fetch(file.uri);
         const blob = await response.blob();
-        formData.append("file", blob, file.name);
+        formData.append("file", blob, normalizedFile.name);
       } catch {
         // Fallback: try the data URI directly as a blob
-        const byteString = atob(file.uri.split(",")[1] || "");
+        const byteString = atob(normalizedFile.uri.split(",")[1] || "");
         const ab = new ArrayBuffer(byteString.length);
         const ia = new Uint8Array(ab);
         for (let i = 0; i < byteString.length; i++)
           ia[i] = byteString.charCodeAt(i);
-        const blob = new Blob([ab], { type: file.type });
-        formData.append("file", blob, file.name);
+        const blob = new Blob([ab], { type: normalizedFile.type });
+        formData.append("file", blob, normalizedFile.name);
       }
     } else {
       formData.append("file", {
-        uri: file.uri,
-        name: file.name,
-        type: file.type,
+        uri: normalizedFile.uri,
+        name: normalizedFile.name,
+        type: normalizedFile.type,
       } as any);
     }
 
-    // Native fetch doesn't support upload progress; use XMLHttpRequest when progress is needed
-    if (onProgress) {
+    // Keep XHR progress path on web only.
+    // On iOS/Android we prefer fetch for multipart stability (voice upload 415).
+    if (onProgress && Platform.OS === "web") {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", `${getMediaBaseUrl()}/upload`);
@@ -277,7 +298,18 @@ export const MediaService = {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(normaliseUpload(JSON.parse(xhr.responseText)));
           } else {
-            reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+            let message = `Upload failed: HTTP ${xhr.status}`;
+            try {
+              const parsed = JSON.parse(xhr.responseText || "{}") as {
+                message?: string;
+              };
+              if (parsed?.message) {
+                message = `${message} - ${parsed.message}`;
+              }
+            } catch {
+              // Keep default message when body is not JSON.
+            }
+            reject(new Error(message));
           }
         };
         xhr.onerror = () => reject(new Error("Network error during upload"));
@@ -291,8 +323,8 @@ export const MediaService = {
       {
         context: meta?.context,
         ownerId: meta?.ownerId,
-        fileName: file.name,
-        fileType: file.type,
+        fileName: normalizedFile.name,
+        fileType: normalizedFile.type,
       },
     );
     const response = await fetch(`${getMediaBaseUrl()}/upload`, {
@@ -493,6 +525,78 @@ export const MediaService = {
     );
     await FileSystem.moveAsync({ from: result.uri, to: finalPath });
 
+    return finalPath;
+  },
+
+  /**
+   * Download an audio blob through the authenticated stream endpoint and keep
+   * it as a local file so native players receive a real `file://` URI.
+   */
+  async downloadAudioToCacheFile(id: string): Promise<string> {
+    const token = await TokenService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const cacheRoot =
+      (FileSystem as any).cacheDirectory ??
+      (FileSystem as any).documentDirectory ??
+      "";
+    const cacheDir = `${cacheRoot}audio/`;
+    await FileSystem.makeDirectoryAsync(cacheDir, {
+      intermediates: true,
+    }).catch(() => {});
+
+    const baseName = `${encodeURIComponent(id)}`;
+    const tmpPath = `${cacheDir}${baseName}.tmp`;
+    const result = await FileSystem.downloadAsync(
+      `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob?stream=1`,
+      tmpPath,
+      { headers },
+    );
+
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`Failed to download audio file: HTTP ${result.status}`);
+    }
+
+    const contentType = (
+      (result as any)?.headers?.["Content-Type"] ??
+      (result as any)?.headers?.["content-type"] ??
+      ""
+    ).toLowerCase();
+
+    if (
+      !contentType.startsWith("audio/") &&
+      !contentType.startsWith("application/octet-stream")
+    ) {
+      const maybeBody = await FileSystem.readAsStringAsync(result.uri).catch(
+        () => "",
+      );
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+      throw new Error(
+        `Downloaded audio has invalid content-type: ${contentType || maybeBody || "unknown"}`,
+      );
+    }
+
+    const ext = contentType.includes("mpeg")
+      ? "mp3"
+      : contentType.includes("ogg")
+        ? "ogg"
+        : contentType.includes("wav")
+          ? "wav"
+          : contentType.includes("caf")
+            ? "caf"
+            : contentType.includes("aac")
+              ? "aac"
+              : contentType.includes("m4a")
+                ? "m4a"
+                : "mp4";
+    const finalPath = `${cacheDir}${baseName}.${ext}`;
+    await FileSystem.deleteAsync(finalPath, { idempotent: true }).catch(
+      () => {},
+    );
+    await FileSystem.moveAsync({ from: result.uri, to: finalPath });
     return finalPath;
   },
 
