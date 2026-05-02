@@ -77,6 +77,41 @@ jest.mock("./src/components/Chat/EmojiPickerSheet", () => ({
 jest.mock("./src/components/Chat/AttachmentSheet", () => ({
   AttachmentSheet: () => null,
 }));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const PassThrough = ({ children }: any) => children ?? null;
+  // Minimal Gesture builder — chainable methods are no-ops.
+  const makeGesture = () => {
+    const g: any = {};
+    const chain = () => g;
+    g.enabled = chain;
+    g.activeOffsetX = chain;
+    g.activeOffsetY = chain;
+    g.failOffsetX = chain;
+    g.failOffsetY = chain;
+    g.onUpdate = chain;
+    g.onEnd = chain;
+    g.onFinalize = chain;
+    g.onStart = chain;
+    g.onChange = chain;
+    g.onTouchesDown = chain;
+    return g;
+  };
+  return {
+    GestureDetector: ({ children }: any) =>
+      React.createElement(View, null, children),
+    GestureHandlerRootView: PassThrough,
+    Gesture: {
+      Pan: makeGesture,
+      Tap: makeGesture,
+      LongPress: makeGesture,
+      Race: makeGesture,
+      Simultaneous: makeGesture,
+      Exclusive: makeGesture,
+    },
+  };
+});
 jest.mock("expo-blur", () => {
   const React = require("react");
   const { View } = require("react-native");
@@ -99,10 +134,16 @@ jest.mock("react-native-reanimated", () => {
       createAnimatedComponent: (c: any) => c,
       View: AnimatedView,
     },
+    View: AnimatedView,
     useSharedValue: (v: any) => ({ value: v }),
     useAnimatedStyle: () => ({}),
     withSpring: (v: any) => v,
     withTiming: (v: any) => v,
+    interpolate: (_value: any, _input: any, output: any) => output[0],
+    runOnJS:
+      (fn: any) =>
+      (...args: any[]) =>
+        fn(...args),
     createAnimatedComponent: (c: any) => c,
   };
 });
