@@ -74,7 +74,6 @@ describe("AttachmentSheet", () => {
       <AttachmentSheet visible onClose={jest.fn()} onSelect={onSelect} />,
     );
 
-    fireEvent.press(getByTestId("attachment-option-document"));
     fireEvent.press(getByTestId("attachment-option-gif"));
     fireEvent.press(getByTestId("attachment-option-sticker"));
 

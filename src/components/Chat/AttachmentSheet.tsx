@@ -54,7 +54,6 @@ const OPTIONS: AttachmentOption[] = [
     label: "Document",
     icon: "document-text",
     gradient: ["#3FB7E0", "#1F6F9E"],
-    comingSoon: true,
   },
   {
     id: "gif",

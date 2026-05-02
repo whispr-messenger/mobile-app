@@ -54,6 +54,9 @@ jest.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true }),
   MediaTypeOptions: { Images: "Images" },
 }));
+jest.mock("expo-document-picker", () => ({
+  getDocumentAsync: jest.fn().mockResolvedValue({ canceled: true }),
+}));
 jest.mock("./src/context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({

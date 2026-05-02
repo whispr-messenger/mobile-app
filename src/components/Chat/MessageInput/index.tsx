@@ -17,6 +17,7 @@ import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { useTheme } from "../../../context/ThemeContext";
 import { formatUsername } from "../../../utils";
 import { detectMention } from "../../../utils/mentions";
@@ -389,6 +390,44 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [onSendMedia, replyingTo, onCancelReply]);
 
+  const handlePickDocument = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets || !result.assets[0]) {
+        return;
+      }
+      const asset = result.assets[0];
+
+      // Cap document size client-side to avoid surprise upload failures.
+      const MAX_BYTES = 25 * 1024 * 1024;
+      if (typeof asset.size === "number" && asset.size > MAX_BYTES) {
+        Alert.alert(
+          "Fichier trop volumineux",
+          "Les documents sont limités à 25 Mo.",
+        );
+        return;
+      }
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      onSendMedia?.(asset.uri, "file", replyingTo?.id, undefined, {
+        mimeType: asset.mimeType ?? "application/octet-stream",
+        filename: asset.name,
+      });
+      onCancelReply?.();
+    } catch (error: any) {
+      console.error("[MessageInput] Error picking document:", error);
+      Alert.alert(
+        "Erreur",
+        `Impossible de sélectionner un document.${error?.message ? `\n\n${error.message}` : ""}`,
+      );
+    }
+  }, [onSendMedia, replyingTo, onCancelReply]);
+
   const handleAttachmentAction = useCallback(
     (action: AttachmentAction) => {
       switch (action) {
@@ -398,17 +437,24 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         case "gallery":
           handlePickImage();
           break;
+        case "document":
+          handlePickDocument();
+          break;
         case "emoji":
           handleOpenEmojiPicker();
           break;
-        case "document":
         case "gif":
         case "sticker":
-          // Activated in later steps of WHISPR-1272 (document picker, GIF/sticker pickers)
+          // Activated in step 8 of WHISPR-1272 (GIF/sticker placeholder pickers)
           break;
       }
     },
-    [handleOpenCamera, handlePickImage, handleOpenEmojiPicker],
+    [
+      handleOpenCamera,
+      handlePickImage,
+      handlePickDocument,
+      handleOpenEmojiPicker,
+    ],
   );
 
   const handleMicPress = useCallback(() => {
