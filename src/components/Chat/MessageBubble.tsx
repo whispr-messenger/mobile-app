@@ -102,6 +102,12 @@ function resolveMediaUrl(
   return `${getApiBaseUrl()}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
+function extractMediaIdFromUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  const match = url.match(/\/media\/v1\/([^/]+)\/(?:blob|thumbnail)(?:\?|$)/i);
+  return match?.[1];
+}
+
 /**
  * Return false for messages that have nothing to display (no text, no media,
  * not a tombstone). Keeps the main component free of a deeply-nested guard.
@@ -140,7 +146,10 @@ function buildMetadataAttachment(message: MessageWithRelations) {
   };
   if (!meta.media_url && !meta.media_id) return null;
 
-  const mediaId = meta.media_id;
+  const mediaId =
+    meta.media_id ||
+    extractMediaIdFromUrl(meta.media_url) ||
+    extractMediaIdFromUrl(meta.thumbnail_url);
   const apiBase = getApiBaseUrl();
   const blobFallback = mediaId ? `${apiBase}/media/v1/${mediaId}/blob` : null;
   const thumbFallback = mediaId
@@ -155,7 +164,7 @@ function buildMetadataAttachment(message: MessageWithRelations) {
   return {
     id: `synth-${message.id}`,
     message_id: message.id,
-    media_id: mediaId || message.id,
+    media_id: mediaId,
     media_type: (meta.media_type || "image") as
       | "image"
       | "video"

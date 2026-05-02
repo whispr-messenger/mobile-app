@@ -155,6 +155,9 @@ function normalizeMime(raw: string): string {
   }
 }
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 async function readFileSize(uri: string): Promise<number | null> {
   if (Platform.OS === "web") {
     try {
@@ -548,14 +551,29 @@ export const MediaService = {
 
     const baseName = `${encodeURIComponent(id)}`;
     const tmpPath = `${cacheDir}${baseName}.tmp`;
-    const result = await FileSystem.downloadAsync(
-      `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob?stream=1`,
-      tmpPath,
-      { headers },
-    );
+    const downloadUrl = `${getMediaBaseUrl()}/${encodeURIComponent(id)}/blob?stream=1`;
+    let result: Awaited<ReturnType<typeof FileSystem.downloadAsync>> | null =
+      null;
+    let lastStatus = 0;
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      result = await FileSystem.downloadAsync(downloadUrl, tmpPath, {
+        headers,
+      });
+      lastStatus = result.status;
+      if (result.status >= 200 && result.status < 300) {
+        break;
+      }
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(
+        () => {},
+      );
+      if (result.status !== 404 || attempt === 4) {
+        break;
+      }
+      await sleep(150 * attempt);
+    }
 
-    if (result.status < 200 || result.status >= 300) {
-      throw new Error(`Failed to download audio file: HTTP ${result.status}`);
+    if (!result || lastStatus < 200 || lastStatus >= 300) {
+      throw new Error(`Failed to download audio file: HTTP ${lastStatus}`);
     }
 
     const contentType = (
@@ -566,6 +584,7 @@ export const MediaService = {
 
     if (
       !contentType.startsWith("audio/") &&
+      !contentType.startsWith("video/mp4") &&
       !contentType.startsWith("application/octet-stream")
     ) {
       const maybeBody = await FileSystem.readAsStringAsync(result.uri).catch(
