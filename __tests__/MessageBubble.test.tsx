@@ -175,6 +175,25 @@ describe("MessageBubble — tombstone hides media surface", () => {
     expect(mockAudioSpy).toHaveBeenCalled();
   });
 
+  it("renders AudioMessage instead of MediaMessage for a failed outgoing voice message", () => {
+    const failedAudio = {
+      ...baseAudioMessage,
+      status: "failed" as const,
+    };
+    const { queryByTestId } = render(
+      <MessageBubble
+        message={failedAudio as any}
+        isSent={true}
+        currentUserId="user-1"
+      />,
+    );
+
+    expect(queryByTestId("audio-message")).not.toBeNull();
+    expect(queryByTestId("media-message")).toBeNull();
+    expect(mockAudioSpy).toHaveBeenCalled();
+    expect(mockMediaSpy).not.toHaveBeenCalled();
+  });
+
   it("does NOT render AudioMessage when the voice message is deleted for everyone", () => {
     const deleted = {
       ...baseAudioMessage,

@@ -67,6 +67,11 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
       mime_type: att?.mime_type || meta.mime_type,
       media_url: resolvedUrl,
       thumbnail_url: resolvedThumbnail,
+      duration:
+        meta.duration ??
+        att?.duration ??
+        att?.audio_duration ??
+        att?.file_duration,
     },
     created_at: att?.uploaded_at || att?.created_at || new Date().toISOString(),
   };

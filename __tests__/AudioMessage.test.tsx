@@ -5,12 +5,18 @@
  * web receives JSON bytes and playback fails silently.
  */
 
-import React from "react";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 const mockGetAccessToken = jest.fn();
 jest.mock("../src/services/TokenService", () => ({
   TokenService: { getAccessToken: (...a: any[]) => mockGetAccessToken(...a) },
+}));
+
+const mockDownloadAudioToCacheFile = jest.fn();
+jest.mock("./src/services/MediaService", () => ({
+  MediaService: {
+    downloadAudioToCacheFile: (...a: any[]) => mockDownloadAudioToCacheFile(...a),
+  },
 }));
 
 const mockCreateAsync = jest.fn();
@@ -49,6 +55,7 @@ const mockFetchBytes = () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   mockGetAccessToken.mockResolvedValue("tok");
+  mockDownloadAudioToCacheFile.mockResolvedValue("file:///cache/audio/abc.mp4");
   mockCreateAsync.mockResolvedValue({
     sound: {
       playAsync: jest.fn().mockResolvedValue({}),
@@ -66,6 +73,16 @@ beforeEach(() => {
 });
 
 describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => {
+  it("renders the provided duration immediately in the iOS-like widget", () => {
+    (global as any).fetch = jest.fn();
+
+    const { getAllByText } = render(
+      <AudioMessage uri="file:///local/voice.m4a" duration={83} />,
+    );
+
+    expect(getAllByText("1:23").length).toBeGreaterThan(0);
+  });
+
   it("streams via /blob?stream=1 and passes the proxied blob URL — never the presigned URL — to Audio.Sound.createAsync", async () => {
     const presigned =
       "https://minio.whispr-preprod.roadmvn.com/bucket/voice.m4a?X-Amz-Signature=abc";
@@ -124,5 +141,34 @@ describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => 
     expect(source.uri).toBe("file:///local/voice.m4a");
     // No network request — local URI needs no resolution
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("downloads native media-service audio to a local file before playback", async () => {
+    const Platform = require("react-native").Platform;
+    Platform.OS = "ios";
+    (global as any).fetch = jest.fn();
+
+    const { UNSAFE_getAllByType } = render(
+      <AudioMessage
+        uri="https://whispr.devzeyu.com/media/v1/abc/blob"
+        mediaId="abc"
+        duration={3}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockDownloadAudioToCacheFile).toHaveBeenCalledWith("abc");
+    });
+
+    const Touchable = require("react-native").TouchableOpacity;
+    const touchables = UNSAFE_getAllByType(Touchable);
+    fireEvent.press(touchables[0]);
+
+    await waitFor(() => {
+      expect(mockCreateAsync).toHaveBeenCalled();
+    });
+
+    const [source] = mockCreateAsync.mock.calls[0];
+    expect(source.uri).toBe("file:///cache/audio/abc.mp4");
   });
 });

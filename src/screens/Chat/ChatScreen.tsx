@@ -80,6 +80,7 @@ import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { resolveConversationMemberIds } from "../../utils/resolveMembers";
 import { SchedulingService } from "../../services/SchedulingService";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   gateChatImageBeforeSend,
   gateChatVideoBeforeSend,
@@ -165,6 +166,71 @@ const resolveMimeType = (
   extension: string,
   kind: "image" | "video" | "audio" | "file",
 ): string => EXTENSION_TO_MIME[extension] ?? DEFAULT_MIME_BY_KIND[kind];
+
+const canonicalizeMimeType = (mime: string): string => {
+  const normalized = mime.split(";")[0].trim().toLowerCase();
+  switch (normalized) {
+    case "audio/x-m4a":
+    case "audio/m4a":
+      return "audio/mp4";
+    default:
+      return normalized;
+  }
+};
+
+const forceAudioUploadIdentity = (
+  filename: string,
+  mimeType: string,
+): { filename: string; mimeType: string } => {
+  const normalizedMime = canonicalizeMimeType(mimeType);
+  if (!normalizedMime.startsWith("audio/")) {
+    return { filename, mimeType: normalizedMime };
+  }
+  const baseName = filename.replace(/\.[^/.]+$/, "");
+  return {
+    // iOS may still emit audio/x-m4a for `.m4a` filenames on multipart parts.
+    // Force a neutral `.mp4` container name so part MIME inference stays audio/mp4.
+    filename: `${baseName || "recording"}-${Date.now()}.mp4`,
+    mimeType: "audio/mp4",
+  };
+};
+
+const remapAudioUploadUri = async (
+  uri: string,
+  filename: string,
+  mimeType: string,
+): Promise<string> => {
+  if (Platform.OS === "web") {
+    return uri;
+  }
+  if (canonicalizeMimeType(mimeType) !== "audio/mp4") {
+    return uri;
+  }
+  if (!uri.startsWith("file://")) {
+    return uri;
+  }
+  if (/\.mp4$/i.test(uri)) {
+    return uri;
+  }
+
+  const cacheRoot =
+    (FileSystem as any).cacheDirectory ||
+    (FileSystem as any).documentDirectory ||
+    "";
+  if (!cacheRoot) {
+    return uri;
+  }
+
+  const targetUri = `${cacheRoot}${filename}`;
+  try {
+    await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(() => {});
+    await FileSystem.copyAsync({ from: uri, to: targetUri });
+    return targetUri;
+  } catch (error) {
+    console.warn("[ChatScreen] Failed to remap audio upload URI:", error);
+    return uri;
+  }
+};
 
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
@@ -1177,7 +1243,12 @@ export const ChatScreen: React.FC = () => {
       type: "image" | "video" | "file" | "audio",
       replyToId?: string,
       caption?: string,
-      opts?: { skipGate?: boolean },
+      opts?: {
+        skipGate?: boolean;
+        duration?: number;
+        mimeType?: string;
+        filename?: string;
+      },
     ) => {
       // Stop typing indicator
       sendTyping(conversationId, false);
@@ -1186,9 +1257,23 @@ export const ChatScreen: React.FC = () => {
       const messageContent = caption?.trim() || DEFAULT_MEDIA_CAPTION[type];
 
       // Derive filename and MIME type from the local URI
-      const filename = uri.split("/").pop() || "media";
-      const extension = filename.split(".").pop()?.toLowerCase() || "";
-      const mimeType = resolveMimeType(extension, type);
+      const rawFilename = opts?.filename || uri.split("/").pop() || "media";
+      const extension = rawFilename.split(".").pop()?.toLowerCase() || "";
+      const rawMimeType = canonicalizeMimeType(
+        opts?.mimeType || resolveMimeType(extension, type),
+      );
+      const { filename, mimeType } =
+        type === "audio"
+          ? forceAudioUploadIdentity(rawFilename, rawMimeType)
+          : { filename: rawFilename, mimeType: rawMimeType };
+      const uploadUri =
+        type === "audio"
+          ? await remapAudioUploadUri(uri, filename, mimeType)
+          : uri;
+      const audioDuration =
+        type === "audio" && typeof opts?.duration === "number"
+          ? Math.max(1, Math.round(opts.duration))
+          : undefined;
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
@@ -1200,8 +1285,9 @@ export const ChatScreen: React.FC = () => {
         content: messageContent,
         metadata: {
           media_type: type,
-          media_url: uri,
-          thumbnail_url: uri,
+          media_url: uploadUri,
+          thumbnail_url: uploadUri,
+          duration: audioDuration,
         },
         client_random: Math.floor(Math.random() * 1000000),
         sent_at: new Date().toISOString(),
@@ -1218,8 +1304,10 @@ export const ChatScreen: React.FC = () => {
             media_type: type,
             metadata: {
               filename,
-              media_url: uri,
-              thumbnail_url: uri,
+              media_url: uploadUri,
+              thumbnail_url: uploadUri,
+              mime_type: mimeType,
+              duration: audioDuration,
             },
             created_at: new Date().toISOString(),
           },
@@ -1262,8 +1350,8 @@ export const ChatScreen: React.FC = () => {
         if ((type === "image" || type === "video") && !opts?.skipGate) {
           const gateResult =
             type === "image"
-              ? await gateChatImageBeforeSend(uri)
-              : await gateChatVideoBeforeSend(uri);
+              ? await gateChatImageBeforeSend(uploadUri)
+              : await gateChatVideoBeforeSend(uploadUri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";
@@ -1281,7 +1369,7 @@ export const ChatScreen: React.FC = () => {
                         blockedByModeration: true,
                         blockReason: blockedReason,
                         scores: gateResult.scores,
-                        localUri: uri,
+                        localUri: uploadUri,
                       },
                     }
                   : m,
@@ -1290,7 +1378,7 @@ export const ChatScreen: React.FC = () => {
             // Open the appeal modal so the user can contest immediately.
             setAppealModal({
               visible: true,
-              imageUri: uri,
+              imageUri: uploadUri,
               blockReason: blockedReason,
               scores: gateResult.scores,
               messageTempId: tempMessageId,
@@ -1300,12 +1388,38 @@ export const ChatScreen: React.FC = () => {
         }
 
         // 1. Upload file to media-service
-        const uploadResult = await MediaService.uploadMedia(
-          { uri, name: filename, type: mimeType },
-          (percent) => {},
-        );
+        const uploadResult = await MediaService.uploadMedia({
+          uri: uploadUri,
+          name: filename,
+          type: mimeType,
+        });
 
         // Build metadata with the remote URLs from the upload result
+        let resolvedDuration = audioDuration;
+        if (type === "audio" && resolvedDuration == null) {
+          resolvedDuration =
+            (uploadResult as typeof uploadResult & { duration?: number })
+              .duration ?? undefined;
+          if (resolvedDuration == null) {
+            try {
+              const uploadedMetadata = await MediaService.getMediaMetadata(
+                uploadResult.id,
+              );
+              if (typeof uploadedMetadata.duration === "number") {
+                resolvedDuration = Math.max(
+                  1,
+                  Math.round(uploadedMetadata.duration),
+                );
+              }
+            } catch (durationError) {
+              console.warn(
+                "[ChatScreen] Unable to fetch uploaded audio duration:",
+                durationError,
+              );
+            }
+          }
+        }
+
         const mediaMetadata = {
           media_type: type,
           media_id: uploadResult.id,
@@ -1314,6 +1428,7 @@ export const ChatScreen: React.FC = () => {
           filename: uploadResult.filename || filename,
           mime_type: uploadResult.mime_type || mimeType,
           size: uploadResult.size,
+          duration: resolvedDuration,
         };
 
         // Update optimistic message with remote URLs so preview uses the hosted image
@@ -1331,6 +1446,8 @@ export const ChatScreen: React.FC = () => {
                       media_url: uploadResult.url,
                       thumbnail_url:
                         uploadResult.thumbnail_url || uploadResult.url,
+                      mime_type: uploadResult.mime_type || mimeType,
+                      duration: resolvedDuration,
                     },
                   })),
                 }
@@ -1437,6 +1554,7 @@ export const ChatScreen: React.FC = () => {
               mime_type: uploadResult.mime_type || mimeType,
               media_url: uploadResult.url,
               thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
+              duration: resolvedDuration,
             },
           })
           .catch((err) =>
