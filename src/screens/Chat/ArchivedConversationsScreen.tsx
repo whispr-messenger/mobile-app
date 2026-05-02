@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  ImageBackground,
   RefreshControl,
   StyleSheet,
   Text,
@@ -25,10 +26,12 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { Swipeable } from "react-native-gesture-handler";
+import Swipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 import { Conversation } from "../../types/messaging";
@@ -38,6 +41,7 @@ import { colors } from "../../theme/colors";
 import ConversationItem from "../../components/Chat/ConversationItem";
 import { ConversationSkeleton } from "../../components/Chat/SkeletonLoader";
 import Toast from "../../components/Toast/Toast";
+import { useTheme } from "../../context/ThemeContext";
 
 type NavigationProp = StackNavigationProp<
   AuthStackParamList,
@@ -60,21 +64,14 @@ const SwipeableArchivedItem: React.FC<SwipeableArchivedItemProps> = ({
   onUnarchive,
   index,
 }) => {
-  const swipeRef = useRef<Swipeable>(null);
+  const swipeRef = useRef<SwipeableMethods | null>(null);
   const [isSwiping, setIsSwiping] = useState(false);
 
-  const renderRightActions = (
-    progress: Animated.AnimatedInterpolation<number>,
-  ) => {
+  const renderRightActions = () => {
     if (!isSwiping) return <View />;
-    const scale = progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.8, 1],
-      extrapolate: "clamp",
-    });
     return (
       <View style={styles.swipeActions}>
-        <Animated.View style={{ transform: [{ scale }] }}>
+        <Animated.View>
           <TouchableOpacity
             style={[styles.swipeButton, styles.unarchiveButton]}
             onPress={() => {
@@ -124,6 +121,10 @@ const SwipeableArchivedItem: React.FC<SwipeableArchivedItemProps> = ({
 export const ArchivedConversationsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
+  const { settings } = useTheme();
+  const hasCustomBackground =
+    settings.backgroundPreset === "custom" && !!settings.customBackgroundUri;
+  const customBackgroundUri = settings.customBackgroundUri ?? null;
 
   const archived = useConversationsStore((s) => s.archived);
   const fetchArchived = useConversationsStore(
@@ -137,6 +138,7 @@ export const ArchivedConversationsScreen: React.FC = () => {
   );
 
   const [refreshing, setRefreshing] = useState(false);
+  const [screenRefreshKey, setScreenRefreshKey] = useState(0);
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -146,6 +148,13 @@ export const ArchivedConversationsScreen: React.FC = () => {
   useEffect(() => {
     fetchArchived();
   }, [fetchArchived]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setScreenRefreshKey((prev) => prev + 1);
+      fetchArchived();
+    }, [fetchArchived]),
+  );
 
   const handlePress = useCallback(
     (conversationId: string) => {
@@ -283,44 +292,103 @@ export const ArchivedConversationsScreen: React.FC = () => {
   };
 
   return (
-    <LinearGradient
-      colors={colors.background.gradient.app}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradientContainer}
+    <View
+      style={[
+        styles.screenRoot,
+        hasCustomBackground && styles.screenRootWithCustomBackground,
+      ]}
     >
-      <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.goBack();
-            }}
-            style={styles.headerButton}
-            accessibilityLabel="Retour"
-          >
-            <Ionicons name="chevron-back" size={28} color={colors.text.light} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Archivées</Text>
-          <View style={styles.headerButton} />
-        </View>
-
-        {renderContent()}
-
-        <Toast
-          visible={toast.visible}
-          message={toast.message}
-          type={toast.type}
-          onHide={() => setToast({ ...toast, visible: false })}
+      {hasCustomBackground && customBackgroundUri ? (
+        <ImageBackground
+          key={`${customBackgroundUri}:${settings.customBackgroundVersion ?? 0}`}
+          source={{ uri: customBackgroundUri }}
+          resizeMode="cover"
+          style={styles.customBackground}
         />
+      ) : null}
+      {!hasCustomBackground ? (
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.backgroundScrim,
+          hasCustomBackground
+            ? styles.backgroundScrimWithCustomImage
+            : styles.backgroundScrimDefault,
+        ]}
+      />
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <View
+          key={`archived-screen-${screenRefreshKey}`}
+          style={styles.contentRoot}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.goBack();
+              }}
+              style={styles.headerButton}
+              accessibilityLabel="Retour"
+            >
+              <Ionicons
+                name="chevron-back"
+                size={28}
+                color={colors.text.light}
+              />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Archivées</Text>
+            <View style={styles.headerButton} />
+          </View>
+
+          {renderContent()}
+
+          <Toast
+            visible={toast.visible}
+            message={toast.message}
+            type={toast.type}
+            onHide={() => setToast({ ...toast, visible: false })}
+          />
+        </View>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  gradientContainer: { flex: 1 },
+  screenRoot: {
+    flex: 1,
+    backgroundColor: colors.background.dark,
+  },
+  screenRootWithCustomBackground: {
+    backgroundColor: "transparent",
+  },
+  customBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradientContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.dark,
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundScrimDefault: {
+    backgroundColor: "rgba(3, 8, 27, 0.18)",
+  },
+  backgroundScrimWithCustomImage: {
+    backgroundColor: "rgba(5, 8, 22, 0.62)",
+  },
   container: { flex: 1, backgroundColor: "transparent" },
+  contentRoot: {
+    flex: 1,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
