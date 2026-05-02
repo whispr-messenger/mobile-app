@@ -414,22 +414,35 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             contentStyle={styles.bubbleContent}
           >
             {hasMedia && firstAttachment && firstAttachment.metadata ? (
-              <MediaMessage
-                uri={resolveMediaUrl(
-                  firstAttachment.metadata.media_url ||
+              firstAttachment.media_type === "audio" ? (
+                <AudioMessage
+                  uri={resolveMediaUrl(
+                    firstAttachment.metadata.media_url,
+                    firstAttachment.media_id,
+                    "blob",
+                  )}
+                  mediaId={firstAttachment.media_id}
+                  duration={firstAttachment.metadata.duration}
+                  isSent={true}
+                />
+              ) : (
+                <MediaMessage
+                  uri={resolveMediaUrl(
+                    firstAttachment.metadata.media_url ||
+                      firstAttachment.metadata.thumbnail_url,
+                    firstAttachment.media_id,
+                    "blob",
+                  )}
+                  type={firstAttachment.media_type as any}
+                  filename={firstAttachment.metadata.filename}
+                  size={firstAttachment.metadata.size}
+                  thumbnailUri={resolveMediaUrl(
                     firstAttachment.metadata.thumbnail_url,
-                  firstAttachment.media_id,
-                  "blob",
-                )}
-                type={firstAttachment.media_type as any}
-                filename={firstAttachment.metadata.filename}
-                size={firstAttachment.metadata.size}
-                thumbnailUri={resolveMediaUrl(
-                  firstAttachment.metadata.thumbnail_url,
-                  firstAttachment.media_id,
-                  "thumbnail",
-                )}
-              />
+                    firstAttachment.media_id,
+                    "thumbnail",
+                  )}
+                />
+              )
             ) : null}
             <View
               style={{
@@ -508,6 +521,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       firstAttachment.media_id,
                       "blob",
                     )}
+                    mediaId={firstAttachment.media_id}
                     duration={firstAttachment.metadata.duration}
                     isSent={true}
                   />
@@ -606,6 +620,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     firstAttachment.media_id,
                     "blob",
                   )}
+                  mediaId={firstAttachment.media_id}
                   duration={firstAttachment.metadata.duration}
                   isSent={false}
                 />
