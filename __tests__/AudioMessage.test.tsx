@@ -150,7 +150,7 @@ describe("AudioMessage resolves /blob URL before playback (WHISPR-1216)", () => 
 
     const { UNSAFE_getAllByType } = render(
       <AudioMessage
-        uri="https://whispr.devzeyu.com/media/v1/abc/blob"
+        uri="https://whispr-preprod.roadmvn.com/media/v1/abc/blob"
         mediaId="abc"
         duration={3}
       />,
