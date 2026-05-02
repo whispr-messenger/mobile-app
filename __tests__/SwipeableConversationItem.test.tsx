@@ -19,11 +19,21 @@ jest.mock("react-native-gesture-handler", () => {
           children,
           renderRightActions,
           renderLeftActions,
+          onSwipeableOpenStartDrag,
         }: any,
         _ref: any,
       ) => {
-        // Render the children alongside the action panels so all branches are
-        // exercised in unit tests.
+        // The real component gates renderRight/Left on an internal `isSwiping`
+        // flag flipped by onSwipeableOpenStartDrag. Trigger it synchronously so
+        // the action panels render in tests.
+        const [primed, setPrimed] = React.useState(false);
+        React.useLayoutEffect(() => {
+          onSwipeableOpenStartDrag?.();
+          setPrimed(true);
+        }, []);
+        if (!primed) {
+          return React.createElement(require("react-native").View, {}, children);
+        }
         const Animated = require("react-native").Animated;
         const progress = new Animated.Value(1);
         const dragX = new Animated.Value(0);
@@ -75,7 +85,7 @@ describe("SwipeableConversationItem", () => {
   });
 
   it("renders all right actions when handlers are provided", () => {
-    const { getByText } = render(
+    const { getByLabelText } = render(
       <SwipeableConversationItem
         conversation={conversation}
         onPress={() => {}}
@@ -84,34 +94,34 @@ describe("SwipeableConversationItem", () => {
         onDelete={() => {}}
       />,
     );
-    expect(getByText("Archiver")).toBeTruthy();
-    expect(getByText("Muet")).toBeTruthy();
-    expect(getByText("Supprimer")).toBeTruthy();
+    expect(getByLabelText("Archiver")).toBeTruthy();
+    expect(getByLabelText("Muet")).toBeTruthy();
+    expect(getByLabelText("Supprimer")).toBeTruthy();
   });
 
   it("renders left actions when pin and unread handlers are provided", () => {
-    const { getByText } = render(
+    const { getByLabelText } = render(
       <SwipeableConversationItem
         conversation={conversation}
         onPress={() => {}}
         onPin={() => {}}
-        onUnread={() => {}}
+        onToggleRead={() => {}}
       />,
     );
-    expect(getByText("Épingler")).toBeTruthy();
-    expect(getByText("Non lu")).toBeTruthy();
+    expect(getByLabelText("Épingler")).toBeTruthy();
+    expect(getByLabelText("Non lu")).toBeTruthy();
   });
 
   it("invokes onArchive with the conversation id when archive is pressed", () => {
     const onArchive = jest.fn();
-    const { getByText } = render(
+    const { getByLabelText } = render(
       <SwipeableConversationItem
         conversation={conversation}
         onPress={() => {}}
         onArchive={onArchive}
       />,
     );
-    fireEvent.press(getByText("Archiver"));
+    fireEvent.press(getByLabelText("Archiver"));
     expect(onArchive).toHaveBeenCalledWith("c1");
   });
 
@@ -119,7 +129,7 @@ describe("SwipeableConversationItem", () => {
     ["Muet", "onMute"],
     ["Supprimer", "onDelete"],
     ["Épingler", "onPin"],
-    ["Non lu", "onUnread"],
+    ["Non lu", "onToggleRead"],
   ])("invokes %s handler when its action is pressed", (label, handlerName) => {
     const handler = jest.fn();
     const props: any = {
@@ -127,8 +137,13 @@ describe("SwipeableConversationItem", () => {
       onPress: () => {},
       [handlerName]: handler,
     };
-    const { getByText } = render(<SwipeableConversationItem {...props} />);
-    fireEvent.press(getByText(label));
-    expect(handler).toHaveBeenCalledWith("c1");
+    const { getByLabelText } = render(<SwipeableConversationItem {...props} />);
+    fireEvent.press(getByLabelText(label));
+    // onToggleRead receives (id, isUnread); other handlers receive (id).
+    if (handlerName === "onToggleRead") {
+      expect(handler).toHaveBeenCalledWith("c1", expect.any(Boolean));
+    } else {
+      expect(handler).toHaveBeenCalledWith("c1");
+    }
   });
 });

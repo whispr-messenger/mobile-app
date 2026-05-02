@@ -77,6 +77,8 @@ export const SwipeableConversationItem: React.FC<
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
               style={[styles.actionButton, styles.archiveButton]}
+              accessibilityRole="button"
+              accessibilityLabel="Archiver"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 onArchive(conversation.id);
@@ -95,6 +97,8 @@ export const SwipeableConversationItem: React.FC<
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
               style={[styles.actionButton, styles.muteButton]}
+              accessibilityRole="button"
+              accessibilityLabel="Muet"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 onMute(conversation.id);
@@ -113,6 +117,8 @@ export const SwipeableConversationItem: React.FC<
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
               style={[styles.actionButton, styles.deleteButton]}
+              accessibilityRole="button"
+              accessibilityLabel="Supprimer"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 onDelete(conversation.id);
@@ -150,6 +156,8 @@ export const SwipeableConversationItem: React.FC<
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
               style={[styles.actionButton, styles.pinButton]}
+              accessibilityRole="button"
+              accessibilityLabel="Épingler"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 onPin(conversation.id);
@@ -168,6 +176,8 @@ export const SwipeableConversationItem: React.FC<
           <Animated.View style={{ transform: [{ scale }] }}>
             <TouchableOpacity
               style={[styles.actionButton, styles.unreadButton]}
+              accessibilityRole="button"
+              accessibilityLabel="Non lu"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 onToggleRead(conversation.id, isUnread);

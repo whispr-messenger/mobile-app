@@ -44,10 +44,13 @@ jest.mock("../src/components/Chat/Avatar", () => ({
 
 const mockGetConversation = jest.fn().mockResolvedValue(null);
 const mockGetConversationMembers = jest.fn().mockResolvedValue([]);
+const mockGetUserInfo = jest.fn().mockResolvedValue(null);
 jest.mock("../src/services/messaging/api", () => ({
   messagingAPI: {
     getConversation: (...args: any[]) => mockGetConversation(...args),
     getConversationMembers: (...args: any[]) => mockGetConversationMembers(...args),
+    // Group rendering now resolves the last sender's display name lazily.
+    getUserInfo: (...args: any[]) => mockGetUserInfo(...args),
   },
 }));
 

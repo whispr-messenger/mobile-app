@@ -75,7 +75,7 @@ const mockNormalizeLinkPreview = jest.fn((raw?: any) => {
   };
 });
 
-jest.mock("./src/services/linkPreview", () => ({
+jest.mock("../src/services/linkPreview", () => ({
   extractFirstUrl: (text?: string | null) => mockExtractFirstUrl(text),
   getLinkPreview: (url: string) => mockGetLinkPreview(url),
   normalizeLinkPreview: (raw?: any) => mockNormalizeLinkPreview(raw),

@@ -211,7 +211,7 @@ describe("MyProfileScreen — save flow", () => {
   });
 
   it("allows typing a cyrillic username in edit mode and normalizes it on save", async () => {
-    const services = require("./src/services") as {
+    const services = require("../src/services") as {
       UserService: {
         getInstance: () => {
           updateProfile: jest.Mock;
