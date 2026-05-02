@@ -268,39 +268,46 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
       </TouchableOpacity>
 
       <View style={styles.content}>
-        <View style={styles.waveformRow}>
-          {waveformBars.map((height, index) => (
-            <View
-              key={`${uri}-bar-${index}`}
-              style={[
-                styles.waveformBar,
-                {
-                  height,
-                  backgroundColor:
-                    index < playedBarCount ? activeBarColor : inactiveBarColor,
-                  marginRight: index === waveformBars.length - 1 ? 0 : 3,
-                },
-              ]}
-            />
-          ))}
+        <View style={styles.topRow}>
+          <View style={styles.waveformRow}>
+            {waveformBars.map((height, index) => (
+              <View
+                key={`${uri}-bar-${index}`}
+                style={[
+                  styles.waveformBar,
+                  {
+                    height,
+                    backgroundColor:
+                      index < playedBarCount ? activeBarColor : inactiveBarColor,
+                    marginRight: index === waveformBars.length - 1 ? 0 : 3,
+                  },
+                ]}
+              />
+            ))}
+          </View>
         </View>
         <View style={styles.metaRow}>
           <Text style={[styles.audioLabel, { color: textColor }]}>
             Message vocal
           </Text>
+          <Text style={[styles.durationPill, { color: secondaryColor }]}>
+            {formatDuration(totalDuration)}
+          </Text>
         </View>
       </View>
-
       <View style={styles.trailingColumn}>
-        <Ionicons
-          name="mic"
-          size={14}
-          color={secondaryColor}
-          style={styles.micIcon}
-        />
-        <Text style={[styles.durationPill, { color: secondaryColor }]}>
-          {formatDuration(totalDuration)}
-        </Text>
+        <View
+          style={[
+            styles.micBadge,
+            {
+              backgroundColor: isSent
+                ? "rgba(255, 255, 255, 0.14)"
+                : "rgba(255, 255, 255, 0.08)",
+            },
+          ]}
+        >
+          <Ionicons name="mic" size={12} color={secondaryColor} />
+        </View>
       </View>
     </View>
   );
@@ -326,16 +333,28 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    minWidth: 0,
+  },
+  topRow: {
+    marginBottom: 6,
   },
   waveformRow: {
     height: 22,
     flexDirection: "row",
     alignItems: "flex-end",
-    marginBottom: 6,
+    overflow: "hidden",
   },
   waveformBar: {
     width: 3,
     borderRadius: 999,
+  },
+  micBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
   },
   metaRow: {
     flexDirection: "row",
@@ -348,11 +367,8 @@ const styles = StyleSheet.create({
   },
   trailingColumn: {
     marginLeft: 10,
-    alignItems: "center",
+    alignSelf: "stretch",
     justifyContent: "center",
-  },
-  micIcon: {
-    marginBottom: 4,
   },
   durationPill: {
     fontSize: 10,
