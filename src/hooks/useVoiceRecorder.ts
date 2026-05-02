@@ -163,22 +163,33 @@ export interface UseVoiceRecorderOptions {
 
 export interface UseVoiceRecorderResult {
   isRecording: boolean;
+  isPaused: boolean;
+  isLocked: boolean;
   duration: number;
   wavePhase: number;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   cancel: () => Promise<void>;
+  pause: () => Promise<void>;
+  resume: () => Promise<void>;
+  lock: () => void;
 }
 
 export function useVoiceRecorder({
   onRecorded,
 }: UseVoiceRecorderOptions): UseVoiceRecorderResult {
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
   const [duration, setDuration] = useState(0);
   const [wavePhase, setWavePhase] = useState(0);
   const recordingRef = useRef<any>(null);
   const recordingMimeRef = useRef<string | null>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Tracks accumulated milliseconds across pause/resume cycles.
+  const accumulatedMsRef = useRef(0);
+  // Wall-clock at which the current running segment started.
+  const segmentStartRef = useRef<number | null>(null);
   const onRecordedRef = useRef(onRecorded);
 
   useEffect(() => {
@@ -219,6 +230,30 @@ export function useVoiceRecorder({
     audioModule.requestPermissionsAsync().catch(() => {});
   }, []);
 
+  const startTimer = useCallback(() => {
+    segmentStartRef.current = Date.now();
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+    }
+    recordingTimerRef.current = setInterval(() => {
+      if (segmentStartRef.current === null) return;
+      const elapsedMs =
+        accumulatedMsRef.current + (Date.now() - segmentStartRef.current);
+      setDuration(Math.floor(elapsedMs / 1000));
+    }, 1000);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (segmentStartRef.current !== null) {
+      accumulatedMsRef.current += Date.now() - segmentStartRef.current;
+      segmentStartRef.current = null;
+    }
+  }, []);
+
   const start = useCallback(async () => {
     const audioModule = getAudioModule();
     if (!audioModule) {
@@ -229,7 +264,11 @@ export function useVoiceRecorder({
     // Flip UI to "Recording" immediately so the user gets instant feedback.
     // Reverted in the catch block on failure.
     setIsRecording(true);
+    setIsPaused(false);
+    setIsLocked(false);
     setDuration(0);
+    accumulatedMsRef.current = 0;
+    segmentStartRef.current = null;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
@@ -254,18 +293,53 @@ export function useVoiceRecorder({
       const { recording } = await audioModule.Recording.createAsync(options);
       recordingRef.current = recording;
 
-      // Start duration timer
-      const startTime = Date.now();
-      recordingTimerRef.current = setInterval(() => {
-        setDuration(Math.floor((Date.now() - startTime) / 1000));
-      }, 1000);
+      startTimer();
     } catch (error: any) {
       console.error("[useVoiceRecorder] Error starting recording:", error);
       setIsRecording(false);
       setDuration(0);
       Alert.alert("Erreur", "Impossible de démarrer l'enregistrement.");
     }
-  }, []);
+  }, [startTimer]);
+
+  const pause = useCallback(async () => {
+    if (!recordingRef.current || isPaused) return;
+    try {
+      if (typeof recordingRef.current.pauseAsync === "function") {
+        await recordingRef.current.pauseAsync();
+      }
+      stopTimer();
+      setIsPaused(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      // pauseAsync can be unstable on some Android devices — log and keep going.
+      console.warn("[useVoiceRecorder] pauseAsync failed:", error);
+      stopTimer();
+      setIsPaused(true);
+    }
+  }, [isPaused, stopTimer]);
+
+  const resume = useCallback(async () => {
+    if (!recordingRef.current || !isPaused) return;
+    try {
+      if (typeof recordingRef.current.startAsync === "function") {
+        await recordingRef.current.startAsync();
+      }
+      setIsPaused(false);
+      startTimer();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.warn("[useVoiceRecorder] resume startAsync failed:", error);
+      setIsPaused(false);
+      startTimer();
+    }
+  }, [isPaused, startTimer]);
+
+  const lock = useCallback(() => {
+    if (!isRecording || isLocked) return;
+    setIsLocked(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [isRecording, isLocked]);
 
   const stop = useCallback(async () => {
     if (!recordingRef.current) return;
@@ -273,10 +347,8 @@ export function useVoiceRecorder({
     try {
       const activeRecording = recordingRef.current;
       const displayedDuration = duration;
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
+      stopTimer();
+      const totalAccumulatedMs = accumulatedMsRef.current;
 
       const stopResult = await activeRecording.stopAndUnloadAsync();
       const stopStatus =
@@ -297,7 +369,10 @@ export function useVoiceRecorder({
           : null;
       recordingRef.current = null;
       setIsRecording(false);
+      setIsPaused(false);
+      setIsLocked(false);
       setDuration(0);
+      accumulatedMsRef.current = 0;
 
       if (!uri) {
         console.error("[useVoiceRecorder] No URI from recording");
@@ -312,6 +387,7 @@ export function useVoiceRecorder({
         Number(
           (stopStatus as { durationMillis?: number } | null)?.durationMillis,
         ) ||
+        totalAccumulatedMs ||
         displayedDuration * 1000;
       const durationSec = durationMs / 1000;
       if (durationSec < 1) {
@@ -366,40 +442,51 @@ export function useVoiceRecorder({
     } catch (error: any) {
       console.error("[useVoiceRecorder] Error stopping recording:", error);
       setIsRecording(false);
+      setIsPaused(false);
+      setIsLocked(false);
       setDuration(0);
+      accumulatedMsRef.current = 0;
       recordingRef.current = null;
     }
-  }, [duration]);
+  }, [duration, stopTimer]);
 
   const cancel = useCallback(async () => {
     if (!recordingRef.current) return;
 
     try {
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
+      stopTimer();
       await recordingRef.current.stopAndUnloadAsync();
       recordingRef.current = null;
       recordingMimeRef.current = null;
       setIsRecording(false);
+      setIsPaused(false);
+      setIsLocked(false);
       setDuration(0);
+      accumulatedMsRef.current = 0;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
       console.error("[useVoiceRecorder] Error cancelling recording:", error);
       setIsRecording(false);
+      setIsPaused(false);
+      setIsLocked(false);
       setDuration(0);
+      accumulatedMsRef.current = 0;
       recordingRef.current = null;
       recordingMimeRef.current = null;
     }
-  }, []);
+  }, [stopTimer]);
 
   return {
     isRecording,
+    isPaused,
+    isLocked,
     duration,
     wavePhase,
     start,
     stop,
     cancel,
+    pause,
+    resume,
+    lock,
   };
 }

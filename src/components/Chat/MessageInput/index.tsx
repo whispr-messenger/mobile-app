@@ -115,11 +115,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const {
     isRecording,
+    isPaused: recordingIsPaused,
+    isLocked: recordingIsLocked,
     duration: recordingDuration,
     wavePhase: recordingWavePhase,
     start: startRecording,
     stop: stopRecording,
     cancel: cancelRecording,
+    pause: pauseRecording,
+    resume: resumeRecording,
+    lock: lockRecording,
   } = useVoiceRecorder({
     onRecorded: useCallback((audio) => {
       onSendMediaRef.current?.(
@@ -462,8 +467,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <RecordingBar
                 duration={recordingDuration}
                 wavePhase={recordingWavePhase}
+                isLocked={recordingIsLocked}
+                isPaused={recordingIsPaused}
                 onCancel={cancelRecording}
                 onSend={stopRecording}
+                onLock={lockRecording}
+                onPause={pauseRecording}
+                onResume={resumeRecording}
               />
             ) : (
               <>
