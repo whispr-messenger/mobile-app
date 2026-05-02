@@ -74,6 +74,38 @@ jest.mock("./src/components/Chat/CameraCapture", () => ({
 jest.mock("./src/components/Chat/EmojiPickerSheet", () => ({
   EmojiPickerSheet: () => null,
 }));
+jest.mock("./src/components/Chat/AttachmentSheet", () => ({
+  AttachmentSheet: () => null,
+}));
+jest.mock("expo-blur", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return {
+    BlurView: ({ children, ...props }: any) =>
+      React.createElement(View, props, children),
+  };
+});
+// Inline mock for react-native-reanimated to avoid ESM parse error.
+// Matches the SendOrMicButton API surface (useSharedValue / useAnimatedStyle /
+// withSpring) and treats Animated.View as a plain RN View so testID lookups
+// keep working.
+jest.mock("react-native-reanimated", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const AnimatedView = (props: any) => React.createElement(View, props);
+  return {
+    __esModule: true,
+    default: {
+      createAnimatedComponent: (c: any) => c,
+      View: AnimatedView,
+    },
+    useSharedValue: (v: any) => ({ value: v }),
+    useAnimatedStyle: () => ({}),
+    withSpring: (v: any) => v,
+    withTiming: (v: any) => v,
+    createAnimatedComponent: (c: any) => c,
+  };
+});
 
 import {
   buildRecordingOptions,
