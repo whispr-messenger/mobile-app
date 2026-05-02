@@ -315,6 +315,21 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="ArchivedConversations"
         component={ArchivedConversationsScreen}
+        options={{
+          cardStyleInterpolator: ({ current, layouts }) => ({
+            cardStyle: {
+              backgroundColor: "#050816",
+              transform: [
+                {
+                  translateX: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.width, 0],
+                  }),
+                },
+              ],
+            },
+          }),
+        }}
       />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Contacts" component={ContactsScreen} />
