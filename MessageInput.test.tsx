@@ -5,19 +5,32 @@
  */
 
 import { Platform } from "react-native";
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
+
+const mockRequestPermissionsAsync = jest.fn();
+const mockSetAudioModeAsync = jest.fn();
+const mockRecordingCreateAsync = jest.fn();
 
 // expo-av must be mocked before MessageInput is imported.
 jest.mock(
   "expo-av",
   () => ({
     Audio: {
+      AndroidOutputFormat: { MPEG_4: "mpeg4" },
+      AndroidAudioEncoder: { AAC: "aac" },
+      IOSOutputFormat: { MPEG4AAC: "mpeg4aac" },
+      IOSAudioQuality: { MAX: "max" },
       RecordingOptionsPresets: {
         HIGH_QUALITY: {
-          android: { extension: ".m4a" },
-          ios: { extension: ".m4a" },
+          android: { extension: ".3gp", outputFormat: "old", audioEncoder: "old" },
+          ios: { extension: ".caf", outputFormat: "old", audioQuality: "old" },
           web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
         },
+      },
+      requestPermissionsAsync: (...a: any[]) => mockRequestPermissionsAsync(...a),
+      setAudioModeAsync: (...a: any[]) => mockSetAudioModeAsync(...a),
+      Recording: {
+        createAsync: (...a: any[]) => mockRecordingCreateAsync(...a),
       },
     },
   }),
@@ -83,6 +96,18 @@ afterEach(() => {
   setMediaRecorder(originalMediaRecorder);
 });
 
+beforeEach(() => {
+  mockRequestPermissionsAsync.mockReset().mockResolvedValue({ status: "granted" });
+  mockSetAudioModeAsync.mockReset().mockResolvedValue(undefined);
+  mockRecordingCreateAsync.mockReset().mockResolvedValue({
+    recording: {
+      stopAndUnloadAsync: jest.fn().mockResolvedValue(undefined),
+      getURI: jest.fn().mockReturnValue("file:///voice.m4a"),
+      getStatusAsync: jest.fn().mockResolvedValue({ durationMillis: 2000 }),
+    },
+  });
+});
+
 describe("buildRecordingOptions", () => {
   it("uses audio/mp4 on web when Safari reports it as supported", () => {
     Platform.OS = "web";
@@ -112,29 +137,40 @@ describe("buildRecordingOptions", () => {
     });
   });
 
-  it("returns the HIGH_QUALITY preset identity on native (iOS) — no web override injected", () => {
+  it("forces an MPEG-4/AAC recording profile on iOS", () => {
     Platform.OS = "ios";
     setMediaRecorder({ isTypeSupported: () => true });
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Audio } = require("expo-av");
-    const expected = Audio.RecordingOptionsPresets.HIGH_QUALITY;
     const opts = buildRecordingOptions();
 
-    // Same object reference → nothing was spread/overridden for web.
-    expect(opts).toBe(expected);
+    expect(opts.ios).toEqual(
+      expect.objectContaining({
+        extension: ".m4a",
+        outputFormat: "mpeg4aac",
+        audioQuality: "max",
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        bitRate: 128000,
+      }),
+    );
   });
 
-  it("returns the HIGH_QUALITY preset identity on native (Android)", () => {
+  it("forces an MPEG-4/AAC recording profile on Android", () => {
     Platform.OS = "android";
     setMediaRecorder(undefined);
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Audio } = require("expo-av");
-    const expected = Audio.RecordingOptionsPresets.HIGH_QUALITY;
     const opts = buildRecordingOptions();
 
-    expect(opts).toBe(expected);
+    expect(opts.android).toEqual(
+      expect.objectContaining({
+        extension: ".m4a",
+        outputFormat: "mpeg4",
+        audioEncoder: "aac",
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        bitRate: 128000,
+      }),
+    );
   });
 });
 
@@ -252,5 +288,87 @@ describe("MessageInput auto-resize", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("MessageInput recording", () => {
+  it("applies audio mode before starting iOS recording", async () => {
+    Platform.OS = "ios";
+    const callOrder: string[] = [];
+    mockRequestPermissionsAsync.mockImplementation(async () => {
+      callOrder.push("permission");
+      return { status: "granted" };
+    });
+    mockSetAudioModeAsync.mockImplementation(async () => {
+      callOrder.push("audio-mode");
+    });
+    mockRecordingCreateAsync.mockImplementation(async () => {
+      callOrder.push("create");
+      return {
+        recording: {
+          stopAndUnloadAsync: jest.fn().mockResolvedValue(undefined),
+          getURI: jest.fn().mockReturnValue("file:///voice.m4a"),
+          getStatusAsync: jest.fn().mockResolvedValue({ durationMillis: 2000 }),
+        },
+      };
+    });
+
+    const { getByLabelText } = render(<MessageInput onSend={jest.fn()} />);
+    fireEvent.press(getByLabelText("Enregistrer un message vocal"));
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(callOrder).toEqual(["permission", "audio-mode", "create"]);
+  });
+
+  it("shows a waveform while recording and sends audio even if final iOS status loses duration", async () => {
+    Platform.OS = "ios";
+    jest.useFakeTimers();
+
+    const onSendMedia = jest.fn();
+    const stopAndUnloadAsync = jest.fn().mockResolvedValue(undefined);
+    mockRecordingCreateAsync.mockResolvedValue({
+      recording: {
+        stopAndUnloadAsync,
+        getURI: jest.fn().mockReturnValue("file:///voice.m4a"),
+        getStatusAsync: jest.fn().mockResolvedValue({ durationMillis: 0 }),
+      },
+    });
+
+    const { getByLabelText, getByTestId, getAllByTestId } = render(
+      <MessageInput onSend={jest.fn()} onSendMedia={onSendMedia} />,
+    );
+
+    await act(async () => {
+      fireEvent.press(getByLabelText("Enregistrer un message vocal"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getByTestId("recording-waveform")).toBeTruthy();
+    expect(getAllByTestId("recording-wave-bar").length).toBeGreaterThan(8);
+
+    await act(async () => {
+      jest.advanceTimersByTime(3200);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.press(getByLabelText("Envoyer le message vocal"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(stopAndUnloadAsync).toHaveBeenCalled();
+    expect(onSendMedia).toHaveBeenCalledWith(
+      "file:///voice.m4a",
+      "audio",
+      undefined,
+      undefined,
+      expect.objectContaining({ duration: 3 }),
+    );
+
+    jest.useRealTimers();
   });
 });

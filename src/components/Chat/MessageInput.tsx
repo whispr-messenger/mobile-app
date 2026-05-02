@@ -13,13 +13,13 @@ import {
   Text,
   Alert,
   ScrollView,
-  NativeModules,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { Message } from "../../types/messaging";
@@ -39,12 +39,6 @@ let triedLoadingAudioModule = false;
 function getAudioModule(): any | null {
   if (AudioModule) return AudioModule;
   if (triedLoadingAudioModule) return null;
-  const native = NativeModules as Record<string, unknown>;
-  const shouldAttemptLoad =
-    Platform.OS === "web" ||
-    process.env.NODE_ENV === "test" ||
-    Boolean(native?.ExponentAV);
-  if (!shouldAttemptLoad) return null;
   triedLoadingAudioModule = true;
   try {
     const expoAv = require("expo-av");
@@ -60,8 +54,39 @@ function getAudioModule(): any | null {
 // expo-av's HIGH_QUALITY preset forces `audio/webm` on web, which iOS Safari
 // refuses with NotSupportedError. Safari (iOS + macOS) supports `audio/mp4`.
 export const buildRecordingOptions = () => {
-  const base = getAudioModule()?.RecordingOptionsPresets?.HIGH_QUALITY;
-  if (Platform.OS !== "web") return base;
+  const audioModule = getAudioModule();
+  const base = audioModule?.RecordingOptionsPresets?.HIGH_QUALITY ?? {};
+  if (Platform.OS === "ios" || Platform.OS === "android") {
+    return {
+      ...base,
+      android: {
+        ...(base?.android ?? {}),
+        extension: ".m4a",
+        outputFormat:
+          audioModule?.AndroidOutputFormat?.MPEG_4 ??
+          base?.android?.outputFormat,
+        audioEncoder:
+          audioModule?.AndroidAudioEncoder?.AAC ?? base?.android?.audioEncoder,
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        bitRate: 128000,
+      },
+      ios: {
+        ...(base?.ios ?? {}),
+        extension: ".m4a",
+        outputFormat:
+          audioModule?.IOSOutputFormat?.MPEG4AAC ?? base?.ios?.outputFormat,
+        audioQuality:
+          audioModule?.IOSAudioQuality?.MAX ?? base?.ios?.audioQuality,
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        bitRate: 128000,
+        linearPCMBitDepth: 16,
+        linearPCMIsBigEndian: false,
+        linearPCMIsFloat: false,
+      },
+    };
+  }
   const webMime =
     typeof MediaRecorder !== "undefined" &&
     MediaRecorder.isTypeSupported("audio/mp4")
@@ -73,6 +98,83 @@ export const buildRecordingOptions = () => {
   };
 };
 
+function inferAudioMimeFromFilename(filename?: string | null): string {
+  const extension = filename?.split(".").pop()?.toLowerCase();
+  switch (extension) {
+    case "m4a":
+    case "mp4":
+      return "audio/mp4";
+    case "mp3":
+      return "audio/mpeg";
+    case "aac":
+      return "audio/aac";
+    case "wav":
+      return "audio/wav";
+    case "ogg":
+      return "audio/ogg";
+    case "caf":
+      return "audio/x-caf";
+    default:
+      return "audio/mp4";
+  }
+}
+
+function canonicalizeAudioMime(mime?: string | null): string {
+  const normalized = mime?.split(";")[0]?.trim().toLowerCase();
+  switch (normalized) {
+    case "audio/x-m4a":
+    case "audio/m4a":
+      return "audio/mp4";
+    default:
+      return normalized || "audio/mp4";
+  }
+}
+
+function forceAudioUploadFilename(filename: string, mimeType: string): string {
+  if (canonicalizeAudioMime(mimeType) !== "audio/mp4") {
+    return filename;
+  }
+  const baseName = filename.replace(/\.[^/.]+$/, "") || `voice-${Date.now()}`;
+  return `${baseName}.mp4`;
+}
+
+async function remapAudioUploadUri(
+  uri: string,
+  filename: string,
+  mimeType: string,
+): Promise<string> {
+  if (Platform.OS === "web") {
+    return uri;
+  }
+  if (canonicalizeAudioMime(mimeType) !== "audio/mp4") {
+    return uri;
+  }
+  if (!uri.startsWith("file://")) {
+    return uri;
+  }
+  if (/\.mp4$/i.test(uri)) {
+    return uri;
+  }
+
+  const cacheRoot =
+    (FileSystem as any).cacheDirectory ||
+    (FileSystem as any).documentDirectory ||
+    "";
+  if (!cacheRoot) {
+    return uri;
+  }
+
+  const targetUri = `${cacheRoot}${filename}`;
+  try {
+    await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(() => {});
+    await FileSystem.copyAsync({ from: uri, to: targetUri });
+    return targetUri;
+  } catch (error) {
+    console.warn("[MessageInput] Failed to remap audio upload URI:", error);
+    return uri;
+  }
+}
+
 interface MessageInputProps {
   onSend: (message: string, replyToId?: string, mentions?: string[]) => void;
   onSendMedia?: (
@@ -80,6 +182,11 @@ interface MessageInputProps {
     type: "image" | "video" | "file" | "audio",
     replyToId?: string,
     caption?: string,
+    options?: {
+      duration?: number;
+      mimeType?: string;
+      filename?: string;
+    },
   ) => void;
   onScheduleSend?: (message: string) => void;
   onTyping?: (typing: boolean) => void;
@@ -113,6 +220,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingWavePhase, setRecordingWavePhase] = useState(0);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [composerWidth, setComposerWidth] = useState(0);
   const recordingRef = useRef<any>(null);
@@ -376,6 +484,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordingWavePhase(0);
+      return;
+    }
+    const waveformTimer = setInterval(() => {
+      setRecordingWavePhase((prev) => prev + 1);
+    }, 140);
+    return () => clearInterval(waveformTimer);
+  }, [isRecording]);
+
   // Pre-warm mic permission on web so the long-press doesn't trigger the
   // browser permission prompt synchronously (which freezes the tap UI).
   // On web getUserMedia permission is sticky per-origin once granted.
@@ -410,18 +529,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Defer setAudioModeAsync so it doesn't block the render of the
-      // recording UI on iOS Safari (the call can be slow).
-      setTimeout(() => {
-        audioModule
-          .setAudioModeAsync({
-            allowsRecordingIOS: true,
-            playsInSilentModeIOS: true,
-          })
-          .catch((err: unknown) => {
-            console.warn("[MessageInput] setAudioModeAsync failed:", err);
-          });
-      }, 0);
+      await audioModule.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
 
       const options = buildRecordingOptions();
       recordingMimeRef.current =
@@ -446,12 +557,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (!recordingRef.current) return;
 
     try {
+      const activeRecording = recordingRef.current;
+      const displayedDuration = recordingDuration;
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
         recordingTimerRef.current = null;
       }
 
-      await recordingRef.current.stopAndUnloadAsync();
+      const stopResult = await activeRecording.stopAndUnloadAsync();
+      const stopStatus =
+        typeof stopResult === "object" && stopResult !== null ? stopResult : null;
       const audioModule = getAudioModule();
       if (audioModule) {
         await audioModule.setAudioModeAsync({
@@ -459,8 +574,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         });
       }
 
-      const uri = recordingRef.current.getURI();
-      const status = await recordingRef.current.getStatusAsync();
+      const uri = activeRecording.getURI();
+      const status =
+        typeof activeRecording.getStatusAsync === "function"
+          ? await activeRecording.getStatusAsync()
+          : null;
       recordingRef.current = null;
       setIsRecording(false);
       setRecordingDuration(0);
@@ -471,7 +589,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
 
       // Only send if recording is at least 1 second
-      const durationSec = (status?.durationMillis || 0) / 1000;
+      const durationMs =
+        Number((status as { durationMillis?: number } | null)?.durationMillis) ||
+        Number(
+          (stopStatus as { durationMillis?: number } | null)?.durationMillis,
+        ) ||
+        displayedDuration * 1000;
+      const durationSec = durationMs / 1000;
       if (durationSec < 1) {
         return;
       }
@@ -482,6 +606,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // filenames from the URL path and reject blobs. Rewrap with a proper
       // File so the resulting object URL carries a real name + MIME.
       let finalUri = uri;
+      let finalFilename = uri.split("/").pop() || `voice-${Date.now()}.m4a`;
+      if (!/\.[a-z0-9]+$/i.test(finalFilename)) {
+        finalFilename = `${finalFilename}.m4a`;
+      }
+      let finalMimeType =
+        canonicalizeAudioMime(
+          recordingMimeRef.current || inferAudioMimeFromFilename(finalFilename),
+        );
+      finalFilename = forceAudioUploadFilename(finalFilename, finalMimeType);
+      finalUri = await remapAudioUploadUri(finalUri, finalFilename, finalMimeType);
       if (Platform.OS === "web" && uri.startsWith("blob:")) {
         try {
           const mime = recordingMimeRef.current || "audio/webm";
@@ -491,6 +625,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           const blob = await response.blob();
           const file = new File([blob], fileName, { type: mime });
           finalUri = URL.createObjectURL(file);
+          finalFilename = fileName;
+          finalMimeType = mime;
         } catch (rewrapError) {
           console.warn(
             "[MessageInput] Failed to rewrap blob, sending raw URI:",
@@ -500,7 +636,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
       recordingMimeRef.current = null;
 
-      onSendMedia?.(finalUri, "audio", replyingTo?.id);
+      onSendMedia?.(finalUri, "audio", replyingTo?.id, undefined, {
+        duration: Math.max(1, Math.round(durationSec)),
+        mimeType: finalMimeType,
+        filename: finalFilename,
+      });
       if (replyingTo) {
         onCancelReply?.();
       }
@@ -510,7 +650,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setRecordingDuration(0);
       recordingRef.current = null;
     }
-  }, [onSendMedia, replyingTo, onCancelReply]);
+  }, [onSendMedia, replyingTo, onCancelReply, recordingDuration]);
 
   const cancelRecording = useCallback(async () => {
     if (!recordingRef.current) return;
@@ -548,6 +688,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  const recordingWaveBars = Array.from({ length: 16 }, (_, index) => {
+    const base = 7 + (index % 4) * 2;
+    const pulse = Math.round(
+      ((Math.sin(recordingWavePhase * 0.7 + index * 0.9) + 1) / 2) * 14,
+    );
+    return base + pulse;
+  });
 
   return (
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
@@ -603,6 +751,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <Text style={styles.recordingText}>
                 {formatRecordingTime(recordingDuration)}
               </Text>
+              <View
+                testID="recording-waveform"
+                style={styles.recordingWaveform}
+                pointerEvents="none"
+              >
+                {recordingWaveBars.map((height, index) => (
+                  <View
+                    key={`recording-bar-${index}`}
+                    testID="recording-wave-bar"
+                    style={[
+                      styles.recordingWaveBar,
+                      {
+                        height,
+                        opacity: 0.45 + ((index + recordingWavePhase) % 4) * 0.12,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
             </View>
             <TouchableOpacity
               onPress={stopRecording}
@@ -1011,5 +1178,18 @@ const styles = StyleSheet.create({
     color: colors.ui.error,
     fontSize: 16,
     fontWeight: "600",
+    marginRight: 12,
+  },
+  recordingWaveform: {
+    flex: 1,
+    height: 28,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  recordingWaveBar: {
+    width: 3,
+    borderRadius: 999,
+    marginRight: 3,
+    backgroundColor: "#FF8F94",
   },
 });

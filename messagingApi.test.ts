@@ -97,6 +97,17 @@ describe("mapBackendAttachment", () => {
     const mapped = mapBackendAttachment({ id: "a-1" }, "msg-42");
     expect(mapped.message_id).toBe("msg-42");
   });
+
+  it("preserves audio duration metadata from the backend payload", () => {
+    const mapped = mapBackendAttachment({
+      id: "a-1",
+      media_id: "m-1",
+      file_type: "audio",
+      mime_type: "audio/mp4",
+      metadata: { duration: 17 },
+    });
+    expect(mapped.metadata.duration).toBe(17);
+  });
 });
 
 // ---------------------------------------------------------------------------
