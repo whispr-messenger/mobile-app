@@ -22,6 +22,7 @@ import { Message } from "../../../types/messaging";
 import { ReplyPreview } from "../ReplyPreview";
 import { CameraCapture, CameraCaptureResult } from "../CameraCapture";
 import { EmojiPickerSheet } from "../EmojiPickerSheet";
+import { AttachmentSheet, AttachmentAction } from "../AttachmentSheet";
 import {
   ComposerInput,
   MIN_INPUT_HEIGHT,
@@ -78,6 +79,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
   const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [composerWidth, setComposerWidth] = useState(0);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -294,13 +296,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   // Open camera capture modal
   const handleOpenCamera = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowCameraCapture(true);
   }, []);
 
   const handleOpenEmojiPicker = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowEmojiPicker(true);
+  }, []);
+
+  const handleOpenAttachmentSheet = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowAttachmentSheet(true);
   }, []);
 
   // Handle camera capture result
@@ -367,6 +372,28 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [onSendMedia, replyingTo, onCancelReply]);
 
+  const handleAttachmentAction = useCallback(
+    (action: AttachmentAction) => {
+      switch (action) {
+        case "camera":
+          handleOpenCamera();
+          break;
+        case "gallery":
+          handlePickImage();
+          break;
+        case "emoji":
+          handleOpenEmojiPicker();
+          break;
+        case "document":
+        case "gif":
+        case "sticker":
+          // Activated in later steps of WHISPR-1272 (document picker, GIF/sticker pickers)
+          break;
+      }
+    },
+    [handleOpenCamera, handlePickImage, handleOpenEmojiPicker],
+  );
+
   const handleMicPress = useCallback(() => {
     if (isRecording) {
       stopRecording();
@@ -419,47 +446,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         ) : (
           <>
             {!editingMessage && (
-              <View style={styles.attachButtons}>
-                <TouchableOpacity
-                  onPress={handleOpenCamera}
-                  style={styles.attachButton}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Prendre une photo"
-                >
-                  <Ionicons
-                    name="camera-outline"
-                    size={24}
-                    color={themeColors.text.secondary}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handlePickImage}
-                  style={styles.attachButton}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Joindre une image"
-                >
-                  <Ionicons
-                    name="image-outline"
-                    size={24}
-                    color={themeColors.text.secondary}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleOpenEmojiPicker}
-                  style={styles.attachButton}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ouvrir le clavier emoji"
-                >
-                  <Ionicons
-                    name="happy-outline"
-                    size={24}
-                    color={themeColors.text.secondary}
-                  />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                testID="attachment-sheet-trigger"
+                onPress={handleOpenAttachmentSheet}
+                style={styles.attachButton}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Ouvrir les pièces jointes"
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={28}
+                  color={themeColors.text.secondary}
+                />
+              </TouchableOpacity>
             )}
             <ComposerInput
               ref={inputRef}
@@ -511,6 +511,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           inputRef.current?.focus();
         }}
       />
+      <AttachmentSheet
+        visible={showAttachmentSheet}
+        onClose={() => setShowAttachmentSheet(false)}
+        onSelect={handleAttachmentAction}
+      />
     </View>
   );
 };
@@ -545,13 +550,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: "flex-end",
   },
-  attachButtons: {
-    flexDirection: "row",
-    marginRight: 8,
-    gap: 4,
-  },
   attachButton: {
     padding: 8,
+    marginRight: 4,
     justifyContent: "center",
     alignItems: "center",
   },
