@@ -80,6 +80,9 @@ jest.mock("./src/components/Chat/EmojiPickerSheet", () => ({
 jest.mock("./src/components/Chat/AttachmentSheet", () => ({
   AttachmentSheet: () => null,
 }));
+jest.mock("./src/components/Chat/ComingSoonSheet", () => ({
+  ComingSoonSheet: () => null,
+}));
 jest.mock("react-native-gesture-handler", () => {
   const React = require("react");
   const { View } = require("react-native");

@@ -60,14 +60,12 @@ const OPTIONS: AttachmentOption[] = [
     label: "GIF",
     icon: "film",
     gradient: ["#FE7A5C", "#E04A2F"],
-    comingSoon: true,
   },
   {
     id: "sticker",
     label: "Sticker",
     icon: "happy",
     gradient: ["#FFB07B", "#F0A53D"],
-    comingSoon: true,
   },
   {
     id: "emoji",

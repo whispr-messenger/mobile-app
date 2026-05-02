@@ -27,6 +27,7 @@ import { ReplyPreview } from "../ReplyPreview";
 import { CameraCapture, CameraCaptureResult } from "../CameraCapture";
 import { EmojiPickerSheet } from "../EmojiPickerSheet";
 import { AttachmentSheet, AttachmentAction } from "../AttachmentSheet";
+import { ComingSoonSheet } from "../ComingSoonSheet";
 import {
   ComposerInput,
   MIN_INPUT_HEIGHT,
@@ -93,6 +94,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
+  const [showGifSheet, setShowGifSheet] = useState(false);
+  const [showStickerSheet, setShowStickerSheet] = useState(false);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [composerWidth, setComposerWidth] = useState(0);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -444,8 +447,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           handleOpenEmojiPicker();
           break;
         case "gif":
+          setShowGifSheet(true);
+          break;
         case "sticker":
-          // Activated in step 8 of WHISPR-1272 (GIF/sticker placeholder pickers)
+          setShowStickerSheet(true);
           break;
       }
     },
@@ -595,6 +600,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         visible={showAttachmentSheet}
         onClose={() => setShowAttachmentSheet(false)}
         onSelect={handleAttachmentAction}
+      />
+      <ComingSoonSheet
+        visible={showGifSheet}
+        onClose={() => setShowGifSheet(false)}
+        testID="gif-picker-sheet"
+        icon="film"
+        title="GIFs animés"
+        description="La recherche de GIFs sera disponible prochainement. Restez branchés !"
+      />
+      <ComingSoonSheet
+        visible={showStickerSheet}
+        onClose={() => setShowStickerSheet(false)}
+        testID="sticker-picker-sheet"
+        icon="happy"
+        title="Stickers"
+        description="Les packs de stickers Whispr arrivent bientôt."
       />
     </View>
   );

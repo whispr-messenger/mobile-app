@@ -68,15 +68,4 @@ describe("AttachmentSheet", () => {
     jest.useRealTimers();
   });
 
-  it("ignores presses on coming-soon options", () => {
-    const onSelect = jest.fn();
-    const { getByTestId } = render(
-      <AttachmentSheet visible onClose={jest.fn()} onSelect={onSelect} />,
-    );
-
-    fireEvent.press(getByTestId("attachment-option-gif"));
-    fireEvent.press(getByTestId("attachment-option-sticker"));
-
-    expect(onSelect).not.toHaveBeenCalled();
-  });
 });
