@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { AuthService } from "../services/AuthService";
 import { AppResetService } from "../services/AppResetService";
+import { NotificationService } from "../services/NotificationService";
 import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
@@ -54,6 +55,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         });
         if (session) {
           void tokenRefreshScheduler.start();
+          // Cold-start avec token persisté : initPushRegistration ne tourne
+          // qu'au login/register côté AuthService, donc une rotation FCM
+          // ou un registerDevice raté reste invisible jusqu'au prochain
+          // signOut/signIn manuel. On re-tente ici (best-effort, swallow).
+          void NotificationService.initPushRegistration(session.userId);
         }
       })
       .catch(() => {
