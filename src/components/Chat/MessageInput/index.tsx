@@ -405,7 +405,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       // côté upload par WHISPR-1220, on accepte donc un léger surcoût
       // réseau pour préserver l'animation et le format Apple.
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: false,
       });
 

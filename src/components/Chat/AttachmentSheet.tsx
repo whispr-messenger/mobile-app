@@ -154,7 +154,11 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       animateClose(() => {
         onClose();
-        onSelect(option.id);
+        // iOS refuses to present a system Modal (image picker, document
+        // picker) while another Modal is still being torn down. The native
+        // dismissal animation needs ~80 ms to release the modal slot before
+        // a new presentation is accepted.
+        setTimeout(() => onSelect(option.id), 120);
       });
     },
     [animateClose, onClose, onSelect],
