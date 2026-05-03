@@ -70,11 +70,9 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
           styles.inputWrapper,
           {
             height: inputHeight,
-            // Higher opacity + a subtle border so the composer stands out
-            // from the BlurView/overlay of the bottom bar around it.
             backgroundColor: "rgba(11, 17, 36, 0.85)",
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: "rgba(255, 255, 255, 0.1)",
+            borderWidth: 1,
+            borderColor: "rgba(255, 255, 255, 0.2)",
           },
         ]}
         onLayout={(event) => {

@@ -21,13 +21,15 @@ import * as DocumentPicker from "expo-document-picker";
 import { useTheme } from "../../../context/ThemeContext";
 import { formatUsername } from "../../../utils";
 import { detectMention } from "../../../utils/mentions";
-import { useVoiceRecorder } from "../../../hooks/useVoiceRecorder";
+import {
+  useVoiceRecorder,
+  RecordedAudio,
+} from "../../../hooks/useVoiceRecorder";
 import { Message } from "../../../types/messaging";
 import { ReplyPreview } from "../ReplyPreview";
 import { CameraCapture, CameraCaptureResult } from "../CameraCapture";
 import { EmojiPickerSheet } from "../EmojiPickerSheet";
 import { AttachmentSheet, AttachmentAction } from "../AttachmentSheet";
-import { ComingSoonSheet } from "../ComingSoonSheet";
 import {
   ComposerInput,
   MIN_INPUT_HEIGHT,
@@ -37,7 +39,9 @@ import {
   MentionMember,
 } from "./ComposerInput";
 import { RecordingBar } from "./RecordingBar";
+import { RecordedAudioPreview } from "./RecordedAudioPreview";
 import { SendOrMicButton } from "./SendOrMicButton";
+import { AttachButton } from "./AttachButton";
 
 export { buildRecordingOptions } from "../../../hooks/useVoiceRecorder";
 
@@ -94,11 +98,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
-  const [showGifSheet, setShowGifSheet] = useState(false);
-  const [showStickerSheet, setShowStickerSheet] = useState(false);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [composerWidth, setComposerWidth] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [recordedAudio, setRecordedAudio] = useState<RecordedAudio | null>(
+    null,
+  );
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
@@ -152,22 +157,32 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     lock: lockRecording,
   } = useVoiceRecorder({
     onRecorded: useCallback((audio) => {
-      onSendMediaRef.current?.(
-        audio.uri,
-        "audio",
-        replyingToRef.current?.id,
-        undefined,
-        {
-          duration: audio.duration,
-          mimeType: audio.mimeType,
-          filename: audio.filename,
-        },
-      );
-      if (replyingToRef.current) {
-        onCancelReplyRef.current?.();
-      }
+      setRecordedAudio(audio);
     }, []),
   });
+
+  const handleSendRecordedAudio = useCallback(() => {
+    if (!recordedAudio) return;
+    onSendMediaRef.current?.(
+      recordedAudio.uri,
+      "audio",
+      replyingToRef.current?.id,
+      undefined,
+      {
+        duration: recordedAudio.duration,
+        mimeType: recordedAudio.mimeType,
+        filename: recordedAudio.filename,
+      },
+    );
+    if (replyingToRef.current) {
+      onCancelReplyRef.current?.();
+    }
+    setRecordedAudio(null);
+  }, [recordedAudio]);
+
+  const handleDiscardRecordedAudio = useCallback(() => {
+    setRecordedAudio(null);
+  }, []);
 
   // Update text when editing message changes
   useEffect(() => {
@@ -467,12 +482,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         case "emoji":
           handleOpenEmojiPicker();
           break;
-        case "gif":
-          setShowGifSheet(true);
-          break;
-        case "sticker":
-          setShowStickerSheet(true);
-          break;
       }
     },
     [
@@ -500,26 +509,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       ? insets.bottom
       : 0;
 
-  // Always use the same translucent background; only the bottom padding
-  // changes (8px breathing gap when the keyboard is up, safe-area inset
-  // otherwise). Keeping a single style avoids style swaps that previously
-  // unmounted the TextInput and broke the keyboard.
-  const overlayStyle = [styles.borderOverlay, { paddingBottom: bottomPadding }];
+  const overlayStyle = [styles.barWrapper, { paddingBottom: bottomPadding }];
 
   return (
     <View style={styles.container}>
-      {/*
-        When the keyboard is open, iOS draws its rounded top corners on top
-        of whatever is behind it — that's the chat gradient, which leaves two
-        coloured triangles on each side of the keyboard. We can't restyle the
-        keyboard itself, but we *can* extend the composer's background colour
-        below the bar so the keyboard's rounded corners cut into a matching
-        flat tone instead of the gradient. The extender lives in a sibling
-        absolute layer so it doesn't push the bar's layout.
-      */}
-      {isKeyboardVisible && (
-        <View style={styles.keyboardBackdropExtender} pointerEvents="none" />
-      )}
       <View style={overlayStyle}>
         {(replyingTo || editingMessage) && (
           <View
@@ -562,28 +555,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               isLocked={recordingIsLocked}
               isPaused={recordingIsPaused}
               onCancel={cancelRecording}
-              onSend={stopRecording}
+              onStop={stopRecording}
               onLock={lockRecording}
               onPause={pauseRecording}
               onResume={resumeRecording}
             />
+          ) : recordedAudio ? (
+            <RecordedAudioPreview
+              audio={recordedAudio}
+              onCancel={handleDiscardRecordedAudio}
+              onSend={handleSendRecordedAudio}
+            />
           ) : (
             <>
               {!editingMessage && (
-                <TouchableOpacity
-                  testID="attachment-sheet-trigger"
-                  onPress={handleOpenAttachmentSheet}
-                  style={styles.attachButton}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Ouvrir les pièces jointes"
-                >
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={28}
-                    color={themeColors.text.secondary}
-                  />
-                </TouchableOpacity>
+                <View style={styles.attachButtonWrapper}>
+                  <AttachButton onPress={handleOpenAttachmentSheet} />
+                </View>
               )}
               <ComposerInput
                 ref={inputRef}
@@ -641,54 +629,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         onClose={() => setShowAttachmentSheet(false)}
         onSelect={handleAttachmentAction}
       />
-      <ComingSoonSheet
-        visible={showGifSheet}
-        onClose={() => setShowGifSheet(false)}
-        testID="gif-picker-sheet"
-        icon="film"
-        title="GIFs animés"
-        description="La recherche de GIFs sera disponible prochainement. Restez branchés !"
-      />
-      <ComingSoonSheet
-        visible={showStickerSheet}
-        onClose={() => setShowStickerSheet(false)}
-        testID="sticker-picker-sheet"
-        icon="happy"
-        title="Stickers"
-        description="Les packs de stickers Whispr arrivent bientôt."
-      />
     </View>
   );
 };
-
-// Translucent background so messages remain visible scrolling behind the
-// bar — the dark navy still reads as a bottom band but lets some content
-// peek through. The composer field itself stays opaque (see ComposerInput)
-// so the input outline remains crisp.
-const COMPOSER_BG = "rgba(20, 25, 50, 0.55)";
-
-// Opaque variant of the bar background so the iOS keyboard's rounded
-// corners crop a flat dark tone (matching the bar) instead of the gradient
-// behind. The visible bar above keeps the translucent COMPOSER_BG so it
-// still lets messages peek through at scroll time.
-const COMPOSER_BG_OPAQUE = "rgba(20, 25, 50, 1)";
 
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "transparent",
   },
-  keyboardBackdropExtender: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: "100%",
-    height: 600,
-    backgroundColor: COMPOSER_BG_OPAQUE,
-  },
-  borderOverlay: {
-    backgroundColor: COMPOSER_BG,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255, 255, 255, 0.18)",
+  barWrapper: {
+    backgroundColor: "transparent",
   },
   replyContainer: {
     flexDirection: "row",
@@ -716,10 +666,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     minHeight: 56,
   },
-  attachButton: {
-    width: 44,
-    height: 44,
-    marginRight: 4,
+  attachButtonWrapper: {
+    marginRight: 8,
     justifyContent: "center",
     alignItems: "center",
   },

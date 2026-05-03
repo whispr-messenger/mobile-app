@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
-  Dimensions,
   Easing,
   Modal,
   Pressable,
@@ -17,9 +16,6 @@ import * as Haptics from "expo-haptics";
 import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 
-const { height: SCREEN_H } = Dimensions.get("window");
-const APP_GRADIENT = colors.background.gradient.app;
-
 export type AttachmentAction =
   | "camera"
   | "gallery"
@@ -33,7 +29,6 @@ interface AttachmentOption {
   label: string;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   gradient: readonly [string, string];
-  comingSoon?: boolean;
 }
 
 const OPTIONS: AttachmentOption[] = [
@@ -56,24 +51,20 @@ const OPTIONS: AttachmentOption[] = [
     gradient: ["#3FB7E0", "#1F6F9E"],
   },
   {
-    id: "gif",
-    label: "GIF",
-    icon: "film",
-    gradient: ["#FE7A5C", "#E04A2F"],
-  },
-  {
-    id: "sticker",
-    label: "Sticker",
-    icon: "happy",
-    gradient: ["#FFB07B", "#F0A53D"],
-  },
-  {
     id: "emoji",
     label: "Emoji",
     icon: "happy-outline",
     gradient: ["#5BD6A8", "#2E9C76"],
   },
 ];
+
+// Approx. position of the "+" button so the popup grows out of it.
+// MessageInput uses paddingHorizontal:12 + attachButtonWrapper marginRight:8
+// and the AttachButton itself is 40x40, so the button's left edge sits at 12.
+const POPUP_LEFT = 12;
+// Sit just above the bottom bar (bar minHeight 56 + a small gap).
+const POPUP_BOTTOM_OFFSET = 64;
+const POPUP_WIDTH = 260;
 
 interface AttachmentSheetProps {
   visible: boolean;
@@ -90,40 +81,54 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  const slideY = useRef(new Animated.Value(SCREEN_H)).current;
+  const scale = useRef(new Animated.Value(0.85)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
   const backdropOp = useRef(new Animated.Value(0)).current;
 
   const animateOpen = useCallback(() => {
-    slideY.setValue(SCREEN_H);
+    scale.setValue(0.85);
+    opacity.setValue(0);
     backdropOp.setValue(0);
     Animated.parallel([
-      Animated.spring(slideY, {
-        toValue: 0,
+      Animated.spring(scale, {
+        toValue: 1,
         useNativeDriver: true,
-        tension: 68,
-        friction: 12,
+        tension: 140,
+        friction: 11,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 160,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
       }),
       Animated.timing(backdropOp, {
         toValue: 1,
-        duration: 240,
+        duration: 180,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start();
-  }, [slideY, backdropOp]);
+  }, [scale, opacity, backdropOp]);
 
   const animateClose = useCallback(
     (done: () => void) => {
       Animated.parallel([
-        Animated.timing(slideY, {
-          toValue: SCREEN_H,
-          duration: 240,
+        Animated.timing(scale, {
+          toValue: 0.9,
+          duration: 140,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 140,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(backdropOp, {
           toValue: 0,
-          duration: 220,
+          duration: 140,
           easing: Easing.in(Easing.quad),
           useNativeDriver: true,
         }),
@@ -131,7 +136,7 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
         if (finished) done();
       });
     },
-    [slideY, backdropOp],
+    [scale, opacity, backdropOp],
   );
 
   useEffect(() => {
@@ -146,10 +151,6 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
 
   const handleSelect = useCallback(
     (option: AttachmentOption) => {
-      if (option.comingSoon) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        return;
-      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       animateClose(() => {
         onClose();
@@ -159,14 +160,9 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
     [animateClose, onClose, onSelect],
   );
 
-  const backdropStyle = {
-    opacity: backdropOp.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 0.62],
-    }),
-  };
-
   if (!visible) return null;
+
+  const bottomPosition = POPUP_BOTTOM_OFFSET + Math.max(insets.bottom, 0);
 
   return (
     <Modal
@@ -178,7 +174,11 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
     >
       <View style={styles.root} testID="attachment-sheet">
         <Animated.View
-          style={[StyleSheet.absoluteFill, styles.backdropTint, backdropStyle]}
+          style={[
+            StyleSheet.absoluteFill,
+            styles.backdropTint,
+            { opacity: backdropOp },
+          ]}
         >
           <Pressable
             style={StyleSheet.absoluteFill}
@@ -190,73 +190,55 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
 
         <Animated.View
           style={[
-            styles.sheetOuter,
+            styles.popup,
             {
-              paddingBottom: Math.max(insets.bottom, 12) + 12,
-              transform: [{ translateY: slideY }],
+              left: POPUP_LEFT,
+              bottom: bottomPosition,
+              opacity,
+              transform: [
+                {
+                  translateY: scale.interpolate({
+                    inputRange: [0.85, 1],
+                    outputRange: [12, 0],
+                  }),
+                },
+                { scale },
+              ],
             },
           ]}
         >
-          <LinearGradient
-            colors={[...APP_GRADIENT]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.sheetGradient}
-          >
-            <View style={styles.handle} />
-            <Text style={[styles.title, { color: themeColors.text.primary }]}>
-              Ajouter une pièce jointe
-            </Text>
-            <View style={styles.grid}>
-              {OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  testID={`attachment-option-${option.id}`}
-                  style={styles.optionCell}
-                  onPress={() => handleSelect(option)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityLabel={option.label}
-                  accessibilityState={{ disabled: !!option.comingSoon }}
-                >
-                  <LinearGradient
-                    colors={
-                      option.comingSoon
-                        ? [
-                            withOpacity(colors.text.light, 0.18),
-                            withOpacity(colors.text.light, 0.08),
-                          ]
-                        : option.gradient
-                    }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.optionIcon}
-                  >
-                    <Ionicons
-                      name={option.icon}
-                      size={28}
-                      color={colors.text.light}
-                    />
-                  </LinearGradient>
-                  <Text
-                    style={[
-                      styles.optionLabel,
-                      {
-                        color: option.comingSoon
-                          ? themeColors.text.tertiary
-                          : themeColors.text.primary,
-                      },
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                  {option.comingSoon && (
-                    <Text style={styles.comingSoonBadge}>Bientôt</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </LinearGradient>
+          {OPTIONS.map((option, index) => (
+            <TouchableOpacity
+              key={option.id}
+              testID={`attachment-option-${option.id}`}
+              style={[
+                styles.row,
+                index < OPTIONS.length - 1 && styles.rowDivider,
+              ]}
+              onPress={() => handleSelect(option)}
+              activeOpacity={0.65}
+              accessibilityRole="button"
+              accessibilityLabel={option.label}
+            >
+              <LinearGradient
+                colors={option.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.iconBubble}
+              >
+                <Ionicons
+                  name={option.icon}
+                  size={18}
+                  color={colors.text.light}
+                />
+              </LinearGradient>
+              <Text
+                style={[styles.rowLabel, { color: themeColors.text.primary }]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </Animated.View>
       </View>
     </Modal>
@@ -266,76 +248,45 @@ export const AttachmentSheet: React.FC<AttachmentSheetProps> = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    justifyContent: "flex-end",
   },
   backdropTint: {
-    backgroundColor: "#0B1124",
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
   },
-  sheetOuter: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+  popup: {
+    position: "absolute",
+    width: POPUP_WIDTH,
+    backgroundColor: "rgba(28, 28, 32, 0.92)",
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: withOpacity(colors.text.light, 0.08),
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 24,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 18,
   },
-  sheetGradient: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 20,
-    paddingTop: 6,
-  },
-  handle: {
-    alignSelf: "center",
-    width: 42,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: withOpacity(colors.text.light, 0.22),
-    marginBottom: 14,
-    marginTop: 4,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 18,
-  },
-  grid: {
+  row: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  optionCell: {
-    width: "31%",
     alignItems: "center",
-    marginBottom: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  optionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: withOpacity(colors.text.light, 0.08),
+  },
+  iconBubble: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    marginRight: 14,
   },
-  optionLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  comingSoonBadge: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    color: withOpacity(colors.text.light, 0.5),
-    marginTop: 2,
-    textTransform: "uppercase",
+  rowLabel: {
+    fontSize: 16,
+    fontWeight: "500",
+    flex: 1,
   },
 });

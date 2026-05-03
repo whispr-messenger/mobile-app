@@ -7,7 +7,6 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -30,7 +29,7 @@ interface RecordingBarProps {
   isLocked: boolean;
   isPaused: boolean;
   onCancel: () => void;
-  onSend: () => void;
+  onStop: () => void;
   onLock: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -48,7 +47,7 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
   isLocked,
   isPaused,
   onCancel,
-  onSend,
+  onStop,
   onLock,
   onPause,
   onResume,
@@ -72,10 +71,10 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
     }
   }, [isLocked, locked, translateX, translateY]);
 
-  const recordingWaveBars = Array.from({ length: 16 }, (_, index) => {
-    const base = 7 + (index % 4) * 2;
+  const recordingWaveBars = Array.from({ length: 22 }, (_, index) => {
+    const base = 6 + (index % 4) * 2;
     const pulse = Math.round(
-      ((Math.sin(wavePhase * 0.7 + index * 0.9) + 1) / 2) * 14,
+      ((Math.sin(wavePhase * 0.7 + index * 0.9) + 1) / 2) * 12,
     );
     return base + pulse;
   });
@@ -89,8 +88,6 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
     onLock();
   };
 
-  // On web, gesture-handler's pan can be flaky and clashes with text-selection.
-  // Keep a static layout there — the trash/send buttons handle cancel/send.
   const panEnabled = Platform.OS !== "web" && !isLocked;
 
   const panGesture = Gesture.Pan()
@@ -189,29 +186,25 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
             <Ionicons name="lock-closed" size={14} color={colors.text.light} />
           </Animated.View>
         )}
-        {isLocked ? (
-          <View style={styles.lockedBadge} testID="recording-locked-badge">
-            <Ionicons name="lock-closed" size={14} color={colors.text.light} />
-          </View>
-        ) : (
-          <TouchableOpacity
-            onPress={onCancel}
-            style={styles.attachButton}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Annuler l'enregistrement vocal"
-          >
-            <Ionicons name="trash-outline" size={24} color={colors.ui.error} />
-          </TouchableOpacity>
-        )}
-        <View style={styles.recordingIndicator}>
+
+        <TouchableOpacity
+          onPress={onCancel}
+          style={styles.sideButton}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Annuler l'enregistrement vocal"
+        >
+          <Ionicons name="trash-outline" size={22} color={colors.ui.error} />
+        </TouchableOpacity>
+
+        <View style={styles.pill}>
           <View style={styles.recordingDot} />
           <Text style={styles.recordingText}>
             {formatRecordingTime(duration)}
           </Text>
           <View
             testID="recording-waveform"
-            style={styles.recordingWaveform}
+            style={styles.waveform}
             pointerEvents="none"
           >
             {recordingWaveBars.map((height, index) => (
@@ -219,12 +212,12 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
                 key={`recording-bar-${index}`}
                 testID="recording-wave-bar"
                 style={[
-                  styles.recordingWaveBar,
+                  styles.waveBar,
                   {
                     height,
                     opacity: isPaused
-                      ? 0.25
-                      : 0.45 + ((index + wavePhase) % 4) * 0.12,
+                      ? 0.3
+                      : 0.5 + ((index + wavePhase) % 4) * 0.12,
                   },
                 ]}
               />
@@ -237,18 +230,19 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
             >
               <Ionicons
                 name="chevron-back"
-                size={14}
+                size={12}
                 color={colors.text.light}
               />
-              <Text style={styles.cancelHintText}>Glisser pour annuler</Text>
+              <Text style={styles.cancelHintText}>Glisser</Text>
             </Animated.View>
           )}
         </View>
+
         {isLocked && (
           <TouchableOpacity
             testID={isPaused ? "recording-resume-btn" : "recording-pause-btn"}
             onPress={handleTogglePause}
-            style={styles.attachButton}
+            style={styles.sideButton}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={
@@ -259,114 +253,122 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
           >
             <Ionicons
               name={isPaused ? "play" : "pause"}
-              size={22}
+              size={20}
               color={colors.text.light}
             />
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          onPress={onSend}
+          testID="recording-stop-btn"
+          onPress={onStop}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Envoyer le message vocal"
+          accessibilityLabel="Arrêter l'enregistrement vocal"
         >
-          <LinearGradient
-            colors={["#FFB07B", "#F04882"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.sendButton}
-          >
-            <Ionicons name="send" size={18} color={colors.text.light} />
-          </LinearGradient>
+          <View style={styles.stopButton}>
+            <View style={styles.stopSquare} />
+          </View>
         </TouchableOpacity>
       </Animated.View>
     </GestureDetector>
   );
 };
 
+const PILL_BG = "rgba(11, 17, 36, 0.85)";
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    height: 40,
   },
-  attachButton: {
-    padding: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  sendButton: {
+  sideButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },
-  recordingIndicator: {
+  pill: {
     flex: 1,
+    height: 40,
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 12,
+    paddingHorizontal: 12,
+    backgroundColor: PILL_BG,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    marginHorizontal: 4,
+    overflow: "hidden",
   },
   recordingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.ui.error,
     marginRight: 8,
   },
   recordingText: {
-    color: colors.ui.error,
-    fontSize: 16,
+    color: colors.text.light,
+    fontSize: 13,
     fontWeight: "600",
-    marginRight: 12,
+    fontVariant: ["tabular-nums"],
+    minWidth: 32,
+    marginRight: 8,
   },
-  recordingWaveform: {
+  waveform: {
     flex: 1,
-    height: 28,
+    height: 24,
     flexDirection: "row",
     alignItems: "center",
   },
-  recordingWaveBar: {
-    width: 3,
+  waveBar: {
+    width: 2,
     borderRadius: 999,
-    marginRight: 3,
+    marginRight: 2,
     backgroundColor: "#FF8F94",
   },
   cancelHint: {
     position: "absolute",
-    right: 0,
+    right: 10,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    backgroundColor: "rgba(11, 17, 36, 0.6)",
-    borderRadius: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: "rgba(11, 17, 36, 0.9)",
+    borderRadius: 10,
   },
   cancelHintText: {
     color: colors.text.light,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
-    marginLeft: 4,
+    marginLeft: 2,
   },
   lockHint: {
     position: "absolute",
-    top: -32,
-    right: 8,
+    top: -36,
+    right: 12,
     width: 28,
     height: 28,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(11, 17, 36, 0.7)",
+    backgroundColor: "rgba(11, 17, 36, 0.9)",
+    zIndex: 1,
   },
-  lockedBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
+  stopButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.ui.error,
     justifyContent: "center",
-    backgroundColor: "rgba(11, 17, 36, 0.7)",
-    marginLeft: 4,
+    alignItems: "center",
+  },
+  stopSquare: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    backgroundColor: colors.text.light,
   },
 });

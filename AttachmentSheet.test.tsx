@@ -1,8 +1,7 @@
 /**
  * Tests for AttachmentSheet:
- * - Renders the option grid when visible
+ * - Renders the option list when visible
  * - Dispatches the selected action
- * - Ignores "coming soon" options
  */
 
 import React from "react";
@@ -41,17 +40,17 @@ describe("AttachmentSheet", () => {
     expect(queryByTestId("attachment-sheet")).toBeNull();
   });
 
-  it("renders the option grid when visible", () => {
-    const { getByTestId } = render(
+  it("renders the option list when visible", () => {
+    const { getByTestId, queryByTestId } = render(
       <AttachmentSheet visible onClose={jest.fn()} onSelect={jest.fn()} />,
     );
     expect(getByTestId("attachment-sheet")).toBeTruthy();
     expect(getByTestId("attachment-option-camera")).toBeTruthy();
     expect(getByTestId("attachment-option-gallery")).toBeTruthy();
-    expect(getByTestId("attachment-option-emoji")).toBeTruthy();
     expect(getByTestId("attachment-option-document")).toBeTruthy();
-    expect(getByTestId("attachment-option-gif")).toBeTruthy();
-    expect(getByTestId("attachment-option-sticker")).toBeTruthy();
+    expect(getByTestId("attachment-option-emoji")).toBeTruthy();
+    expect(queryByTestId("attachment-option-gif")).toBeNull();
+    expect(queryByTestId("attachment-option-sticker")).toBeNull();
   });
 
   it("dispatches the selected action when an active option is pressed", () => {

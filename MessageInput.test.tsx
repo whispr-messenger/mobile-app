@@ -401,7 +401,7 @@ describe("MessageInput recording", () => {
     expect(callOrder).toEqual(["permission", "audio-mode", "create"]);
   });
 
-  it("shows a waveform while recording and sends audio even if final iOS status loses duration", async () => {
+  it("shows a waveform while recording and sends audio after the user reviews the preview", async () => {
     Platform.OS = "ios";
     jest.useFakeTimers();
 
@@ -434,12 +434,20 @@ describe("MessageInput recording", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByLabelText("Envoyer le message vocal"));
+      fireEvent.press(getByTestId("recording-stop-btn"));
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(stopAndUnloadAsync).toHaveBeenCalled();
+    // Stop only produces the preview — onSendMedia must not fire yet.
+    expect(onSendMedia).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.press(getByLabelText("Envoyer le message vocal"));
+      await Promise.resolve();
+    });
+
     expect(onSendMedia).toHaveBeenCalledWith(
       "file:///voice.m4a",
       "audio",
