@@ -238,8 +238,6 @@ describe("ProfileSetupScreen", () => {
         }),
       );
     });
-  });
-
   it("blocks save when username is empty and surfaces an explicit error", async () => {
     const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
       render(<ProfileSetupScreen />);
