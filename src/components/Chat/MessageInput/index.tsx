@@ -496,24 +496,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     applySafeAreaBottom && !isKeyboardVisible ? insets.bottom : 0;
 
   // When the keyboard is up, the rounded corners of the iOS keyboard reveal
-  // the gradient behind the bottom bar through the BlurView's overlay. Skip
-  // the BlurView/overlay entirely in that case — only the composer field and
-  // its action buttons stay visible, sitting flat on top of the gradient.
-  const Wrapper = isKeyboardVisible ? View : BlurView;
-  const wrapperProps = isKeyboardVisible
-    ? { style: styles.blur }
-    : ({
-        intensity: Platform.OS === "ios" ? 60 : 80,
-        tint: "dark" as const,
-        style: styles.blur,
-      } as const);
+  // the gradient behind the bottom bar through the BlurView's overlay. Drop
+  // the blur intensity to 0 and use a transparent overlay so the gradient
+  // shows through cleanly. We keep the BlurView mounted (rather than swap
+  // it for a plain View) so the TextInput inside doesn't get unmounted on
+  // every keyboard toggle — that would steal focus and dismiss the keyboard
+  // immediately after opening it.
   const overlayStyle = isKeyboardVisible
     ? [styles.bareOverlay, { paddingBottom: bottomPadding }]
     : [styles.borderOverlay, { paddingBottom: bottomPadding }];
+  const blurIntensity = isKeyboardVisible ? 0 : Platform.OS === "ios" ? 60 : 80;
 
   return (
     <View style={styles.container}>
-      <Wrapper {...(wrapperProps as any)}>
+      <BlurView intensity={blurIntensity} tint="dark" style={styles.blur}>
         <View style={overlayStyle}>
           {(replyingTo || editingMessage) && (
             <View
@@ -613,7 +609,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             )}
           </View>
         </View>
-      </Wrapper>
+      </BlurView>
       <CameraCapture
         visible={showCameraCapture}
         onClose={() => setShowCameraCapture(false)}
