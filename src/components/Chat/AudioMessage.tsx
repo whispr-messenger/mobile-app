@@ -131,6 +131,11 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
     };
   }, [mediaId, shouldCacheNativeAudio]);
 
+  // `/media/v1/:id/blob` returns `{ url, expiresAt }` JSON — not the raw
+  // audio bytes. Resolve it to a playable presigned URL (or a streamed
+  // `blob:` URL on web) before handing it to Audio.Sound.
+  const { resolvedUri } = useResolvedMediaUrl(uri);
+
   useEffect(() => {
     return () => {
       // Cleanup sound on unmount

@@ -741,6 +741,49 @@ export const SettingsScreen: React.FC = () => {
           />
         </SettingSection>
 
+        {/* Account Settings */}
+        <SettingSection
+          title={getLocalizedText("settings.account")}
+          icon="person-outline"
+        >
+          <SettingItem
+            label={getLocalizedText("settings.myProfile")}
+            subtitle={getLocalizedText("settings.myProfileSubtitle")}
+            onPress={() => navigation.navigate("MyProfile")}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+          <SettingItem
+            label={getLocalizedText("settings.logout")}
+            subtitle="Se déconnecter de votre compte"
+            onPress={handleLogout}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+          <SettingItem
+            label={getLocalizedText("settings.deleteAccount")}
+            subtitle="Fonctionnalité à venir"
+            onPress={handleDeleteAccount}
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+        </SettingSection>
+
         {/* Privacy Section */}
         <SettingSection
           title={getLocalizedText("settings.privacy")}

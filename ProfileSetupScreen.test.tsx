@@ -238,6 +238,66 @@ describe("ProfileSetupScreen", () => {
         }),
       );
     });
+    expect(profileSetupFlag.markDone).toHaveBeenCalled();
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "johndoe",
+        firstName: "John",
+        lastName: "Doe",
+      }),
+    );
+  });
+
+  it("blocks save when username is empty and surfaces an explicit error", async () => {
+    const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
+      render(<ProfileSetupScreen />);
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+    // Fill firstName but leave username empty — should NOT save
+    fireEvent.changeText(getByPlaceholderText("auth.firstName"), "John");
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(queryByTestId("error-Pseudo")).toBeTruthy();
+    });
+    expect(queryByTestId("error-Pseudo")?.props.children).toMatch(/requis/i);
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    expect(mockReset).not.toHaveBeenCalled();
+  });
+
+  it("blocks save when username is shorter than 3 characters", async () => {
+    const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
+      render(<ProfileSetupScreen />);
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+    fireEvent.changeText(getByPlaceholderText("Pseudo"), "ab");
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(queryByTestId("error-Pseudo")).toBeTruthy();
+    });
+    expect(queryByTestId("error-Pseudo")?.props.children).toMatch(
+      /3 caractères/i,
+    );
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    expect(mockReset).not.toHaveBeenCalled();
+  });
+
+  it("keeps already-typed values when validation fails so the user does not lose input", async () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(
+      <ProfileSetupScreen />,
+    );
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+    const firstNameField = getByPlaceholderText("auth.firstName");
+    fireEvent.changeText(firstNameField, "John");
+    fireEvent.press(getByText("common.save"));
+
+    // After the failed submit, the firstName should still be present
+    expect(firstNameField.props.value).toBe("John");
   });
 
   it("blocks save when username is empty and surfaces an explicit error", async () => {

@@ -145,6 +145,54 @@ const parseJsonSafe = async (response: Response): Promise<unknown> => {
   } catch {
     return null;
   }
+
+  const promise = (async (): Promise<User | null> => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/profile/${encodeURIComponent(userId)}`,
+        {
+          headers: {
+            ...(await getAuthHeaders()),
+          },
+        },
+      );
+      if (!response.ok) return null;
+      const u = await response.json();
+      if (!u) return null;
+      const normalized: User = {
+        id: u.id ?? userId,
+        username: u.username ?? "",
+        phone_number: u.phoneNumber ?? u.phone_number,
+        first_name: u.firstName ?? u.first_name,
+        last_name: u.lastName ?? u.last_name,
+        avatar_url:
+          u.profilePictureUrl ??
+          u.profile_picture_url ??
+          u.profilePicture ??
+          u.profile_picture ??
+          u.avatar_url,
+        last_seen: u.lastSeen ?? u.last_seen,
+        is_active: u.isActive ?? u.is_active ?? true,
+      };
+      userProfileCache.set(userId, {
+        value: normalized,
+        expiresAt: Date.now() + USER_PROFILE_TTL_MS,
+      });
+      return normalized;
+    } catch {
+      userProfileCache.set(userId, {
+        value: null,
+        expiresAt: Date.now() + USER_PROFILE_TTL_MS,
+      });
+      return null;
+    }
+  })();
+
+  if (!IS_TEST) {
+    userProfileInflight.set(userId, promise);
+    promise.finally(() => userProfileInflight.delete(userId));
+  }
+  return promise;
 };
 
 const buildSearchResult = (
