@@ -14,6 +14,7 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Modal,
@@ -223,7 +224,9 @@ const remapAudioUploadUri = async (
 
   const targetUri = `${cacheRoot}${filename}`;
   try {
-    await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(() => {});
+    await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(
+      () => {},
+    );
     await FileSystem.copyAsync({ from: uri, to: targetUri });
     return targetUri;
   } catch (error) {
@@ -2440,7 +2443,10 @@ export const ChatScreen: React.FC = () => {
           styles.container,
           Platform.OS === "web" && { minHeight: 0, height: "100%" },
         ]}
-        edges={["top", "bottom"]}
+        // bottom inset is consumed by MessageInput itself (applySafeAreaBottom)
+        // so the BlurView/overlay extends fully to the screen edge instead of
+        // leaving an empty band between the composer and the home indicator.
+        edges={["top"]}
       >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
@@ -2528,6 +2534,12 @@ export const ChatScreen: React.FC = () => {
               viewabilityConfig={viewabilityConfig}
               onViewableItemsChanged={handleViewableItemsChanged}
               keyboardShouldPersistTaps="handled"
+              // Dismiss the keyboard as the user drags the message list. iOS
+              // gets the interactive variant (clavier qui descend avec le doigt) ;
+              // Android n'a pas d'équivalent natif, on reste sur "on-drag".
+              keyboardDismissMode={
+                Platform.OS === "ios" ? "interactive" : "on-drag"
+              }
               // Web : on absolute-positionne la FlatList à l'intérieur du
               // wrapper `webListViewport` (qui est `position: relative`). Ça
               // donne à la VirtualizedList une boîte de taille définie sans
@@ -2558,12 +2570,27 @@ export const ChatScreen: React.FC = () => {
           // Sur web, on emballe la FlatList dans un viewport à overflow borné :
           // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
           // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
+          // Tap on an empty area of the message list dismisses the keyboard.
+          // onStartShouldSetResponder only fires when no child grabs the touch
+          // first (message bubbles, action handlers, etc.), so this won't
+          // hijack interactions on actual content.
+          const dismissKeyboardResponderProps = {
+            onStartShouldSetResponder: () => true,
+            onResponderRelease: () => Keyboard.dismiss(),
+          };
           const wrappedList =
             Platform.OS === "web" ? (
-              <View style={styles.webListViewport}>{messageList}</View>
+              <View
+                style={styles.webListViewport}
+                {...dismissKeyboardResponderProps}
+              >
+                {messageList}
+              </View>
             ) : (
               <GestureDetector gesture={swipeGesture}>
-                <View style={{ flex: 1 }}>{messageList}</View>
+                <View style={{ flex: 1 }} {...dismissKeyboardResponderProps}>
+                  {messageList}
+                </View>
               </GestureDetector>
             );
           const chatBody = (
@@ -2592,6 +2619,7 @@ export const ChatScreen: React.FC = () => {
                 onCancelEdit={() => setEditingMessage(null)}
                 conversationType={conversation?.type || "direct"}
                 members={conversationMembers}
+                applySafeAreaBottom
               />
             </>
           );
