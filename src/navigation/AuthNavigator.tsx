@@ -318,7 +318,7 @@ export const AuthNavigator: React.FC = () => {
         options={{
           cardStyleInterpolator: ({ current, layouts }) => ({
             cardStyle: {
-              backgroundColor: "#050816",
+              backgroundColor: "transparent",
               transform: [
                 {
                   translateX: current.progress.interpolate({
