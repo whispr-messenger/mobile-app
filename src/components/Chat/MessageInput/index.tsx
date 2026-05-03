@@ -484,7 +484,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <View
               style={[
                 styles.replyContainer,
-                { backgroundColor: "rgba(26, 31, 58, 0.6)" }, // Dark card with transparency
+                { backgroundColor: "rgba(11, 17, 36, 0.7)" },
               ]}
             >
               {replyingTo && <ReplyPreview replyTo={replyingTo} />}

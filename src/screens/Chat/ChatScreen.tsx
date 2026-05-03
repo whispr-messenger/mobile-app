@@ -2443,7 +2443,10 @@ export const ChatScreen: React.FC = () => {
           styles.container,
           Platform.OS === "web" && { minHeight: 0, height: "100%" },
         ]}
-        edges={["top", "bottom"]}
+        // bottom inset is consumed by MessageInput itself (applySafeAreaBottom)
+        // so the BlurView/overlay extends fully to the screen edge instead of
+        // leaving an empty band between the composer and the home indicator.
+        edges={["top"]}
       >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
@@ -2616,6 +2619,7 @@ export const ChatScreen: React.FC = () => {
                 onCancelEdit={() => setEditingMessage(null)}
                 conversationType={conversation?.type || "direct"}
                 members={conversationMembers}
+                applySafeAreaBottom
               />
             </>
           );
