@@ -11,6 +11,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ImageBackground,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -95,8 +96,12 @@ export const GroupManagementScreen: React.FC = () => {
   const [addingMembers, setAddingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+  const { settings: themeSettings } = useTheme();
+  const hasCustomBackground =
+    themeSettings?.backgroundPreset === "custom" &&
+    !!themeSettings?.customBackgroundUri;
+  const customBackgroundUri = themeSettings?.customBackgroundUri ?? null;
+  const customBackgroundVersion = themeSettings?.customBackgroundVersion ?? 0;
   const { userId: rawUserId } = useAuth();
   const currentUserId = rawUserId ?? "";
 
@@ -1145,25 +1150,79 @@ export const GroupManagementScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={colors.background.gradient.app}
-        style={styles.container}
+      <View
+        style={[
+          styles.screenRoot,
+          hasCustomBackground && styles.screenRootWithCustomBackground,
+        ]}
       >
+        {hasCustomBackground && customBackgroundUri ? (
+          <ImageBackground
+            key={`${customBackgroundUri}:${customBackgroundVersion}`}
+            source={{ uri: customBackgroundUri }}
+            resizeMode="cover"
+            style={styles.customBackground}
+          />
+        ) : null}
+        {!hasCustomBackground ? (
+          <LinearGradient
+            colors={colors.background.gradient.app}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gradientContainer}
+          />
+        ) : null}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.backgroundScrim,
+            hasCustomBackground
+              ? styles.backgroundScrimWithCustomImage
+              : styles.backgroundScrimDefault,
+          ]}
+        />
         <SafeAreaView style={styles.container} edges={["top"]}>
           {renderHeader()}
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.main} />
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={colors.background.gradient.app}
-      style={styles.container}
+    <View
+      style={[
+        styles.screenRoot,
+        hasCustomBackground && styles.screenRootWithCustomBackground,
+      ]}
     >
+      {hasCustomBackground && customBackgroundUri ? (
+        <ImageBackground
+          key={`${customBackgroundUri}:${customBackgroundVersion}`}
+          source={{ uri: customBackgroundUri }}
+          resizeMode="cover"
+          style={styles.customBackground}
+        />
+      ) : null}
+      {!hasCustomBackground ? (
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.backgroundScrim,
+          hasCustomBackground
+            ? styles.backgroundScrimWithCustomImage
+            : styles.backgroundScrimDefault,
+        ]}
+      />
       <SafeAreaView style={styles.container} edges={["top"]}>
         {renderHeader()}
         <ScrollView
@@ -1183,13 +1242,38 @@ export const GroupManagementScreen: React.FC = () => {
         </ScrollView>
         {renderAddMembersModal()}
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screenRoot: {
+    flex: 1,
+    backgroundColor: colors.background.dark,
+    ...(Platform.OS === "web" ? { height: "100vh" as any } : {}),
+  },
+  screenRootWithCustomBackground: {
+    backgroundColor: "transparent",
+  },
+  customBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradientContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.dark,
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundScrimDefault: {
+    backgroundColor: "rgba(3, 8, 27, 0.18)",
+  },
+  backgroundScrimWithCustomImage: {
+    backgroundColor: "rgba(5, 8, 22, 0.62)",
+  },
   container: {
     flex: 1,
+    backgroundColor: "transparent",
     ...(Platform.OS === "web" ? { height: "100vh" as any, minHeight: 0 } : {}),
   },
   header: {
