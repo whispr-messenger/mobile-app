@@ -495,14 +495,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const bottomPadding =
     applySafeAreaBottom && !isKeyboardVisible ? insets.bottom : 0;
 
+  // When the keyboard is up, the rounded corners of the iOS keyboard reveal
+  // the gradient behind the bottom bar through the BlurView's overlay. Skip
+  // the BlurView/overlay entirely in that case — only the composer field and
+  // its action buttons stay visible, sitting flat on top of the gradient.
+  const Wrapper = isKeyboardVisible ? View : BlurView;
+  const wrapperProps = isKeyboardVisible
+    ? { style: styles.blur }
+    : ({
+        intensity: Platform.OS === "ios" ? 60 : 80,
+        tint: "dark" as const,
+        style: styles.blur,
+      } as const);
+  const overlayStyle = isKeyboardVisible
+    ? [styles.bareOverlay, { paddingBottom: bottomPadding }]
+    : [styles.borderOverlay, { paddingBottom: bottomPadding }];
+
   return (
     <View style={styles.container}>
-      <BlurView
-        intensity={Platform.OS === "ios" ? 60 : 80}
-        tint="dark"
-        style={styles.blur}
-      >
-        <View style={[styles.borderOverlay, { paddingBottom: bottomPadding }]}>
+      <Wrapper {...(wrapperProps as any)}>
+        <View style={overlayStyle}>
           {(replyingTo || editingMessage) && (
             <View
               style={[
@@ -601,7 +613,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             )}
           </View>
         </View>
-      </BlurView>
+      </Wrapper>
       <CameraCapture
         visible={showCameraCapture}
         onClose={() => setShowCameraCapture(false)}
@@ -660,6 +672,11 @@ const styles = StyleSheet.create({
     backgroundColor: COMPOSER_OVERLAY_BG,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255, 255, 255, 0.18)",
+  },
+  // Used while the keyboard is open: no background, no border, so the
+  // gradient under the rounded keyboard corners shows through cleanly.
+  bareOverlay: {
+    backgroundColor: "transparent",
   },
   replyContainer: {
     flexDirection: "row",
