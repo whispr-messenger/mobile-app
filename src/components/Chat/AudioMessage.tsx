@@ -50,10 +50,12 @@ interface AudioMessageProps {
 }
 
 function isStableMediaId(value?: string): boolean {
-  return !!value &&
+  return (
+    !!value &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       value,
-    );
+    )
+  );
 }
 
 function formatDuration(seconds: number): string {
@@ -103,7 +105,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
   const { resolvedUri: streamedResolvedUri } = useResolvedMediaUrl(
     shouldCacheNativeAudio ? undefined : uri,
   );
-  const resolvedUri = shouldCacheNativeAudio ? nativeAudioUri : streamedResolvedUri;
+  const resolvedUri = shouldCacheNativeAudio
+    ? nativeAudioUri
+    : streamedResolvedUri;
 
   useEffect(() => {
     if (!shouldCacheNativeAudio || !mediaId) {
@@ -130,11 +134,6 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
       cancelled = true;
     };
   }, [mediaId, shouldCacheNativeAudio]);
-
-  // `/media/v1/:id/blob` returns `{ url, expiresAt }` JSON — not the raw
-  // audio bytes. Resolve it to a playable presigned URL (or a streamed
-  // `blob:` URL on web) before handing it to Audio.Sound.
-  const { resolvedUri } = useResolvedMediaUrl(uri);
 
   useEffect(() => {
     return () => {
@@ -261,7 +260,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={
-          isPlaying ? "Mettre en pause le message vocal" : "Lire le message vocal"
+          isPlaying
+            ? "Mettre en pause le message vocal"
+            : "Lire le message vocal"
         }
       >
         <Ionicons
@@ -283,7 +284,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
                   {
                     height,
                     backgroundColor:
-                      index < playedBarCount ? activeBarColor : inactiveBarColor,
+                      index < playedBarCount
+                        ? activeBarColor
+                        : inactiveBarColor,
                     marginRight: index === waveformBars.length - 1 ? 0 : 3,
                   },
                 ]}
