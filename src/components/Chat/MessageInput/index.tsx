@@ -636,7 +636,7 @@ const styles = StyleSheet.create({
   borderOverlay: {
     backgroundColor: COMPOSER_OVERLAY_BG,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    borderTopColor: "rgba(255, 255, 255, 0.18)",
   },
   replyContainer: {
     flexDirection: "row",
