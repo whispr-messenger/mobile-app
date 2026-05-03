@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   Alert,
+  Keyboard,
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -98,6 +99,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showStickerSheet, setShowStickerSheet] = useState(false);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [composerWidth, setComposerWidth] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTypingRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
@@ -116,6 +118,26 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   useEffect(() => {
     onSendMediaRef.current = onSendMedia;
   }, [onSendMedia]);
+
+  // Track keyboard visibility so we can drop the safe-area bottom padding
+  // when the keyboard is up (it covers the home indicator anyway, and the
+  // KeyboardAvoidingView already pushes the bar above it).
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, () =>
+      setIsKeyboardVisible(true),
+    );
+    const hideSub = Keyboard.addListener(hideEvent, () =>
+      setIsKeyboardVisible(false),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const {
     isRecording,
@@ -470,7 +492,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [isRecording, startRecording, stopRecording]);
 
-  const bottomPadding = applySafeAreaBottom ? insets.bottom : 0;
+  const bottomPadding =
+    applySafeAreaBottom && !isKeyboardVisible ? insets.bottom : 0;
 
   return (
     <View style={styles.container}>
