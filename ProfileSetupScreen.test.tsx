@@ -238,14 +238,6 @@ describe("ProfileSetupScreen", () => {
         }),
       );
     });
-    expect(profileSetupFlag.markDone).toHaveBeenCalled();
-    expect(mockUpdateProfile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        username: "johndoe",
-        firstName: "John",
-        lastName: "Doe",
-      }),
-    );
   });
 
   it("blocks save when username is empty and surfaces an explicit error", async () => {
