@@ -54,6 +54,9 @@ jest.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true }),
   MediaTypeOptions: { Images: "Images" },
 }));
+jest.mock("expo-document-picker", () => ({
+  getDocumentAsync: jest.fn().mockResolvedValue({ canceled: true }),
+}));
 jest.mock("./src/context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -74,6 +77,82 @@ jest.mock("./src/components/Chat/CameraCapture", () => ({
 jest.mock("./src/components/Chat/EmojiPickerSheet", () => ({
   EmojiPickerSheet: () => null,
 }));
+jest.mock("./src/components/Chat/AttachmentSheet", () => ({
+  AttachmentSheet: () => null,
+}));
+jest.mock("./src/components/Chat/ComingSoonSheet", () => ({
+  ComingSoonSheet: () => null,
+}));
+jest.mock("react-native-gesture-handler", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const PassThrough = ({ children }: any) => children ?? null;
+  // Minimal Gesture builder — chainable methods are no-ops.
+  const makeGesture = () => {
+    const g: any = {};
+    const chain = () => g;
+    g.enabled = chain;
+    g.activeOffsetX = chain;
+    g.activeOffsetY = chain;
+    g.failOffsetX = chain;
+    g.failOffsetY = chain;
+    g.onUpdate = chain;
+    g.onEnd = chain;
+    g.onFinalize = chain;
+    g.onStart = chain;
+    g.onChange = chain;
+    g.onTouchesDown = chain;
+    return g;
+  };
+  return {
+    GestureDetector: ({ children }: any) =>
+      React.createElement(View, null, children),
+    GestureHandlerRootView: PassThrough,
+    Gesture: {
+      Pan: makeGesture,
+      Tap: makeGesture,
+      LongPress: makeGesture,
+      Race: makeGesture,
+      Simultaneous: makeGesture,
+      Exclusive: makeGesture,
+    },
+  };
+});
+jest.mock("expo-blur", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return {
+    BlurView: ({ children, ...props }: any) =>
+      React.createElement(View, props, children),
+  };
+});
+// Inline mock for react-native-reanimated to avoid ESM parse error.
+// Matches the SendOrMicButton API surface (useSharedValue / useAnimatedStyle /
+// withSpring) and treats Animated.View as a plain RN View so testID lookups
+// keep working.
+jest.mock("react-native-reanimated", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const AnimatedView = (props: any) => React.createElement(View, props);
+  return {
+    __esModule: true,
+    default: {
+      createAnimatedComponent: (c: any) => c,
+      View: AnimatedView,
+    },
+    View: AnimatedView,
+    useSharedValue: (v: any) => ({ value: v }),
+    useAnimatedStyle: () => ({}),
+    withSpring: (v: any) => v,
+    withTiming: (v: any) => v,
+    interpolate: (_value: any, _input: any, output: any) => output[0],
+    runOnJS:
+      (fn: any) =>
+      (...args: any[]) =>
+        fn(...args),
+    createAnimatedComponent: (c: any) => c,
+  };
+});
 
 import {
   buildRecordingOptions,
@@ -322,7 +401,7 @@ describe("MessageInput recording", () => {
     expect(callOrder).toEqual(["permission", "audio-mode", "create"]);
   });
 
-  it("shows a waveform while recording and sends audio even if final iOS status loses duration", async () => {
+  it("shows a waveform while recording and sends audio after the user reviews the preview", async () => {
     Platform.OS = "ios";
     jest.useFakeTimers();
 
@@ -355,12 +434,20 @@ describe("MessageInput recording", () => {
     });
 
     await act(async () => {
-      fireEvent.press(getByLabelText("Envoyer le message vocal"));
+      fireEvent.press(getByTestId("recording-stop-btn"));
       await Promise.resolve();
       await Promise.resolve();
     });
 
     expect(stopAndUnloadAsync).toHaveBeenCalled();
+    // Stop only produces the preview — onSendMedia must not fire yet.
+    expect(onSendMedia).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.press(getByLabelText("Envoyer le message vocal"));
+      await Promise.resolve();
+    });
+
     expect(onSendMedia).toHaveBeenCalledWith(
       "file:///voice.m4a",
       "audio",
