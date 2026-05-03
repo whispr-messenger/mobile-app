@@ -3,7 +3,7 @@
  * WHISPR-213: Gestion de groupe (ajout/suppression membres, transfert admin, modification infos)
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { formatUsername } from "../../utils";
 import {
   View,
@@ -11,7 +11,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -51,6 +50,8 @@ import {
 import { contactsAPI, Contact } from "../../services/contacts/api";
 import { useAuth } from "../../context/AuthContext";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { useConversationsStore } from "../../store/conversationsStore";
+import { MediaService } from "../../services/MediaService";
 
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
@@ -65,6 +66,13 @@ export const GroupManagementScreen: React.FC = () => {
   const route = useRoute<GroupManagementScreenRouteProp>();
   const navigation = useNavigation();
   const { groupId, conversationId } = route.params;
+  const conversationKey = conversationId ?? groupId;
+  const conversation = useConversationsStore((s) =>
+    s.conversations.find((c) => c.id === conversationKey),
+  );
+  const refreshConversations = useConversationsStore(
+    (s) => s.refreshConversations,
+  );
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -117,6 +125,55 @@ export const GroupManagementScreen: React.FC = () => {
       setRefreshing(false);
     }
   }, [groupId, conversationId]);
+
+  const groupAvatarUrl = useMemo(() => {
+    if (groupDetails?.picture_url) return groupDetails.picture_url;
+    if (!conversation) return undefined;
+
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation, groupDetails?.picture_url]);
+
+  const uploadGroupIcon = useCallback(
+    async (localUri: string) => {
+      const fileName = localUri.split("/").pop() || "group-icon.jpg";
+      const lower = fileName.toLowerCase();
+      const fileType = lower.endsWith(".png")
+        ? "image/png"
+        : lower.endsWith(".gif")
+          ? "image/gif"
+          : lower.endsWith(".webp")
+            ? "image/webp"
+            : lower.endsWith(".heic") || lower.endsWith(".heif")
+              ? "image/heic"
+              : "image/jpeg";
+
+      const upload = await MediaService.uploadMedia(
+        { uri: localUri, name: fileName, type: fileType },
+        undefined,
+        { context: "group_icon", ownerId: currentUserId || undefined },
+      );
+
+      const updated = await groupsAPI.updateGroup(
+        groupId,
+        { picture_url: upload.id },
+        conversationId,
+      );
+
+      setGroupDetails(updated);
+      await refreshConversations();
+    },
+    [conversationId, currentUserId, groupId, refreshConversations],
+  );
 
   useEffect(() => {
     loadGroupData();
@@ -231,14 +288,11 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(
-                  groupId,
-                  {
-                    picture_url: result.assets[0].uri,
-                  },
-                  conversationId,
+                const localUri = result.assets[0].uri;
+                setGroupDetails((prev) =>
+                  prev ? { ...prev, picture_url: localUri } : prev,
                 );
-                setGroupDetails(updated);
+                await uploadGroupIcon(localUri);
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
                 );
@@ -249,6 +303,7 @@ export const GroupManagementScreen: React.FC = () => {
                 "Error selecting photo",
                 error,
               );
+              await loadGroupData();
               Alert.alert("Erreur", "Impossible de sélectionner la photo");
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
@@ -279,14 +334,11 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(
-                  groupId,
-                  {
-                    picture_url: result.assets[0].uri,
-                  },
-                  conversationId,
+                const localUri = result.assets[0].uri;
+                setGroupDetails((prev) =>
+                  prev ? { ...prev, picture_url: localUri } : prev,
                 );
-                setGroupDetails(updated);
+                await uploadGroupIcon(localUri);
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
                 );
@@ -297,6 +349,7 @@ export const GroupManagementScreen: React.FC = () => {
                 "Error taking photo",
                 error,
               );
+              await loadGroupData();
               Alert.alert("Erreur", "Impossible de prendre la photo");
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
@@ -307,7 +360,7 @@ export const GroupManagementScreen: React.FC = () => {
       ],
       { cancelable: true },
     );
-  }, [groupId, isAdmin]);
+  }, [groupId, isAdmin, loadGroupData, uploadGroupIcon]);
 
   const handleRemoveMember = useCallback(
     (member: GroupMember) => {
@@ -587,10 +640,11 @@ export const GroupManagementScreen: React.FC = () => {
             style={styles.avatarContainer}
             activeOpacity={0.7}
           >
-            {groupDetails.picture_url ? (
-              <Image
-                source={{ uri: groupDetails.picture_url }}
-                style={styles.groupAvatar}
+            {groupAvatarUrl ? (
+              <Avatar
+                size={100}
+                uri={groupAvatarUrl}
+                name={groupDetails.name || "Groupe"}
               />
             ) : (
               <View style={[styles.groupAvatar, styles.groupAvatarPlaceholder]}>
