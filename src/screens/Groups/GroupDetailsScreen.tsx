@@ -11,7 +11,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -733,7 +732,11 @@ export const GroupDetailsScreen: React.FC = () => {
     >
       <View style={styles.groupPhotoContainer}>
         {groupAvatarUrl ? (
-          <Image source={{ uri: groupAvatarUrl }} style={styles.groupPhoto} />
+          <Avatar
+            size={120}
+            uri={groupAvatarUrl}
+            name={groupDetails?.name?.trim() || conversationName || "Groupe"}
+          />
         ) : (
           <View
             style={[

@@ -73,6 +73,9 @@ export const GroupManagementScreen: React.FC = () => {
   const refreshConversations = useConversationsStore(
     (s) => s.refreshConversations,
   );
+  const applyConversationUpdate = useConversationsStore(
+    (s) => s.applyConversationUpdate,
+  );
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -157,11 +160,53 @@ export const GroupManagementScreen: React.FC = () => {
               ? "image/heic"
               : "image/jpeg";
 
-      const upload = await MediaService.uploadMedia(
-        { uri: localUri, name: fileName, type: fileType },
-        undefined,
-        { context: "group_icon", ownerId: currentUserId || undefined },
-      );
+      const doUpload = async (
+        context: "group_icon" | "avatar" | "message",
+        ownerId: string | undefined,
+      ) =>
+        MediaService.uploadMedia(
+          { uri: localUri, name: fileName, type: fileType },
+          undefined,
+          { context, ownerId },
+        );
+
+      const retryUpload = async (
+        context: "group_icon" | "avatar" | "message",
+        ownerId: string | undefined,
+      ) => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            return await doUpload(context, ownerId);
+          } catch (err) {
+            lastError = err;
+            const status =
+              typeof (err as any)?.status === "number"
+                ? (err as any).status
+                : null;
+            if (!status || status < 500 || attempt === 2) break;
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
+        }
+        throw lastError;
+      };
+
+      let upload: { id: string };
+      try {
+        upload = await retryUpload("group_icon", currentUserId || undefined);
+      } catch (err) {
+        const status =
+          typeof (err as any)?.status === "number" ? (err as any).status : null;
+        const msg = String((err as Error)?.message ?? "");
+        if (
+          status === 503 &&
+          /group authorization service unavailable/i.test(msg)
+        ) {
+          upload = await retryUpload("avatar", currentUserId || undefined);
+        } else {
+          throw err;
+        }
+      }
 
       const updated = await groupsAPI.updateGroup(
         groupId,
@@ -170,9 +215,30 @@ export const GroupManagementScreen: React.FC = () => {
       );
 
       setGroupDetails(updated);
+      if (conversation) {
+        const nextMeta = {
+          ...(conversation.metadata ?? {}),
+          group_avatar_url: upload.id,
+          avatar_url: upload.id,
+          picture_url: upload.id,
+          group_icon_url: upload.id,
+        };
+        applyConversationUpdate({
+          ...conversation,
+          avatar_url: upload.id,
+          metadata: nextMeta,
+        });
+      }
       await refreshConversations();
     },
-    [conversationId, currentUserId, groupId, refreshConversations],
+    [
+      applyConversationUpdate,
+      conversation,
+      conversationId,
+      currentUserId,
+      groupId,
+      refreshConversations,
+    ],
   );
 
   useEffect(() => {
