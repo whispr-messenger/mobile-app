@@ -491,15 +491,20 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [isRecording, startRecording, stopRecording]);
 
-  const bottomPadding =
-    applySafeAreaBottom && !isKeyboardVisible ? insets.bottom : 0;
+  // While the keyboard is up we still want a small breathing gap between
+  // the bar and the keyboard. Otherwise the bar uses the home indicator inset.
+  const KEYBOARD_OPEN_GAP = 8;
+  const bottomPadding = isKeyboardVisible
+    ? KEYBOARD_OPEN_GAP
+    : applySafeAreaBottom
+      ? insets.bottom
+      : 0;
 
-  // The bar uses a plain opaque background — no BlurView. When the keyboard
-  // is up the bottom inset disappears (handled by `bottomPadding` above) so
-  // the bar sits flush against the keyboard.
-  const overlayStyle = isKeyboardVisible
-    ? [styles.bareOverlay, { paddingBottom: bottomPadding }]
-    : [styles.borderOverlay, { paddingBottom: bottomPadding }];
+  // Always use the same translucent background; only the bottom padding
+  // changes (8px breathing gap when the keyboard is up, safe-area inset
+  // otherwise). Keeping a single style avoids style swaps that previously
+  // unmounted the TextInput and broke the keyboard.
+  const overlayStyle = [styles.borderOverlay, { paddingBottom: bottomPadding }];
 
   return (
     <View style={styles.container}>
@@ -644,10 +649,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
 };
 
-// Plain opaque background for the bar (no BlurView). Picked to match the
-// dark navy of the chat gradient bottom so the bar reads as a continuation
-// of the screen rather than a floating panel.
-const COMPOSER_BG = "rgba(20, 25, 50, 0.95)";
+// Translucent background so messages remain visible scrolling behind the
+// bar — the dark navy still reads as a bottom band but lets some content
+// peek through. The composer field itself stays opaque (see ComposerInput)
+// so the input outline remains crisp.
+const COMPOSER_BG = "rgba(20, 25, 50, 0.55)";
 
 const styles = StyleSheet.create({
   container: {
@@ -657,11 +663,6 @@ const styles = StyleSheet.create({
     backgroundColor: COMPOSER_BG,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255, 255, 255, 0.18)",
-  },
-  // Used while the keyboard is open: no background, no border, so the
-  // gradient under the rounded keyboard corners shows through cleanly.
-  bareOverlay: {
-    backgroundColor: "transparent",
   },
   replyContainer: {
     flexDirection: "row",
