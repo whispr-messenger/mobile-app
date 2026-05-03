@@ -14,7 +14,6 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -495,121 +494,114 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const bottomPadding =
     applySafeAreaBottom && !isKeyboardVisible ? insets.bottom : 0;
 
-  // When the keyboard is up, the rounded corners of the iOS keyboard reveal
-  // the gradient behind the bottom bar through the BlurView's overlay. Drop
-  // the blur intensity to 0 and use a transparent overlay so the gradient
-  // shows through cleanly. We keep the BlurView mounted (rather than swap
-  // it for a plain View) so the TextInput inside doesn't get unmounted on
-  // every keyboard toggle — that would steal focus and dismiss the keyboard
-  // immediately after opening it.
+  // The bar uses a plain opaque background — no BlurView. When the keyboard
+  // is up the bottom inset disappears (handled by `bottomPadding` above) so
+  // the bar sits flush against the keyboard.
   const overlayStyle = isKeyboardVisible
     ? [styles.bareOverlay, { paddingBottom: bottomPadding }]
     : [styles.borderOverlay, { paddingBottom: bottomPadding }];
-  const blurIntensity = isKeyboardVisible ? 0 : Platform.OS === "ios" ? 60 : 80;
 
   return (
     <View style={styles.container}>
-      <BlurView intensity={blurIntensity} tint="dark" style={styles.blur}>
-        <View style={overlayStyle}>
-          {(replyingTo || editingMessage) && (
-            <View
-              style={[
-                styles.replyContainer,
-                { backgroundColor: "rgba(11, 17, 36, 0.7)" },
-              ]}
-            >
-              {replyingTo && <ReplyPreview replyTo={replyingTo} />}
-              {editingMessage && (
-                <View style={styles.editContainer}>
-                  <Text
-                    style={[styles.editLabel, { color: themeColors.primary }]}
-                  >
-                    Modifier le message
-                  </Text>
-                </View>
-              )}
-              <TouchableOpacity
-                onPress={replyingTo ? onCancelReply : onCancelEdit}
-                style={styles.cancelReplyButton}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  replyingTo ? "Annuler la réponse" : "Annuler la modification"
-                }
-              >
-                <Ionicons
-                  name="close"
-                  size={20}
-                  color={themeColors.text.secondary}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-          <View style={styles.inputContainer}>
-            {isRecording ? (
-              <RecordingBar
-                duration={recordingDuration}
-                wavePhase={recordingWavePhase}
-                isLocked={recordingIsLocked}
-                isPaused={recordingIsPaused}
-                onCancel={cancelRecording}
-                onSend={stopRecording}
-                onLock={lockRecording}
-                onPause={pauseRecording}
-                onResume={resumeRecording}
-              />
-            ) : (
-              <>
-                {!editingMessage && (
-                  <TouchableOpacity
-                    testID="attachment-sheet-trigger"
-                    onPress={handleOpenAttachmentSheet}
-                    style={styles.attachButton}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel="Ouvrir les pièces jointes"
-                  >
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={28}
-                      color={themeColors.text.secondary}
-                    />
-                  </TouchableOpacity>
-                )}
-                <ComposerInput
-                  ref={inputRef}
-                  text={text}
-                  inputHeight={inputHeight}
-                  composerWidth={composerWidth}
-                  placeholder={
-                    editingMessage
-                      ? "Modifier le message"
-                      : replyingTo
-                        ? "Répondre"
-                        : placeholder
-                  }
-                  showMentions={showMentions}
-                  mentionQuery={mentionQuery}
-                  members={members}
-                  conversationType={conversationType}
-                  onChangeText={handleTextChange}
-                  onSubmitWeb={handleSend}
-                  onMeasuredTextLayout={handleMeasuredTextLayout}
-                  onLayout={handleLayout}
-                  onMentionSelect={handleMentionSelect}
-                />
-                <SendOrMicButton
-                  hasText={text.trim().length > 0}
-                  isEditing={!!editingMessage}
-                  onSend={handleSend}
-                  onLongPressSend={handleLongPressSend}
-                  onMicPress={handleMicPress}
-                  onMicLongPress={startRecording}
-                />
-              </>
+      <View style={overlayStyle}>
+        {(replyingTo || editingMessage) && (
+          <View
+            style={[
+              styles.replyContainer,
+              { backgroundColor: "rgba(11, 17, 36, 0.7)" },
+            ]}
+          >
+            {replyingTo && <ReplyPreview replyTo={replyingTo} />}
+            {editingMessage && (
+              <View style={styles.editContainer}>
+                <Text
+                  style={[styles.editLabel, { color: themeColors.primary }]}
+                >
+                  Modifier le message
+                </Text>
+              </View>
             )}
+            <TouchableOpacity
+              onPress={replyingTo ? onCancelReply : onCancelEdit}
+              style={styles.cancelReplyButton}
+              accessibilityRole="button"
+              accessibilityLabel={
+                replyingTo ? "Annuler la réponse" : "Annuler la modification"
+              }
+            >
+              <Ionicons
+                name="close"
+                size={20}
+                color={themeColors.text.secondary}
+              />
+            </TouchableOpacity>
           </View>
+        )}
+        <View style={styles.inputContainer}>
+          {isRecording ? (
+            <RecordingBar
+              duration={recordingDuration}
+              wavePhase={recordingWavePhase}
+              isLocked={recordingIsLocked}
+              isPaused={recordingIsPaused}
+              onCancel={cancelRecording}
+              onSend={stopRecording}
+              onLock={lockRecording}
+              onPause={pauseRecording}
+              onResume={resumeRecording}
+            />
+          ) : (
+            <>
+              {!editingMessage && (
+                <TouchableOpacity
+                  testID="attachment-sheet-trigger"
+                  onPress={handleOpenAttachmentSheet}
+                  style={styles.attachButton}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ouvrir les pièces jointes"
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={28}
+                    color={themeColors.text.secondary}
+                  />
+                </TouchableOpacity>
+              )}
+              <ComposerInput
+                ref={inputRef}
+                text={text}
+                inputHeight={inputHeight}
+                composerWidth={composerWidth}
+                placeholder={
+                  editingMessage
+                    ? "Modifier le message"
+                    : replyingTo
+                      ? "Répondre"
+                      : placeholder
+                }
+                showMentions={showMentions}
+                mentionQuery={mentionQuery}
+                members={members}
+                conversationType={conversationType}
+                onChangeText={handleTextChange}
+                onSubmitWeb={handleSend}
+                onMeasuredTextLayout={handleMeasuredTextLayout}
+                onLayout={handleLayout}
+                onMentionSelect={handleMentionSelect}
+              />
+              <SendOrMicButton
+                hasText={text.trim().length > 0}
+                isEditing={!!editingMessage}
+                onSend={handleSend}
+                onLongPressSend={handleLongPressSend}
+                onMicPress={handleMicPress}
+                onMicLongPress={startRecording}
+              />
+            </>
+          )}
         </View>
-      </BlurView>
+      </View>
       <CameraCapture
         visible={showCameraCapture}
         onClose={() => setShowCameraCapture(false)}
@@ -652,20 +644,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   );
 };
 
-// On iOS the BlurView produces a real glass effect; on Android the blur is
-// often a fragile fallback, so we use a more opaque overlay tint for legibility.
-const COMPOSER_OVERLAY_BG =
-  Platform.OS === "ios" ? "rgba(20, 25, 50, 0.35)" : "rgba(20, 25, 50, 0.7)";
+// Plain opaque background for the bar (no BlurView). Picked to match the
+// dark navy of the chat gradient bottom so the bar reads as a continuation
+// of the screen rather than a floating panel.
+const COMPOSER_BG = "rgba(20, 25, 50, 0.95)";
 
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "transparent",
   },
-  blur: {
-    overflow: "hidden",
-  },
   borderOverlay: {
-    backgroundColor: COMPOSER_OVERLAY_BG,
+    backgroundColor: COMPOSER_BG,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255, 255, 255, 0.18)",
   },
