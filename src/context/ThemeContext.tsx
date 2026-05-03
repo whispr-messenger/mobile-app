@@ -9,10 +9,10 @@ import React, {
   useState,
   useEffect,
   ReactNode,
-  useMemo,
   useRef,
+  useCallback,
 } from "react";
-import { useColorScheme } from "react-native";
+import { AppState, useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -20,7 +20,11 @@ import { colors } from "../theme/colors";
 import { detectImageFormatFromUri } from "../utils/imageCompression";
 import { TokenService } from "../services/TokenService";
 import { MediaService } from "../services/MediaService";
-import { UserService } from "../services/UserService";
+import {
+  UserService,
+  type UserProfile,
+  type UserVisualPreferences,
+} from "../services/UserService";
 import { getApiBaseUrl } from "../services/apiBase";
 
 // Types
@@ -45,11 +49,18 @@ export interface GlobalSettings {
   customBackgroundVersion?: number;
   customBackgroundRemoteMediaId?: string | null;
   customBackgroundRemoteUrl?: string | null;
+  remoteSyncUpdatedAt?: string | null;
 }
 
 interface ThemeContextType {
   settings: GlobalSettings;
-  updateSettings: (newSettings: Partial<GlobalSettings>) => Promise<void>;
+  updateSettings: (
+    newSettings: Partial<GlobalSettings>,
+    options?: {
+      skipRemoteSync?: boolean;
+      preserveRemoteSyncTimestamp?: boolean;
+    },
+  ) => Promise<void>;
   saveCustomBackground: (sourceUri: string) => Promise<void>;
   clearCustomBackground: () => Promise<void>;
   getThemeColors: () => ThemeColors;
@@ -81,6 +92,9 @@ interface ThemeColors {
 
 const STORAGE_KEY = "whispr.globalSettings.v1";
 const VISUAL_CACHE_KEY = "whispr.globalSettings.visual-cache.v1";
+const REMOTE_VISUAL_SYNC_DEBOUNCE_MS = 750;
+const REMOTE_VISUAL_POLL_INTERVAL_MS = 60_000;
+const REMOTE_VISUAL_FETCH_MIN_INTERVAL_MS = 15_000;
 
 export const BACKGROUND_PRESET_GRADIENTS: Record<
   BackgroundPreset,
@@ -129,6 +143,10 @@ function normalizeSettings(
     typeof stored?.customBackgroundVersion === "number"
       ? stored.customBackgroundVersion
       : 0;
+  const remoteSyncUpdatedAt =
+    typeof stored?.remoteSyncUpdatedAt === "string"
+      ? stored.remoteSyncUpdatedAt
+      : null;
 
   return {
     ...defaultSettings,
@@ -147,6 +165,7 @@ function normalizeSettings(
       typeof stored?.customBackgroundRemoteUrl === "string"
         ? stored.customBackgroundRemoteUrl
         : null,
+    remoteSyncUpdatedAt,
   };
 }
 
@@ -169,7 +188,33 @@ function buildVisualCachePayload(
     customBackgroundRemoteMediaId:
       settings.customBackgroundRemoteMediaId ?? null,
     customBackgroundRemoteUrl: settings.customBackgroundRemoteUrl ?? null,
+    remoteSyncUpdatedAt: settings.remoteSyncUpdatedAt ?? null,
   };
+}
+
+export function shouldSyncVisualPreferences(
+  settings: GlobalSettings,
+  updates: Partial<GlobalSettings>,
+) {
+  const touchesVisualPreference =
+    updates.theme !== undefined ||
+    updates.language !== undefined ||
+    updates.fontSize !== undefined ||
+    updates.backgroundPreset !== undefined;
+
+  if (!touchesVisualPreference) {
+    return false;
+  }
+
+  if (
+    settings.backgroundPreset === "custom" &&
+    !settings.customBackgroundRemoteMediaId &&
+    !settings.customBackgroundRemoteUrl
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 async function persistSettingsCaches(settings: GlobalSettings) {
@@ -334,11 +379,137 @@ async function downloadRemoteBackgroundToLocal(
   }
 }
 
-async function hydrateRemoteBackgroundFallback(
+function parseVisualTimestamp(value: string | null | undefined) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function buildVisualPreferencesPayload(
+  settings: GlobalSettings,
+): UserVisualPreferences {
+  const hasRemoteCustomBackground =
+    settings.backgroundPreset === "custom" &&
+    !!(
+      settings.customBackgroundRemoteMediaId ||
+      settings.customBackgroundRemoteUrl
+    );
+
+  return {
+    theme: settings.theme,
+    language: settings.language,
+    fontSize: settings.fontSize,
+    backgroundPreset: settings.backgroundPreset,
+    backgroundMediaId: hasRemoteCustomBackground
+      ? (settings.customBackgroundRemoteMediaId ?? null)
+      : null,
+    backgroundMediaUrl: hasRemoteCustomBackground
+      ? (settings.customBackgroundRemoteUrl ?? null)
+      : null,
+    updatedAt: settings.remoteSyncUpdatedAt ?? null,
+  };
+}
+
+export function extractProfileVisualPreferences(
+  profile: UserProfile | null | undefined,
+): UserVisualPreferences | null {
+  if (!profile) return null;
+  const visual = profile.visualPreferences;
+  if (visual && Object.keys(visual).length > 0) {
+    return {
+      theme: visual.theme,
+      language: visual.language,
+      fontSize: visual.fontSize,
+      backgroundPreset: visual.backgroundPreset,
+      backgroundMediaId:
+        typeof visual.backgroundMediaId === "string"
+          ? visual.backgroundMediaId
+          : visual.backgroundMediaId === null
+            ? null
+            : null,
+      backgroundMediaUrl:
+        typeof visual.backgroundMediaUrl === "string"
+          ? visual.backgroundMediaUrl
+          : visual.backgroundMediaUrl === null
+            ? null
+            : null,
+      updatedAt:
+        typeof visual.updatedAt === "string"
+          ? visual.updatedAt
+          : visual.updatedAt === null
+            ? null
+            : null,
+    };
+  }
+
+  if (!profile.backgroundMediaId && !profile.backgroundMediaUrl) {
+    return null;
+  }
+
+  return {
+    backgroundPreset: "custom",
+    backgroundMediaId: profile.backgroundMediaId ?? null,
+    backgroundMediaUrl: profile.backgroundMediaUrl ?? null,
+    updatedAt: profile.updatedAt ?? null,
+  };
+}
+
+export function shouldApplyRemoteVisualPreferences(
   current: GlobalSettings,
+  remote: UserVisualPreferences | null | undefined,
+) {
+  if (!remote) return false;
+  const remoteUpdatedAt = parseVisualTimestamp(remote.updatedAt);
+  const localUpdatedAt = parseVisualTimestamp(current.remoteSyncUpdatedAt);
+
+  if (remoteUpdatedAt && remoteUpdatedAt > localUpdatedAt) {
+    return true;
+  }
+
+  if (!localUpdatedAt) {
+    return Boolean(
+      remote.theme ||
+      remote.language ||
+      remote.fontSize ||
+      remote.backgroundPreset ||
+      remote.backgroundMediaId ||
+      remote.backgroundMediaUrl,
+    );
+  }
+
+  if (
+    current.backgroundPreset === "custom" &&
+    remote.backgroundPreset === "custom" &&
+    (current.customBackgroundRemoteMediaId ?? null) !==
+      (remote.backgroundMediaId ?? null)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+async function hydrateRemoteVisualPreferences(
+  current: GlobalSettings,
+  profile?: UserProfile | null,
 ): Promise<GlobalSettings> {
-  const remoteMediaId = current.customBackgroundRemoteMediaId;
-  const remoteUrl = current.customBackgroundRemoteUrl;
+  const remoteVisualPreferences = extractProfileVisualPreferences(
+    profile ?? null,
+  ) ?? {
+    backgroundPreset:
+      current.customBackgroundRemoteMediaId || current.customBackgroundRemoteUrl
+        ? "custom"
+        : undefined,
+    backgroundMediaId: current.customBackgroundRemoteMediaId ?? null,
+    backgroundMediaUrl: current.customBackgroundRemoteUrl ?? null,
+    updatedAt: current.remoteSyncUpdatedAt ?? null,
+  };
+  const remoteMediaId =
+    remoteVisualPreferences.backgroundMediaId ??
+    current.customBackgroundRemoteMediaId;
+  const remoteUrl =
+    remoteVisualPreferences.backgroundMediaUrl ??
+    current.customBackgroundRemoteUrl;
 
   if (remoteMediaId || remoteUrl) {
     const restoredUri = await downloadRemoteBackgroundToLocal(
@@ -351,45 +522,102 @@ async function hydrateRemoteBackgroundFallback(
         backgroundPreset: "custom",
         customBackgroundUri: restoredUri,
         customBackgroundVersion: Date.now(),
+        customBackgroundRemoteMediaId: remoteMediaId ?? null,
+        customBackgroundRemoteUrl: remoteUrl ?? null,
+        remoteSyncUpdatedAt:
+          remoteVisualPreferences.updatedAt ??
+          current.remoteSyncUpdatedAt ??
+          null,
       };
     }
   }
 
+  return {
+    ...current,
+    customBackgroundRemoteMediaId: remoteMediaId ?? null,
+    customBackgroundRemoteUrl: remoteUrl ?? null,
+    remoteSyncUpdatedAt:
+      remoteVisualPreferences.updatedAt ?? current.remoteSyncUpdatedAt ?? null,
+  };
+}
+
+async function mergeRemoteVisualPreferencesIntoSettings(
+  current: GlobalSettings,
+  remote: UserVisualPreferences,
+): Promise<GlobalSettings> {
+  const nextBase: GlobalSettings = normalizeSettings({
+    ...current,
+    theme: remote.theme ?? current.theme,
+    language: remote.language ?? current.language,
+    fontSize: remote.fontSize ?? current.fontSize,
+    backgroundPreset:
+      remote.backgroundPreset ??
+      (remote.backgroundMediaId || remote.backgroundMediaUrl
+        ? "custom"
+        : current.backgroundPreset),
+    customBackgroundRemoteMediaId:
+      remote.backgroundMediaId ?? current.customBackgroundRemoteMediaId ?? null,
+    customBackgroundRemoteUrl:
+      remote.backgroundMediaUrl ?? current.customBackgroundRemoteUrl ?? null,
+    remoteSyncUpdatedAt:
+      remote.updatedAt ?? current.remoteSyncUpdatedAt ?? null,
+  });
+
+  if (
+    (remote.backgroundPreset &&
+      remote.backgroundPreset !== "custom" &&
+      remote.backgroundPreset !== current.backgroundPreset) ||
+    (remote.backgroundPreset &&
+      remote.backgroundPreset !== "custom" &&
+      current.backgroundPreset === "custom")
+  ) {
+    return {
+      ...nextBase,
+      customBackgroundUri: null,
+      customBackgroundVersion: 0,
+      customBackgroundRemoteMediaId: null,
+      customBackgroundRemoteUrl: null,
+    };
+  }
+
+  if (
+    nextBase.backgroundPreset === "custom" ||
+    remote.backgroundMediaId ||
+    remote.backgroundMediaUrl
+  ) {
+    return hydrateRemoteVisualPreferences(nextBase);
+  }
+
+  return nextBase;
+}
+
+async function hydrateRemoteBackgroundFallback(
+  current: GlobalSettings,
+): Promise<GlobalSettings> {
   const token = await TokenService.getAccessToken().catch(() => null);
   if (!token) {
     return current;
   }
 
   try {
-    const profile = await UserService.getInstance().getProfile();
-    const profileMediaId = profile.profile?.backgroundMediaId;
-    const profileRemoteUrl = profile.profile?.backgroundMediaUrl;
-    if (!profileMediaId && !profileRemoteUrl) {
+    const result = await UserService.getInstance().getProfile();
+    if (!result.success || !result.profile) {
       return current;
     }
 
-    const restoredUri = await downloadRemoteBackgroundToLocal(
-      profileMediaId,
-      profileRemoteUrl,
+    const remoteVisualPreferences = extractProfileVisualPreferences(
+      result.profile,
     );
-    if (!restoredUri) {
-      return {
-        ...current,
-        customBackgroundRemoteMediaId: profileMediaId ?? null,
-        customBackgroundRemoteUrl: profileRemoteUrl ?? null,
-      };
+    if (!shouldApplyRemoteVisualPreferences(current, remoteVisualPreferences)) {
+      return current;
     }
 
-    return {
-      ...current,
-      backgroundPreset: "custom",
-      customBackgroundUri: restoredUri,
-      customBackgroundVersion: Date.now(),
-      customBackgroundRemoteMediaId: profileMediaId ?? null,
-      customBackgroundRemoteUrl: profileRemoteUrl ?? null,
-    };
+    return mergeRemoteVisualPreferencesIntoSettings(
+      current,
+      remoteVisualPreferences as UserVisualPreferences,
+    );
   } catch (error) {
-    console.warn("Failed to hydrate remote background fallback", error);
+    console.warn("Failed to hydrate visual preferences from backend", error);
     return current;
   }
 }
@@ -404,6 +632,7 @@ const defaultSettings: GlobalSettings = {
   customBackgroundVersion: 0,
   customBackgroundRemoteMediaId: null,
   customBackgroundRemoteUrl: null,
+  remoteSyncUpdatedAt: null,
 };
 
 // Localized texts
@@ -1108,9 +1337,125 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
   const [settings, setSettings] = useState<GlobalSettings>(defaultSettings);
   const settingsRef = useRef<GlobalSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  const pendingRemoteVisualSyncRef = useRef<GlobalSettings | null>(null);
+  const remoteVisualSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const lastRemoteVisualFetchAtRef = useRef(0);
   // WHISPR-1072: watch the OS-level color scheme so "auto" actually follows
   // the system preference instead of silently defaulting to dark.
   const systemColorScheme = useColorScheme();
+
+  const applySettingsLocally = useCallback(
+    async (nextSettings: GlobalSettings) => {
+      settingsRef.current = nextSettings;
+      setSettings(nextSettings);
+      applyRuntimeBackgroundGradient(
+        BACKGROUND_PRESET_GRADIENTS[nextSettings.backgroundPreset],
+      );
+      await persistSettingsCaches(nextSettings);
+    },
+    [],
+  );
+
+  const flushPendingRemoteVisualSync = useCallback(async () => {
+    const pendingSettings = pendingRemoteVisualSyncRef.current;
+    if (!pendingSettings) {
+      return;
+    }
+
+    pendingRemoteVisualSyncRef.current = null;
+
+    try {
+      const response = await UserService.getInstance().updateVisualPreferences(
+        buildVisualPreferencesPayload(pendingSettings),
+      );
+
+      if (!response.success) {
+        pendingRemoteVisualSyncRef.current = pendingSettings;
+        return;
+      }
+
+      const remoteVisualPreferences = extractProfileVisualPreferences(
+        response.profile,
+      );
+      if (!remoteVisualPreferences) {
+        return;
+      }
+
+      const merged = await mergeRemoteVisualPreferencesIntoSettings(
+        settingsRef.current,
+        remoteVisualPreferences,
+      );
+      await applySettingsLocally(merged);
+    } catch (error) {
+      pendingRemoteVisualSyncRef.current = pendingSettings;
+      console.warn("Failed to sync visual preferences to backend", error);
+    }
+  }, [applySettingsLocally]);
+
+  const scheduleRemoteVisualSync = useCallback(
+    (nextSettings: GlobalSettings) => {
+      pendingRemoteVisualSyncRef.current = nextSettings;
+      if (remoteVisualSyncTimerRef.current) {
+        clearTimeout(remoteVisualSyncTimerRef.current);
+      }
+
+      remoteVisualSyncTimerRef.current = setTimeout(() => {
+        remoteVisualSyncTimerRef.current = null;
+        flushPendingRemoteVisualSync().catch(() => {});
+      }, REMOTE_VISUAL_SYNC_DEBOUNCE_MS);
+    },
+    [flushPendingRemoteVisualSync],
+  );
+
+  const syncRemoteVisualPreferences = useCallback(
+    async (force = false) => {
+      const now = Date.now();
+      if (
+        !force &&
+        now - lastRemoteVisualFetchAtRef.current <
+          REMOTE_VISUAL_FETCH_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      lastRemoteVisualFetchAtRef.current = now;
+
+      const token = await TokenService.getAccessToken().catch(() => null);
+      if (!token) {
+        return;
+      }
+
+      try {
+        const result = await UserService.getInstance().getProfile();
+        if (!result.success || !result.profile) {
+          return;
+        }
+
+        const remoteVisualPreferences = extractProfileVisualPreferences(
+          result.profile,
+        );
+        if (
+          !shouldApplyRemoteVisualPreferences(
+            settingsRef.current,
+            remoteVisualPreferences,
+          )
+        ) {
+          return;
+        }
+
+        const merged = await mergeRemoteVisualPreferencesIntoSettings(
+          settingsRef.current,
+          remoteVisualPreferences as UserVisualPreferences,
+        );
+        await applySettingsLocally(merged);
+      } catch (error) {
+        console.warn("Failed to fetch remote visual preferences", error);
+      }
+    },
+    [applySettingsLocally],
+  );
 
   // Load settings from storage
   useEffect(() => {
@@ -1129,18 +1474,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
           applyRuntimeBackgroundGradient(
             BACKGROUND_PRESET_GRADIENTS[parsed.backgroundPreset],
           );
-          settingsRef.current = parsed;
-          setSettings(parsed);
-          await persistSettingsCaches(parsed).catch(() => {});
+          await applySettingsLocally(parsed);
         } else {
           const hydrated =
             await hydrateRemoteBackgroundFallback(defaultSettings);
           applyRuntimeBackgroundGradient(
             BACKGROUND_PRESET_GRADIENTS[hydrated.backgroundPreset],
           );
-          settingsRef.current = hydrated;
-          setSettings(hydrated);
-          await persistSettingsCaches(hydrated).catch(() => {});
+          await applySettingsLocally(hydrated);
         }
       } catch (error) {
         console.error("Error loading settings:", error);
@@ -1152,25 +1493,84 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
       }
     };
     loadSettings();
+  }, [applySettingsLocally]);
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    const syncActiveDevice = async (force = false) => {
+      await flushPendingRemoteVisualSync();
+      await syncRemoteVisualPreferences(force);
+    };
+
+    syncActiveDevice(true).catch(() => {});
+
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        syncActiveDevice(true).catch(() => {});
+      }
+    });
+
+    const pollId = setInterval(() => {
+      if (AppState.currentState === "active") {
+        syncActiveDevice(false).catch(() => {});
+      }
+    }, REMOTE_VISUAL_POLL_INTERVAL_MS);
+
+    return () => {
+      subscription.remove();
+      clearInterval(pollId);
+    };
+  }, [flushPendingRemoteVisualSync, isLoaded, syncRemoteVisualPreferences]);
+
+  useEffect(() => {
+    return () => {
+      if (remoteVisualSyncTimerRef.current) {
+        clearTimeout(remoteVisualSyncTimerRef.current);
+      }
+    };
   }, []);
 
   // Update settings
-  const updateSettings = async (newSettings: Partial<GlobalSettings>) => {
-    const updated = normalizeSettings({
-      ...settingsRef.current,
-      ...newSettings,
-    });
-    settingsRef.current = updated;
-    setSettings(updated);
-    applyRuntimeBackgroundGradient(
-      BACKGROUND_PRESET_GRADIENTS[updated.backgroundPreset],
-    );
-    try {
-      await persistSettingsCaches(updated);
-    } catch (error) {
-      console.error("Error saving settings:", error);
-    }
-  };
+  const updateSettings = useCallback(
+    async (
+      newSettings: Partial<GlobalSettings>,
+      options?: {
+        skipRemoteSync?: boolean;
+        preserveRemoteSyncTimestamp?: boolean;
+      },
+    ) => {
+      const baseUpdated = normalizeSettings({
+        ...settingsRef.current,
+        ...newSettings,
+      });
+      const shouldQueueRemoteSync =
+        !options?.skipRemoteSync &&
+        shouldSyncVisualPreferences(baseUpdated, newSettings);
+      const updated = shouldQueueRemoteSync
+        ? {
+            ...baseUpdated,
+            remoteSyncUpdatedAt:
+              options?.preserveRemoteSyncTimestamp &&
+              baseUpdated.remoteSyncUpdatedAt
+                ? baseUpdated.remoteSyncUpdatedAt
+                : new Date().toISOString(),
+          }
+        : baseUpdated;
+
+      try {
+        await applySettingsLocally(updated);
+        if (shouldQueueRemoteSync) {
+          scheduleRemoteVisualSync(updated);
+        }
+      } catch (error) {
+        console.error("Error saving settings:", error);
+      }
+    },
+    [applySettingsLocally, scheduleRemoteVisualSync],
+  );
 
   const saveCustomBackground = async (sourceUri: string) => {
     const format = detectImageFormatFromUri(sourceUri);
@@ -1204,11 +1604,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
       }).catch(() => {});
     }
 
-    await updateSettings({
-      backgroundPreset: "custom",
-      customBackgroundUri: targetUri,
-      customBackgroundVersion: Date.now(),
-    });
+    await updateSettings(
+      {
+        backgroundPreset: "custom",
+        customBackgroundUri: targetUri,
+        customBackgroundVersion: Date.now(),
+      },
+      { skipRemoteSync: true },
+    );
 
     try {
       const tokenPayload = TokenService.decodeAccessToken(
@@ -1238,11 +1641,22 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
         customBackgroundRemoteUrl: uploadResult.url ?? null,
       };
 
-      await updateSettings(remoteSettings);
+      await updateSettings(remoteSettings, { skipRemoteSync: true });
 
-      await UserService.getInstance()
-        .updateProfileBackground(uploadResult.id, uploadResult.url ?? null)
-        .catch(() => {});
+      const response = await UserService.getInstance().updateProfileBackground(
+        uploadResult.id,
+        uploadResult.url ?? null,
+      );
+      const remoteVisualPreferences = extractProfileVisualPreferences(
+        response.profile,
+      );
+      if (response.success && remoteVisualPreferences) {
+        const merged = await mergeRemoteVisualPreferencesIntoSettings(
+          settingsRef.current,
+          remoteVisualPreferences,
+        );
+        await applySettingsLocally(merged);
+      }
     } catch (error) {
       console.warn("Failed to sync custom background to backend", error);
     }
@@ -1251,17 +1665,31 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
   const clearCustomBackground = async () => {
     await deleteAllCustomBackgroundVariants();
 
-    await updateSettings({
-      backgroundPreset: defaultSettings.backgroundPreset,
-      customBackgroundUri: null,
-      customBackgroundVersion: 0,
-      customBackgroundRemoteMediaId: null,
-      customBackgroundRemoteUrl: null,
-    });
+    await updateSettings(
+      {
+        backgroundPreset: defaultSettings.backgroundPreset,
+        customBackgroundUri: null,
+        customBackgroundVersion: 0,
+        customBackgroundRemoteMediaId: null,
+        customBackgroundRemoteUrl: null,
+      },
+      { skipRemoteSync: true },
+    );
 
-    await UserService.getInstance()
-      .updateProfileBackground(null, null)
-      .catch(() => {});
+    const response = await UserService.getInstance().updateProfileBackground(
+      null,
+      null,
+    );
+    const remoteVisualPreferences = extractProfileVisualPreferences(
+      response.profile,
+    );
+    if (response.success && remoteVisualPreferences) {
+      const merged = await mergeRemoteVisualPreferencesIntoSettings(
+        settingsRef.current,
+        remoteVisualPreferences,
+      );
+      await applySettingsLocally(merged);
+    }
   };
 
   // Get theme colors based on current theme (delegates to the pure helper
