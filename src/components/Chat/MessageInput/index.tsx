@@ -508,6 +508,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <View style={styles.container}>
+      {/*
+        When the keyboard is open, iOS draws its rounded top corners on top
+        of whatever is behind it — that's the chat gradient, which leaves two
+        coloured triangles on each side of the keyboard. We can't restyle the
+        keyboard itself, but we *can* extend the composer's background colour
+        below the bar so the keyboard's rounded corners cut into a matching
+        flat tone instead of the gradient. The extender lives in a sibling
+        absolute layer so it doesn't push the bar's layout.
+      */}
+      {isKeyboardVisible && (
+        <View style={styles.keyboardBackdropExtender} pointerEvents="none" />
+      )}
       <View style={overlayStyle}>
         {(replyingTo || editingMessage) && (
           <View
@@ -655,9 +667,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 // so the input outline remains crisp.
 const COMPOSER_BG = "rgba(20, 25, 50, 0.55)";
 
+// Opaque variant of the bar background so the iOS keyboard's rounded
+// corners crop a flat dark tone (matching the bar) instead of the gradient
+// behind. The visible bar above keeps the translucent COMPOSER_BG so it
+// still lets messages peek through at scroll time.
+const COMPOSER_BG_OPAQUE = "rgba(20, 25, 50, 1)";
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "transparent",
+  },
+  keyboardBackdropExtender: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "100%",
+    height: 600,
+    backgroundColor: COMPOSER_BG_OPAQUE,
   },
   borderOverlay: {
     backgroundColor: COMPOSER_BG,
