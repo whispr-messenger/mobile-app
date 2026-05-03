@@ -53,8 +53,9 @@ export function extractFirstUrl(text?: string | null): string | null {
 }
 
 function decodeHtmlEntities(value: string): string {
+  // decoder &amp; en dernier evite le double-unescape:
+  // sinon "&amp;lt;" deviendrait "<" au lieu de "&lt;"
   return value
-    .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/&apos;/gi, "'")
@@ -65,7 +66,8 @@ function decodeHtmlEntities(value: string): string {
     )
     .replace(/&#x([0-9a-f]+);/gi, (_, code: string) =>
       String.fromCharCode(parseInt(code, 16)),
-    );
+    )
+    .replace(/&amp;/gi, "&");
 }
 
 function compactWhitespace(
