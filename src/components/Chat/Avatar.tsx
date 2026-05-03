@@ -68,6 +68,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   isOnline = false,
 }) => {
   const [imageError, setImageError] = React.useState(false);
+  const triedAuthResolveRef = React.useRef(false);
 
   const effectiveCandidate = React.useMemo(() => {
     const raw = typeof uri === "string" ? uri.trim() : "";

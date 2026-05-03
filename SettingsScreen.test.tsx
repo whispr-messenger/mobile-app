@@ -138,4 +138,25 @@ describe("SettingsScreen", () => {
       });
     }
   });
+
+  it("absolute-positions the ScrollView on web so the page actually scrolls (WHISPR-1202)", async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
+    try {
+      const { getByTestId } = render(<SettingsScreen />);
+      const scroll = await waitFor(() => getByTestId("settings-scroll"));
+      const flat = StyleSheet.flatten(scroll.props.style);
+      expect(flat.position).toBe("absolute");
+      expect(flat.top).toBe(0);
+      expect(flat.bottom).toBe(0);
+      expect(flat.left).toBe(0);
+      expect(flat.right).toBe(0);
+      expect(flat.overflowY).toBe("auto");
+    } finally {
+      Object.defineProperty(Platform, "OS", {
+        value: originalOS,
+        configurable: true,
+      });
+    }
+  });
 });
