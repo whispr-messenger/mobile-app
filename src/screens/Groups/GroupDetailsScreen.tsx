@@ -3,7 +3,7 @@
  * WHISPR-212
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { formatUsername } from "../../utils";
 import {
   View,
@@ -111,6 +111,9 @@ export const GroupDetailsScreen: React.FC = () => {
   const CURRENT_USER_ID = userId ?? "";
   const { groupId, conversationId, conversationName } = route.params;
   const conversationKey = conversationId || groupId;
+  const conversation = useConversationsStore((s) =>
+    s.conversations.find((c) => c.id === conversationKey),
+  );
   const removeConversationLocal = useConversationsStore(
     (s) => s.removeConversationLocal,
   );
@@ -664,6 +667,23 @@ export const GroupDetailsScreen: React.FC = () => {
     transform: [{ scale: contentScale.value }],
   }));
 
+  const groupAvatarUrl = useMemo(() => {
+    if (groupDetails?.picture_url) return groupDetails.picture_url;
+    if (!conversation) return undefined;
+
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation, groupDetails?.picture_url]);
+
   const renderHeader = () => (
     <Animated.View
       style={[styles.header, headerAnimatedStyle]}
@@ -712,11 +732,8 @@ export const GroupDetailsScreen: React.FC = () => {
       entering={FadeInDown.delay(100).springify()}
     >
       <View style={styles.groupPhotoContainer}>
-        {groupDetails?.picture_url ? (
-          <Image
-            source={{ uri: groupDetails.picture_url }}
-            style={styles.groupPhoto}
-          />
+        {groupAvatarUrl ? (
+          <Image source={{ uri: groupAvatarUrl }} style={styles.groupPhoto} />
         ) : (
           <View
             style={[
