@@ -3,7 +3,7 @@
  * WHISPR-213: Gestion de groupe (ajout/suppression membres, transfert admin, modification infos)
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { formatUsername } from "../../utils";
 import {
   View,
@@ -11,7 +11,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
+  ImageBackground,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -51,6 +51,8 @@ import {
 import { contactsAPI, Contact } from "../../services/contacts/api";
 import { useAuth } from "../../context/AuthContext";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
+import { useConversationsStore } from "../../store/conversationsStore";
+import { MediaService } from "../../services/MediaService";
 
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
@@ -65,6 +67,16 @@ export const GroupManagementScreen: React.FC = () => {
   const route = useRoute<GroupManagementScreenRouteProp>();
   const navigation = useNavigation();
   const { groupId, conversationId } = route.params;
+  const conversationKey = conversationId ?? groupId;
+  const conversation = useConversationsStore((s) =>
+    s.conversations.find((c) => c.id === conversationKey),
+  );
+  const refreshConversations = useConversationsStore(
+    (s) => s.refreshConversations,
+  );
+  const applyConversationUpdate = useConversationsStore(
+    (s) => s.applyConversationUpdate,
+  );
 
   const [groupDetails, setGroupDetails] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -84,8 +96,12 @@ export const GroupManagementScreen: React.FC = () => {
   const [addingMembers, setAddingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+  const { settings: themeSettings } = useTheme();
+  const hasCustomBackground =
+    themeSettings?.backgroundPreset === "custom" &&
+    !!themeSettings?.customBackgroundUri;
+  const customBackgroundUri = themeSettings?.customBackgroundUri ?? null;
+  const customBackgroundVersion = themeSettings?.customBackgroundVersion ?? 0;
   const { userId: rawUserId } = useAuth();
   const currentUserId = rawUserId ?? "";
 
@@ -117,6 +133,118 @@ export const GroupManagementScreen: React.FC = () => {
       setRefreshing(false);
     }
   }, [groupId, conversationId]);
+
+  const groupAvatarUrl = useMemo(() => {
+    if (groupDetails?.picture_url) return groupDetails.picture_url;
+    if (!conversation) return undefined;
+
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation, groupDetails?.picture_url]);
+
+  const uploadGroupIcon = useCallback(
+    async (localUri: string) => {
+      const fileName = localUri.split("/").pop() || "group-icon.jpg";
+      const lower = fileName.toLowerCase();
+      const fileType = lower.endsWith(".png")
+        ? "image/png"
+        : lower.endsWith(".gif")
+          ? "image/gif"
+          : lower.endsWith(".webp")
+            ? "image/webp"
+            : lower.endsWith(".heic") || lower.endsWith(".heif")
+              ? "image/heic"
+              : "image/jpeg";
+
+      const doUpload = async (
+        context: "group_icon" | "avatar" | "message",
+        ownerId: string | undefined,
+      ) =>
+        MediaService.uploadMedia(
+          { uri: localUri, name: fileName, type: fileType },
+          undefined,
+          { context, ownerId },
+        );
+
+      const retryUpload = async (
+        context: "group_icon" | "avatar" | "message",
+        ownerId: string | undefined,
+      ) => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            return await doUpload(context, ownerId);
+          } catch (err) {
+            lastError = err;
+            const status =
+              typeof (err as any)?.status === "number"
+                ? (err as any).status
+                : null;
+            if (!status || status < 500 || attempt === 2) break;
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
+        }
+        throw lastError;
+      };
+
+      let upload: { id: string };
+      try {
+        upload = await retryUpload("group_icon", currentUserId || undefined);
+      } catch (err) {
+        const status =
+          typeof (err as any)?.status === "number" ? (err as any).status : null;
+        const msg = String((err as Error)?.message ?? "");
+        if (
+          status === 503 &&
+          /group authorization service unavailable/i.test(msg)
+        ) {
+          upload = await retryUpload("avatar", currentUserId || undefined);
+        } else {
+          throw err;
+        }
+      }
+
+      const updated = await groupsAPI.updateGroup(
+        groupId,
+        { picture_url: upload.id },
+        conversationId,
+      );
+
+      setGroupDetails(updated);
+      if (conversation) {
+        const nextMeta = {
+          ...(conversation.metadata ?? {}),
+          group_avatar_url: upload.id,
+          avatar_url: upload.id,
+          picture_url: upload.id,
+          group_icon_url: upload.id,
+        };
+        applyConversationUpdate({
+          ...conversation,
+          avatar_url: upload.id,
+          metadata: nextMeta,
+        });
+      }
+      await refreshConversations();
+    },
+    [
+      applyConversationUpdate,
+      conversation,
+      conversationId,
+      currentUserId,
+      groupId,
+      refreshConversations,
+    ],
+  );
 
   useEffect(() => {
     loadGroupData();
@@ -231,14 +359,11 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(
-                  groupId,
-                  {
-                    picture_url: result.assets[0].uri,
-                  },
-                  conversationId,
+                const localUri = result.assets[0].uri;
+                setGroupDetails((prev) =>
+                  prev ? { ...prev, picture_url: localUri } : prev,
                 );
-                setGroupDetails(updated);
+                await uploadGroupIcon(localUri);
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
                 );
@@ -249,6 +374,7 @@ export const GroupManagementScreen: React.FC = () => {
                 "Error selecting photo",
                 error,
               );
+              await loadGroupData();
               Alert.alert("Erreur", "Impossible de sélectionner la photo");
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
@@ -279,14 +405,11 @@ export const GroupManagementScreen: React.FC = () => {
               if (!result.canceled && result.assets[0]) {
                 setSaving(true);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                const updated = await groupsAPI.updateGroup(
-                  groupId,
-                  {
-                    picture_url: result.assets[0].uri,
-                  },
-                  conversationId,
+                const localUri = result.assets[0].uri;
+                setGroupDetails((prev) =>
+                  prev ? { ...prev, picture_url: localUri } : prev,
                 );
-                setGroupDetails(updated);
+                await uploadGroupIcon(localUri);
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success,
                 );
@@ -297,6 +420,7 @@ export const GroupManagementScreen: React.FC = () => {
                 "Error taking photo",
                 error,
               );
+              await loadGroupData();
               Alert.alert("Erreur", "Impossible de prendre la photo");
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             } finally {
@@ -307,7 +431,7 @@ export const GroupManagementScreen: React.FC = () => {
       ],
       { cancelable: true },
     );
-  }, [groupId, isAdmin]);
+  }, [groupId, isAdmin, loadGroupData, uploadGroupIcon]);
 
   const handleRemoveMember = useCallback(
     (member: GroupMember) => {
@@ -587,10 +711,11 @@ export const GroupManagementScreen: React.FC = () => {
             style={styles.avatarContainer}
             activeOpacity={0.7}
           >
-            {groupDetails.picture_url ? (
-              <Image
-                source={{ uri: groupDetails.picture_url }}
-                style={styles.groupAvatar}
+            {groupAvatarUrl ? (
+              <Avatar
+                size={100}
+                uri={groupAvatarUrl}
+                name={groupDetails.name || "Groupe"}
               />
             ) : (
               <View style={[styles.groupAvatar, styles.groupAvatarPlaceholder]}>
@@ -1025,25 +1150,79 @@ export const GroupManagementScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={colors.background.gradient.app}
-        style={styles.container}
+      <View
+        style={[
+          styles.screenRoot,
+          hasCustomBackground && styles.screenRootWithCustomBackground,
+        ]}
       >
+        {hasCustomBackground && customBackgroundUri ? (
+          <ImageBackground
+            key={`${customBackgroundUri}:${customBackgroundVersion}`}
+            source={{ uri: customBackgroundUri }}
+            resizeMode="cover"
+            style={styles.customBackground}
+          />
+        ) : null}
+        {!hasCustomBackground ? (
+          <LinearGradient
+            colors={colors.background.gradient.app}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gradientContainer}
+          />
+        ) : null}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.backgroundScrim,
+            hasCustomBackground
+              ? styles.backgroundScrimWithCustomImage
+              : styles.backgroundScrimDefault,
+          ]}
+        />
         <SafeAreaView style={styles.container} edges={["top"]}>
           {renderHeader()}
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.main} />
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={colors.background.gradient.app}
-      style={styles.container}
+    <View
+      style={[
+        styles.screenRoot,
+        hasCustomBackground && styles.screenRootWithCustomBackground,
+      ]}
     >
+      {hasCustomBackground && customBackgroundUri ? (
+        <ImageBackground
+          key={`${customBackgroundUri}:${customBackgroundVersion}`}
+          source={{ uri: customBackgroundUri }}
+          resizeMode="cover"
+          style={styles.customBackground}
+        />
+      ) : null}
+      {!hasCustomBackground ? (
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.backgroundScrim,
+          hasCustomBackground
+            ? styles.backgroundScrimWithCustomImage
+            : styles.backgroundScrimDefault,
+        ]}
+      />
       <SafeAreaView style={styles.container} edges={["top"]}>
         {renderHeader()}
         <ScrollView
@@ -1063,13 +1242,38 @@ export const GroupManagementScreen: React.FC = () => {
         </ScrollView>
         {renderAddMembersModal()}
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screenRoot: {
+    flex: 1,
+    backgroundColor: colors.background.dark,
+    ...(Platform.OS === "web" ? { height: "100vh" as any } : {}),
+  },
+  screenRootWithCustomBackground: {
+    backgroundColor: "transparent",
+  },
+  customBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradientContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.dark,
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundScrimDefault: {
+    backgroundColor: "rgba(3, 8, 27, 0.18)",
+  },
+  backgroundScrimWithCustomImage: {
+    backgroundColor: "rgba(5, 8, 22, 0.62)",
+  },
   container: {
     flex: 1,
+    backgroundColor: "transparent",
     ...(Platform.OS === "web" ? { height: "100vh" as any, minHeight: 0 } : {}),
   },
   header: {

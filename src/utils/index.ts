@@ -10,6 +10,19 @@ export { isReachableUrl } from "./urlFilters";
  * Strips any existing leading "@" before prepending one,
  * preventing the "@@username" bug.
  */
+/**
+ * Format a Date / ISO date / timestamp as "HH:MM" using French 24-hour
+ * formatting. Used wherever a time-of-day string appears in the UI
+ * (timestamps, read receipts, scheduled-message previews).
+ */
+export const formatHourMinute = (date: Date | string | number): string => {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export const formatUsername = (username: string | undefined | null): string => {
   if (!username) return "";
   const clean = username.replace(/^@+/, "");
@@ -17,14 +30,31 @@ export const formatUsername = (username: string | undefined | null): string => {
   return `@${clean}`;
 };
 
+const USERNAME_INVALID_CHARS_RE = /[^\p{L}\p{N}_]/gu;
+const USERNAME_HAS_ALNUM_RE = /[\p{L}\p{N}]/u;
+const USERNAME_VALID_RE = /^[\p{L}\p{N}_]+$/u;
+
 export const normalizeUsername = (
   username: string | undefined | null,
 ): string => {
-  const raw = (username ?? "").trim().replace(/^@+/, "").toLowerCase();
+  const raw = (username ?? "")
+    .normalize("NFC")
+    .trim()
+    .replace(/^@+/, "")
+    .toLocaleLowerCase();
   if (!raw) return "";
-  const normalized = raw.replace(/[^a-z0-9_]/g, "_").slice(0, 20);
-  if (!/[a-z0-9]/.test(normalized)) return "";
+  const sanitized = raw.replace(USERNAME_INVALID_CHARS_RE, "_");
+  const normalized = Array.from(sanitized).slice(0, 20).join("");
+  if (!USERNAME_HAS_ALNUM_RE.test(normalized)) return "";
   return normalized;
+};
+
+export const isValidUsername = (
+  username: string | undefined | null,
+): boolean => {
+  const value = (username ?? "").normalize("NFC").trim();
+  if (!value) return false;
+  return USERNAME_VALID_RE.test(value) && USERNAME_HAS_ALNUM_RE.test(value);
 };
 
 interface ConversationLike {
@@ -39,8 +69,10 @@ interface ConversationLike {
  * True when the given string looks like a raw UUID v1-v5 (backend sometimes
  * leaks the user_id straight into display_name when enrichment fails).
  */
-const UUID_RE =
+export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isValidUuid = (value: string | undefined | null): boolean =>
+  !!value && UUID_RE.test(value.trim());
 const isUuidLike = (value: string): boolean => UUID_RE.test(value.trim());
 
 /**

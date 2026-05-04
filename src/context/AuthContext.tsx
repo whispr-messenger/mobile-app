@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { AuthService } from "../services/AuthService";
 import { AppResetService } from "../services/AppResetService";
+import { NotificationService } from "../services/NotificationService";
 import { tokenRefreshScheduler } from "../services/TokenRefreshScheduler";
 import { destroySharedSocket } from "../services/messaging/websocket";
 import { useConversationsStore } from "../store/conversationsStore";
@@ -16,6 +17,11 @@ import { useModerationStore } from "../store/moderationStore";
 import { useCallsStore } from "../store/callsStore";
 import { onSessionExpired } from "../services/sessionEvents";
 import { useBadgeSync } from "../hooks/useBadgeSync";
+import { systemCallProvider } from "../services/calls/systemCallProvider";
+import {
+  clearResolvedMediaCache,
+  setResolvedMediaCacheScope,
+} from "../hooks/useResolvedMediaUrl";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -53,6 +59,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         });
         if (session) {
           void tokenRefreshScheduler.start();
+          // Cold-start avec token persisté : initPushRegistration ne tourne
+          // qu'au login/register côté AuthService, donc une rotation FCM
+          // ou un registerDevice raté reste invisible jusqu'au prochain
+          // signOut/signIn manuel. On re-tente ici (best-effort, swallow).
+          void NotificationService.initPushRegistration(session.userId);
         }
       })
       .catch(() => {
@@ -66,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const signIn = useCallback((userId: string, deviceId: string) => {
+    setResolvedMediaCacheScope(userId);
     setState({
       isAuthenticated: true,
       isLoading: false,
@@ -81,7 +93,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     tokenRefreshScheduler.stop();
 
     // Tear down WebSocket before clearing auth state
-    destroySharedSocket();
 
     // Reset in-memory Zustand state so screens unmount with a clean slate.
     // The on-disk caches are wiped by AppResetService below, but the
@@ -91,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     usePresenceStore.getState().reset();
     useModerationStore.getState().reset();
     useCallsStore.getState().reset();
+    await systemCallProvider.resetAll().catch(() => {});
 
     // Best-effort server-side logout. Swallow failures so the local
     // cleanup still happens if the server is unreachable.
@@ -103,6 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // setup flag, tokens, Signal identity key, …). Allowlist preserves
     // theme + language only.
     await AppResetService.resetAppData();
+    await clearResolvedMediaCache(state.userId).catch(() => {});
+    setResolvedMediaCacheScope("anon");
 
     setState({
       isAuthenticated: false,

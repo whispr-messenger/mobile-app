@@ -106,10 +106,15 @@ jobs:
   # ================================
   # Docker Build
   # ================================
+  # Only run on the deployable branches. Feature branches don't have a
+  # production API URL mapped in docker.yml, so the build would fail at
+  # "Determine API base URL" — no point spending CI minutes on it. The
+  # post-merge push to deploy/preprod re-runs the workflow with the right
+  # ref and gets the image published.
   docker:
     name: 📦 Container Registry
     needs: [tests, security]
-    if: success()
+    if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deploy/preprod')
     uses: ./.github/workflows/docker.yml
     with:
       ref: ${{ github.ref }}

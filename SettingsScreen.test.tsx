@@ -81,11 +81,13 @@ jest.mock("./src/services/moderation", () => ({
 describe("SettingsScreen", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("renders settings title", async () => {
-    const { getByText } = render(<SettingsScreen />);
+  it("does not render the in-screen header (back button + title)", async () => {
+    const { queryByText, queryByLabelText } = render(<SettingsScreen />);
     await waitFor(() => {
-      expect(getByText("settings.title")).toBeTruthy();
+      expect(queryByText("settings.privacy")).toBeTruthy();
     });
+    expect(queryByText("settings.title")).toBeNull();
+    expect(queryByLabelText("Retour")).toBeNull();
   });
 
   it("renders privacy section", async () => {
@@ -114,6 +116,27 @@ describe("SettingsScreen", () => {
     await waitFor(() => {
       expect(getByText("settings.logout")).toBeTruthy();
     });
+  });
+
+  it("absolute-positions the ScrollView on web so the page actually scrolls (WHISPR-1202)", async () => {
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
+    try {
+      const { getByTestId } = render(<SettingsScreen />);
+      const scroll = await waitFor(() => getByTestId("settings-scroll"));
+      const flat = StyleSheet.flatten(scroll.props.style);
+      expect(flat.position).toBe("absolute");
+      expect(flat.top).toBe(0);
+      expect(flat.bottom).toBe(0);
+      expect(flat.left).toBe(0);
+      expect(flat.right).toBe(0);
+      expect(flat.overflowY).toBe("auto");
+    } finally {
+      Object.defineProperty(Platform, "OS", {
+        value: originalOS,
+        configurable: true,
+      });
+    }
   });
 
   it("absolute-positions the ScrollView on web so the page actually scrolls (WHISPR-1202)", async () => {

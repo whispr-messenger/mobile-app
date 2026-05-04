@@ -5,25 +5,12 @@ exports[`CallParticipantTile matches snapshot with video track 1`] = `
   style={
     {
       "aspectRatio": 0.75,
-      "backgroundColor": "#222",
-      "borderRadius": 12,
+      "backgroundColor": "rgba(33, 33, 53, 0.64)",
+      "borderColor": "rgba(255,255,255,0.12)",
+      "borderRadius": 28,
+      "borderWidth": 1,
       "flex": 1,
-      "margin": 4,
-      "overflow": "hidden",
-    }
-  }
-/>
-`;
-
-exports[`CallParticipantTile matches snapshot without video track (placeholder) 1`] = `
-<View
-  style={
-    {
-      "aspectRatio": 0.75,
-      "backgroundColor": "#222",
-      "borderRadius": 12,
-      "flex": 1,
-      "margin": 4,
+      "margin": 6,
       "overflow": "hidden",
     }
   }
@@ -31,10 +18,143 @@ exports[`CallParticipantTile matches snapshot without video track (placeholder) 
   <View
     style={
       {
+        "backgroundColor": "rgba(9,13,28,0.5)",
+        "borderColor": "rgba(255,255,255,0.12)",
+        "borderRadius": 18,
+        "borderWidth": 1,
+        "bottom": 14,
+        "left": 14,
+        "paddingHorizontal": 14,
+        "paddingVertical": 10,
+        "position": "absolute",
+        "right": 14,
+      }
+    }
+  >
+    <Text
+      numberOfLines={1}
+      style={
+        {
+          "color": "#fff",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 14,
+        }
+      }
+    >
+      bob
+    </Text>
+  </View>
+</View>
+`;
+
+exports[`CallParticipantTile matches snapshot without video track (placeholder) 1`] = `
+<View
+  style={
+    {
+      "aspectRatio": 0.75,
+      "backgroundColor": "rgba(33, 33, 53, 0.64)",
+      "borderColor": "rgba(255,255,255,0.12)",
+      "borderRadius": 28,
+      "borderWidth": 1,
+      "flex": 1,
+      "margin": 6,
+      "overflow": "hidden",
+    }
+  }
+>
+  <View
+    style={
+      {
+        "backgroundColor": "rgba(255, 142, 142, 0.22)",
+        "borderRadius": 90,
+        "height": 180,
+        "position": "absolute",
+        "top": -50,
+        "width": 180,
+      }
+    }
+  />
+  <View
+    style={
+      {
         "alignItems": "center",
-        "flex": 1,
+        "backgroundColor": "rgba(255,255,255,0.08)",
+        "borderColor": "rgba(255,255,255,0.12)",
+        "borderRadius": 52,
+        "borderWidth": 1,
         "justifyContent": "center",
-        "paddingHorizontal": 8,
+        "marginBottom": 18,
+        "padding": 6,
+      }
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "position": "relative",
+          },
+          {
+            "height": 88,
+            "width": 88,
+          },
+        ]
+      }
+    >
+      <Text
+        style={
+          [
+            {
+              "color": "#FFFFFF",
+              "fontWeight": "600",
+            },
+            {
+              "fontSize": 35.2,
+            },
+          ]
+        }
+      >
+        A
+      </Text>
+    </View>
+  </View>
+  <Text
+    numberOfLines={1}
+    style={
+      {
+        "color": "#fff",
+        "fontFamily": "Inter_700Bold",
+        "fontSize": 22,
+      }
+    }
+  >
+    alice
+  </Text>
+  <Text
+    style={
+      {
+        "color": "rgba(255,255,255,0.72)",
+        "fontFamily": "Inter_400Regular",
+        "fontSize": 13,
+        "marginTop": 8,
+      }
+    }
+  >
+    Participant
+  </Text>
+  <View
+    style={
+      {
+        "backgroundColor": "rgba(9,13,28,0.5)",
+        "borderColor": "rgba(255,255,255,0.12)",
+        "borderRadius": 18,
+        "borderWidth": 1,
+        "bottom": 14,
+        "left": 14,
+        "paddingHorizontal": 14,
+        "paddingVertical": 10,
+        "position": "absolute",
+        "right": 14,
       }
     }
   >

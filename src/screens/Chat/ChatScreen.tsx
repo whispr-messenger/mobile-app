@@ -11,9 +11,11 @@ import React, {
 } from "react";
 import {
   View,
+  ImageBackground,
   StyleSheet,
   FlatList,
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Modal,
@@ -43,6 +45,12 @@ import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageBubble } from "../../components/Chat/MessageBubble";
+import { MessageSwipeProvider } from "../../context/MessageSwipeContext";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSharedValue, withSpring } from "react-native-reanimated";
+
+const MESSAGE_SWIPE_DISTANCE = 40;
+const MESSAGE_SWIPE_SPRING = { damping: 18, stiffness: 180 };
 import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
@@ -51,6 +59,12 @@ import { ReportMessageSheet } from "../../components/Chat/ReportMessageSheet";
 import { ForwardMessageModal } from "../../components/Chat/ForwardMessageModal";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { useCallsStore } from "../../store/callsStore";
+import { systemCallProvider } from "../../services/calls/systemCallProvider";
+import {
+  useCallsAvailable,
+  getCallsUnavailableMessage,
+} from "../../hooks/useCallsAvailable";
+import Toast, { ToastType } from "../../components/Toast/Toast";
 import { ReactionPicker } from "../../components/Chat/ReactionPicker";
 import { ReactionReactorsModal } from "../../components/Chat/ReactionReactorsModal";
 import { DateSeparator } from "../../components/Chat/DateSeparator";
@@ -68,6 +82,7 @@ import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
 import { resolveConversationMemberIds } from "../../utils/resolveMembers";
 import { SchedulingService } from "../../services/SchedulingService";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   gateChatImageBeforeSend,
   gateChatVideoBeforeSend,
@@ -154,11 +169,87 @@ const resolveMimeType = (
   kind: "image" | "video" | "audio" | "file",
 ): string => EXTENSION_TO_MIME[extension] ?? DEFAULT_MIME_BY_KIND[kind];
 
+const canonicalizeMimeType = (mime: string): string => {
+  const normalized = mime.split(";")[0].trim().toLowerCase();
+  switch (normalized) {
+    case "audio/x-m4a":
+    case "audio/m4a":
+      return "audio/mp4";
+    default:
+      return normalized;
+  }
+};
+
+const forceAudioUploadIdentity = (
+  filename: string,
+  mimeType: string,
+): { filename: string; mimeType: string } => {
+  const normalizedMime = canonicalizeMimeType(mimeType);
+  if (!normalizedMime.startsWith("audio/")) {
+    return { filename, mimeType: normalizedMime };
+  }
+  const baseName = filename.replace(/\.[^/.]+$/, "");
+  return {
+    // iOS may still emit audio/x-m4a for `.m4a` filenames on multipart parts.
+    // Force a neutral `.mp4` container name so part MIME inference stays audio/mp4.
+    filename: `${baseName || "recording"}-${Date.now()}.mp4`,
+    mimeType: "audio/mp4",
+  };
+};
+
+const remapAudioUploadUri = async (
+  uri: string,
+  filename: string,
+  mimeType: string,
+): Promise<string> => {
+  if (Platform.OS === "web") {
+    return uri;
+  }
+  if (canonicalizeMimeType(mimeType) !== "audio/mp4") {
+    return uri;
+  }
+  if (!uri.startsWith("file://")) {
+    return uri;
+  }
+  if (/\.mp4$/i.test(uri)) {
+    return uri;
+  }
+
+  const cacheRoot =
+    (FileSystem as any).cacheDirectory ||
+    (FileSystem as any).documentDirectory ||
+    "";
+  if (!cacheRoot) {
+    return uri;
+  }
+
+  const targetUri = `${cacheRoot}${filename}`;
+  try {
+    await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(
+      () => {},
+    );
+    await FileSystem.copyAsync({ from: uri, to: targetUri });
+    return targetUri;
+  } catch (error) {
+    console.warn("[ChatScreen] Failed to remap audio upload URI:", error);
+    return uri;
+  }
+};
+
 export const ChatScreen: React.FC = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation<ChatScreenNavigationProp>();
   const { conversationId } = route.params;
-  const [conversation, setConversation] = useState<Conversation | null>(null);
+  // Hydrate from the conversations store so the header (name + avatar)
+  // shows immediately while getConversation() is still in flight. The
+  // store entry has already been enriched with display_name and avatar_url
+  // by enrichSingleConversation() for direct chats.
+  const [conversation, setConversation] = useState<Conversation | null>(() => {
+    const cached = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === conversationId);
+    return cached ?? null;
+  });
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -202,6 +293,12 @@ export const ChatScreen: React.FC = () => {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardingMessage, setForwardingMessage] =
     useState<MessageWithRelations | null>(null);
+  const callsAvailability = useCallsAvailable();
+  const [callsToast, setCallsToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: ToastType;
+  }>({ visible: false, message: "", type: "info" });
   const [forwardSending, setForwardSending] = useState(false);
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [reportSheetMessage, setReportSheetMessage] =
@@ -230,6 +327,30 @@ export const ChatScreen: React.FC = () => {
   const handleSendMediaRef = useRef<typeof handleSendMedia>(null!);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  // Horizontal swipe to reveal per-message timestamps. The shared value is
+  // consumed by every MessageBubble through MessageSwipeProvider, so all rows
+  // translate together without re-rendering.
+  const swipeTranslateX = useSharedValue(0);
+  const swipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX(-10)
+        .failOffsetY([-10, 10])
+        .onUpdate((e) => {
+          // Only allow leftward swipes, capped at MESSAGE_SWIPE_DISTANCE.
+          const next = Math.max(
+            -MESSAGE_SWIPE_DISTANCE,
+            Math.min(0, e.translationX),
+          );
+          swipeTranslateX.value = next;
+        })
+        // onFinalize fires for both completed and cancelled gestures, so a
+        // separate onEnd is redundant.
+        .onFinalize(() => {
+          swipeTranslateX.value = withSpring(0, MESSAGE_SWIPE_SPRING);
+        }),
+    [swipeTranslateX],
+  );
   const initialScrollDoneRef = useRef(false);
   const isNearBottomRef = useRef(true);
   const typingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
@@ -248,8 +369,17 @@ export const ChatScreen: React.FC = () => {
       isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
     },
   ).current;
-  const { getThemeColors, getLocalizedText } = useTheme();
+  const {
+    getThemeColors,
+    getLocalizedText,
+    settings: themeSettings,
+  } = useTheme();
   const themeColors = getThemeColors();
+  const hasCustomBackground =
+    themeSettings?.backgroundPreset === "custom" &&
+    !!themeSettings?.customBackgroundUri;
+  const customBackgroundUri = themeSettings?.customBackgroundUri ?? null;
+  const customBackgroundVersion = themeSettings?.customBackgroundVersion ?? 0;
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? "";
@@ -565,19 +695,26 @@ export const ChatScreen: React.FC = () => {
     try {
       const conv = await messagingAPI.getConversation(conversationId);
 
-      // Resolve display name for direct conversations
-      // The detail endpoint returns members array, not member_user_ids
+      // Resolve display name and avatar for direct conversations.
+      // The detail endpoint returns members array, not member_user_ids,
+      // and does not populate avatar_url for direct chats — we enrich it
+      // from the other user's profile to feed the header avatar.
       const memberIds =
         conv.member_user_ids ||
         conv.members?.map((m: { user_id: string }) => m.user_id);
-      if (conv.type === "direct" && !conv.display_name && memberIds) {
+      if (
+        conv.type === "direct" &&
+        (!conv.display_name || !conv.avatar_url) &&
+        memberIds
+      ) {
         conv.member_user_ids = memberIds;
         const otherUserId = memberIds.find((id: string) => id !== userId);
         if (otherUserId) {
           try {
             const userInfo = await messagingAPI.getUserInfo(otherUserId);
             if (userInfo) {
-              conv.display_name = userInfo.display_name;
+              conv.display_name = conv.display_name || userInfo.display_name;
+              conv.avatar_url = conv.avatar_url || userInfo.avatar_url;
             }
           } catch {}
         }
@@ -611,6 +748,16 @@ export const ChatScreen: React.FC = () => {
       markAsRead(conversationId, lastMsg.id);
     }
   }, [conversationId, messages.length, userId, markAsRead]);
+
+  // Consume the openSearch route param (set by GroupDetails or other screens
+  // that want to drop the user directly into the search UI). Clear it after
+  // use so it doesn't re-trigger on subsequent re-renders or focus events.
+  useEffect(() => {
+    if (route.params?.openSearch) {
+      setShowSearch(true);
+      navigation.setParams({ openSearch: undefined });
+    }
+  }, [route.params?.openSearch, navigation]);
 
   useEffect(() => {
     // Load data
@@ -1109,7 +1256,12 @@ export const ChatScreen: React.FC = () => {
       type: "image" | "video" | "file" | "audio",
       replyToId?: string,
       caption?: string,
-      opts?: { skipGate?: boolean },
+      opts?: {
+        skipGate?: boolean;
+        duration?: number;
+        mimeType?: string;
+        filename?: string;
+      },
     ) => {
       // Stop typing indicator
       sendTyping(conversationId, false);
@@ -1118,9 +1270,23 @@ export const ChatScreen: React.FC = () => {
       const messageContent = caption?.trim() || DEFAULT_MEDIA_CAPTION[type];
 
       // Derive filename and MIME type from the local URI
-      const filename = uri.split("/").pop() || "media";
-      const extension = filename.split(".").pop()?.toLowerCase() || "";
-      const mimeType = resolveMimeType(extension, type);
+      const rawFilename = opts?.filename || uri.split("/").pop() || "media";
+      const extension = rawFilename.split(".").pop()?.toLowerCase() || "";
+      const rawMimeType = canonicalizeMimeType(
+        opts?.mimeType || resolveMimeType(extension, type),
+      );
+      const { filename, mimeType } =
+        type === "audio"
+          ? forceAudioUploadIdentity(rawFilename, rawMimeType)
+          : { filename: rawFilename, mimeType: rawMimeType };
+      const uploadUri =
+        type === "audio"
+          ? await remapAudioUploadUri(uri, filename, mimeType)
+          : uri;
+      const audioDuration =
+        type === "audio" && typeof opts?.duration === "number"
+          ? Math.max(1, Math.round(opts.duration))
+          : undefined;
 
       // Create optimistic message with local URI for instant preview
       const tempMessageId = `temp-${Date.now()}`;
@@ -1132,8 +1298,9 @@ export const ChatScreen: React.FC = () => {
         content: messageContent,
         metadata: {
           media_type: type,
-          media_url: uri,
-          thumbnail_url: uri,
+          media_url: uploadUri,
+          thumbnail_url: uploadUri,
+          duration: audioDuration,
         },
         client_random: Math.floor(Math.random() * 1000000),
         sent_at: new Date().toISOString(),
@@ -1150,8 +1317,10 @@ export const ChatScreen: React.FC = () => {
             media_type: type,
             metadata: {
               filename,
-              media_url: uri,
-              thumbnail_url: uri,
+              media_url: uploadUri,
+              thumbnail_url: uploadUri,
+              mime_type: mimeType,
+              duration: audioDuration,
             },
             created_at: new Date().toISOString(),
           },
@@ -1194,8 +1363,8 @@ export const ChatScreen: React.FC = () => {
         if ((type === "image" || type === "video") && !opts?.skipGate) {
           const gateResult =
             type === "image"
-              ? await gateChatImageBeforeSend(uri)
-              : await gateChatVideoBeforeSend(uri);
+              ? await gateChatImageBeforeSend(uploadUri)
+              : await gateChatVideoBeforeSend(uploadUri);
           if (!gateResult.ok) {
             const blockedReason =
               gateResult.reason || "Contenu bloqué par la modération";
@@ -1213,7 +1382,7 @@ export const ChatScreen: React.FC = () => {
                         blockedByModeration: true,
                         blockReason: blockedReason,
                         scores: gateResult.scores,
-                        localUri: uri,
+                        localUri: uploadUri,
                       },
                     }
                   : m,
@@ -1222,7 +1391,7 @@ export const ChatScreen: React.FC = () => {
             // Open the appeal modal so the user can contest immediately.
             setAppealModal({
               visible: true,
-              imageUri: uri,
+              imageUri: uploadUri,
               blockReason: blockedReason,
               scores: gateResult.scores,
               messageTempId: tempMessageId,
@@ -1232,12 +1401,38 @@ export const ChatScreen: React.FC = () => {
         }
 
         // 1. Upload file to media-service
-        const uploadResult = await MediaService.uploadMedia(
-          { uri, name: filename, type: mimeType },
-          (percent) => {},
-        );
+        const uploadResult = await MediaService.uploadMedia({
+          uri: uploadUri,
+          name: filename,
+          type: mimeType,
+        });
 
         // Build metadata with the remote URLs from the upload result
+        let resolvedDuration = audioDuration;
+        if (type === "audio" && resolvedDuration == null) {
+          resolvedDuration =
+            (uploadResult as typeof uploadResult & { duration?: number })
+              .duration ?? undefined;
+          if (resolvedDuration == null) {
+            try {
+              const uploadedMetadata = await MediaService.getMediaMetadata(
+                uploadResult.id,
+              );
+              if (typeof uploadedMetadata.duration === "number") {
+                resolvedDuration = Math.max(
+                  1,
+                  Math.round(uploadedMetadata.duration),
+                );
+              }
+            } catch (durationError) {
+              console.warn(
+                "[ChatScreen] Unable to fetch uploaded audio duration:",
+                durationError,
+              );
+            }
+          }
+        }
+
         const mediaMetadata = {
           media_type: type,
           media_id: uploadResult.id,
@@ -1246,6 +1441,7 @@ export const ChatScreen: React.FC = () => {
           filename: uploadResult.filename || filename,
           mime_type: uploadResult.mime_type || mimeType,
           size: uploadResult.size,
+          duration: resolvedDuration,
         };
 
         // Update optimistic message with remote URLs so preview uses the hosted image
@@ -1263,6 +1459,8 @@ export const ChatScreen: React.FC = () => {
                       media_url: uploadResult.url,
                       thumbnail_url:
                         uploadResult.thumbnail_url || uploadResult.url,
+                      mime_type: uploadResult.mime_type || mimeType,
+                      duration: resolvedDuration,
                     },
                   })),
                 }
@@ -1369,6 +1567,7 @@ export const ChatScreen: React.FC = () => {
               mime_type: uploadResult.mime_type || mimeType,
               media_url: uploadResult.url,
               thumbnail_url: uploadResult.thumbnail_url || uploadResult.url,
+              duration: resolvedDuration,
             },
           })
           .catch((err) =>
@@ -1466,19 +1665,62 @@ export const ChatScreen: React.FC = () => {
   const handleInitiateCall = useCallback(
     async (type: "audio" | "video") => {
       if (!conversation) return;
+      if (!callsAvailability.available) {
+        setCallsToast({
+          visible: true,
+          message: getCallsUnavailableMessage(callsAvailability.reason),
+          type: "warning",
+        });
+        return;
+      }
+      const displayName = getConversationDisplayName(conversation);
+      const avatarUrl =
+        conversation.type === "direct"
+          ? conversationMembers.find((m) => m.id && m.id !== userId)
+              ?.avatar_url || conversation.avatar_url
+          : conversation.avatar_url ||
+            (conversation.metadata ?? {}).avatar_url ||
+            (conversation.metadata ?? {}).group_avatar_url ||
+            (conversation.metadata ?? {}).group_icon_url ||
+            (conversation.metadata ?? {}).icon_url ||
+            (conversation.metadata ?? {}).photo_url ||
+            (conversation.metadata ?? {}).picture_url ||
+            (conversation.metadata ?? {}).image_url;
       const memberIds: string[] =
         conversation.member_user_ids ?? conversationMembers.map((m) => m.id);
       const participantIds = memberIds.filter((id) => id && id !== userId);
       try {
         await useCallsStore
           .getState()
-          .initiate(conversationId, type, participantIds);
+          .initiate(
+            conversationId,
+            type,
+            participantIds,
+            displayName,
+            avatarUrl,
+          );
+        const activeCall = useCallsStore.getState().active;
+        if (activeCall) {
+          await systemCallProvider.startOutgoingCall({
+            callId: activeCall.callId,
+            handle: conversationId,
+            displayName,
+            hasVideo: type === "video",
+          });
+        }
         navigation.navigate("InCall");
       } catch (err) {
         console.error("Failed to initiate call", err);
       }
     },
-    [conversation, conversationMembers, conversationId, userId, navigation],
+    [
+      conversation,
+      conversationMembers,
+      conversationId,
+      userId,
+      navigation,
+      callsAvailability,
+    ],
   );
 
   const resolveReactorDisplayName = useCallback(
@@ -1592,6 +1834,19 @@ export const ChatScreen: React.FC = () => {
 
     return result;
   }, [messages]);
+
+  // Id of the most recent message I sent — used to render a textual delivery
+  // status only under that bubble. messages[] is sorted newest-first, so the
+  // first entry whose sender_id matches mine is the latest one.
+  const lastSentByMeId = useMemo(() => {
+    if (!userId) return null;
+    for (const m of messages) {
+      if (m.sender_id === userId && m.message_type !== "system") {
+        return m.id;
+      }
+    }
+    return null;
+  }, [messages, userId]);
 
   // Initial scroll to the newest message once the list has rendered content.
   // Using `scrollToIndex({ index: 0 })` (rather than `scrollToOffset`) is
@@ -2052,6 +2307,7 @@ export const ChatScreen: React.FC = () => {
       }
 
       const isSent = message.sender_id === userId;
+      const isLastSentByMe = isSent && message.id === lastSentByMeId;
       const isHighlighted = Boolean(
         searchQuery.trim() && searchResults.some((r) => r.id === message.id),
       );
@@ -2083,6 +2339,22 @@ export const ChatScreen: React.FC = () => {
         }
       }
 
+      // iMessage convention: only the last bubble in a same-sender burst
+      // carries a tail. The message that comes chronologically AFTER this
+      // one (visually BELOW it in the inverted list, so index - 1) is the
+      // one we compare against. If it's from the same sender, we are not
+      // the last in the burst and the tail is suppressed.
+      let isLastInBurst = true;
+      const next = messagesWithSeparators[index - 1];
+      if (
+        next &&
+        !isDateSeparator(next) &&
+        next.sender_id === message.sender_id &&
+        next.message_type !== "system"
+      ) {
+        isLastInBurst = false;
+      }
+
       return (
         <MessageBubble
           message={message}
@@ -2092,6 +2364,7 @@ export const ChatScreen: React.FC = () => {
           senderAvatarUrl={senderAvatarUrl}
           showSenderAvatar={!isSent && isGroup}
           isConsecutive={isConsecutive}
+          isLastInBurst={isLastInBurst}
           onReactionPress={handleReactionPress}
           onReactionDetailsPress={handleReactionDetailsPress}
           resolveReactorName={resolveReactorDisplayName}
@@ -2100,6 +2373,10 @@ export const ChatScreen: React.FC = () => {
           isHighlighted={isHighlighted}
           searchQuery={searchQuery}
           pendingAppeal={pendingAppeals[message.id]}
+          isLastSentByMe={isLastSentByMe}
+          isGroupConversation={isGroup}
+          otherMembersCount={Math.max(0, conversationMembers.length - 1)}
+          resolveMemberName={resolveReactorDisplayName}
           onContest={(m) => {
             // metadata is already Record<string, any>; no cast needed
             const meta = m.metadata || {};
@@ -2127,6 +2404,7 @@ export const ChatScreen: React.FC = () => {
       searchResults,
       pendingAppeals,
       messagesWithSeparators,
+      lastSentByMeId,
     ],
   );
 
@@ -2157,25 +2435,47 @@ export const ChatScreen: React.FC = () => {
   }, [conversation, conversationMembers, userId]);
 
   return (
-    <LinearGradient
-      colors={colors.background.gradient.app}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      // Web : la chaîne flex doit être complètement "min-height: 0" de haut
-      // en bas pour que la FlatList virtualisée puisse scroller. Sans ça les
-      // conteneurs parents refusent de laisser leur enfant rétrécir et la
-      // hauteur scrollable finit à 0.
+    <View
       style={[
-        styles.gradientContainer,
+        styles.screenRoot,
+        hasCustomBackground && styles.screenRootWithCustomBackground,
         Platform.OS === "web" && { minHeight: 0, height: "100%" },
       ]}
     >
+      {hasCustomBackground && customBackgroundUri ? (
+        <ImageBackground
+          key={`${customBackgroundUri}:${customBackgroundVersion}`}
+          source={{ uri: customBackgroundUri }}
+          resizeMode="cover"
+          style={styles.customBackground}
+        />
+      ) : null}
+      {!hasCustomBackground ? (
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientBackground}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.backgroundScrim,
+          hasCustomBackground
+            ? styles.backgroundScrimWithCustomImage
+            : styles.backgroundScrimDefault,
+        ]}
+      />
       <SafeAreaView
         style={[
           styles.container,
           Platform.OS === "web" && { minHeight: 0, height: "100%" },
         ]}
-        edges={["top", "bottom"]}
+        // bottom inset is consumed by MessageInput itself (applySafeAreaBottom)
+        // so the BlurView/overlay extends fully to the screen edge instead of
+        // leaving an empty band between the composer and the home indicator.
+        edges={["top"]}
       >
         <OfflineBanner connectionState={connectionState} />
         <ChatHeader
@@ -2200,11 +2500,13 @@ export const ChatScreen: React.FC = () => {
           isOnline={isOtherOnline}
           lastSeenAt={otherLastSeenAt}
           onlineMemberCount={onlineMemberCount}
-          onSearchPress={() => setShowSearch(true)}
-          onInfoPress={handleInfoPress}
-          onScheduledPress={handleScheduledPress}
+          typingNames={typingUsers
+            .map((id) => typingUsersNames[id])
+            .filter(Boolean)}
+          onTitlePress={handleInfoPress}
           onAudioCallPress={() => handleInitiateCall("audio")}
           onVideoCallPress={() => handleInitiateCall("video")}
+          callsAvailable={callsAvailability.available}
         />
         {isOtherUserContact === false && (
           <View style={styles.notContactBanner}>
@@ -2261,6 +2563,12 @@ export const ChatScreen: React.FC = () => {
               viewabilityConfig={viewabilityConfig}
               onViewableItemsChanged={handleViewableItemsChanged}
               keyboardShouldPersistTaps="handled"
+              // Dismiss the keyboard as the user drags the message list. iOS
+              // gets the interactive variant (clavier qui descend avec le doigt) ;
+              // Android n'a pas d'équivalent natif, on reste sur "on-drag".
+              keyboardDismissMode={
+                Platform.OS === "ios" ? "interactive" : "on-drag"
+              }
               // Web : on absolute-positionne la FlatList à l'intérieur du
               // wrapper `webListViewport` (qui est `position: relative`). Ça
               // donne à la VirtualizedList une boîte de taille définie sans
@@ -2291,13 +2599,35 @@ export const ChatScreen: React.FC = () => {
           // Sur web, on emballe la FlatList dans un viewport à overflow borné :
           // ainsi Chrome garde le wheel sur la ScrollView interne (scrollable)
           // sans qu'un overflow:hidden sur un ancêtre bloque l'event en amont.
+          // Tap on an empty area of the message list dismisses the keyboard.
+          // onStartShouldSetResponder only fires when no child grabs the touch
+          // first (message bubbles, action handlers, etc.), so this won't
+          // hijack interactions on actual content.
+          const dismissKeyboardResponderProps = {
+            onStartShouldSetResponder: () => true,
+            onResponderRelease: () => Keyboard.dismiss(),
+          };
+          const wrappedList =
+            Platform.OS === "web" ? (
+              <View
+                style={styles.webListViewport}
+                {...dismissKeyboardResponderProps}
+              >
+                {messageList}
+              </View>
+            ) : (
+              <GestureDetector gesture={swipeGesture}>
+                <View style={{ flex: 1 }} {...dismissKeyboardResponderProps}>
+                  {messageList}
+                </View>
+              </GestureDetector>
+            );
           const chatBody = (
             <>
-              {Platform.OS === "web" ? (
-                <View style={styles.webListViewport}>{messageList}</View>
-              ) : (
-                messageList
-              )}
+              <MessageSwipeProvider translateX={swipeTranslateX}>
+                {wrappedList}
+              </MessageSwipeProvider>
+
               {typingUsers.length > 0 && (
                 <View style={styles.typingContainer}>
                   <TypingIndicator
@@ -2318,6 +2648,7 @@ export const ChatScreen: React.FC = () => {
                 onCancelEdit={() => setEditingMessage(null)}
                 conversationType={conversation?.type || "direct"}
                 members={conversationMembers}
+                applySafeAreaBottom
               />
             </>
           );
@@ -2541,22 +2872,103 @@ export const ChatScreen: React.FC = () => {
                       {messages.length} message{messages.length > 1 ? "s" : ""}
                     </Text>
                   </View>
+                  <View style={styles.infoSectionActions}>
+                    <Text style={styles.infoLabel}>ACTIONS</Text>
+                    <TouchableOpacity
+                      style={styles.infoActionRow}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        setShowSearch(true);
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Rechercher dans la conversation"
+                    >
+                      <Ionicons
+                        name="search"
+                        size={20}
+                        color={colors.text.light}
+                        style={styles.infoActionIcon}
+                      />
+                      <Text style={styles.infoActionLabel}>
+                        Rechercher des messages
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={withOpacity(colors.text.light, 0.4)}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.infoActionRow}
+                      onPress={() => {
+                        setShowInfoModal(false);
+                        handleScheduledPress();
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Messages programmés"
+                    >
+                      <Ionicons
+                        name="timer-outline"
+                        size={20}
+                        color={colors.text.light}
+                        style={styles.infoActionIcon}
+                      />
+                      <Text style={styles.infoActionLabel}>
+                        Messages programmés
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={withOpacity(colors.text.light, 0.4)}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </ScrollView>
               </LinearGradient>
             </View>
           </View>
         </Modal>
+        <Toast
+          visible={callsToast.visible}
+          message={callsToast.message}
+          type={callsToast.type}
+          duration={4000}
+          onHide={() => setCallsToast((t) => ({ ...t, visible: false }))}
+        />
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  gradientContainer: {
+  screenRoot: {
     flex: 1,
+    backgroundColor: colors.background.dark,
+  },
+  screenRootWithCustomBackground: {
+    backgroundColor: "transparent",
+  },
+  customBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradientBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.dark,
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundScrimDefault: {
+    backgroundColor: "rgba(3, 8, 27, 0.18)",
+  },
+  backgroundScrimWithCustomImage: {
+    backgroundColor: "rgba(5, 8, 22, 0.62)",
   },
   container: {
     flex: 1,
+    backgroundColor: "transparent",
   },
   keyboardView: {
     flex: 1,
@@ -2710,5 +3122,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text.light,
     letterSpacing: 0.2,
+  },
+  infoSectionActions: {
+    marginBottom: 24,
+  },
+  infoActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    backgroundColor: withOpacity(colors.text.light, 0.06),
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  infoActionIcon: {
+    marginRight: 14,
+  },
+  infoActionLabel: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.light,
+    fontWeight: "500",
   },
 });

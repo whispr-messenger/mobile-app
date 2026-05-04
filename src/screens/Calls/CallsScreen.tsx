@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { CallHistoryScreen } from "./CallHistoryScreen";
@@ -14,9 +14,6 @@ export const CallsScreen: React.FC = () => {
       style={styles.gradient}
     >
       <SafeAreaView style={styles.container} edges={["top"]}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Appels</Text>
-        </View>
         <View style={styles.content}>
           <CallHistoryScreen />
         </View>
@@ -31,15 +28,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: colors.text.light,
   },
   content: {
     flex: 1,

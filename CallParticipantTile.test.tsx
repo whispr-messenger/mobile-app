@@ -40,13 +40,19 @@ describe('CallParticipantTile', () => {
 
   it('renders the participant identity when no video track is published', () => {
     const p = makeParticipant({ identity: 'alice' });
-    const { getByText } = render(<CallParticipantTile participant={p as any} />);
-    expect(getByText('alice')).toBeTruthy();
+    const { getAllByText, getByText } = render(
+      <CallParticipantTile participant={p as any} />,
+    );
+    expect(getAllByText('alice').length).toBeGreaterThan(0);
+    expect(getByText('Participant')).toBeTruthy();
   });
 
-  it('does not render the placeholder when a video track is present', () => {
+  it('renders only the name badge when a video track is present', () => {
     const p = makeParticipant({ identity: 'bob', hasVideo: true });
-    const { queryByText } = render(<CallParticipantTile participant={p as any} />);
-    expect(queryByText('bob')).toBeNull();
+    const { getByText, queryByText } = render(
+      <CallParticipantTile participant={p as any} />,
+    );
+    expect(getByText('bob')).toBeTruthy();
+    expect(queryByText('Participant')).toBeNull();
   });
 });

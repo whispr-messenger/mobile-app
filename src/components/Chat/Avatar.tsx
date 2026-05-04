@@ -1,5 +1,13 @@
 /**
  * Avatar - User avatar component with fallback
+ *
+ * WHISPR-1258 — passing the bare `/media/v1/:id/blob` URL to <Image> on web
+ * triggers an `<img>` request without `Authorization`, which the media service
+ * answers with 401. We now route the URL through `useResolvedMediaUrl`, the
+ * shared hook that streams the bytes via the authenticated `?stream=1` proxy
+ * and surfaces them as a `blob:` (web) or `data:` (native) URI safe for any
+ * renderer. While the hook is loading we show the initials placeholder rather
+ * than the unauthenticated URL.
  */
 
 import React from "react";
@@ -7,7 +15,7 @@ import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../theme/colors";
 import { getApiBaseUrl } from "../../services/apiBase";
-import { TokenService } from "../../services/TokenService";
+import { useResolvedMediaUrl } from "../../hooks/useResolvedMediaUrl";
 
 // Extract color values for StyleSheet.create() to avoid runtime resolution issues
 const TEXT_LIGHT_COLOR = colors.text.light;
@@ -19,133 +27,6 @@ interface AvatarProps {
   size?: number;
   showOnlineBadge?: boolean;
   isOnline?: boolean;
-}
-
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result === "string") resolve(result);
-      else reject(new Error("FileReader did not produce a data URL"));
-    };
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("FileReader failed"));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function streamMediaToRenderableUri(
-  uri: string,
-  token: string | null,
-): Promise<string> {
-  const headers: Record<string, string> = {
-    Accept: "application/octet-stream",
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const separator = uri.includes("?") ? "&" : "?";
-  const response = await fetch(`${uri}${separator}stream=1`, { headers });
-  if (!response.ok) {
-    const err = new Error(`stream failed: HTTP ${response.status}`);
-    (err as Error & { status?: number }).status = response.status;
-    throw err;
-  }
-
-  // Some media-service deployments return a presigned URL JSON envelope
-  // ({ url, expiresAt }) instead of the raw binary, even with stream=1 +
-  // Accept: octet-stream. Detect this and follow the URL.
-  const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const data = await response.json().catch(() => null as any);
-    const followUrl = typeof data?.url === "string" ? data.url : undefined;
-    if (!followUrl) {
-      throw new Error("stream returned JSON without a usable url");
-    }
-    const followed = await fetch(followUrl);
-    if (!followed.ok) {
-      throw new Error(`presigned fetch failed: HTTP ${followed.status}`);
-    }
-    return await blobToDataUrl(await followed.blob());
-  }
-
-  return await blobToDataUrl(await response.blob());
-}
-
-// Module-level resolver: shares a single dataUrl per mediaId across every
-// Avatar instance in the app, deduplicates concurrent fetches, throttles
-// concurrency, and retries on transient failures (429 / network).
-//
-// Concurrency is capped to stay comfortably under the media-service short
-// throttle (WHISPR-1192 raised it to 30 req/s on /blob and /thumbnail), and
-// we still keep dedup + cache so the same mediaId is never fetched twice.
-const resolvedCache = new Map<string, string>();
-const inflightCache = new Map<string, Promise<string>>();
-const fetchQueue: Array<() => void> = [];
-let activeFetches = 0;
-const MAX_CONCURRENT_AVATAR_FETCHES = 8;
-
-function acquireFetchSlot(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const tryAcquire = () => {
-      if (activeFetches < MAX_CONCURRENT_AVATAR_FETCHES) {
-        activeFetches += 1;
-        resolve();
-      } else {
-        fetchQueue.push(tryAcquire);
-      }
-    };
-    tryAcquire();
-  });
-}
-
-function releaseFetchSlot(): void {
-  activeFetches -= 1;
-  const next = fetchQueue.shift();
-  if (next) next();
-}
-
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-async function resolveAvatarDataUrl(mediaId: string): Promise<string> {
-  const cached = resolvedCache.get(mediaId);
-  if (cached) return cached;
-
-  const inflight = inflightCache.get(mediaId);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
-    const url = `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`;
-    const maxAttempts = 4;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      await acquireFetchSlot();
-      try {
-        const token = await TokenService.getAccessToken();
-        const dataUrl = await streamMediaToRenderableUri(url, token);
-        resolvedCache.set(mediaId, dataUrl);
-        return dataUrl;
-      } catch (err) {
-        const status = (err as Error & { status?: number })?.status;
-        const retryable =
-          status === 429 || status === 503 || status === undefined;
-        if (!retryable || attempt === maxAttempts) {
-          throw err;
-        }
-        const delay = Math.min(1000, 100 * 2 ** (attempt - 1));
-        await sleep(delay);
-      } finally {
-        releaseFetchSlot();
-      }
-    }
-    throw new Error("unreachable");
-  })();
-
-  inflightCache.set(mediaId, promise);
-  try {
-    return await promise;
-  } finally {
-    inflightCache.delete(mediaId);
-  }
 }
 
 function extractMediaIdFromUri(raw: string): {
@@ -244,19 +125,22 @@ export const Avatar: React.FC<AvatarProps> = ({
     return { uri: undefined, mediaId: undefined };
   }, [uri]);
 
-  // Stable key: gating reset on `uri` directly drops a resolved dataUrl on
-  // unrelated re-renders (e.g. Zustand subscriptions in ConversationItem),
-  // producing flicker.
-  const avatarKey = effectiveCandidate.mediaId ?? effectiveCandidate.uri;
+  // Reset the local error flag whenever the source changes — otherwise an
+  // earlier failure would mask a fresh URI for the same component instance
+  // (e.g. ConversationItem re-using the same Avatar across rerenders).
+  const candidateKey = effectiveCandidate.mediaId ?? effectiveCandidate.uri;
+  const lastCandidateKeyRef = React.useRef(candidateKey);
+  if (lastCandidateKeyRef.current !== candidateKey) {
+    lastCandidateKeyRef.current = candidateKey;
+    setImageError(false);
+  }
 
-  const [resolvedUri, setResolvedUri] = React.useState<string | undefined>(
-    () => {
-      const id = effectiveCandidate.mediaId;
-      return id ? resolvedCache.get(id) : undefined;
-    },
+  // Route every /media/v1/<id>/blob (or /thumbnail) URL through the shared
+  // resolver hook so we never hand an unauthenticated URL to <Image>. Plain
+  // https / data / file URIs are passed through unchanged by the hook.
+  const { resolvedUri, loading, error } = useResolvedMediaUrl(
+    effectiveCandidate.uri,
   );
-
-  const effectiveUri = resolvedUri ?? effectiveCandidate.uri;
 
   const initials =
     name
@@ -266,88 +150,19 @@ export const Avatar: React.FC<AvatarProps> = ({
       .toUpperCase()
       .slice(0, 2) || "?";
 
-  const lastAvatarKeyRef = React.useRef(avatarKey);
-  if (lastAvatarKeyRef.current !== avatarKey) {
-    lastAvatarKeyRef.current = avatarKey;
-    const cached = effectiveCandidate.mediaId
-      ? resolvedCache.get(effectiveCandidate.mediaId)
-      : undefined;
-    setResolvedUri(cached);
-    setImageError(false);
-    triedAuthResolveRef.current = false;
-  }
-
-  // Pre-resolve through `?stream=1` when we know the mediaId, so <Image>
-  // never hits `/blob` directly (which returns a JSON envelope it can't
-  // decode and triggers a useless second request).
-  React.useEffect(() => {
-    const mediaId = effectiveCandidate.mediaId;
-    if (!mediaId) return;
-    if (resolvedUri) return;
-    let cancelled = false;
-    triedAuthResolveRef.current = true;
-    resolveAvatarDataUrl(mediaId)
-      .then((dataUrl) => {
-        if (cancelled) return;
-        setResolvedUri(dataUrl);
-        setImageError(false);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveCandidate.mediaId, resolvedUri]);
-
-  const shouldShowImage = !!effectiveUri && !imageError;
+  const shouldShowImage = !!resolvedUri && !loading && !error && !imageError;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       {shouldShowImage ? (
         <Image
-          source={{ uri: effectiveUri }}
+          source={{ uri: resolvedUri }}
           style={[
             styles.image,
             { width: size, height: size, borderRadius: size / 2 },
           ]}
           resizeMode="cover"
-          onError={() => {
-            setImageError(true);
-
-            if (triedAuthResolveRef.current) return;
-            triedAuthResolveRef.current = true;
-
-            const raw = typeof uri === "string" ? uri.trim() : "";
-            const directMediaId =
-              effectiveCandidate.mediaId ||
-              (raw.match(
-                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-              )
-                ? raw
-                : undefined);
-
-            const parsedFromUrl = (() => {
-              const candidate = effectiveUri ?? "";
-              const m = candidate.match(
-                /\/media\/v1\/(?:public\/)?([^/]+)(?:\/|$)/,
-              );
-              if (!m?.[1]) return undefined;
-              try {
-                return decodeURIComponent(m[1]);
-              } catch {
-                return m[1];
-              }
-            })();
-
-            const mediaId = directMediaId || parsedFromUrl;
-            if (!mediaId) return;
-
-            resolveAvatarDataUrl(mediaId)
-              .then((dataUrl) => {
-                setResolvedUri(dataUrl);
-                setImageError(false);
-              })
-              .catch(() => undefined);
-          }}
+          onError={() => setImageError(true)}
         />
       ) : (
         <LinearGradient

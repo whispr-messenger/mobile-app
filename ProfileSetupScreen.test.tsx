@@ -1,4 +1,3 @@
-import React from "react";
 import { Alert } from "react-native";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import { ProfileSetupScreen } from "./src/screens/Auth/ProfileSetupScreen";
@@ -216,6 +215,31 @@ describe("ProfileSetupScreen", () => {
     );
   });
 
+  it("allows typing a cyrillic username and normalizes it only on save", async () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(
+      <ProfileSetupScreen />,
+    );
+
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+
+    const usernameInput = getByPlaceholderText("Pseudo");
+    fireEvent.changeText(usernameInput, "ДАЛМ1");
+
+    expect(usernameInput.props.value).toBe("ДАЛМ1");
+
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: "далм1",
+        }),
+      );
+    });
+  });
+
   it("blocks save when username is empty and surfaces an explicit error", async () => {
     const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
       render(<ProfileSetupScreen />);
@@ -251,6 +275,78 @@ describe("ProfileSetupScreen", () => {
     );
     expect(mockUpdateProfile).not.toHaveBeenCalled();
     expect(mockReset).not.toHaveBeenCalled();
+  });
+
+  it("keeps already-typed values when validation fails so the user does not lose input", async () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(
+      <ProfileSetupScreen />,
+    );
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+    const firstNameField = getByPlaceholderText("auth.firstName");
+    fireEvent.changeText(firstNameField, "John");
+    fireEvent.press(getByText("common.save"));
+
+    // After the failed submit, the firstName should still be present
+    expect(firstNameField.props.value).toBe("John");
+  });
+
+  it("blocks save when username is empty and surfaces an explicit error", async () => {
+    const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
+      render(<ProfileSetupScreen />);
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+    // Fill firstName but leave username empty — should NOT save
+    fireEvent.changeText(getByPlaceholderText("auth.firstName"), "John");
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(queryByTestId("error-Pseudo")).toBeTruthy();
+    });
+    expect(queryByTestId("error-Pseudo")?.props.children).toMatch(/requis/i);
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    expect(mockReset).not.toHaveBeenCalled();
+  });
+
+  it("blocks save when username is shorter than 3 characters", async () => {
+    const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
+      render(<ProfileSetupScreen />);
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+    fireEvent.changeText(getByPlaceholderText("Pseudo"), "ab");
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(queryByTestId("error-Pseudo")).toBeTruthy();
+    });
+    expect(queryByTestId("error-Pseudo")?.props.children).toMatch(
+      /3 caractères/i,
+    );
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    expect(mockReset).not.toHaveBeenCalled();
+  });
+
+  it("accepts a cyrillic username and sends it normalized to the API", async () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(
+      <ProfileSetupScreen />,
+    );
+    await waitFor(() => {
+      expect(queryByText("Préparation de votre compte...")).toBeNull();
+    });
+
+    fireEvent.changeText(getByPlaceholderText("Pseudo"), "Привет_42");
+    fireEvent.press(getByText("common.save"));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: "привет_42",
+        }),
+      );
+    });
   });
 
   it("keeps already-typed values when validation fails so the user does not lose input", async () => {

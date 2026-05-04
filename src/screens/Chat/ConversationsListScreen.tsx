@@ -75,6 +75,29 @@ export const ConversationsListScreen: React.FC = () => {
   const archiveConversation = useConversationsStore(
     (s) => s.archiveConversation,
   );
+  const applyArchiveBroadcast = useConversationsStore(
+    (s) => s.applyArchiveBroadcast,
+  );
+  // Compte les conversations archivées non lues, sans charger l'écran archivées.
+  // Couvre deux sources : les convs encore en mémoire dans `conversations` qui
+  // ont is_archived=true (cas multi-device — flag posé par broadcast avant que
+  // la conv ne soit déplacée vers archived.items), et celles déjà déplacées
+  // dans archived.items (cas écran archivées déjà visité). manuallyUnreadIds
+  // compte aussi pour rester cohérent avec la liste principale.
+  const archivedUnreadCount = useConversationsStore((s) => {
+    const seen = new Set<string>();
+    let n = 0;
+    for (const c of s.conversations) {
+      if (!c.is_archived) continue;
+      seen.add(c.id);
+      if ((c.unread_count ?? 0) > 0 || s.manuallyUnreadIds.has(c.id)) n += 1;
+    }
+    for (const c of s.archived.items) {
+      if (seen.has(c.id)) continue;
+      if ((c.unread_count ?? 0) > 0 || s.manuallyUnreadIds.has(c.id)) n += 1;
+    }
+    return n;
+  });
   const muteConversation = useConversationsStore((s) => s.muteConversation);
   const pinConversation = useConversationsStore((s) => s.pinConversation);
   const markAsUnread = useConversationsStore((s) => s.markAsUnread);
@@ -169,6 +192,9 @@ export const ConversationsListScreen: React.FC = () => {
       },
       onConversationSummaries: (conversations: Conversation[]) => {
         applyConversationSummaries(conversations);
+      },
+      onConversationArchived: (conversationId: string, archived: boolean) => {
+        applyArchiveBroadcast(conversationId, archived);
       },
     },
   );
@@ -272,17 +298,29 @@ export const ConversationsListScreen: React.FC = () => {
     }
   }, [selectedConversations, storeDeleteConversation]);
 
-  const handleBulkArchive = useCallback(() => {
+  const handleBulkArchive = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const count = selectedConversations.size;
-    selectedConversations.forEach((id) => archiveConversation(id));
+    const ids = Array.from(selectedConversations);
+    const count = ids.length;
     setSelectedConversations(new Set());
     setEditMode(false);
-    setToast({
-      visible: true,
-      message: `${count} conversation${count > 1 ? "s" : ""} archivée${count > 1 ? "s" : ""}`,
-      type: "success",
-    });
+    const results = await Promise.allSettled(
+      ids.map((id) => archiveConversation(id)),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed === 0) {
+      setToast({
+        visible: true,
+        message: `${count} conversation${count > 1 ? "s" : ""} archivée${count > 1 ? "s" : ""}`,
+        type: "success",
+      });
+    } else {
+      setToast({
+        visible: true,
+        message: `${count - failed}/${count} archivée${count > 1 ? "s" : ""}`,
+        type: "warning",
+      });
+    }
   }, [selectedConversations, archiveConversation]);
 
   const handleDelete = useCallback(
@@ -348,9 +386,17 @@ export const ConversationsListScreen: React.FC = () => {
   );
 
   const handleArchive = useCallback(
-    (conversationId: string) => {
+    async (conversationId: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      archiveConversation(conversationId);
+      try {
+        await archiveConversation(conversationId);
+      } catch {
+        setToast({
+          visible: true,
+          message: "Impossible d'archiver la conversation",
+          type: "error",
+        });
+      }
     },
     [archiveConversation],
   );
@@ -444,7 +490,10 @@ export const ConversationsListScreen: React.FC = () => {
         initialNumToRender={15}
         windowSize={10}
         getItemLayout={getItemLayout}
-        showsVerticalScrollIndicator={false}
+        // WHISPR-1254 — sur web on garde l'indicateur visible pour qu'il
+        // soit clair que la liste scrolle; sur natif on conserve le look
+        // d'origine.
+        showsVerticalScrollIndicator={Platform.OS === "web"}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -473,20 +522,49 @@ export const ConversationsListScreen: React.FC = () => {
             { borderBottomColor: "rgba(255, 255, 255, 0.1)" },
           ]}
         >
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setEditMode(!editMode);
-              if (editMode) {
-                setSelectedConversations(new Set());
-              }
-            }}
-            style={[styles.headerButton, styles.editButtonPill]}
-          >
-            <Text style={[styles.editButton, { color: colors.text.light }]}>
-              {editMode ? "Annuler" : "Modifier"}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerLeftGroup}>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setEditMode(!editMode);
+                if (editMode) {
+                  setSelectedConversations(new Set());
+                }
+              }}
+              style={[styles.headerButton, styles.editButtonPill]}
+            >
+              <Text style={[styles.editButton, { color: colors.text.light }]}>
+                {editMode ? "Annuler" : "Modifier"}
+              </Text>
+            </TouchableOpacity>
+            {!editMode && (
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  navigation.navigate("ArchivedConversations");
+                }}
+                style={[styles.headerButton, styles.archiveIconButton]}
+                accessibilityLabel={
+                  archivedUnreadCount > 0
+                    ? `Voir les conversations archivées (${archivedUnreadCount} non lues)`
+                    : "Voir les conversations archivées"
+                }
+              >
+                <Ionicons
+                  name="archive-outline"
+                  size={20}
+                  color={colors.text.light}
+                />
+                {archivedUnreadCount > 0 && (
+                  <View style={styles.archiveBadge}>
+                    <Text style={styles.archiveBadgeText}>
+                      {archivedUnreadCount > 99 ? "99+" : archivedUnreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
           <Text
             style={[styles.headerTitle, { color: colors.text.light }]}
           ></Text>
@@ -703,10 +781,19 @@ export const ConversationsListScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    // WHISPR-1254 — sur react-native-web, flex:1 seul ne propage pas la
+    // hauteur disponible jusqu'aux enfants si l'ancêtre racine (#root) ne
+    // borne pas son propre contenu. height:100% force le wrapper racine à
+    // occuper exactement la hauteur du viewport.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
   },
   container: {
     flex: 1,
     backgroundColor: "transparent",
+    // WHISPR-1254 — minHeight:0 est requis par CSS flexbox pour qu'un
+    // enfant scrollable (FlatList) puisse overflow au lieu de pousser le
+    // parent. Sans ça, les conversations dépassent le viewport.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   header: {
     flexDirection: "row",
@@ -726,6 +813,38 @@ const styles = StyleSheet.create({
   headerButton: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  archiveIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  archiveBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 5,
+    backgroundColor: colors.ui.error,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#1A1F3A",
+  },
+  archiveBadgeText: {
+    color: colors.text.light,
+    fontSize: 10,
+    fontWeight: "700",
   },
   editButtonPill: {
     height: 40,
@@ -774,10 +893,12 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: "transparent",
+    // WHISPR-1254 — même raison que .container : permettre l'overflow
+    // vertical natif côté react-native-web.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   listContent: {
     paddingVertical: 8,
-    flexGrow: 1,
     backgroundColor: "transparent",
   },
   loadingContainer: {

@@ -23,6 +23,15 @@ jest.mock("@expo/vector-icons", () => ({
   Ionicons: ({ testID }: any) => null,
 }));
 
+jest.mock("expo-blur", () => {
+  const { View } = require("react-native");
+  return {
+    BlurView: ({ children, style }: any) => (
+      <View style={style}>{children}</View>
+    ),
+  };
+});
+
 jest.mock("./src/context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -71,5 +80,65 @@ describe("ChatHeader back button", () => {
 
     expect(mockGoBack).not.toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith("ConversationsList");
+  });
+
+  it("opens a menu offering audio and video when calls are available", () => {
+    mockCanGoBack.mockReturnValue(true);
+    const onAudio = jest.fn();
+    const onVideo = jest.fn();
+
+    const { UNSAFE_getAllByType, queryByLabelText } = render(
+      <ChatHeader
+        conversationName="Alice"
+        conversationType="direct"
+        onAudioCallPress={onAudio}
+        onVideoCallPress={onVideo}
+        callsAvailable
+      />,
+    );
+
+    const TouchableOpacity = require("react-native").TouchableOpacity;
+    // touchables[0] = back, [1] = title area, [2] = call button
+    const callButton = UNSAFE_getAllByType(TouchableOpacity)[2];
+    fireEvent.press(callButton);
+
+    // Tapping the call button should not fire either handler directly —
+    // it should reveal the menu items so the user can pick.
+    expect(onAudio).not.toHaveBeenCalled();
+    expect(onVideo).not.toHaveBeenCalled();
+
+    fireEvent.press(queryByLabelText("Appel audio")!);
+    expect(onAudio).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires the fallback handler directly when calls are unavailable (so the parent can show a toast) without opening the menu", () => {
+    mockCanGoBack.mockReturnValue(true);
+    const onAudio = jest.fn();
+    const onVideo = jest.fn();
+
+    const { UNSAFE_getAllByType, queryByLabelText } = render(
+      <ChatHeader
+        conversationName="Alice"
+        conversationType="direct"
+        onAudioCallPress={onAudio}
+        onVideoCallPress={onVideo}
+        callsAvailable={false}
+      />,
+    );
+
+    const TouchableOpacity = require("react-native").TouchableOpacity;
+    const callButton = UNSAFE_getAllByType(TouchableOpacity)[2];
+    fireEvent.press(callButton);
+
+    // The button stays clickable but bypasses the menu and triggers the
+    // video handler so the parent can surface the unavailable-toast.
+    expect(onVideo).toHaveBeenCalledTimes(1);
+    expect(onAudio).not.toHaveBeenCalled();
+    expect(queryByLabelText("Appel audio")).toBeNull();
+
+    const callStyle = Array.isArray(callButton.props.style)
+      ? Object.assign({}, ...callButton.props.style.filter(Boolean))
+      : callButton.props.style;
+    expect(callStyle.opacity).toBe(0.4);
   });
 });

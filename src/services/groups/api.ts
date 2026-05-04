@@ -528,18 +528,30 @@ async function updateGroupViaMessagingConversation(
   headers: Record<string, string>,
   routeGroupId: string,
 ): Promise<GroupDetails> {
+  const current = await fetchMessagingConversationPayload(
+    conversationId,
+    headers,
+  );
+  const currentMeta =
+    ((current?.metadata ?? {}) as Record<string, unknown>) || {};
+  const nextMeta: Record<string, unknown> = { ...currentMeta };
+
+  if (updates.description !== undefined) {
+    nextMeta.description = updates.description;
+  }
+
+  if (updates.picture_url !== undefined) {
+    nextMeta.group_avatar_url = updates.picture_url;
+    nextMeta.avatar_url = updates.picture_url;
+    nextMeta.picture_url = updates.picture_url;
+    nextMeta.group_icon_url = updates.picture_url;
+  }
+
   const body: Record<string, unknown> = {};
   if (updates.name !== undefined) {
     body.name = updates.name;
   }
-  if (updates.description !== undefined) {
-    body.metadata = { description: updates.description };
-  }
-  if (updates.picture_url !== undefined) {
-    throw new Error(
-      "La photo de groupe nécessite un upload média ; non prise en charge dans cette mise à jour.",
-    );
-  }
+  if (Object.keys(nextMeta).length > 0) body.metadata = nextMeta;
   if (Object.keys(body).length === 0) {
     throw new Error("Aucune mise à jour à appliquer");
   }
@@ -996,6 +1008,42 @@ export const groupsAPI = {
   ): Promise<GroupDetails> {
     const ownerId = await getOwnerId();
     const headers = await getAuthHeaders();
+
+    if (conversationId) {
+      const updated = await updateGroupViaMessagingConversation(
+        conversationId,
+        updates,
+        headers,
+        groupId,
+      );
+
+      try {
+        const body: Record<string, string | undefined> = {
+          name: updates.name,
+          description: updates.description,
+        };
+        if (updates.picture_url !== undefined) {
+          body.picture_url = updates.picture_url;
+        }
+        const response = await fetch(
+          `${API_BASE_URL}/groups/${encodeURIComponent(ownerId)}/${encodeURIComponent(groupId)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...headers,
+            },
+            body: JSON.stringify(body),
+          },
+        );
+        void response;
+      } catch {
+        // best-effort sync only
+      }
+
+      return updated;
+    }
+
     const body: Record<string, string | undefined> = {
       name: updates.name,
       description: updates.description,
