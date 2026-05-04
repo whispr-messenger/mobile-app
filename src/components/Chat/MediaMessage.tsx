@@ -33,12 +33,11 @@ let triedLoadingExpoAvVideo = false;
 function ensureExpoAvVideoLoaded(): void {
   if (Video || triedLoadingExpoAvVideo) return;
   triedLoadingExpoAvVideo = true;
-  const native = NativeModules as Record<string, unknown>;
-  if (!native?.ExponentAV) return;
   try {
     const expoAv = require("expo-av");
     Video = expoAv.Video;
     ResizeMode = expoAv.ResizeMode;
+    console.log("[MediaMessage] expo-av loaded successfully");
   } catch (error) {
     console.warn(
       "[MediaMessage] expo-av not available, using fallback:",
@@ -320,9 +319,9 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
       // Fallback: ouvrir dans le lecteur natif
       console.log("[MediaMessage] expo-av not available, opening with Linking");
       try {
-        const supported = await Linking.canOpenURL(uri);
+        const supported = await Linking.canOpenURL(resolvedMainUri || uri);
         if (supported) {
-          await Linking.openURL(uri);
+          await Linking.openURL(resolvedMainUri || uri);
         } else {
           Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
         }
@@ -360,8 +359,14 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         activeOpacity={0.9}
         style={styles.videoContainer}
       >
-        {/* Video preview - use Video component for thumbnail to show actual video frame */}
-        {Video && resolvedMainUri && !thumbnailError ? (
+        {/* Video preview - use thumbnail image first if available, else Video component or placeholder */}
+        {resolvedThumbUri ? (
+          <Image
+            source={{ uri: resolvedThumbUri }}
+            style={styles.videoThumbnail}
+            resizeMode="cover"
+          />
+        ) : Video && resolvedMainUri && !thumbnailError ? (
           <Video
             ref={thumbnailVideoRef}
             source={{ uri: resolvedMainUri }}

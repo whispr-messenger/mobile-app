@@ -78,6 +78,17 @@ function mimeToExtension(mime: string | null | undefined): string {
   if (t === "image/webp") return "webp";
   if (t === "image/heic" || t === "image/heif") return "heic";
   if (t === "image/jpeg" || t === "image/jpg") return "jpg";
+  if (t === "video/quicktime") return "mov";
+  if (t === "video/mp4") return "mp4";
+  if (t === "video/webm") return "webm";
+  if (t === "video/x-matroska") return "mkv";
+  if (t === "audio/mpeg") return "mp3";
+  if (t === "audio/ogg") return "ogg";
+  if (t === "audio/wav") return "wav";
+  if (t === "audio/mp4") return "m4a";
+  if (t === "audio/aac") return "aac";
+  if (t === "audio/x-caf") return "caf";
+  if (t === "audio/x-m4a") return "m4a";
   return "bin";
 }
 
@@ -94,6 +105,16 @@ async function readDiskCache(uri: string): Promise<string | null> {
     const meta = JSON.parse(raw) as DiskCacheMeta;
     if (!meta?.fileUri || typeof meta.storedAt !== "number") return null;
     if (Date.now() - meta.storedAt > DISK_MEDIA_CACHE_TTL_MS) {
+      await FileSystem.deleteAsync(meta.fileUri, { idempotent: true }).catch(
+        () => {},
+      );
+      await FileSystem.deleteAsync(metaPath, { idempotent: true }).catch(
+        () => {},
+      );
+      return null;
+    }
+    // If the cached file has a .bin extension, delete it and re-download
+    if (meta.fileUri.endsWith(".bin")) {
       await FileSystem.deleteAsync(meta.fileUri, { idempotent: true }).catch(
         () => {},
       );
@@ -442,31 +463,31 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         const isThumbnail = uri.includes("/thumbnail");
 
         if (isThumbnail) {
-          const probeRes = await probeMediaUrlThrottled(uri, headers);
-          if (cancelled) return;
-          if (!probeRes.ok) {
-            console.warn(
-              `[useResolvedMediaUrl] Failed to resolve media URL: HTTP ${probeRes.status}`,
-            );
-            setError(true);
-            return;
-          }
-
           let blobExists = true;
-          const contentType = probeRes.headers.get("content-type") || "";
-          if (contentType.includes("application/json")) {
-            try {
-              const body = (await probeRes.json()) as {
-                url?: string | null;
-              };
-              if (body && "url" in body && body.url === null) {
-                blobExists = false;
+          try {
+            const probeRes = await probeMediaUrlThrottled(uri, headers);
+            if (!cancelled && probeRes.ok) {
+              const contentType = probeRes.headers.get("content-type") || "";
+              if (contentType.includes("application/json")) {
+                try {
+                  const body = (await probeRes.json()) as {
+                    url?: string | null;
+                  };
+                  if (body && "url" in body && body.url === null) {
+                    blobExists = false;
+                  }
+                } catch {
+                  // Unparseable JSON → assume the thumbnail exists; the
+                  // stream call below will surface an explicit 404 if it
+                  // really is gone.
+                }
               }
-            } catch {
-              // Unparseable JSON → assume the thumbnail exists; the
-              // stream call below will surface an explicit 404 if it
-              // really is gone.
             }
+          } catch (err) {
+            console.warn(
+              `[useResolvedMediaUrl] Thumbnail probe failed, will try streaming anyway:`,
+              err,
+            );
           }
 
           if (!blobExists) {
