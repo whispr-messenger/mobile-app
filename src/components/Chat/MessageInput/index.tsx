@@ -34,8 +34,6 @@ import {
   ComposerInput,
   MIN_INPUT_HEIGHT,
   MAX_INPUT_HEIGHT,
-  INPUT_VERTICAL_PADDING,
-  INPUT_LINE_HEIGHT,
   MentionMember,
 } from "./ComposerInput";
 import { RecordingBar } from "./RecordingBar";
@@ -99,7 +97,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
-  const [composerWidth, setComposerWidth] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState<RecordedAudio | null>(
     null,
@@ -252,40 +249,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [updateMentionState, updateTypingState],
   );
 
-  const updateInputHeightFromLineCount = useCallback((lineCount: number) => {
-    const nextHeight = Math.max(
-      MIN_INPUT_HEIGHT,
-      Math.min(
-        MAX_INPUT_HEIGHT,
-        lineCount * INPUT_LINE_HEIGHT + INPUT_VERTICAL_PADDING * 2,
-      ),
-    );
-    setInputHeight((prev) => (prev === nextHeight ? prev : nextHeight));
-  }, []);
-
-  const handleMeasuredTextLayout = useCallback(
-    (event: { nativeEvent: { lines?: Array<unknown> } }) => {
-      if (!text.trim()) {
-        setInputHeight((prev) =>
-          prev === MIN_INPUT_HEIGHT ? prev : MIN_INPUT_HEIGHT,
-        );
-        return;
-      }
-
-      const measuredLineCount = Math.max(
-        1,
-        event.nativeEvent.lines?.length ?? 1,
+  const handleContentSizeChange = useCallback(
+    (event: {
+      nativeEvent: { contentSize: { width: number; height: number } };
+    }) => {
+      const { height } = event.nativeEvent.contentSize;
+      const nextHeight = Math.max(
+        MIN_INPUT_HEIGHT,
+        Math.min(MAX_INPUT_HEIGHT, height),
       );
-      const explicitLineCount = Math.max(1, text.split("\n").length);
-      const lineCount = Math.max(measuredLineCount, explicitLineCount);
-      updateInputHeightFromLineCount(lineCount);
+      setInputHeight((prev) => (prev === nextHeight ? prev : nextHeight));
     },
-    [text, updateInputHeightFromLineCount],
+    [],
   );
-
-  const handleLayout = useCallback((nextWidth: number) => {
-    setComposerWidth((prev) => (prev === nextWidth ? prev : nextWidth));
-  }, []);
 
   const handleMentionSelect = useCallback(
     (member: MentionMember) => {
@@ -577,7 +553,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 ref={inputRef}
                 text={text}
                 inputHeight={inputHeight}
-                composerWidth={composerWidth}
                 placeholder={
                   editingMessage
                     ? "Modifier le message"
@@ -591,8 +566,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                 conversationType={conversationType}
                 onChangeText={handleTextChange}
                 onSubmitWeb={handleSend}
-                onMeasuredTextLayout={handleMeasuredTextLayout}
-                onLayout={handleLayout}
+                onContentSizeChange={handleContentSizeChange}
                 onMentionSelect={handleMentionSelect}
               />
               <SendOrMicButton
