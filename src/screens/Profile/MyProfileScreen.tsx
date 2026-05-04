@@ -30,7 +30,11 @@ import {
   ProfileFieldRow,
   StatusChip,
 } from "../../components/Profile";
-import { formatUsername, normalizeUsername } from "../../utils";
+import {
+  formatUsername,
+  isValidUsername,
+  normalizeUsername,
+} from "../../utils";
 import { colors, spacing, typography, borderRadius } from "../../theme";
 import { UserService } from "../../services";
 import type { UpdateProfileRequest } from "../../services/UserService";
@@ -55,6 +59,49 @@ type NavigationProp = StackNavigationProp<any, "MyProfile">;
 
 const isMediaNotFound = (message?: string) =>
   typeof message === "string" && /media not found/i.test(message);
+
+/**
+ * WHISPR-1255 — Fallback web pour sélectionner une image.
+ * expo-image-picker SDK 17 supporte mal le user-gesture côté web; on
+ * crée un <input type="file"> détaché qu'on click programmatiquement.
+ * On retourne un blob URL utilisable comme uri par MediaService.
+ */
+const pickImageFromWeb = (
+  opts: { preferCamera?: boolean } = {},
+): Promise<string | null> => {
+  if (typeof document === "undefined") return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    if (opts.preferCamera) {
+      input.setAttribute("capture", "environment");
+    }
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    let settled = false;
+    const settle = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      resolve(value);
+    };
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      if (!file) return settle(null);
+      settle(URL.createObjectURL(file));
+    };
+    // Si l'utilisateur ferme la dialog sans choisir, focus revient à
+    // window — on libère la promesse pour ne pas leak.
+    const onFocus = () => {
+      window.removeEventListener("focus", onFocus);
+      setTimeout(() => settle(null), 300);
+    };
+    window.addEventListener("focus", onFocus);
+    document.body.appendChild(input);
+    input.click();
+  });
+};
 
 export const MyProfileScreen: React.FC = () => {
   const { userId: currentUserId } = useAuth();
@@ -158,6 +205,21 @@ export const MyProfileScreen: React.FC = () => {
 
   const handleImagePicker = async () => {
     try {
+      // WHISPR-1255 — sur react-native-web, expo-image-picker ne déclenche
+      // pas de file picker (le polyfill web requiert un user-gesture
+      // synchrone qu'on perd à travers la promesse permissions). On
+      // contourne avec un <input type="file"> natif qu'on click depuis
+      // le clic utilisateur courant.
+      if (Platform.OS === "web") {
+        const uri = await pickImageFromWeb();
+        if (uri) {
+          setProfile((prev) => ({ ...prev, profilePicture: uri }));
+          setPendingAvatar({ localUri: uri });
+          setShowImagePicker(false);
+        }
+        return;
+      }
+
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
@@ -189,6 +251,20 @@ export const MyProfileScreen: React.FC = () => {
 
   const handleCameraCapture = async () => {
     try {
+      // WHISPR-1255 — sur web, on retombe sur le même <input type=file>
+      // mais avec capture="environment" pour proposer la caméra quand
+      // disponible (mobile web). Sur desktop le navigateur retombe
+      // automatiquement sur le file picker classique.
+      if (Platform.OS === "web") {
+        const uri = await pickImageFromWeb({ preferCamera: true });
+        if (uri) {
+          setProfile((prev) => ({ ...prev, profilePicture: uri }));
+          setPendingAvatar({ localUri: uri });
+          setShowImagePicker(false);
+        }
+        return;
+      }
+
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
@@ -313,8 +389,8 @@ export const MyProfileScreen: React.FC = () => {
         if (!v.trim()) return "Le nom d'utilisateur est obligatoire";
         if (v.trim().length < 3) return "Minimum 3 caractères";
         if (v.trim().length > 20) return "Maximum 20 caractères";
-        if (!/^[a-z0-9_]+$/.test(v.trim()))
-          return "Seuls minuscules, chiffres et _ autorisés";
+        if (!isValidUsername(v.trim()))
+          return "Seules les lettres, chiffres et _ sont autorises";
         return null;
 
       case "biography":
@@ -688,9 +764,7 @@ export const MyProfileScreen: React.FC = () => {
                   <TextInput
                     style={styles.input}
                     value={profile.username}
-                    onChangeText={(text) =>
-                      handleFieldChange("username", normalizeUsername(text))
-                    }
+                    onChangeText={(text) => handleFieldChange("username", text)}
                     placeholder="@nomdutilisateur"
                     placeholderTextColor={colors.text.placeholder}
                     autoCapitalize="none"
@@ -702,7 +776,8 @@ export const MyProfileScreen: React.FC = () => {
                   )}
                   {!fieldErrors.username && (
                     <Text style={styles.fieldHelperText}>
-                      Seuls minuscules, chiffres et _ (auto-corrigé)
+                      Lettres Unicode, chiffres et _ autorisés. Normalisé à
+                      l'enregistrement.
                     </Text>
                   )}
                 </View>

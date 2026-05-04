@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
-import { NativeModules, Platform, Text, View } from "react-native";
+import { CallsUnavailableScreen } from "../screens/Calls/CallsUnavailableScreen";
+import { isCallsAvailable } from "../hooks/useCallsAvailable";
 import { WelcomeScreen } from "../screens/Auth/WelcomeScreen";
 import { PhoneInputScreen } from "../screens/Auth/PhoneInputScreen";
 import { OtpScreen } from "../screens/Auth/OtpScreen";
@@ -16,6 +17,7 @@ import { TwoFactorSetupScreen } from "../screens/Security/TwoFactorSetupScreen";
 import { TwoFactorVerifyScreen } from "../screens/Security/TwoFactorVerifyScreen";
 import { TwoFactorBackupCodesScreen } from "../screens/Security/TwoFactorBackupCodesScreen";
 import { ConversationsListScreen } from "../screens/Chat/ConversationsListScreen";
+import { ArchivedConversationsScreen } from "../screens/Chat/ArchivedConversationsScreen";
 import { ChatScreen } from "../screens/Chat/ChatScreen";
 import { ContactsScreen } from "../screens/Contacts/ContactsScreen";
 import { BlockedUsersScreen } from "../screens/Contacts/BlockedUsersScreen";
@@ -55,7 +57,8 @@ import { contactsAPI } from "../services/contacts/api";
 import { TokenService } from "../services/TokenService";
 import { UserService } from "../services/UserService";
 import { NotificationService } from "../services/NotificationService";
-import Constants from "expo-constants";
+import { systemCallProvider } from "../services/calls/systemCallProvider";
+import { initCallNotificationBridge } from "../services/calls/callNotificationBridge";
 import type { AuthPurpose } from "../types/auth";
 import type {
   Report,
@@ -63,6 +66,7 @@ import type {
   UserSanction,
   SanctionType,
 } from "../types/moderation";
+import { prefetchResolvedMediaUris } from "../hooks/useResolvedMediaUrl";
 
 /** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
 const SPLASH_MIN_MS = 2000;
@@ -88,7 +92,8 @@ export type AuthStackParamList = {
   TwoFactorVerify: { secret: string };
   TwoFactorBackupCodes: { codes: string[] };
   ConversationsList: undefined;
-  Chat: { conversationId: string };
+  ArchivedConversations: undefined;
+  Chat: { conversationId: string; openSearch?: boolean };
   Contacts: undefined;
   MyQRCode: undefined;
   QRCodeScanner: undefined;
@@ -151,15 +156,11 @@ export const AuthNavigator: React.FC = () => {
     boolean | null
   >(null);
   const fetchMyRole = useModerationStore((s) => s.fetchMyRole);
-  // Web (PWA Safari) uses the browser's built-in WebRTC via livekit-client,
-  // so calls work without a native module. The CallsUnavailableScreen
-  // guard only applies to native builds (Expo Go) that lack the
-  // @livekit/react-native-webrtc native bindings.
-  const hasCallsSupport = useMemo(() => {
-    if (Platform.OS === "web") return true;
-    const native = NativeModules as Record<string, unknown>;
-    return Boolean(native?.WebRTCModule || native?.LivekitReactNativeWebRTC);
-  }, []);
+  // Source de vérité unique pour la disponibilité des appels (Expo Go,
+  // module natif WebRTC manquant, web). Mémorisé : la dispo ne change pas
+  // pendant la durée de vie de l'app — un nouveau native module ne peut
+  // pas apparaître sans rebuild.
+  const hasCallsSupport = useMemo(isCallsAvailable, []);
 
   // WHISPR-1060: drain any offline-queued messages left over from a
   // previous session as soon as the authenticated tree mounts, and keep
@@ -204,6 +205,7 @@ export const AuthNavigator: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
+    const cleanupCallNotifications = initCallNotificationBridge();
     const preload = async () => {
       const token = await TokenService.getAccessToken();
       if (!token || cancelled) return;
@@ -215,13 +217,36 @@ export const AuthNavigator: React.FC = () => {
         UserService.getInstance().getPrivacySettings(),
         userId ? NotificationService.getSettings(userId) : Promise.resolve(),
       ]);
+
+      const conversations = useConversationsStore.getState().conversations;
+      const avatarUris: Array<string | undefined> = [];
+      for (const c of conversations.slice(0, 30)) {
+        if (!c) continue;
+        if (c.type === "group") {
+          const meta = (c.metadata ?? {}) as Record<string, any>;
+          avatarUris.push(
+            c.avatar_url,
+            meta.avatar_url,
+            meta.group_avatar_url,
+            meta.group_icon_url,
+            meta.icon_url,
+            meta.photo_url,
+            meta.picture_url,
+            meta.image_url,
+          );
+        } else {
+          avatarUris.push(c.avatar_url);
+        }
+      }
+      await prefetchResolvedMediaUris(avatarUris);
     };
 
     preload().catch(() => {});
+    void systemCallProvider.initialize().catch(() => {});
     try {
       require("../screens/Contacts/QRCodeScannerScreen");
     } catch {}
-    if (Constants.appOwnership !== "expo" && hasCallsSupport) {
+    if (hasCallsSupport) {
       try {
         require("../screens/Calls/CallsScreen");
         require("../screens/Calls/IncomingCallScreen");
@@ -231,6 +256,7 @@ export const AuthNavigator: React.FC = () => {
     }
     return () => {
       cancelled = true;
+      cleanupCallNotifications();
     };
   }, [hasCallsSupport, isAuthenticated, userId]);
 
@@ -247,22 +273,6 @@ export const AuthNavigator: React.FC = () => {
       ? "ProfileSetup"
       : "ConversationsList";
 
-  const CallsUnavailableScreen = () => (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 24,
-      }}
-    >
-      <Text style={{ textAlign: "center", opacity: 0.8 }}>
-        Les appels ne sont pas disponibles sur ce build. Recompilez le dev
-        client avec le module WebRTC natif.
-      </Text>
-    </View>
-  );
-
   return (
     <Stack.Navigator
       initialRouteName={initialRouteName}
@@ -270,8 +280,12 @@ export const AuthNavigator: React.FC = () => {
         headerShown: false,
         gestureEnabled: true,
         gestureDirection: "horizontal",
+        cardStyle: {
+          backgroundColor: "transparent",
+        },
         cardStyleInterpolator: ({ current, layouts }) => ({
           cardStyle: {
+            backgroundColor: "transparent",
             transform: [
               {
                 translateX: current.progress.interpolate({
@@ -320,6 +334,25 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="ConversationsList"
         component={ConversationsListScreen}
+      />
+      <Stack.Screen
+        name="ArchivedConversations"
+        component={ArchivedConversationsScreen}
+        options={{
+          cardStyleInterpolator: ({ current, layouts }) => ({
+            cardStyle: {
+              backgroundColor: "transparent",
+              transform: [
+                {
+                  translateX: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.width, 0],
+                  }),
+                },
+              ],
+            },
+          }),
+        }}
       />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="Contacts" component={ContactsScreen} />

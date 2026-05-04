@@ -3,7 +3,7 @@
  * WHISPR-212
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { formatUsername } from "../../utils";
 import {
   View,
@@ -11,7 +11,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
+  ImageBackground,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -111,6 +111,9 @@ export const GroupDetailsScreen: React.FC = () => {
   const CURRENT_USER_ID = userId ?? "";
   const { groupId, conversationId, conversationName } = route.params;
   const conversationKey = conversationId || groupId;
+  const conversation = useConversationsStore((s) =>
+    s.conversations.find((c) => c.id === conversationKey),
+  );
   const removeConversationLocal = useConversationsStore(
     (s) => s.removeConversationLocal,
   );
@@ -144,8 +147,12 @@ export const GroupDetailsScreen: React.FC = () => {
   );
   const [memberActionLoading, setMemberActionLoading] = useState(false);
 
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
+  const { settings: themeSettings } = useTheme();
+  const hasCustomBackground =
+    themeSettings?.backgroundPreset === "custom" &&
+    !!themeSettings?.customBackgroundUri;
+  const customBackgroundUri = themeSettings?.customBackgroundUri ?? null;
+  const customBackgroundVersion = themeSettings?.customBackgroundVersion ?? 0;
 
   // Animation values
   const headerOpacity = useSharedValue(0);
@@ -664,6 +671,23 @@ export const GroupDetailsScreen: React.FC = () => {
     transform: [{ scale: contentScale.value }],
   }));
 
+  const groupAvatarUrl = useMemo(() => {
+    if (groupDetails?.picture_url) return groupDetails.picture_url;
+    if (!conversation) return undefined;
+
+    const meta = (conversation.metadata ?? {}) as Record<string, any>;
+    return (
+      conversation.avatar_url ||
+      meta.avatar_url ||
+      meta.group_avatar_url ||
+      meta.group_icon_url ||
+      meta.icon_url ||
+      meta.photo_url ||
+      meta.picture_url ||
+      meta.image_url
+    );
+  }, [conversation, groupDetails?.picture_url]);
+
   const renderHeader = () => (
     <Animated.View
       style={[styles.header, headerAnimatedStyle]}
@@ -712,10 +736,11 @@ export const GroupDetailsScreen: React.FC = () => {
       entering={FadeInDown.delay(100).springify()}
     >
       <View style={styles.groupPhotoContainer}>
-        {groupDetails?.picture_url ? (
-          <Image
-            source={{ uri: groupDetails.picture_url }}
-            style={styles.groupPhoto}
+        {groupAvatarUrl ? (
+          <Avatar
+            size={120}
+            uri={groupAvatarUrl}
+            name={groupDetails?.name?.trim() || conversationName || "Groupe"}
           />
         ) : (
           <View
@@ -1439,6 +1464,75 @@ export const GroupDetailsScreen: React.FC = () => {
           <AnimatedTouchableOpacity
             style={styles.actionButton}
             onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("Chat", {
+                conversationId: conversationKey,
+                openSearch: true,
+              });
+            }}
+            activeOpacity={0.7}
+            entering={FadeInDown.delay(100).duration(300)}
+          >
+            <View style={styles.actionButtonContent}>
+              <View style={styles.actionIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  style={styles.actionIconGradient}
+                >
+                  <Ionicons name="search" size={20} color={colors.text.light} />
+                </LinearGradient>
+              </View>
+              <Text
+                style={[styles.actionButtonText, { color: colors.text.light }]}
+              >
+                Rechercher des messages
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={withOpacity(colors.text.light, 0.4)}
+            />
+          </AnimatedTouchableOpacity>
+          <AnimatedTouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate("ScheduledMessages", {
+                conversationId: conversationKey,
+              });
+            }}
+            activeOpacity={0.7}
+            entering={FadeInDown.delay(150).duration(300)}
+          >
+            <View style={styles.actionButtonContent}>
+              <View style={styles.actionIconContainer}>
+                <LinearGradient
+                  colors={[colors.primary.main, colors.primary.dark]}
+                  style={styles.actionIconGradient}
+                >
+                  <Ionicons
+                    name="timer-outline"
+                    size={20}
+                    color={colors.text.light}
+                  />
+                </LinearGradient>
+              </View>
+              <Text
+                style={[styles.actionButtonText, { color: colors.text.light }]}
+              >
+                Messages programmés
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={withOpacity(colors.text.light, 0.4)}
+            />
+          </AnimatedTouchableOpacity>
+          <AnimatedTouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               setShowLeaveModal(true);
             }}
@@ -2105,29 +2199,79 @@ export const GroupDetailsScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={colors.background.gradient.app}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientContainer}
+      <View
+        style={[
+          styles.screenRoot,
+          hasCustomBackground && styles.screenRootWithCustomBackground,
+        ]}
       >
+        {hasCustomBackground && customBackgroundUri ? (
+          <ImageBackground
+            key={`${customBackgroundUri}:${customBackgroundVersion}`}
+            source={{ uri: customBackgroundUri }}
+            resizeMode="cover"
+            style={styles.customBackground}
+          />
+        ) : null}
+        {!hasCustomBackground ? (
+          <LinearGradient
+            colors={colors.background.gradient.app}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gradientContainer}
+          />
+        ) : null}
+        <View
+          pointerEvents="none"
+          style={[
+            styles.backgroundScrim,
+            hasCustomBackground
+              ? styles.backgroundScrimWithCustomImage
+              : styles.backgroundScrimDefault,
+          ]}
+        />
         <SafeAreaView style={styles.container} edges={["top"]}>
           {renderHeader()}
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary.main} />
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={colors.background.gradient.app}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradientContainer}
+    <View
+      style={[
+        styles.screenRoot,
+        hasCustomBackground && styles.screenRootWithCustomBackground,
+      ]}
     >
+      {hasCustomBackground && customBackgroundUri ? (
+        <ImageBackground
+          key={`${customBackgroundUri}:${customBackgroundVersion}`}
+          source={{ uri: customBackgroundUri }}
+          resizeMode="cover"
+          style={styles.customBackground}
+        />
+      ) : null}
+      {!hasCustomBackground ? (
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.backgroundScrim,
+          hasCustomBackground
+            ? styles.backgroundScrimWithCustomImage
+            : styles.backgroundScrimDefault,
+        ]}
+      />
       <SafeAreaView style={styles.container} edges={["top"]}>
         {renderHeader()}
         <ScrollView
@@ -2152,17 +2296,38 @@ export const GroupDetailsScreen: React.FC = () => {
         {renderAddMemberModal()}
         {renderMemberActionsModal()}
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  gradientContainer: {
+  screenRoot: {
     flex: 1,
+    backgroundColor: colors.background.dark,
     ...(Platform.OS === "web" ? { height: "100vh" as any } : {}),
+  },
+  screenRootWithCustomBackground: {
+    backgroundColor: "transparent",
+  },
+  customBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradientContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.dark,
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundScrimDefault: {
+    backgroundColor: "rgba(3, 8, 27, 0.18)",
+  },
+  backgroundScrimWithCustomImage: {
+    backgroundColor: "rgba(5, 8, 22, 0.62)",
   },
   container: {
     flex: 1,
+    backgroundColor: "transparent",
     ...(Platform.OS === "web" ? { height: "100%", minHeight: 0 } : {}),
   },
   header: {

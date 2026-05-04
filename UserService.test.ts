@@ -188,6 +188,53 @@ describe("UserService.updateProfilePicture", () => {
   });
 });
 
+describe("UserService.visualPreferences", () => {
+  it("PATCHes visual preferences as a dedicated nested payload", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          id: "u",
+          visualPreferences: {
+            theme: "light",
+            updatedAt: "2026-05-03T12:00:00.000Z",
+          },
+        },
+      }),
+    );
+
+    const result = await service.updateVisualPreferences({
+      theme: "light",
+      updatedAt: "2026-05-03T12:00:00.000Z",
+    });
+
+    const [, init] = mockFetch.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      visualPreferences: {
+        theme: "light",
+        updatedAt: "2026-05-03T12:00:00.000Z",
+      },
+    });
+    expect(result.success).toBe(true);
+    expect(result.profile?.visualPreferences?.theme).toBe("light");
+  });
+
+  it("sends a custom background reset with a backend timestamp", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ body: { id: "u" } }));
+    await service.updateProfileBackground(null, null);
+
+    const [, init] = mockFetch.mock.calls[0];
+    const parsed = JSON.parse(init.body);
+    expect(parsed.backgroundMediaId).toBeNull();
+    expect(parsed.backgroundMediaUrl).toBeNull();
+    expect(parsed.visualPreferences).toMatchObject({
+      backgroundPreset: "whispr",
+      backgroundMediaId: null,
+      backgroundMediaUrl: null,
+    });
+    expect(typeof parsed.visualPreferences.updatedAt).toBe("string");
+  });
+});
+
 describe("UserService.updateUsername", () => {
   it("rejects usernames shorter than 3 characters", async () => {
     const result = await service.updateUsername("ab");

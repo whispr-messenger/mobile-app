@@ -100,6 +100,7 @@ jest.mock("./src/theme/colors", () => ({
     text: { light: "#fff" },
     ui: { success: "#0f0", error: "#f00" },
   },
+  withOpacity: (color: string) => color,
 }));
 
 const mockedContactsAPI = contactsAPI as jest.Mocked<typeof contactsAPI>;

@@ -4,9 +4,15 @@ import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 import { snakecaseKeys } from "../../utils/caseTransform";
 import { logger } from "../../utils/logger";
-import { isReachableUrl } from "../../utils";
+import { isReachableUrl, isValidUuid } from "../../utils";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
+
+function extractMediaIdFromUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  const match = url.match(/\/media\/v1\/([^/]+)\/(?:blob|thumbnail)(?:\?|$)/i);
+  return match?.[1];
+}
 
 /**
  * Normalise a backend attachment payload into the MessageAttachment shape the
@@ -30,7 +36,14 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
   }
 
   const meta = att?.metadata || {};
-  const mediaId = att?.media_id || meta.media_id;
+  const mediaId =
+    att?.media_id ||
+    meta.media_id ||
+    extractMediaIdFromUrl(att?.file_url) ||
+    extractMediaIdFromUrl(meta.media_url) ||
+    extractMediaIdFromUrl(att?.storage_url) ||
+    extractMediaIdFromUrl(att?.thumbnail_url) ||
+    extractMediaIdFromUrl(meta.thumbnail_url);
   const mediaBlobUrl = mediaId
     ? `${getApiBaseUrl()}/media/v1/${mediaId}/blob`
     : null;
@@ -59,7 +72,7 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
   return {
     id: att?.id,
     message_id: att?.message_id || fallbackMessageId,
-    media_id: mediaId || att?.id,
+    media_id: mediaId,
     media_type,
     metadata: {
       filename: att?.file_name || att?.filename || meta.filename,
@@ -67,6 +80,11 @@ export const mapBackendAttachment = (att: any, fallbackMessageId?: string) => {
       mime_type: att?.mime_type || meta.mime_type,
       media_url: resolvedUrl,
       thumbnail_url: resolvedThumbnail,
+      duration:
+        meta.duration ??
+        att?.duration ??
+        att?.audio_duration ??
+        att?.file_duration,
     },
     created_at: att?.uploaded_at || att?.created_at || new Date().toISOString(),
   };
@@ -121,6 +139,24 @@ const authenticatedFetch = async (
 /** Erreur réseau / HTTP avec code statut (diagnostic logs / toasts). */
 function httpError(label: string, response: Response): Error {
   return new Error(`${label} (${response.status})`);
+}
+
+/** Erreur HTTP enrichie : status + corps parsé pour gestion fine côté appelant. */
+export type ApiError = Error & { status: number; body?: unknown };
+
+async function richHttpError(
+  label: string,
+  response: Response,
+): Promise<ApiError> {
+  const body = await response.json().catch(() => undefined);
+  const message =
+    (body as { error?: string; message?: string })?.error ||
+    (body as { message?: string })?.message ||
+    `${label} (${response.status})`;
+  const err = new Error(message) as ApiError;
+  err.status = response.status;
+  err.body = body;
+  return err;
 }
 
 /**
@@ -231,6 +267,109 @@ export const messagingAPI = {
     if (!response.ok) {
       throw httpError("Failed to delete conversation", response);
     }
+  },
+
+  /**
+   * Archive une conversation pour l'utilisateur courant (per-user, multi-device).
+   * Lève une ApiError sur 4xx/5xx ; le caller décide quoi faire de 422
+   * (déjà archivée — l'état serveur est déjà celui qu'on voulait).
+   */
+  async archiveConversation(conversationId: string): Promise<void> {
+    if (!isValidUuid(conversationId)) {
+      const err = new Error("Invalid conversation id") as ApiError;
+      err.status = 400;
+      throw err;
+    }
+
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/archive`,
+      { method: "POST" },
+    );
+
+    if (!response.ok) {
+      throw await richHttpError("Failed to archive conversation", response);
+    }
+  },
+
+  async unarchiveConversation(conversationId: string): Promise<void> {
+    if (!isValidUuid(conversationId)) {
+      const err = new Error("Invalid conversation id") as ApiError;
+      err.status = 400;
+      throw err;
+    }
+
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(
+        conversationId,
+      )}/archive`,
+      { method: "DELETE" },
+    );
+
+    if (!response.ok) {
+      throw await richHttpError("Failed to unarchive conversation", response);
+    }
+  },
+
+  /**
+   * GET /conversations/archived — listing paginé. Le backend renvoie
+   * { data: [...], meta: {...} } avec data camelisé (isArchived…) là où les
+   * autres endpoints conversation retournent du snake_case. On normalise tout
+   * en snake_case pour rester homogène avec le type Conversation interne.
+   */
+  async getArchivedConversations(params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    data: Conversation[];
+    meta: {
+      count: number;
+      limit: number;
+      offset: number;
+      has_more: boolean;
+      user_id: string;
+    };
+  }> {
+    const query = new URLSearchParams();
+    if (params?.limit !== undefined) {
+      query.append("limit", String(params.limit));
+    }
+    if (params?.offset !== undefined) {
+      query.append("offset", String(params.offset));
+    }
+    const queryString = query.toString();
+    const url = `${API_BASE_URL}/conversations/archived${
+      queryString ? `?${queryString}` : ""
+    }`;
+
+    const response = await authenticatedFetch(url);
+    if (!response.ok) {
+      throw httpError("Failed to fetch archived conversations", response);
+    }
+
+    const json = await response.json().catch(() => ({}) as any);
+    const normalised = snakecaseKeys(json) as {
+      data?: Conversation[];
+      meta?: {
+        count?: number;
+        limit?: number;
+        offset?: number;
+        has_more?: boolean;
+        user_id?: string;
+      };
+    };
+
+    return {
+      data: Array.isArray(normalised.data) ? normalised.data : [],
+      meta: {
+        count: normalised.meta?.count ?? 0,
+        limit: normalised.meta?.limit ?? params?.limit ?? 50,
+        offset: normalised.meta?.offset ?? params?.offset ?? 0,
+        has_more: normalised.meta?.has_more ?? false,
+        user_id: normalised.meta?.user_id ?? "",
+      },
+    };
   },
 
   async getMessages(

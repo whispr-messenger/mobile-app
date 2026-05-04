@@ -3,7 +3,16 @@
  */
 
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  Modal,
+  Platform,
+} from "react-native";
+import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
@@ -18,12 +27,20 @@ interface ChatHeaderProps {
   conversationType: "direct" | "group";
   onlineMemberCount?: number;
   groupAvatars?: Array<{ uri?: string; name: string }>;
-  onSearchPress?: () => void;
-  onInfoPress?: () => void;
-  onScheduledPress?: () => void;
+  typingNames?: string[];
+  onTitlePress?: () => void;
   onAudioCallPress?: () => void;
   onVideoCallPress?: () => void;
+  callsAvailable?: boolean;
 }
+
+const formatTypingLabel = (names: string[]): string => {
+  if (names.length === 0) return "";
+  if (names.length === 1) return `${names[0]} est en train d'écrire…`;
+  if (names.length === 2)
+    return `${names[0]} et ${names[1]} sont en train d'écrire…`;
+  return `${names[0]} et ${names.length - 1} autres sont en train d'écrire…`;
+};
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationName,
@@ -33,11 +50,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   conversationType,
   onlineMemberCount = 0,
   groupAvatars,
-  onSearchPress,
-  onInfoPress,
-  onScheduledPress,
+  typingNames,
+  onTitlePress,
   onAudioCallPress,
   onVideoCallPress,
+  callsAvailable = true,
 }) => {
   const navigation = useNavigation();
   const { getThemeColors } = useTheme();
@@ -46,8 +63,59 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const groupAvatarNodes =
     conversationType === "group" ? (groupAvatars || []).slice(0, 2) : [];
 
+  const isTyping = (typingNames?.length ?? 0) > 0;
+  const [callMenuOpen, setCallMenuOpen] = useState(false);
+  const hasCallActions = !!(onAudioCallPress || onVideoCallPress);
+
+  const handleCallButtonPress = () => {
+    if (!hasCallActions) return;
+    // When calls are unavailable we still want the parent to surface the
+    // toast — fire one of the handlers directly instead of opening a menu
+    // that would offer two unusable choices.
+    if (!callsAvailable) {
+      (onVideoCallPress ?? onAudioCallPress)?.();
+      return;
+    }
+    setCallMenuOpen(true);
+  };
+
+  const renderAvatar = () =>
+    conversationType === "group" ? (
+      avatarUrl ? (
+        <Avatar size={36} uri={avatarUrl} name={conversationName} />
+      ) : groupAvatarNodes.length > 0 ? (
+        <View style={styles.groupAvatarStack}>
+          {groupAvatarNodes.map((a, idx) => (
+            <View
+              key={`${a.uri ?? a.name}-${idx}`}
+              style={[
+                styles.groupAvatarItem,
+                idx === 1 ? styles.groupAvatarItemTop : null,
+              ]}
+            >
+              <Avatar size={24} uri={a.uri} name={a.name} />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Avatar size={36} name={conversationName} />
+      )
+    ) : (
+      <Avatar
+        size={36}
+        uri={avatarUrl}
+        name={conversationName}
+        showOnlineBadge
+        isOnline={isOnline}
+      />
+    );
+
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
+    <BlurView
+      intensity={Platform.OS === "ios" ? 60 : 80}
+      tint="dark"
+      style={styles.container}
+    >
       <TouchableOpacity
         onPress={() => {
           if (navigation.canGoBack()) {
@@ -61,98 +129,75 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         accessibilityLabel="Retour"
       >
         <Ionicons
-          name="arrow-back"
-          size={24}
+          name="chevron-back"
+          size={26}
           color={themeColors.text.primary}
         />
       </TouchableOpacity>
-      {conversationType === "group" ? (
-        avatarUrl ? (
-          <Avatar size={32} uri={avatarUrl} name={conversationName} />
-        ) : groupAvatarNodes.length > 0 ? (
-          <View style={styles.groupAvatarStack}>
-            {groupAvatarNodes.map((a, idx) => (
-              <View
-                key={`${a.uri ?? a.name}-${idx}`}
-                style={[
-                  styles.groupAvatarItem,
-                  idx === 1 ? styles.groupAvatarItemTop : null,
-                ]}
-              >
-                <Avatar size={22} uri={a.uri} name={a.name} />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Avatar size={32} name={conversationName} />
-        )
-      ) : (
-        <Avatar
-          size={32}
-          uri={avatarUrl}
-          name={conversationName}
-          showOnlineBadge
-          isOnline={isOnline}
-        />
-      )}
-      <View style={styles.info}>
-        <Text
-          style={[styles.name, { color: themeColors.text.primary }]}
-          numberOfLines={1}
-        >
-          {conversationName}
-        </Text>
-        {conversationType === "direct" && (
+      <TouchableOpacity
+        style={styles.titleArea}
+        onPress={onTitlePress}
+        activeOpacity={onTitlePress ? 0.6 : 1}
+        disabled={!onTitlePress}
+        accessibilityRole="button"
+        accessibilityLabel={`Détails de ${conversationName}`}
+      >
+        {renderAvatar()}
+        <View style={styles.info}>
           <Text
-            style={[
-              styles.status,
-              {
-                color: isOnline
-                  ? colors.status.online
-                  : themeColors.text.secondary,
-              },
-            ]}
+            style={[styles.name, { color: themeColors.text.primary }]}
             numberOfLines={1}
           >
-            {isOnline
-              ? "En ligne"
-              : lastSeenAt
-                ? `Vu \u00e0 ${new Date(lastSeenAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
-                : "Hors ligne"}
+            {conversationName}
           </Text>
-        )}
-        {conversationType === "group" && onlineMemberCount > 0 && (
-          <Text
-            style={[styles.status, { color: colors.status.online }]}
-            numberOfLines={1}
-          >
-            {onlineMemberCount === 1
-              ? "1 membre en ligne"
-              : `${onlineMemberCount} membres en ligne`}
-          </Text>
-        )}
-      </View>
+          {isTyping ? (
+            <Text
+              style={[styles.status, { color: colors.status.online }]}
+              numberOfLines={1}
+            >
+              {formatTypingLabel(typingNames!)}
+            </Text>
+          ) : conversationType === "direct" && (isOnline || lastSeenAt) ? (
+            // The avatar's coloured dot already conveys online/offline state,
+            // so we only render text when it adds information beyond the dot:
+            // "En ligne" (qualitative reinforcement) or a "Vu à HH:MM" timestamp.
+            <Text
+              style={[
+                styles.status,
+                {
+                  color: isOnline
+                    ? colors.status.online
+                    : themeColors.text.secondary,
+                },
+              ]}
+              numberOfLines={1}
+            >
+              {isOnline
+                ? "En ligne"
+                : `Vu à ${new Date(lastSeenAt!).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`}
+            </Text>
+          ) : onlineMemberCount > 0 ? (
+            <Text
+              style={[styles.status, { color: colors.status.online }]}
+              numberOfLines={1}
+            >
+              {onlineMemberCount === 1
+                ? "1 membre en ligne"
+                : `${onlineMemberCount} membres en ligne`}
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
       <View style={styles.actions}>
-        {onAudioCallPress && (
+        {hasCallActions && (
           <TouchableOpacity
-            onPress={onAudioCallPress}
-            style={styles.actionButton}
+            onPress={handleCallButtonPress}
+            style={[
+              styles.actionButton,
+              !callsAvailable && styles.actionButtonDisabled,
+            ]}
             accessibilityRole="button"
-            accessibilityLabel="Appel audio"
-          >
-            <Ionicons
-              name="call-outline"
-              size={22}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
-        )}
-        {onVideoCallPress && (
-          <TouchableOpacity
-            onPress={onVideoCallPress}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel="Appel video"
+            accessibilityLabel="Lancer un appel"
           >
             <Ionicons
               name="videocam-outline"
@@ -161,50 +206,79 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             />
           </TouchableOpacity>
         )}
-        {onScheduledPress && (
-          <TouchableOpacity
-            onPress={onScheduledPress}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel="Messages programmés"
-          >
-            <Ionicons
-              name="timer-outline"
-              size={22}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
-        )}
-        {onSearchPress && (
-          <TouchableOpacity
-            onPress={onSearchPress}
-            style={styles.actionButton}
-            accessibilityRole="button"
-            accessibilityLabel="Rechercher dans la conversation"
-          >
-            <Ionicons
-              name="search"
-              size={22}
-              color={themeColors.text.primary}
-            />
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          onPress={() => {
-            onInfoPress?.();
-          }}
-          style={styles.actionButton}
-          accessibilityRole="button"
-          accessibilityLabel="Détails de la conversation"
-        >
-          <Ionicons
-            name="information-circle-outline"
-            size={22}
-            color={themeColors.text.primary}
-          />
-        </TouchableOpacity>
       </View>
-    </View>
+      <Modal
+        visible={callMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCallMenuOpen(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setCallMenuOpen(false)}>
+          <View style={styles.callMenuBackdrop}>
+            <TouchableWithoutFeedback>
+              <BlurView
+                intensity={Platform.OS === "ios" ? 60 : 80}
+                tint="dark"
+                style={styles.callMenu}
+              >
+                {onAudioCallPress && (
+                  <TouchableOpacity
+                    style={styles.callMenuItem}
+                    onPress={() => {
+                      setCallMenuOpen(false);
+                      onAudioCallPress();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Appel audio"
+                  >
+                    <Ionicons
+                      name="call-outline"
+                      size={20}
+                      color={themeColors.text.primary}
+                      style={styles.callMenuIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.callMenuLabel,
+                        { color: themeColors.text.primary },
+                      ]}
+                    >
+                      Appel audio
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {onVideoCallPress && (
+                  <TouchableOpacity
+                    style={styles.callMenuItem}
+                    onPress={() => {
+                      setCallMenuOpen(false);
+                      onVideoCallPress();
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Appel vidéo"
+                  >
+                    <Ionicons
+                      name="videocam-outline"
+                      size={20}
+                      color={themeColors.text.primary}
+                      style={styles.callMenuIcon}
+                    />
+                    <Text
+                      style={[
+                        styles.callMenuLabel,
+                        { color: themeColors.text.primary },
+                      ]}
+                    >
+                      Appel vidéo
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </BlurView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </BlurView>
   );
 };
 
@@ -212,18 +286,30 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255, 255, 255, 0.18)",
+    backgroundColor:
+      Platform.OS === "ios"
+        ? "rgba(20, 25, 50, 0.35)"
+        : "rgba(20, 25, 50, 0.7)",
   },
   backButton: {
-    marginRight: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    marginRight: 4,
+  },
+  titleArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+    paddingRight: 8,
   },
   groupAvatarStack: {
-    width: 32,
-    height: 32,
-    marginRight: 0,
+    width: 36,
+    height: 36,
   },
   groupAvatarItem: {
     position: "absolute",
@@ -232,7 +318,7 @@ const styles = StyleSheet.create({
   },
   groupAvatarItemTop: {
     left: 12,
-    top: 10,
+    top: 12,
   },
   info: {
     flex: 1,
@@ -249,10 +335,46 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 8,
   },
   actionButton: {
     padding: 8,
-    marginLeft: 4,
+    marginLeft: 2,
+  },
+  actionButtonDisabled: {
+    opacity: 0.4,
+  },
+  callMenuBackdrop: {
+    flex: 1,
+    alignItems: "flex-end",
+    // Push the menu just below where the topbar typically ends. The
+    // topbar height varies with the safe-area inset, so we use a value
+    // that works on phones with and without a notch — the user can still
+    // tap anywhere outside to dismiss.
+    paddingTop: Platform.OS === "ios" ? 96 : 64,
+    paddingRight: 8,
+  },
+  callMenu: {
+    minWidth: 180,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+    backgroundColor:
+      Platform.OS === "ios"
+        ? "rgba(20, 25, 50, 0.55)"
+        : "rgba(20, 25, 50, 0.85)",
+  },
+  callMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  callMenuIcon: {
+    marginRight: 12,
+  },
+  callMenuLabel: {
+    fontSize: 15,
+    fontWeight: "500",
   },
 });

@@ -35,6 +35,13 @@ jest.mock("./src/store/callsStore", () => ({
     }),
 }));
 
+jest.mock("./src/services/calls/systemCallProvider", () => ({
+  systemCallProvider: {
+    markCallConnected: jest.fn().mockResolvedValue(undefined),
+    endCall: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import { IncomingCallScreen } from "./src/screens/Calls/IncomingCallScreen";
 
 describe("IncomingCallScreen", () => {

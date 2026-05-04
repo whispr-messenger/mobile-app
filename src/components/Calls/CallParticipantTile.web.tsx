@@ -8,9 +8,15 @@ import {
   type RemoteAudioTrack,
   type LocalAudioTrack,
 } from "livekit-client";
+import { colors, withOpacity } from "../../theme/colors";
+import { Avatar } from "../Chat/Avatar";
 
 interface Props {
   participant: Participant;
+  displayName?: string;
+  avatarUrl?: string;
+  selfDisplayName?: string;
+  selfAvatarUrl?: string;
 }
 
 /**
@@ -20,7 +26,13 @@ interface Props {
  * track.attach()/detach(). Metro picks this .web.tsx over the sibling .tsx
  * automatically when building for the web platform.
  */
-export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
+export const CallParticipantTile: React.FC<Props> = ({
+  participant,
+  displayName,
+  avatarUrl,
+  selfDisplayName,
+  selfAvatarUrl,
+}) => {
   const videoPublication = participant.getTrackPublication(Track.Source.Camera);
   const videoTrack = videoPublication?.videoTrack as
     | RemoteVideoTrack
@@ -56,32 +68,42 @@ export const CallParticipantTile: React.FC<Props> = ({ participant }) => {
     };
   }, [audioTrack, participant.isLocal]);
 
+  const label = participant.isLocal
+    ? selfDisplayName || "Vous"
+    : participant.name || displayName || `${participant.identity.slice(0, 8)}…`;
+  const resolvedAvatarUrl = participant.isLocal ? selfAvatarUrl : avatarUrl;
   return (
     <View style={styles.tile}>
       {videoTrack ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={participant.isLocal}
-          style={webStyles.video as React.CSSProperties}
-        />
+        <>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={participant.isLocal}
+            style={webStyles.video as React.CSSProperties}
+          />
+          <View style={styles.videoOverlay} />
+        </>
       ) : (
         <View style={styles.placeholder}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarLetter}>
-              {(participant.name ||
-                participant.identity ||
-                "?")[0].toUpperCase()}
-            </Text>
+          <View style={styles.glow} />
+          <View style={styles.avatarWrap}>
+            <Avatar uri={resolvedAvatarUrl} name={label} size={88} />
           </View>
           <Text style={styles.identity} numberOfLines={1}>
-            {participant.isLocal
-              ? "Vous"
-              : participant.name || `${participant.identity.slice(0, 8)}…`}
+            {label}
+          </Text>
+          <Text style={styles.subLabel}>
+            {participant.isLocal ? "Votre aperçu" : "Participant"}
           </Text>
         </View>
       )}
+      <View style={styles.nameBadge}>
+        <Text style={styles.nameBadgeText} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
       {!participant.isLocal && (
         <audio ref={audioRef} autoPlay style={{ display: "none" }} />
       )}
@@ -93,32 +115,65 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     aspectRatio: 3 / 4,
-    backgroundColor: "#222",
-    borderRadius: 12,
+    backgroundColor: withOpacity(colors.secondary.dark, 0.64),
+    borderRadius: 28,
     overflow: "hidden",
-    margin: 4,
+    margin: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(3,6,20,0.28)",
   },
   placeholder: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 8,
+    paddingHorizontal: 20,
     gap: 12,
+    backgroundColor: withOpacity(colors.secondary.dark, 0.92),
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#4a5cff",
+  glow: {
+    position: "absolute",
+    top: -50,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: withOpacity(colors.primary.light, 0.22),
+  },
+  avatarWrap: {
+    padding: 6,
+    borderRadius: 52,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarLetter: {
-    color: "#fff",
-    fontSize: 28,
-    fontFamily: "Inter_600SemiBold",
-  },
   identity: {
+    color: "#fff",
+    fontFamily: "Inter_700Bold",
+    fontSize: 22,
+  },
+  subLabel: {
+    color: "rgba(255,255,255,0.72)",
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+  },
+  nameBadge: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "rgba(9,13,28,0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  nameBadgeText: {
     color: "#fff",
     fontFamily: "Inter_600SemiBold",
     fontSize: 14,

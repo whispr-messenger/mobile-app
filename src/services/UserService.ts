@@ -9,6 +9,16 @@ import { getApiBaseUrl } from "./apiBase";
 import { normalizeUsername } from "../utils";
 
 // Types
+export interface UserVisualPreferences {
+  theme?: "light" | "dark" | "auto";
+  language?: "fr" | "en";
+  fontSize?: "small" | "medium" | "large";
+  backgroundPreset?: "whispr" | "midnight" | "sunset" | "aurora" | "custom";
+  backgroundMediaId?: string | null;
+  backgroundMediaUrl?: string | null;
+  updatedAt?: string | null;
+}
+
 export interface UserProfile {
   id: string;
   firstName: string;
@@ -17,6 +27,9 @@ export interface UserProfile {
   phoneNumber: string;
   biography: string;
   profilePicture?: string;
+  backgroundMediaId?: string;
+  backgroundMediaUrl?: string;
+  visualPreferences?: UserVisualPreferences;
   isOnline: boolean;
   lastSeen?: string;
   createdAt: string;
@@ -29,6 +42,9 @@ export interface UpdateProfileRequest {
   username?: string;
   biography?: string;
   avatarMediaId?: string;
+  backgroundMediaId?: string | null;
+  backgroundMediaUrl?: string | null;
+  visualPreferences?: UserVisualPreferences;
 }
 
 export interface UpdateProfileResponse {
@@ -120,6 +136,77 @@ export class UserService {
       raw.profilePictureUrl ??
       raw.profile_picture_url ??
       raw.avatar_url;
+    const visualPreferencesRaw =
+      raw.visualPreferences ??
+      raw.visual_preferences ??
+      raw.preferences?.visualPreferences ??
+      raw.preferences?.visual_preferences ??
+      raw.metadata?.visualPreferences ??
+      raw.metadata?.visual_preferences;
+    const visualPreferences =
+      visualPreferencesRaw && typeof visualPreferencesRaw === "object"
+        ? {
+            theme:
+              visualPreferencesRaw.theme === "light" ||
+              visualPreferencesRaw.theme === "dark" ||
+              visualPreferencesRaw.theme === "auto"
+                ? visualPreferencesRaw.theme
+                : undefined,
+            language:
+              visualPreferencesRaw.language === "fr" ||
+              visualPreferencesRaw.language === "en"
+                ? visualPreferencesRaw.language
+                : undefined,
+            fontSize:
+              visualPreferencesRaw.fontSize === "small" ||
+              visualPreferencesRaw.fontSize === "medium" ||
+              visualPreferencesRaw.fontSize === "large"
+                ? visualPreferencesRaw.fontSize
+                : undefined,
+            backgroundPreset:
+              visualPreferencesRaw.backgroundPreset === "whispr" ||
+              visualPreferencesRaw.backgroundPreset === "midnight" ||
+              visualPreferencesRaw.backgroundPreset === "sunset" ||
+              visualPreferencesRaw.backgroundPreset === "aurora" ||
+              visualPreferencesRaw.backgroundPreset === "custom"
+                ? visualPreferencesRaw.backgroundPreset
+                : undefined,
+            backgroundMediaId:
+              typeof visualPreferencesRaw.backgroundMediaId === "string"
+                ? visualPreferencesRaw.backgroundMediaId
+                : visualPreferencesRaw.backgroundMediaId === null
+                  ? null
+                  : undefined,
+            backgroundMediaUrl:
+              typeof visualPreferencesRaw.backgroundMediaUrl === "string"
+                ? visualPreferencesRaw.backgroundMediaUrl
+                : visualPreferencesRaw.backgroundMediaUrl === null
+                  ? null
+                  : undefined,
+            updatedAt:
+              typeof visualPreferencesRaw.updatedAt === "string"
+                ? visualPreferencesRaw.updatedAt
+                : visualPreferencesRaw.updatedAt === null
+                  ? null
+                  : undefined,
+          }
+        : undefined;
+    const backgroundMediaId =
+      raw.backgroundMediaId ??
+      raw.background_media_id ??
+      visualPreferences?.backgroundMediaId ??
+      raw?.preferences?.backgroundMediaId ??
+      raw?.preferences?.background_media_id ??
+      raw?.metadata?.backgroundMediaId ??
+      raw?.metadata?.background_media_id;
+    const backgroundMediaUrl =
+      raw.backgroundMediaUrl ??
+      raw.background_media_url ??
+      visualPreferences?.backgroundMediaUrl ??
+      raw?.preferences?.backgroundMediaUrl ??
+      raw?.preferences?.background_media_url ??
+      raw?.metadata?.backgroundMediaUrl ??
+      raw?.metadata?.background_media_url;
     return {
       id: String(raw.id ?? ""),
       firstName: String(raw.firstName ?? raw.first_name ?? ""),
@@ -128,6 +215,13 @@ export class UserService {
       phoneNumber: String(raw.phoneNumber ?? raw.phone_number ?? ""),
       biography: String(raw.biography ?? ""),
       profilePicture: profilePicture ? String(profilePicture) : undefined,
+      backgroundMediaId: backgroundMediaId
+        ? String(backgroundMediaId)
+        : undefined,
+      backgroundMediaUrl: backgroundMediaUrl
+        ? String(backgroundMediaUrl)
+        : undefined,
+      visualPreferences,
       isOnline: Boolean(raw.isOnline ?? raw.is_online ?? true),
       lastSeen: raw.lastSeen ?? raw.last_seen ?? undefined,
       createdAt: String(raw.createdAt ?? raw.created_at ?? ""),
@@ -341,6 +435,89 @@ export class UserService {
       return {
         success: false,
         message: "Impossible de mettre à jour la photo de profil",
+      };
+    }
+  }
+
+  async updateProfileBackground(
+    backgroundMediaId: string | null,
+    backgroundMediaUrl?: string | null,
+  ): Promise<UpdateProfileResponse> {
+    const updatedAt = new Date().toISOString();
+    try {
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          backgroundMediaId,
+          backgroundMediaUrl: backgroundMediaUrl ?? null,
+          visualPreferences: {
+            backgroundPreset: backgroundMediaId ? "custom" : "whispr",
+            backgroundMediaId,
+            backgroundMediaUrl: backgroundMediaUrl ?? null,
+            updatedAt,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
+      }
+
+      const data = await response.json().catch(() => null);
+      const normalized = this.normalizeProfile(data);
+      return {
+        success: true,
+        message: "Arrière-plan mis à jour avec succès",
+        profile: normalized,
+      };
+    } catch (error) {
+      console.error("Erreur mise à jour arrière-plan:", error);
+      return {
+        success: false,
+        message: "Impossible de mettre à jour l'arrière-plan",
+      };
+    }
+  }
+
+  async updateVisualPreferences(
+    visualPreferences: UserVisualPreferences,
+  ): Promise<UpdateProfileResponse> {
+    try {
+      const response = await this.authFetch("/profile/{userId}", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visualPreferences }),
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: await this.extractErrorMessage(
+            response,
+            `Erreur ${response.status}`,
+          ),
+        };
+      }
+
+      const data = await response.json().catch(() => null);
+      const normalized = this.normalizeProfile(data);
+      return {
+        success: true,
+        message: "Préférences visuelles mises à jour avec succès",
+        profile: normalized,
+      };
+    } catch (error) {
+      console.error("Erreur mise à jour préférences visuelles:", error);
+      return {
+        success: false,
+        message: "Impossible de mettre à jour les préférences visuelles",
       };
     }
   }
