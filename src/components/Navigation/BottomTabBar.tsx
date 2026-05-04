@@ -22,6 +22,8 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import { useConversationsStore } from "../../store/conversationsStore";
 import { useUIStore } from "../../store/uiStore";
+import { useCallsStore } from "../../store/callsStore";
+import { useModerationStore, useIsStaff } from "../../store/moderationStore";
 import {
   FLOATING_TAB_BAR_BORDER_RADIUS as PILL_BORDER_RADIUS,
   FLOATING_TAB_BAR_BOTTOM_OFFSET as PILL_BOTTOM_OFFSET,
@@ -52,19 +54,29 @@ interface TabItem {
   name: string;
   icon: keyof typeof Ionicons.glyphMap;
   route: TabRoute;
-  badgeKey?: "chats";
+  badgeKey?: "chats" | "calls" | "moderation" | "pendingAppeals";
 }
 
 const tabs: TabItem[] = [
   { name: "Contacts", icon: "person-outline", route: "Contacts" },
-  { name: "Appels", icon: "call-outline", route: "Calls" },
+  {
+    name: "Appels",
+    icon: "call-outline",
+    route: "Calls",
+    badgeKey: "calls",
+  },
   {
     name: "Discussions",
     icon: "chatbubble-ellipses-outline",
     route: "ConversationsList",
     badgeKey: "chats",
   },
-  { name: "Réglages", icon: "settings-outline", route: "Settings" },
+  {
+    name: "Réglages",
+    icon: "settings-outline",
+    route: "Settings",
+    badgeKey: "pendingAppeals",
+  },
 ];
 
 type TabButtonProps = {
@@ -143,6 +155,27 @@ const BottomTabBarImpl: React.FC<Props> = ({ currentRouteName }) => {
     ),
   );
 
+  const incomingCall = useCallsStore((s) => s.incoming);
+  const isStaff = useIsStaff();
+  const reportQueue = useModerationStore((s) => s.reportQueue);
+  const appealQueue = useModerationStore((s) => s.appealQueue);
+  const pendingAppeals = useModerationStore((s) => s.pendingAppeals);
+
+  const getBadgeCount = (badgeKey: string | undefined): number => {
+    if (!badgeKey) return 0;
+    if (badgeKey === "chats") return chatsUnread;
+    if (badgeKey === "calls") return incomingCall ? 1 : 0;
+    if (badgeKey === "moderation" && isStaff) {
+      return reportQueue.length + appealQueue.length;
+    }
+    if (badgeKey === "pendingAppeals") {
+      return Object.values(pendingAppeals).filter(
+        (appeal) => appeal.status === "pending",
+      ).length;
+    }
+    return 0;
+  };
+
   const insets = useSafeAreaInsets();
 
   // Keep the latest route in a ref so the press callback can stay stable
@@ -209,10 +242,7 @@ const BottomTabBarImpl: React.FC<Props> = ({ currentRouteName }) => {
               <View style={styles.tabRow}>
                 {tabs.map((tab) => {
                   const active = currentRouteName === tab.route;
-                  const badgeCount =
-                    tab.badgeKey === "chats" && chatsUnread > 0
-                      ? chatsUnread
-                      : 0;
+                  const badgeCount = getBadgeCount(tab.badgeKey);
                   return (
                     <TabButton
                       key={tab.name}
