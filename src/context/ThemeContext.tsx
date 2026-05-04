@@ -345,32 +345,68 @@ function buildRemoteBackgroundBlobUrl(mediaId: string) {
   return `${getApiBaseUrl()}/media/v1/${encodeURIComponent(mediaId)}/blob`;
 }
 
+function sanitizeRemoteUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const wrappers: Array<[string, string]> = [
+    ["`", "`"],
+    ['"', '"'],
+    ["'", "'"],
+  ];
+  for (const [start, end] of wrappers) {
+    if (
+      trimmed.startsWith(start) &&
+      trimmed.endsWith(end) &&
+      trimmed.length > 2
+    )
+      return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function ensureMediaServiceStreamUrl(value: string): string {
+  if (!value.includes("/media/v1/")) return value;
+  if (!value.includes("/blob") && !value.includes("/thumbnail")) return value;
+  if (/([?&])stream=1(&|$)/.test(value)) return value;
+  const separator = value.includes("?") ? "&" : "?";
+  return `${value}${separator}stream=1`;
+}
+
 async function downloadRemoteBackgroundToLocal(
   mediaId: string | null | undefined,
   remoteUrl: string | null | undefined,
 ): Promise<string | null> {
-  const sourceUrl =
-    remoteUrl || (mediaId ? buildRemoteBackgroundBlobUrl(mediaId) : null);
+  const cleanedRemoteUrl = sanitizeRemoteUrl(remoteUrl);
+  const sourceUrlRaw =
+    cleanedRemoteUrl ||
+    (mediaId ? buildRemoteBackgroundBlobUrl(mediaId) : null);
+  const sourceUrl = sourceUrlRaw
+    ? ensureMediaServiceStreamUrl(sourceUrlRaw)
+    : null;
+  mediaId ? buildRemoteBackgroundBlobUrl(mediaId) : null;
   if (!sourceUrl) return null;
 
-  const extension =
-    detectImageFormatFromUri(remoteUrl || mediaId || "") ||
-    (mediaId ? "jpg" : "jpg");
+  const extension = mediaId ? "jpg" : "jpg";
   const targetUri = getCustomBackgroundTargetUri(extension);
+  const tmpUri = `${targetUri}.tmp`;
   const token = await TokenService.getAccessToken().catch(() => null);
   const targetDir = targetUri.slice(0, targetUri.lastIndexOf("/"));
 
   await FileSystem.makeDirectoryAsync(targetDir, {
     intermediates: true,
   }).catch(() => {});
-  await deleteAllCustomBackgroundVariants();
 
   try {
-    await FileSystem.downloadAsync(sourceUrl, targetUri, {
+    await FileSystem.deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
+    await FileSystem.downloadAsync(sourceUrl, tmpUri, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
+    await deleteAllCustomBackgroundVariants();
+    await FileSystem.moveAsync({ from: tmpUri, to: targetUri });
     return targetUri;
   } catch (error) {
+    await FileSystem.deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
     console.warn(
       "Failed to restore custom background from remote media",
       error,
@@ -426,19 +462,19 @@ export function extractProfileVisualPreferences(
           ? visual.backgroundMediaId
           : visual.backgroundMediaId === null
             ? null
-            : null,
+            : undefined,
       backgroundMediaUrl:
         typeof visual.backgroundMediaUrl === "string"
           ? visual.backgroundMediaUrl
           : visual.backgroundMediaUrl === null
             ? null
-            : null,
+            : undefined,
       updatedAt:
         typeof visual.updatedAt === "string"
           ? visual.updatedAt
           : visual.updatedAt === null
             ? null
-            : null,
+            : undefined,
     };
   }
 
@@ -477,15 +513,6 @@ export function shouldApplyRemoteVisualPreferences(
     );
   }
 
-  if (
-    current.backgroundPreset === "custom" &&
-    remote.backgroundPreset === "custom" &&
-    (current.customBackgroundRemoteMediaId ?? null) !==
-      (remote.backgroundMediaId ?? null)
-  ) {
-    return true;
-  }
-
   return false;
 }
 
@@ -510,6 +537,26 @@ async function hydrateRemoteVisualPreferences(
   const remoteUrl =
     remoteVisualPreferences.backgroundMediaUrl ??
     current.customBackgroundRemoteUrl;
+
+  if (current.backgroundPreset === "custom" && current.customBackgroundUri) {
+    try {
+      const info = await FileSystem.getInfoAsync(current.customBackgroundUri);
+      if (info.exists) {
+        return {
+          ...current,
+          backgroundPreset: "custom",
+          customBackgroundRemoteMediaId: remoteMediaId ?? null,
+          customBackgroundRemoteUrl: remoteUrl ?? null,
+          remoteSyncUpdatedAt:
+            remoteVisualPreferences.updatedAt ??
+            current.remoteSyncUpdatedAt ??
+            null,
+        };
+      }
+    } catch {
+      // fall through
+    }
+  }
 
   if (remoteMediaId || remoteUrl) {
     const restoredUri = await downloadRemoteBackgroundToLocal(
@@ -1609,6 +1656,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({
         backgroundPreset: "custom",
         customBackgroundUri: targetUri,
         customBackgroundVersion: Date.now(),
+        remoteSyncUpdatedAt: new Date().toISOString(),
       },
       { skipRemoteSync: true },
     );
