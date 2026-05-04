@@ -18,6 +18,10 @@ import { useCallsStore } from "../store/callsStore";
 import { onSessionExpired } from "../services/sessionEvents";
 import { useBadgeSync } from "../hooks/useBadgeSync";
 import { systemCallProvider } from "../services/calls/systemCallProvider";
+import {
+  clearResolvedMediaCache,
+  setResolvedMediaCacheScope,
+} from "../hooks/useResolvedMediaUrl";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -73,6 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const signIn = useCallback((userId: string, deviceId: string) => {
+    setResolvedMediaCacheScope(userId);
     setState({
       isAuthenticated: true,
       isLoading: false,
@@ -88,7 +93,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     tokenRefreshScheduler.stop();
 
     // Tear down WebSocket before clearing auth state
-    destroySharedSocket();
 
     // Reset in-memory Zustand state so screens unmount with a clean slate.
     // The on-disk caches are wiped by AppResetService below, but the
@@ -111,6 +115,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // setup flag, tokens, Signal identity key, …). Allowlist preserves
     // theme + language only.
     await AppResetService.resetAppData();
+    await clearResolvedMediaCache(state.userId).catch(() => {});
+    setResolvedMediaCacheScope("anon");
 
     setState({
       isAuthenticated: false,

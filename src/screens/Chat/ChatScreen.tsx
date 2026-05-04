@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import {
   View,
+  ImageBackground,
   StyleSheet,
   FlatList,
   ActivityIndicator,
@@ -368,8 +369,17 @@ export const ChatScreen: React.FC = () => {
       isNearBottomRef.current = viewableItems.some((v) => v.index === 0);
     },
   ).current;
-  const { getThemeColors, getLocalizedText } = useTheme();
+  const {
+    getThemeColors,
+    getLocalizedText,
+    settings: themeSettings,
+  } = useTheme();
   const themeColors = getThemeColors();
+  const hasCustomBackground =
+    themeSettings?.backgroundPreset === "custom" &&
+    !!themeSettings?.customBackgroundUri;
+  const customBackgroundUri = themeSettings?.customBackgroundUri ?? null;
+  const customBackgroundVersion = themeSettings?.customBackgroundVersion ?? 0;
 
   const { userId: rawUserId } = useAuth();
   const userId = rawUserId ?? "";
@@ -2425,19 +2435,38 @@ export const ChatScreen: React.FC = () => {
   }, [conversation, conversationMembers, userId]);
 
   return (
-    <LinearGradient
-      colors={colors.background.gradient.app}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      // Web : la chaîne flex doit être complètement "min-height: 0" de haut
-      // en bas pour que la FlatList virtualisée puisse scroller. Sans ça les
-      // conteneurs parents refusent de laisser leur enfant rétrécir et la
-      // hauteur scrollable finit à 0.
+    <View
       style={[
-        styles.gradientContainer,
+        styles.screenRoot,
+        hasCustomBackground && styles.screenRootWithCustomBackground,
         Platform.OS === "web" && { minHeight: 0, height: "100%" },
       ]}
     >
+      {hasCustomBackground && customBackgroundUri ? (
+        <ImageBackground
+          key={`${customBackgroundUri}:${customBackgroundVersion}`}
+          source={{ uri: customBackgroundUri }}
+          resizeMode="cover"
+          style={styles.customBackground}
+        />
+      ) : null}
+      {!hasCustomBackground ? (
+        <LinearGradient
+          colors={colors.background.gradient.app}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientBackground}
+        />
+      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.backgroundScrim,
+          hasCustomBackground
+            ? styles.backgroundScrimWithCustomImage
+            : styles.backgroundScrimDefault,
+        ]}
+      />
       <SafeAreaView
         style={[
           styles.container,
@@ -2909,16 +2938,37 @@ export const ChatScreen: React.FC = () => {
           onHide={() => setCallsToast((t) => ({ ...t, visible: false }))}
         />
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  gradientContainer: {
+  screenRoot: {
     flex: 1,
+    backgroundColor: colors.background.dark,
+  },
+  screenRootWithCustomBackground: {
+    backgroundColor: "transparent",
+  },
+  customBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  gradientBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.background.dark,
+  },
+  backgroundScrim: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundScrimDefault: {
+    backgroundColor: "rgba(3, 8, 27, 0.18)",
+  },
+  backgroundScrimWithCustomImage: {
+    backgroundColor: "rgba(5, 8, 22, 0.62)",
   },
   container: {
     flex: 1,
+    backgroundColor: "transparent",
   },
   keyboardView: {
     flex: 1,
