@@ -66,6 +66,7 @@ import type {
   UserSanction,
   SanctionType,
 } from "../types/moderation";
+import { prefetchResolvedMediaUris } from "../hooks/useResolvedMediaUrl";
 
 /** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
 const SPLASH_MIN_MS = 2000;
@@ -216,6 +217,28 @@ export const AuthNavigator: React.FC = () => {
         UserService.getInstance().getPrivacySettings(),
         userId ? NotificationService.getSettings(userId) : Promise.resolve(),
       ]);
+
+      const conversations = useConversationsStore.getState().conversations;
+      const avatarUris: Array<string | undefined> = [];
+      for (const c of conversations.slice(0, 30)) {
+        if (!c) continue;
+        if (c.type === "group") {
+          const meta = (c.metadata ?? {}) as Record<string, any>;
+          avatarUris.push(
+            c.avatar_url,
+            meta.avatar_url,
+            meta.group_avatar_url,
+            meta.group_icon_url,
+            meta.icon_url,
+            meta.photo_url,
+            meta.picture_url,
+            meta.image_url,
+          );
+        } else {
+          avatarUris.push(c.avatar_url);
+        }
+      }
+      await prefetchResolvedMediaUris(avatarUris);
     };
 
     preload().catch(() => {});
