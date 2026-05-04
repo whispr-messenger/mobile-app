@@ -78,6 +78,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
             styles.input,
             {
               color: themeColors.text.primary,
+              height: inputHeight,
             },
           ]}
           value={text}
