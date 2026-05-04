@@ -363,7 +363,7 @@ describe("MessageInput auto-resize", () => {
     expect(shell.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          height: 40,
+          height: 60,
         }),
       ]),
     );

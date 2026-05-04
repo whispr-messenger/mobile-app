@@ -13,7 +13,7 @@ import { formatUsername } from "../../../utils";
 import { Avatar } from "../Avatar";
 
 export const MIN_INPUT_HEIGHT = 40;
-export const MAX_INPUT_HEIGHT = 120;
+export const MAX_INPUT_HEIGHT = 350;
 export const INPUT_VERTICAL_PADDING = 10;
 export const INPUT_LINE_HEIGHT = 20;
 
@@ -96,6 +96,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
         <TextInput
           testID="message-composer-input"
           ref={ref}
+          {...({ showsVerticalScrollIndicator: false } as any)}
           style={[
             styles.input,
             {
@@ -113,7 +114,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
             }
           }}
           multiline
-          scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+          scrollEnabled
           placeholder={placeholder}
           placeholderTextColor={themeColors.text.tertiary}
           maxLength={1000}
