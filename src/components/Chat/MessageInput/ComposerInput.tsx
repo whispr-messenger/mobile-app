@@ -65,7 +65,6 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
         style={[
           styles.inputWrapper,
           {
-            height: inputHeight,
             backgroundColor: "rgba(11, 17, 36, 0.85)",
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.2)",
@@ -170,13 +169,12 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
     borderRadius: 20,
-    justifyContent: "center",
   },
   input: {
-    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: INPUT_VERTICAL_PADDING,
     minHeight: MIN_INPUT_HEIGHT,
+    maxHeight: MAX_INPUT_HEIGHT,
     fontSize: 15,
     lineHeight: INPUT_LINE_HEIGHT,
     backgroundColor: "transparent",
