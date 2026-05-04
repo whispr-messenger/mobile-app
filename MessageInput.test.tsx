@@ -264,7 +264,7 @@ describe("MessageInput auto-resize", () => {
     expect(input.props.multiline).toBe(true);
     expect(input.props.scrollEnabled).toBe(false);
 
-    // Content below MAX_INPUT_HEIGHT — scrollEnabled stays false
+    // Content below MAX_INPUT_HEIGHT — scrollEnabled stays false, height updates
     fireEvent.changeText(input, "Bonjour\ncomment\nca va");
     fireEvent(input, "contentSizeChange", {
       nativeEvent: { contentSize: { height: 80, width: 240 } },
@@ -272,6 +272,9 @@ describe("MessageInput auto-resize", () => {
 
     const updatedInput = getByTestId("message-composer-input");
     expect(updatedInput.props.scrollEnabled).toBe(false);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 80 })]),
+    );
   });
 
   it("caps the composer height and enables internal scrolling past the max height", () => {
@@ -281,7 +284,7 @@ describe("MessageInput auto-resize", () => {
 
     const input = getByPlaceholderText("Votre message");
 
-    // Content above MAX_INPUT_HEIGHT — scrollEnabled becomes true
+    // Content above MAX_INPUT_HEIGHT — height clamped to 120, scrollEnabled true
     fireEvent.changeText(
       input,
       "Une ligne\nDeux lignes\nTrois lignes\nQuatre lignes\nCinq lignes\nSix lignes",
@@ -292,6 +295,9 @@ describe("MessageInput auto-resize", () => {
 
     const updatedInput = getByTestId("message-composer-input");
     expect(updatedInput.props.scrollEnabled).toBe(true);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 120 })]),
+    );
   });
 
   it("grows stably when the user inserts manual line breaks", () => {
@@ -306,9 +312,11 @@ describe("MessageInput auto-resize", () => {
       nativeEvent: { contentSize: { height: 60, width: 240 } },
     });
 
-    // Still below max — no scrolling
     const updatedInput = getByTestId("message-composer-input");
     expect(updatedInput.props.scrollEnabled).toBe(false);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 60 })]),
+    );
   });
 
   it("keeps the composer at the minimum height while the input is empty", () => {
@@ -318,13 +326,16 @@ describe("MessageInput auto-resize", () => {
 
     const input = getByPlaceholderText("Votre message");
 
-    // Even a tiny contentSize should not enable scroll
+    // Even a tiny contentSize should be clamped to MIN_INPUT_HEIGHT (40)
     fireEvent(input, "contentSizeChange", {
       nativeEvent: { contentSize: { height: 20, width: 240 } },
     });
 
     const updatedInput = getByTestId("message-composer-input");
     expect(updatedInput.props.scrollEnabled).toBe(false);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 40 })]),
+    );
   });
 });
 
