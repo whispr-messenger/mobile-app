@@ -201,6 +201,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     // Remove any prior listeners before registering new ones to prevent
     // duplicate subscriptions when the component re-renders during reconnect.
     userChannel.off("new_message", userHandlers.onMsg);
+    userChannel.off("message_created", userHandlers.onMsg);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.off("conversation_archived", userHandlers.onConvArchived);
@@ -208,6 +209,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.off("call_ended", userHandlers.onCallEnded);
 
     userChannel.on("new_message", userHandlers.onMsg);
+    userChannel.on("message_created", userHandlers.onMsg);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.on("conversation_archived", userHandlers.onConvArchived);
@@ -216,6 +218,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     return () => {
       userChannel.off("new_message", userHandlers.onMsg);
+      userChannel.off("message_created", userHandlers.onMsg);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
       userChannel.off("conversation_archived", userHandlers.onConvArchived);
@@ -334,6 +337,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     };
 
     channel.on("new_message", onMsg);
+    channel.on("message_created", onMsg);
     channel.on("user_typing", onTyping);
     channel.on("message_updated", onMsgUpdated);
     channel.on("message_deleted", onMsgDeleted);
@@ -345,6 +349,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     const cleanup = () => {
       channel.off("new_message", onMsg);
+      channel.off("message_created", onMsg);
       channel.off("user_typing", onTyping);
       channel.off("message_updated", onMsgUpdated);
       channel.off("message_deleted", onMsgDeleted);

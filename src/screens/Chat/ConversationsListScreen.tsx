@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  AppState,
 } from "react-native";
 import {
   SafeAreaView,
@@ -27,7 +28,7 @@ import {
 } from "../../components/Navigation/floatingTabBarLayout";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -51,6 +52,8 @@ import { getConversationDisplayName } from "../../utils";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
+const AUTO_REFRESH_INTERVAL_MS = 2500;
+
 export const ConversationsListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
@@ -69,6 +72,12 @@ export const ConversationsListScreen: React.FC = () => {
     (s) => s.applyConversationSummaries,
   );
   const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
+  const applyMessageUpdated = useConversationsStore(
+    (s) => s.applyMessageUpdated,
+  );
+  const applyMessageDeleted = useConversationsStore(
+    (s) => s.applyMessageDeleted,
+  );
   const storeDeleteConversation = useConversationsStore(
     (s) => s.deleteConversation,
   );
@@ -187,6 +196,12 @@ export const ConversationsListScreen: React.FC = () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         applyNewMessage(message, userId);
       },
+      onMessageUpdated: (message: Message) => {
+        applyMessageUpdated(message);
+      },
+      onMessageDeleted: (messageId: string, deleteForEveryone: boolean) => {
+        applyMessageDeleted(messageId, deleteForEveryone === true);
+      },
       onConversationUpdate: (conversation: Conversation) => {
         applyConversationUpdate(conversation);
       },
@@ -209,7 +224,7 @@ export const ConversationsListScreen: React.FC = () => {
     .sort()
     .join(",");
   useEffect(() => {
-    if (!token || connectionState !== "connected" || !conversationIdsKey) {
+    if (!token || !conversationIdsKey) {
       return;
     }
     const ids = conversationIdsKey.split(",");
@@ -221,7 +236,7 @@ export const ConversationsListScreen: React.FC = () => {
     return () => {
       cleanups.forEach((c) => c());
     };
-  }, [token, connectionState, conversationIdsKey, joinConversationChannel]);
+  }, [token, conversationIdsKey, joinConversationChannel]);
 
   useEffect(() => {
     if (!userId) return;
@@ -241,6 +256,42 @@ export const ConversationsListScreen: React.FC = () => {
     }
     prevConnStateRef.current = connectionState;
   }, [connectionState, refreshConversations]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      let interval: ReturnType<typeof setInterval> | null = null;
+      let lastTick = 0;
+
+      const tick = async () => {
+        if (cancelled) return;
+        if (AppState.currentState !== "active") return;
+        const now = Date.now();
+        if (now - lastTick < AUTO_REFRESH_INTERVAL_MS - 200) return;
+        lastTick = now;
+        try {
+          await refreshConversations();
+        } catch {}
+      };
+
+      tick().catch(() => {});
+      interval = setInterval(() => {
+        tick().catch(() => {});
+      }, AUTO_REFRESH_INTERVAL_MS);
+
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          tick().catch(() => {});
+        }
+      });
+
+      return () => {
+        cancelled = true;
+        if (interval) clearInterval(interval);
+        sub.remove();
+      };
+    }, [refreshConversations]),
+  );
 
   const handleConversationPress = useCallback(
     (conversationId: string) => {
