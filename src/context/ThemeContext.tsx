@@ -365,19 +365,29 @@ function sanitizeRemoteUrl(value: string | null | undefined): string | null {
   return trimmed;
 }
 
+function ensureMediaServiceStreamUrl(value: string): string {
+  if (!value.includes("/media/v1/")) return value;
+  if (!value.includes("/blob") && !value.includes("/thumbnail")) return value;
+  if (/([?&])stream=1(&|$)/.test(value)) return value;
+  const separator = value.includes("?") ? "&" : "?";
+  return `${value}${separator}stream=1`;
+}
+
 async function downloadRemoteBackgroundToLocal(
   mediaId: string | null | undefined,
   remoteUrl: string | null | undefined,
 ): Promise<string | null> {
   const cleanedRemoteUrl = sanitizeRemoteUrl(remoteUrl);
-  const sourceUrl =
+  const sourceUrlRaw =
     cleanedRemoteUrl ||
     (mediaId ? buildRemoteBackgroundBlobUrl(mediaId) : null);
+  const sourceUrl = sourceUrlRaw
+    ? ensureMediaServiceStreamUrl(sourceUrlRaw)
+    : null;
+  mediaId ? buildRemoteBackgroundBlobUrl(mediaId) : null;
   if (!sourceUrl) return null;
 
-  const extension =
-    detectImageFormatFromUri(cleanedRemoteUrl || mediaId || "") ||
-    (mediaId ? "jpg" : "jpg");
+  const extension = mediaId ? "jpg" : "jpg";
   const targetUri = getCustomBackgroundTargetUri(extension);
   const tmpUri = `${targetUri}.tmp`;
   const token = await TokenService.getAccessToken().catch(() => null);
