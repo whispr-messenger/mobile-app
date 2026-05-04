@@ -11,6 +11,20 @@ import { logger } from "../utils/logger";
 // arriving just after an HTTP fetch returns []) without flashing an empty UI.
 const EMPTY_STATE_GRACE_PERIOD_MS = 2_000;
 const MANUALLY_UNREAD_KEY = "@whispr/manually_unread_ids";
+const RECENT_MESSAGE_IDS_MAX = 50;
+const recentMessageIdsByConversation = new Map<string, string[]>();
+
+function wasMessageSeen(conversationId: string, messageId: string): boolean {
+  if (!conversationId || !messageId) return false;
+  const list = recentMessageIdsByConversation.get(conversationId) ?? [];
+  if (list.includes(messageId)) return true;
+  const next = [messageId, ...list];
+  recentMessageIdsByConversation.set(
+    conversationId,
+    next.slice(0, RECENT_MESSAGE_IDS_MAX),
+  );
+  return false;
+}
 
 async function getCurrentUserId(): Promise<string | null> {
   const token = await TokenService.getAccessToken();
@@ -122,6 +136,8 @@ interface ConversationsActions {
   applyConversationUpdate: (conversation: Conversation) => void;
   applyConversationSummaries: (conversations: Conversation[]) => void;
   applyNewMessage: (message: Message, currentUserId?: string) => Promise<void>;
+  applyMessageUpdated: (message: Message) => void;
+  applyMessageDeleted: (messageId: string, deleteForEveryone: boolean) => void;
   deleteConversation: (id: string) => Promise<void>;
   removeConversationLocal: (id: string) => void;
   archiveConversation: (id: string) => Promise<void>;
@@ -399,6 +415,7 @@ export const useConversationsStore = create<
   },
 
   applyNewMessage: async (message, currentUserId) => {
+    if (wasMessageSeen(message.conversation_id, message.id)) return;
     const { conversations, archived, _cancelGracePeriod } = get();
     const mainIndex = conversations.findIndex(
       (conv) => conv.id === message.conversation_id,
@@ -499,6 +516,106 @@ export const useConversationsStore = create<
         "applyNewMessage: failed to fetch unknown conversation",
         err,
       );
+    }
+  },
+
+  applyMessageUpdated: (message) => {
+    const { conversations, archived } = get();
+    const mainIndex = conversations.findIndex(
+      (c) => c.last_message?.id === message.id,
+    );
+    if (mainIndex !== -1) {
+      const current = conversations[mainIndex];
+      set({
+        conversations: conversations.map((c, i) =>
+          i === mainIndex
+            ? {
+                ...current,
+                last_message: {
+                  ...(current.last_message as Message),
+                  ...message,
+                },
+              }
+            : c,
+        ),
+      });
+      return;
+    }
+
+    const archivedIndex = archived.items.findIndex(
+      (c) => c.last_message?.id === message.id,
+    );
+    if (archivedIndex !== -1) {
+      const current = archived.items[archivedIndex];
+      set({
+        archived: {
+          ...archived,
+          items: archived.items.map((c, i) =>
+            i === archivedIndex
+              ? {
+                  ...current,
+                  last_message: {
+                    ...(current.last_message as Message),
+                    ...message,
+                  },
+                }
+              : c,
+          ),
+        },
+      });
+    }
+  },
+
+  applyMessageDeleted: (messageId, deleteForEveryone) => {
+    if (!deleteForEveryone) return;
+    const { conversations, archived } = get();
+
+    const mainIndex = conversations.findIndex(
+      (c) => c.last_message?.id === messageId,
+    );
+    if (mainIndex !== -1) {
+      const current = conversations[mainIndex];
+      set({
+        conversations: conversations.map((c, i) =>
+          i === mainIndex
+            ? {
+                ...current,
+                last_message: {
+                  ...(current.last_message as Message),
+                  is_deleted: true,
+                  delete_for_everyone: true,
+                  content: "[Message supprimé]",
+                },
+              }
+            : c,
+        ),
+      });
+      return;
+    }
+
+    const archivedIndex = archived.items.findIndex(
+      (c) => c.last_message?.id === messageId,
+    );
+    if (archivedIndex !== -1) {
+      const current = archived.items[archivedIndex];
+      set({
+        archived: {
+          ...archived,
+          items: archived.items.map((c, i) =>
+            i === archivedIndex
+              ? {
+                  ...current,
+                  last_message: {
+                    ...(current.last_message as Message),
+                    is_deleted: true,
+                    delete_for_everyone: true,
+                    content: "[Message supprimé]",
+                  },
+                }
+              : c,
+          ),
+        },
+      });
     }
   },
 

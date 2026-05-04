@@ -67,6 +67,8 @@ import type {
   SanctionType,
 } from "../types/moderation";
 import { prefetchResolvedMediaUris } from "../hooks/useResolvedMediaUrl";
+import { messagingAPI } from "../services/messaging/api";
+import { cacheService } from "../services/messaging/cache";
 
 /** Durée minimale du splash in-app (ms), en parallèle avec validateSession. */
 const SPLASH_MIN_MS = 2000;
@@ -239,6 +241,33 @@ export const AuthNavigator: React.FC = () => {
         }
       }
       await prefetchResolvedMediaUris(avatarUris);
+
+      const conversationIds = conversations
+        .slice(0, 5)
+        .map((c) => c?.id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+      const uniqueConversationIds = Array.from(new Set(conversationIds));
+      if (uniqueConversationIds.length > 0) {
+        const maxConcurrency = 2;
+        let cursor = 0;
+        const workers = Array.from({ length: maxConcurrency }, async () => {
+          while (cursor < uniqueConversationIds.length && !cancelled) {
+            const id = uniqueConversationIds[cursor++];
+            try {
+              const data = await messagingAPI.getMessages(id, { limit: 30 });
+              const cached = Array.isArray(data)
+                ? data.map((m: any) => ({
+                    ...m,
+                    status: m?.status || "sent",
+                  }))
+                : [];
+              await cacheService.saveMessages(id, cached as any);
+            } catch {}
+          }
+        });
+        Promise.allSettled(workers).catch(() => {});
+      }
     };
 
     preload().catch(() => {});
