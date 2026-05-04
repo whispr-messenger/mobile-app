@@ -260,30 +260,21 @@ describe("MessageInput auto-resize", () => {
     );
 
     const input = getByPlaceholderText("Votre message");
-    const shell = getByTestId("message-composer-shell");
-    const measure = getByTestId("message-composer-measure");
 
     expect(input.props.multiline).toBe(true);
     expect(input.props.scrollEnabled).toBe(false);
 
-    fireEvent(shell, "layout", {
-      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
-    });
+    // Content below MAX_INPUT_HEIGHT — scrollEnabled stays false, height updates
     fireEvent.changeText(input, "Bonjour\ncomment\nca va");
-    fireEvent(measure, "textLayout", {
-      nativeEvent: { lines: [{}, {}, {}] },
+    fireEvent(input, "contentSizeChange", {
+      nativeEvent: { contentSize: { height: 80, width: 240 } },
     });
 
     const updatedInput = getByTestId("message-composer-input");
-
-    expect(shell.props.style).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          height: 80,
-        }),
-      ]),
-    );
     expect(updatedInput.props.scrollEnabled).toBe(false);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 80 })]),
+    );
   });
 
   it("caps the composer height and enables internal scrolling past the max height", () => {
@@ -292,31 +283,21 @@ describe("MessageInput auto-resize", () => {
     );
 
     const input = getByPlaceholderText("Votre message");
-    const shell = getByTestId("message-composer-shell");
-    const measure = getByTestId("message-composer-measure");
 
-    fireEvent(shell, "layout", {
-      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
-    });
+    // Content above MAX_INPUT_HEIGHT — height clamped to 120, scrollEnabled true
     fireEvent.changeText(
       input,
       "Une ligne\nDeux lignes\nTrois lignes\nQuatre lignes\nCinq lignes\nSix lignes",
     );
-
-    fireEvent(measure, "textLayout", {
-      nativeEvent: { lines: [{}, {}, {}, {}, {}, {}, {}] },
+    fireEvent(input, "contentSizeChange", {
+      nativeEvent: { contentSize: { height: 160, width: 240 } },
     });
 
     const updatedInput = getByTestId("message-composer-input");
-
-    expect(shell.props.style).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          height: 120,
-        }),
-      ]),
-    );
     expect(updatedInput.props.scrollEnabled).toBe(true);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 120 })]),
+    );
   });
 
   it("grows stably when the user inserts manual line breaks", () => {
@@ -325,47 +306,35 @@ describe("MessageInput auto-resize", () => {
     );
 
     const input = getByPlaceholderText("Votre message");
-    const shell = getByTestId("message-composer-shell");
-    const measure = getByTestId("message-composer-measure");
 
-    fireEvent(shell, "layout", {
-      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
-    });
     fireEvent.changeText(input, "Premiere ligne\n");
-    fireEvent(measure, "textLayout", {
-      nativeEvent: { lines: [{}] },
+    fireEvent(input, "contentSizeChange", {
+      nativeEvent: { contentSize: { height: 60, width: 240 } },
     });
 
-    expect(shell.props.style).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          height: 60,
-        }),
-      ]),
+    const updatedInput = getByTestId("message-composer-input");
+    expect(updatedInput.props.scrollEnabled).toBe(false);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 60 })]),
     );
   });
 
   it("keeps the composer at the minimum height while the input is empty", () => {
-    const { getByTestId } = render(
+    const { getByPlaceholderText, getByTestId } = render(
       <MessageInput onSend={jest.fn()} placeholder="Votre message" />,
     );
 
-    const shell = getByTestId("message-composer-shell");
-    const measure = getByTestId("message-composer-measure");
+    const input = getByPlaceholderText("Votre message");
 
-    fireEvent(shell, "layout", {
-      nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
-    });
-    fireEvent(measure, "textLayout", {
-      nativeEvent: { lines: [{}] },
+    // Even a tiny contentSize should be clamped to MIN_INPUT_HEIGHT (40)
+    fireEvent(input, "contentSizeChange", {
+      nativeEvent: { contentSize: { height: 20, width: 240 } },
     });
 
-    expect(shell.props.style).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          height: 40,
-        }),
-      ]),
+    const updatedInput = getByTestId("message-composer-input");
+    expect(updatedInput.props.scrollEnabled).toBe(false);
+    expect(updatedInput.props.style).toEqual(
+      expect.arrayContaining([expect.objectContaining({ height: 40 })]),
     );
   });
 });

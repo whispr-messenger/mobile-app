@@ -26,7 +26,6 @@ export interface MentionMember {
 interface ComposerInputProps {
   text: string;
   inputHeight: number;
-  composerWidth: number;
   placeholder: string;
   showMentions: boolean;
   mentionQuery: string;
@@ -34,10 +33,9 @@ interface ComposerInputProps {
   conversationType: "direct" | "group";
   onChangeText: (text: string) => void;
   onSubmitWeb: () => void;
-  onMeasuredTextLayout: (event: {
-    nativeEvent: { lines?: Array<unknown> };
+  onContentSizeChange: (event: {
+    nativeEvent: { contentSize: { width: number; height: number } };
   }) => void;
-  onLayout: (width: number) => void;
   onMentionSelect: (member: MentionMember) => void;
 }
 
@@ -46,7 +44,6 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
     {
       text,
       inputHeight,
-      composerWidth,
       placeholder,
       showMentions,
       mentionQuery,
@@ -54,8 +51,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
       conversationType,
       onChangeText,
       onSubmitWeb,
-      onMeasuredTextLayout,
-      onLayout,
+      onContentSizeChange,
       onMentionSelect,
     },
     ref,
@@ -69,30 +65,12 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
         style={[
           styles.inputWrapper,
           {
-            height: inputHeight,
             backgroundColor: "rgba(11, 17, 36, 0.85)",
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.2)",
           },
         ]}
-        onLayout={(event) => {
-          const nextWidth = Math.round(event.nativeEvent.layout.width);
-          onLayout(nextWidth);
-        }}
       >
-        <Text
-          testID="message-composer-measure"
-          pointerEvents="none"
-          onTextLayout={onMeasuredTextLayout}
-          style={[
-            styles.measurementText,
-            composerWidth > 0
-              ? { width: composerWidth - 32 }
-              : styles.measurementTextHidden,
-          ]}
-        >
-          {text || " "}
-        </Text>
         <TextInput
           testID="message-composer-input"
           ref={ref}
@@ -100,6 +78,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
             styles.input,
             {
               color: themeColors.text.primary,
+              height: inputHeight,
             },
           ]}
           value={text}
@@ -114,6 +93,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
           }}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+          onContentSizeChange={onContentSizeChange}
           placeholder={placeholder}
           placeholderTextColor={themeColors.text.tertiary}
           maxLength={1000}
@@ -190,28 +170,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
     borderRadius: 20,
-    justifyContent: "center",
   },
   input: {
-    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: INPUT_VERTICAL_PADDING,
     minHeight: MIN_INPUT_HEIGHT,
+    maxHeight: MAX_INPUT_HEIGHT,
     fontSize: 15,
     lineHeight: INPUT_LINE_HEIGHT,
     backgroundColor: "transparent",
-  },
-  measurementText: {
-    position: "absolute",
-    left: 16,
-    top: INPUT_VERTICAL_PADDING,
-    opacity: 0,
-    fontSize: 15,
-    lineHeight: INPUT_LINE_HEIGHT,
-    includeFontPadding: false,
-  },
-  measurementTextHidden: {
-    width: 0,
   },
   mentionsList: {
     position: "absolute",
