@@ -3,6 +3,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
