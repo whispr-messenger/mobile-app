@@ -114,7 +114,7 @@ export const ComposerInput = forwardRef<TextInput, ComposerInputProps>(
             }
           }}
           multiline
-          scrollEnabled
+          scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
           placeholder={placeholder}
           placeholderTextColor={themeColors.text.tertiary}
           maxLength={1000}

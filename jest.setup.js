@@ -24,6 +24,22 @@ if (typeof globalThis.TextEncoder === "undefined") {
   globalThis.TextDecoder = util.TextDecoder;
 }
 
+// jest-expo n'a pas de window.dispatchEvent par defaut. react-native-web et
+// certains hooks du theme le declenchent au mount, ce qui fait crasher le
+// rendu de plusieurs ecrans (Groups, etc). On stub le minimum requis.
+if (typeof globalThis.window === "undefined") {
+  globalThis.window = globalThis;
+}
+if (typeof globalThis.window.dispatchEvent !== "function") {
+  globalThis.window.dispatchEvent = () => true;
+}
+if (typeof globalThis.window.addEventListener !== "function") {
+  globalThis.window.addEventListener = () => {};
+}
+if (typeof globalThis.window.removeEventListener !== "function") {
+  globalThis.window.removeEventListener = () => {};
+}
+
 // react-native-safe-area-context — provide full API surface
 jest.mock("react-native-safe-area-context", () => {
   const React = require("react");
