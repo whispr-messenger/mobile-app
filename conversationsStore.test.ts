@@ -209,7 +209,7 @@ describe("conversationsStore — applyNewMessage unread_count (WHISPR-1050)", ()
     await act(async () => {
       await useConversationsStore
         .getState()
-        .applyNewMessage(msg("c1", "me"), "me");
+        .applyNewMessage(msg("c1", "me", "m-own-echo"), "me");
     });
 
     const conv = useConversationsStore
@@ -224,7 +224,9 @@ describe("conversationsStore — applyNewMessage unread_count (WHISPR-1050)", ()
     seed("c1", 0);
 
     await act(async () => {
-      await useConversationsStore.getState().applyNewMessage(msg("c1", "me"));
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(msg("c1", "me", "m-legacy"));
     });
 
     const conv = useConversationsStore
