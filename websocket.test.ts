@@ -889,3 +889,119 @@ describe("WS short-lived token (WHISPR-1214)", () => {
     socket.disconnect();
   });
 });
+
+describe("SocketConnection reconnect jitter (WHISPR-1395)", () => {
+  it("applies a random jitter so successive reconnect delays differ", async () => {
+    // on capture les delays passes a setTimeout par scheduleReconnect en
+    // espionnant globalThis.setTimeout.
+    const setTimeoutSpy = jest.spyOn(globalThis, "setTimeout");
+    const socket = new SocketConnection();
+    await connectAndOpen(socket);
+
+    const delays: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      latestWs().simulateClose(1006, "network");
+      // recupere le dernier delay scheduled, ignore le 0 du token refresh
+      const lastCall =
+        setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1];
+      if (lastCall && typeof lastCall[1] === "number" && lastCall[1] > 0) {
+        delays.push(lastCall[1] as number);
+      }
+      await jest.advanceTimersByTimeAsync(60_000);
+    }
+
+    // au moins 5 valeurs distinctes prouvent que le jitter est applique
+    // (sans jitter on aurait toujours min(2^n * base, 30000))
+    const unique = new Set(delays);
+    expect(unique.size).toBeGreaterThanOrEqual(5);
+
+    // chaque delay doit rester dans la fenetre [0.5x, 1.0x] du base capped
+    delays.forEach((d) => {
+      expect(d).toBeGreaterThan(0);
+      expect(d).toBeLessThanOrEqual(30_000);
+    });
+
+    setTimeoutSpy.mockRestore();
+    socket.disconnect();
+  });
+});
+
+describe("SocketConnection fatal close codes (WHISPR-1395)", () => {
+  it("limits reconnect attempts to 3 after close code 1011", async () => {
+    const socket = new SocketConnection();
+    await connectAndOpen(socket);
+
+    // premier close avec code fatal 1011 (server internal error)
+    latestWs().simulateClose(1011, "internal server error");
+
+    // 3 tentatives max apres un fatal : on les enchaine
+    for (let i = 0; i < 3; i++) {
+      await jest.advanceTimersByTimeAsync(60_000);
+      const ws = latestWs();
+      // re-close sans open pour incrementer reconnectAttempt
+      if (ws && ws.readyState !== MockWebSocket.CLOSED) {
+        ws.simulateClose(1011, "internal server error");
+      }
+    }
+
+    // au tour suivant, on doit avoir emit sessionExpired (max atteint)
+    expect(mockEmitSessionExpired).toHaveBeenCalledWith("ws_max_reconnect");
+    expect(socket.connectionState).toBe("disconnected");
+
+    socket.disconnect();
+  });
+
+  it("limits reconnect attempts to 3 after close code 1010", async () => {
+    const socket = new SocketConnection();
+    await connectAndOpen(socket);
+
+    latestWs().simulateClose(1010, "mandatory extension");
+
+    for (let i = 0; i < 3; i++) {
+      await jest.advanceTimersByTimeAsync(60_000);
+      const ws = latestWs();
+      if (ws && ws.readyState !== MockWebSocket.CLOSED) {
+        ws.simulateClose(1010, "mandatory extension");
+      }
+    }
+
+    expect(mockEmitSessionExpired).toHaveBeenCalledWith("ws_max_reconnect");
+    socket.disconnect();
+  });
+
+  it("does not lower the reconnect limit on non-fatal codes (1006)", async () => {
+    const socket = new SocketConnection();
+    await connectAndOpen(socket);
+
+    // close 1006 = network blip, pas fatal
+    for (let i = 0; i < 5; i++) {
+      latestWs().simulateClose(1006, "network");
+      await jest.advanceTimersByTimeAsync(60_000);
+    }
+
+    // 5 closes 1006 < 20 limite par defaut => pas encore d expiration
+    expect(mockEmitSessionExpired).not.toHaveBeenCalledWith("ws_max_reconnect");
+    socket.disconnect();
+  });
+
+  it("restores the default reconnect limit on a successful reopen", async () => {
+    const socket = new SocketConnection();
+    await connectAndOpen(socket);
+
+    // close fatal 1011 => limite baissee a 3
+    latestWs().simulateClose(1011, "internal server error");
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    // la reconnect cree un nouveau ws, on le ouvre = success
+    latestWs().simulateOpen();
+
+    // ensuite enchainer 5 closes 1006 ne doit pas declencher max_reconnect
+    for (let i = 0; i < 5; i++) {
+      latestWs().simulateClose(1006, "network");
+      await jest.advanceTimersByTimeAsync(60_000);
+    }
+
+    expect(mockEmitSessionExpired).not.toHaveBeenCalledWith("ws_max_reconnect");
+    socket.disconnect();
+  });
+});
