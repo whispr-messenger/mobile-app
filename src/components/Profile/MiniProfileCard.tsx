@@ -299,9 +299,16 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
   if (!profile) return null;
 
   const displayName = buildDisplayName(profile);
-  const lastSeenText = profile.isOnline
-    ? "en ligne"
-    : formatLastSeen(profile.lastSeen);
+  // privacy gate cote client : si le backend a deja masque, on ne ressuscite
+  // PAS la valeur. lastSeen falsy => masque par parametres user. isOnline
+  // doit etre strictement true pour afficher "en ligne". Pas de fallback
+  // "vu il y a longtemps" invente cote client.
+  const lastSeenText =
+    profile.isOnline === true
+      ? "en ligne"
+      : profile.lastSeen
+        ? formatLastSeen(profile.lastSeen)
+        : null;
 
   return (
     <View style={styles.card} testID="mini-profile-card-loaded">
