@@ -185,6 +185,7 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
         setCached(userId, result.profile);
         if (!mounted.current) return;
         setProfile(result.profile);
+        setError(null);
         setState("loaded");
         const rel = await computeRelation(userId);
         if (!mounted.current) return;
@@ -196,8 +197,10 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
           kind: isTimeout ? "timeout" : "network",
           retriable: true,
         });
-        // si on a deja une version cachee on reste en loaded, sinon error
-        if (!cached) setState("error");
+        // on bascule en error meme si on a du stale : la card va l'afficher
+        // avec un banner "donnees possiblement obsoletes" plutot que
+        // renvoyer null silencieusement.
+        setState("error");
       }
     },
     [userId, computeRelation],
@@ -299,6 +302,7 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
   if (!profile) return null;
 
   const displayName = buildDisplayName(profile);
+  const isStale = state === "error" && !!profile;
   // privacy gate cote client : si le backend a deja masque, on ne ressuscite
   // PAS la valeur. lastSeen falsy => masque par parametres user. isOnline
   // doit etre strictement true pour afficher "en ligne". Pas de fallback
@@ -312,6 +316,25 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
 
   return (
     <View style={styles.card} testID="mini-profile-card-loaded">
+      {isStale ? (
+        <View style={styles.staleBanner} testID="mini-profile-card-stale">
+          <Ionicons
+            name="cloud-offline-outline"
+            size={14}
+            color={colors.ui.error}
+          />
+          <Text style={styles.staleBannerText}>
+            Donnees possiblement obsoletes
+          </Text>
+          <Pressable
+            onPress={() => void load({ forceRefresh: true })}
+            accessibilityRole="button"
+            hitSlop={8}
+          >
+            <Text style={styles.staleBannerLink}>Reessayer</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {profile.profilePicture ? (
         <Image
           source={{ uri: profile.profilePicture }}
@@ -466,6 +489,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     textAlign: "center",
+  },
+  staleBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: withOpacity(colors.ui.error, 0.12),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.error, 0.3),
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    width: "100%",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  staleBannerText: {
+    color: withOpacity("#FFFFFF", 0.85),
+    fontSize: 12,
+  },
+  staleBannerLink: {
+    color: colors.ui.error,
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   blockedBadge: {
     flexDirection: "row",

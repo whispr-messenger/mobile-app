@@ -181,6 +181,49 @@ describe("MiniProfileCard", () => {
     expect(onMessage).toHaveBeenCalled();
   });
 
+  it("renders the stale banner when refresh fails but cache exists", async () => {
+    const realNow = Date.now;
+    Date.now = jest.fn(() => 1_000_000_000_000);
+
+    // 1er fetch reussi -> remplit le cache
+    mockGetUserProfile.mockResolvedValueOnce({
+      success: true,
+      profile: buildProfile(),
+    });
+    const first = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    await waitFor(() => first.getByTestId("mini-profile-card-loaded"));
+    first.unmount();
+
+    // avance le temps de 6 minutes : le cache devient stale
+    Date.now = jest.fn(() => 1_000_000_000_000 + 6 * 60 * 1000);
+
+    // 2eme rendu : cache hit stale + refresh echoue -> banner stale visible
+    mockGetUserProfile.mockRejectedValueOnce(new Error("network down"));
+    const view = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    await waitFor(() => view.getByTestId("mini-profile-card-stale"));
+    expect(view.getByText("Donnees possiblement obsoletes")).toBeTruthy();
+    expect(view.getByText("Reessayer")).toBeTruthy();
+    Date.now = realNow;
+  });
+
   it("hides the last seen line when backend returns no value", async () => {
     mockGetUserProfile.mockResolvedValue({
       success: true,
