@@ -26,6 +26,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
 import { MiniProfileCardHost } from "./src/components/Profile";
 import { hydrateReadReceiptsPref } from "./src/services/messaging/readReceiptsPref";
+import { startSignalKeyReplenisher } from "./src/services/signalKeyReplenisher";
 
 enableScreens(false);
 
@@ -131,6 +132,14 @@ export default function App() {
   // l ait deja en cache au premier message envoye/recu
   useEffect(() => {
     hydrateReadReceiptsPref().catch(() => {});
+  }, []);
+
+  // WHISPR-1399 - check pre-keys au boot et a chaque foreground resume.
+  // Sans ca needs_replenishment du backend n est jamais consomme et la
+  // forward secrecy se degrade silencieusement.
+  useEffect(() => {
+    const stop = startSignalKeyReplenisher();
+    return stop;
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
