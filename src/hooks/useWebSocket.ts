@@ -166,6 +166,20 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
         navigate("IncomingCall");
       },
+      // message_deleted sur user channel : messaging-service fanout vers
+      // user:<id> pour les groupes, sinon ConversationsListScreen rate la
+      // suppression "for everyone" tant qu'elle n'est pas abonnée au
+      // canal de la conversation. Le payload backend est { id, conversation_id }.
+      onMsgDeletedUser: (data: {
+        id?: string;
+        message_id?: string;
+        conversation_id?: string;
+      }) => {
+        const messageId = data.id ?? data.message_id;
+        if (messageId) {
+          callbacksRef.current.onMessageDeleted?.(messageId, true);
+        }
+      },
       // call_ended: remote party hung up or server timed out the call.
       // WHISPR-1203 : reset() disconnect la Room LiveKit + clear active +
       // clear incoming. setIncoming(null) seul laissait l'autre côté
@@ -202,6 +216,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     // duplicate subscriptions when the component re-renders during reconnect.
     userChannel.off("new_message", userHandlers.onMsg);
     userChannel.off("message_created", userHandlers.onMsg);
+    userChannel.off("message_deleted", userHandlers.onMsgDeletedUser);
     userChannel.off("delivery_status", userHandlers.onDelivery);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.off("conversation_archived", userHandlers.onConvArchived);
@@ -210,6 +225,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("message_created", userHandlers.onMsg);
+    userChannel.on("message_deleted", userHandlers.onMsgDeletedUser);
     userChannel.on("delivery_status", userHandlers.onDelivery);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.on("conversation_archived", userHandlers.onConvArchived);
@@ -219,6 +235,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     return () => {
       userChannel.off("new_message", userHandlers.onMsg);
       userChannel.off("message_created", userHandlers.onMsg);
+      userChannel.off("message_deleted", userHandlers.onMsgDeletedUser);
       userChannel.off("delivery_status", userHandlers.onDelivery);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
       userChannel.off("conversation_archived", userHandlers.onConvArchived);
