@@ -24,6 +24,7 @@ import { navigationRef } from "./src/navigation/navigationRef";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
+import { MiniProfileCardHost } from "./src/components/Profile";
 import { hydrateReadReceiptsPref } from "./src/services/messaging/readReceiptsPref";
 
 enableScreens(false);
@@ -80,6 +81,7 @@ function AppShell() {
           </View>
         </View>
         <BottomTabBar currentRouteName={currentRouteName} />
+        <MiniProfileCardHost />
         <StatusBar style="light" />
       </NavigationContainer>
     </AuthProvider>
