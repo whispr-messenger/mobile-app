@@ -8,6 +8,25 @@
  * le chargement, on affiche les initiales plutot que l'URL non auth.
  */
 
+/**
+ * @danger-zone-mobile-layout
+ *
+ * DANGER ZONE - Avatar URI parsing critique
+ *
+ * Bug historique : `extractMediaIdFromUri` doit reconnaitre `blob:` URIs (creees
+ * par URL.createObjectURL cote web) en plus de `file://` et `data:`. Sans ca,
+ * preview photo cassee apres upload sur PWA web.
+ *
+ * AVANT TOUTE MODIF :
+ * 1. Tester live upload photo profil sur Safari iOS PWA (whispr-preprod.roadmvn.com).
+ * 2. Verifier que preview s'affiche apres selection (avant upload).
+ * 3. Preserver le support des 3 schemes : file:, data:, blob:.
+ *
+ * Tickets historiques : WHISPR-1335
+ *
+ * Tag parsable : @danger-zone-mobile-layout
+ */
+
 import React from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
