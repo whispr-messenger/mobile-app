@@ -12,6 +12,7 @@ import {
   Animated,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -213,12 +214,24 @@ export const UserProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1 },
+  container: {
+    flex: 1,
+    // WHISPR-1254 - sur react-native-web, le wrapper racine doit borner la
+    // hauteur du viewport sinon flex:1 ne propage pas aux enfants.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
+  },
+  content: {
+    flex: 1,
+    // WHISPR-1254 - minHeight:0 permet a la ScrollView enfant d'overflow
+    // verticalement au lieu de pousser le parent.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
   iconButton: { padding: spacing.sm },
   scrollView: {
     flex: 1,
     paddingHorizontal: spacing.lg,
+    // WHISPR-1254 - meme raison que .content : autoriser l'overflow.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   profileInfo: {
     paddingBottom: spacing.xl,
