@@ -414,11 +414,20 @@ export function useVoiceRecorder({
         finalMimeType,
       );
       if (Platform.OS === "web" && uri.startsWith("blob:")) {
+        // timeout de garde meme sur un blob: local pour eviter de bloquer
+        // l'UI si jamais le navigateur ne resout pas la lecture
+        const blobFetchController = new AbortController();
+        const blobFetchTimer = setTimeout(
+          () => blobFetchController.abort(),
+          10_000,
+        );
         try {
           const mime = recordingMimeRef.current || "audio/webm";
           const ext = mime === "audio/mp4" ? "m4a" : "webm";
           const fileName = `voice-${Date.now()}.${ext}`;
-          const response = await fetch(uri);
+          const response = await fetch(uri, {
+            signal: blobFetchController.signal,
+          });
           const blob = await response.blob();
           const file = new File([blob], fileName, { type: mime });
           finalUri = URL.createObjectURL(file);
@@ -429,6 +438,8 @@ export function useVoiceRecorder({
             "[useVoiceRecorder] Failed to rewrap blob, sending raw URI:",
             rewrapError,
           );
+        } finally {
+          clearTimeout(blobFetchTimer);
         }
       }
       recordingMimeRef.current = null;
