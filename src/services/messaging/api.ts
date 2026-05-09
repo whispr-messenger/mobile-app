@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "../apiBase";
 import { snakecaseKeys } from "../../utils/caseTransform";
 import { logger } from "../../utils/logger";
 import { isReachableUrl, isValidUuid } from "../../utils";
+import { fetchProfilesBatch } from "../profile/batchFetch";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
@@ -221,6 +222,35 @@ export const invalidateUserInfoCache = (userId?: string): void => {
     userInfoInflight.clear();
   }
 };
+
+/**
+ * Normalise un payload brut du user-service (camelCase ou snake_case) en
+ * CachedUserInfo. Utilise par getUserInfo unitaire et par getUsersInfoBatch.
+ */
+function normalizeRawUserInfo(user: any): CachedUserInfo | null {
+  if (!user || typeof user !== "object") return null;
+  const id = String(user.id ?? user.userId ?? "");
+  if (!id) return null;
+  const firstName = user.firstName || user.first_name || "";
+  const lastName = user.lastName || user.last_name || "";
+  const phoneNumber = user.phoneNumber || user.phone_number || "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const displayName = fullName || user.username || phoneNumber || "Utilisateur";
+  const avatarUrl =
+    user.profilePictureUrl ||
+    user.profile_picture_url ||
+    user.profilePicture ||
+    user.profile_picture ||
+    user.avatarUrl ||
+    user.avatar_url ||
+    undefined;
+  return {
+    id,
+    display_name: displayName,
+    username: user.username,
+    avatar_url: avatarUrl,
+  };
+}
 
 export const messagingAPI = {
   async getConversations(params?: {
@@ -738,7 +768,8 @@ export const messagingAPI = {
         }
 
         const user = await response.json().catch(() => null);
-        if (!user) {
+        const info = normalizeRawUserInfo(user);
+        if (!info) {
           logger.warn("getUserInfo", `Empty body for user ${userId}`);
           userInfoCache.set(userId, {
             value: null,
@@ -746,31 +777,6 @@ export const messagingAPI = {
           });
           return null;
         }
-
-        // Handle both camelCase (from user-service) and snake_case formats
-        const firstName = user.firstName || user.first_name || "";
-        const lastName = user.lastName || user.last_name || "";
-        const phoneNumber = user.phoneNumber || user.phone_number || "";
-        const fullName = `${firstName} ${lastName}`.trim();
-        const displayName =
-          fullName || user.username || phoneNumber || "Utilisateur";
-
-        const avatarUrl =
-          user.profilePictureUrl ||
-          user.profile_picture_url ||
-          user.profilePicture ||
-          user.profile_picture ||
-          user.avatarUrl ||
-          user.avatar_url ||
-          undefined;
-
-        const info: CachedUserInfo = {
-          id: user.id,
-          display_name: displayName,
-          username: user.username,
-          avatar_url: avatarUrl,
-        };
-
         userInfoCache.set(userId, {
           value: info,
           expiresAt: Date.now() + USER_INFO_TTL_MS,
@@ -786,6 +792,83 @@ export const messagingAPI = {
 
     userInfoInflight.set(userId, promise);
     return promise;
+  },
+
+  /**
+   * Recupere plusieurs profils utilisateurs en un seul appel batch
+   * (POST /user/v1/profiles/batch, WHISPR-1349 / WHISPR-1357). Hydrate le
+   * cache `userInfoCache` pour chaque profil retourne, et marque les
+   * `missing` comme null (TTL court) pour eviter de retenter au prochain
+   * render.
+   *
+   * Sert au load de ConversationsList et ContactsScreen ou on a une liste
+   * d'IDs connue d'avance et on veut eviter le burst de N fetchs.
+   *
+   * Retourne un Map id -> info|null couvrant tous les ids demandes.
+   */
+  async getUsersInfoBatch(
+    userIds: string[],
+  ): Promise<Map<string, CachedUserInfo | null>> {
+    const result = new Map<string, CachedUserInfo | null>();
+    const toFetch: string[] = [];
+
+    // Premier passage : on recolte les hits cache frais et on liste le reste
+    for (const id of userIds) {
+      if (!id) continue;
+      if (result.has(id)) continue;
+      const cached = userInfoCache.get(id);
+      if (cached && cached.expiresAt > Date.now()) {
+        result.set(id, cached.value);
+      } else {
+        toFetch.push(id);
+      }
+    }
+
+    if (toFetch.length === 0) {
+      return result;
+    }
+
+    try {
+      const { profiles, missing } = await fetchProfilesBatch<unknown>(
+        toFetch,
+        authenticatedFetch,
+      );
+      const missingSet = new Set(missing);
+      for (const raw of profiles) {
+        const info = normalizeRawUserInfo(raw);
+        if (info?.id) {
+          userInfoCache.set(info.id, {
+            value: info,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          result.set(info.id, info);
+          missingSet.delete(info.id);
+        }
+      }
+      // Tout id non resolu (renvoye missing par le backend, ou non present
+      // dans le payload) bascule null en cache pour eviter un second appel
+      // immediat. TTL standard suffit : si le profil reapparait l'utilisateur
+      // declenchera un nouveau fetch au prochain reload.
+      for (const id of toFetch) {
+        if (!result.has(id) || missingSet.has(id)) {
+          userInfoCache.set(id, {
+            value: null,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          result.set(id, null);
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        "getUsersInfoBatch",
+        `Batch fetch failed for ${toFetch.length} ids`,
+        err,
+      );
+      for (const id of toFetch) {
+        if (!result.has(id)) result.set(id, null);
+      }
+    }
+    return result;
   },
 
   async getConversationMembers(conversationId: string): Promise<
