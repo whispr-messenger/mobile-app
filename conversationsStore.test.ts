@@ -1829,4 +1829,58 @@ describe("conversationsStore — enrichSingleConversation sentinel bypass (WHISP
       .conversations.find((c) => c.id === "c-ws-sentinel");
     expect(stored?.display_name).toBe("Diana Prince");
   });
+
+  it('sentinel bypass declenche enrichment via applyConversationUpdate (nouvelle conv avec display_name="Utilisateur")', async () => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+    mockedMessagingAPI.getUserInfo.mockResolvedValue({
+      id: "other",
+      display_name: "Eve Torres",
+      username: "eve",
+      avatar_url: "https://cdn/eve.png",
+    });
+
+    act(() => {
+      useConversationsStore.getState().applyConversationUpdate(
+        makeConv("c-update-sentinel", {
+          display_name: "Utilisateur",
+          avatar_url: "https://cdn/placeholder.png",
+          member_user_ids: ["other", "me"],
+        }),
+      );
+    });
+
+    // async enrichment is kicked off — wait for it
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const stored = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-update-sentinel");
+    expect(stored?.display_name).toBe("Eve Torres");
+  });
+
+  it("enrichWithDisplayNames inclut les convs avec sentinel dans le batch warmup", async () => {
+    const conv = makeConv("c-batch-sentinel", {
+      display_name: "Utilisateur",
+      avatar_url: "https://cdn/placeholder.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "Frank Castle",
+      username: "frank",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    // getUsersInfoBatch doit avoir ete appele pour le warmup (sentinel = non enrichi)
+    expect(mockedMessagingAPI.getUsersInfoBatch).toHaveBeenCalled();
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Frank Castle");
+  });
 });
