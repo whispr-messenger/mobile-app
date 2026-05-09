@@ -434,8 +434,18 @@ export const ProfileSetupScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  flex: { flex: 1 },
+  container: {
+    flex: 1,
+    // WHISPR-1254 - sur react-native-web, le wrapper racine doit borner la
+    // hauteur du viewport sinon flex:1 ne propage pas aux enfants.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
+  },
+  flex: {
+    flex: 1,
+    // WHISPR-1254 - minHeight:0 permet a la ScrollView enfant d'overflow
+    // verticalement au lieu de pousser le parent.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
   scroll: { flexGrow: 1 },
   content: {
     flex: 1,
