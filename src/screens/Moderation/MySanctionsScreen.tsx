@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -213,8 +214,18 @@ export const MySanctionsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  gradientContainer: { flex: 1 },
-  container: { flex: 1 },
+  gradientContainer: {
+    flex: 1,
+    // WHISPR-1254 - sur react-native-web, le wrapper racine doit borner la
+    // hauteur du viewport sinon flex:1 ne propage pas aux enfants.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
+  },
+  container: {
+    flex: 1,
+    // WHISPR-1254 - minHeight:0 permet a la FlatList enfant d'overflow
+    // verticalement au lieu de pousser le parent.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
