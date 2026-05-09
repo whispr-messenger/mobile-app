@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -133,7 +134,23 @@ export const OtpScreen: React.FC = () => {
         })),
       );
     } catch (err) {
-      // Do not block the auth flow — keys can be uploaded later
+      const message = (err as Error)?.message ?? String(err);
+      // Vault crypto indisponible (Safari mode privé, IDB bloque, etc.) -
+      // on ne persiste PAS la cle d'identite en clair. On previent l'user
+      // que le chiffrement E2EE n'est pas supporte ici et il devra rouvrir
+      // hors mode privé pour s'enroler.
+      if (message.includes("[storage.web]")) {
+        console.error(
+          "[OtpScreen] crypto vault unavailable, Signal enrollment aborted:",
+          err,
+        );
+        Alert.alert(
+          "Chiffrement indisponible",
+          "Votre navigateur ne permet pas de stocker la clé E2EE en sécurité (mode privé ou ancien navigateur). Veuillez rouvrir l'app hors navigation privée pour activer la messagerie chiffrée.",
+        );
+        return;
+      }
+      // Autres erreurs (reseau, backend) - non bloquant, retry plus tard.
       console.warn("[OtpScreen] Signal key upload failed (non-blocking):", err);
     }
   };
