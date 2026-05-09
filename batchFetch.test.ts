@@ -79,19 +79,47 @@ describe("fetchProfilesBatch", () => {
     expect(result.missing).toEqual(["u-extra"]);
   });
 
-  it("flags every id of a chunk as missing on HTTP failure", async () => {
-    const fetcher = jest.fn().mockResolvedValue(mockResponse({ status: 500 }));
+  it("fallback per-id sur erreur HTTP batch : recupere les profils valides", async () => {
+    // 1er appel = batch -> 400, 2e et 3e = per-id -> reussite pour "a", echec pour "b"
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(mockResponse({ status: 400 })) // batch fail
+      .mockResolvedValueOnce(mockResponse({ body: { id: "a" }, status: 200 })) // per-id "a" ok
+      .mockResolvedValueOnce(mockResponse({ status: 404 })); // per-id "b" not found
+
+    const result = await fetchProfilesBatch<{ id: string }>(
+      ["a", "b"],
+      fetcher,
+    );
+
+    // doit avoir tente le batch (1 fois) puis 2 per-id
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    // "a" recupere, "b" missing
+    expect(result.profiles).toHaveLength(1);
+    expect((result.profiles[0] as any).id).toBe("a");
+    expect(result.missing).toEqual(["b"]);
+  });
+
+  it("fallback per-id sur erreur reseau batch : tous missing si per-id echoue aussi", async () => {
+    const fetcher = jest.fn().mockRejectedValue(new Error("network"));
 
     const result = await fetchProfilesBatch(["a", "b"], fetcher);
     expect(result.profiles).toEqual([]);
     expect(result.missing.sort()).toEqual(["a", "b"]);
   });
 
-  it("flags every id of a chunk as missing when the fetcher throws", async () => {
-    const fetcher = jest.fn().mockRejectedValue(new Error("network"));
+  it("fallback per-id : batch 400 puis per-id tous ok", async () => {
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(mockResponse({ status: 400 }))
+      .mockResolvedValueOnce(mockResponse({ body: { id: "x" }, status: 200 }))
+      .mockResolvedValueOnce(mockResponse({ body: { id: "y" }, status: 200 }));
 
-    const result = await fetchProfilesBatch(["a", "b"], fetcher);
-    expect(result.profiles).toEqual([]);
-    expect(result.missing.sort()).toEqual(["a", "b"]);
+    const result = await fetchProfilesBatch<{ id: string }>(
+      ["x", "y"],
+      fetcher,
+    );
+    expect(result.profiles).toHaveLength(2);
+    expect(result.missing).toHaveLength(0);
   });
 });
