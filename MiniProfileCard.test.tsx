@@ -181,6 +181,26 @@ describe("MiniProfileCard", () => {
     expect(onMessage).toHaveBeenCalled();
   });
 
+  it("hides the last seen line when backend returns no value", async () => {
+    mockGetUserProfile.mockResolvedValue({
+      success: true,
+      profile: buildProfile({ isOnline: false, lastSeen: undefined }),
+    });
+    const { queryByText, getByTestId } = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    await waitFor(() => getByTestId("mini-profile-card-loaded"));
+    expect(queryByText("en ligne")).toBeNull();
+    expect(queryByText(/vu /)).toBeNull();
+  });
+
   it("does not warn when unmounted before fetch resolves", async () => {
     let resolveProfile: (v: unknown) => void = () => {};
     mockGetUserProfile.mockReturnValue(
