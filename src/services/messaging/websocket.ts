@@ -118,6 +118,10 @@ export class SocketConnection {
       callbacks: Record<string, EventCallback[]>;
       joined: boolean;
       joinRef: string | null; // tracks the join_ref for this channel
+      // ref count : plusieurs hooks/screens partagent le meme topic
+      // (ex user:<id> joine par ChatScreen + ConversationsListScreen + ContactsScreen).
+      // leave() ne fait phx_leave que quand le dernier consumer relache son ref.
+      refCount: number;
     }
   > = {};
   private pendingTopics: Set<string> = new Set();
@@ -448,12 +452,18 @@ export class SocketConnection {
         callbacks: {},
         joined: false,
         joinRef: null,
+        refCount: 0,
       };
     }
 
     const join = async (): Promise<{ status: string }> => {
       const ch = this.channels[topic];
-      if (ch?.joined) return { status: "ok" };
+      if (!ch) return { status: "error" };
+      // chaque join() incremente le compteur. leave() decremente, et
+      // n envoie phx_leave que quand le dernier consumer s en va.
+      ch.refCount += 1;
+
+      if (ch.joined) return { status: "ok" };
 
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
         this.pendingTopics.add(topic);
@@ -487,11 +497,17 @@ export class SocketConnection {
     };
 
     const leave = (): void => {
+      const ch = this.channels[topic];
+      if (!ch) return;
+      // ref counting : tant qu un autre consumer (ChatScreen, ContactsScreen,
+      // etc) partage ce topic, on ne touche pas le channel cote serveur.
+      if (ch.refCount > 0) ch.refCount -= 1;
+      if (ch.refCount > 0) return;
+
       if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        const ch = this.channels[topic];
         const ref = nextRef();
         this.socket.send(
-          encodeMessage(ch?.joinRef ?? null, ref, topic, "phx_leave", {}),
+          encodeMessage(ch.joinRef ?? null, ref, topic, "phx_leave", {}),
         );
       }
       delete this.channels[topic];

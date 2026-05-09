@@ -87,6 +87,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     return () => {
       removeListener();
+      // libere le ref count cote socket : si ce hook etait le dernier
+      // consumer (logout, changement de user) le channel est ferme cote
+      // serveur, sinon les autres screens continuent a recevoir leurs events.
+      userChannel.leave();
     };
   }, [options.userId, options.token]);
 

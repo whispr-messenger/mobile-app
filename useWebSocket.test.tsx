@@ -12,13 +12,14 @@ const mockChannelPush = jest.fn();
 const mockChannelOn = jest.fn();
 const mockChannelOff = jest.fn();
 const mockChannelJoin = jest.fn();
+const mockChannelLeave = jest.fn();
 const mockIsConnected = jest.fn(() => true);
 const mockChannel = {
   push: mockChannelPush,
   on: mockChannelOn,
   off: mockChannelOff,
   join: mockChannelJoin,
-  leave: jest.fn(),
+  leave: mockChannelLeave,
 };
 const mockSocket = {
   channel: jest.fn(() => mockChannel),
@@ -100,6 +101,7 @@ beforeEach(() => {
   mockChannelOn.mockClear();
   mockChannelOff.mockClear();
   mockChannelJoin.mockClear();
+  mockChannelLeave.mockClear();
   mockIsConnected.mockClear();
   mockIsConnected.mockReturnValue(true);
   mockApplyMessageUnread.mockClear();
@@ -219,5 +221,15 @@ describe("useWebSocket - message_unread handler", () => {
     handler({});
 
     expect(mockApplyMessageUnread).not.toHaveBeenCalled();
+  });
+});
+
+describe("useWebSocket - user channel leave on unmount", () => {
+  it("appelle channel.leave() au cleanup pour relacher le ref count", () => {
+    const { unmount } = renderHook(() => useWebSocket(baseOptions));
+
+    expect(mockChannelLeave).not.toHaveBeenCalled();
+    unmount();
+    expect(mockChannelLeave).toHaveBeenCalled();
   });
 });
