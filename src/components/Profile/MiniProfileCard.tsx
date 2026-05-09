@@ -20,8 +20,13 @@ import { colors, withOpacity } from "../../theme/colors";
 import { UserService, UserProfile } from "../../services/UserService";
 import { contactsAPI } from "../../services/contacts/api";
 import { getCached, setCached } from "../../services/profile/miniProfileCache";
+import {
+  getCachedRelation,
+  invalidateCachedRelation,
+  setCachedRelation,
+  type Relation,
+} from "../../services/profile/miniRelationCache";
 
-type Relation = "self" | "blocked" | "contact" | "unknown";
 type CardState = "loading" | "loaded" | "error" | "notFound";
 
 interface ErrorInfo {
@@ -107,19 +112,30 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
   const computeRelation = useCallback(
     async (id: string): Promise<Relation> => {
       if (currentUserId && currentUserId === id) return "self";
+      // hit cache TTL 60s pour eviter 2 appels reseau a chaque ouverture de card
+      const cachedRel = getCachedRelation(id);
+      if (cachedRel !== null) return cachedRel;
+      let result: Relation = "unknown";
       try {
         const { blocked } = await contactsAPI.getBlockedUsers();
-        if (blocked.some((b) => b.blocked_user_id === id)) return "blocked";
+        if (blocked.some((b) => b.blocked_user_id === id)) {
+          result = "blocked";
+        }
       } catch {
         // ne pas bloquer le rendu si la liste blocked echoue
       }
-      try {
-        const { contacts } = await contactsAPI.getContacts();
-        if (contacts.some((c) => c.contact_id === id)) return "contact";
-      } catch {
-        // idem
+      if (result === "unknown") {
+        try {
+          const { contacts } = await contactsAPI.getContacts();
+          if (contacts.some((c) => c.contact_id === id)) {
+            result = "contact";
+          }
+        } catch {
+          // idem
+        }
       }
-      return "unknown";
+      setCachedRelation(id, result);
+      return result;
     },
     [currentUserId],
   );
@@ -197,6 +213,8 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
     try {
       await contactsAPI.blockUser(userId);
       if (!mounted.current) return;
+      invalidateCachedRelation(userId);
+      setCachedRelation(userId, "blocked");
       setRelation("blocked");
     } catch {
       // si l'appel rate, on garde le relation precedent
@@ -211,6 +229,8 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
     try {
       await contactsAPI.unblockUser(userId);
       if (!mounted.current) return;
+      invalidateCachedRelation(userId);
+      setCachedRelation(userId, "contact");
       setRelation("contact");
     } catch {
       // idem

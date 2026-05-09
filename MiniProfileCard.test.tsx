@@ -2,6 +2,7 @@ import React from "react";
 import { render, waitFor, act, fireEvent } from "@testing-library/react-native";
 import { MiniProfileCard } from "./src/components/Profile/MiniProfileCard";
 import { clearCache } from "./src/services/profile/miniProfileCache";
+import { clearRelationCache } from "./src/services/profile/miniRelationCache";
 
 const mockGetUserProfile = jest.fn();
 jest.mock("./src/services/UserService", () => ({
@@ -40,6 +41,7 @@ const buildProfile = (overrides = {}) => ({
 
 beforeEach(() => {
   clearCache();
+  clearRelationCache();
   mockGetUserProfile.mockReset();
   mockGetBlockedUsers.mockReset().mockResolvedValue({ blocked: [], total: 0 });
   mockGetContacts.mockReset().mockResolvedValue({ contacts: [], total: 0 });
