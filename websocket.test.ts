@@ -436,6 +436,39 @@ describe("SocketConnection basics", () => {
     socket.disconnect();
   });
 
+  it("channel leave is ref-counted: phx_leave only on last consumer", async () => {
+    const socket = new SocketConnection();
+    const ws = await connectAndOpen(socket);
+
+    // 2 consumers (ex ChatScreen + ConversationsListScreen) prennent la
+    // meme entree user channel via socket.channel(...).
+    const consumerA = socket.channel("user:42");
+    const consumerB = socket.channel("user:42");
+    consumerA.join();
+    consumerB.join();
+
+    // reset des sends pour ne compter que les phx_leave qui suivent
+    ws.send.mockClear();
+
+    // premier leave : ref count > 0, pas de phx_leave
+    consumerA.leave();
+    let leaveCalls = ws.send.mock.calls.filter((call: any[]) => {
+      const parsed = JSON.parse(call[0]);
+      return parsed[3] === "phx_leave" && parsed[2] === "user:42";
+    });
+    expect(leaveCalls.length).toBe(0);
+
+    // dernier consumer : phx_leave envoye au serveur
+    consumerB.leave();
+    leaveCalls = ws.send.mock.calls.filter((call: any[]) => {
+      const parsed = JSON.parse(call[0]);
+      return parsed[3] === "phx_leave" && parsed[2] === "user:42";
+    });
+    expect(leaveCalls.length).toBe(1);
+
+    socket.disconnect();
+  });
+
   it("channel join queues as pending if socket is not open", async () => {
     const socket = new SocketConnection();
     await socket.connect("user-1", "token-1");
