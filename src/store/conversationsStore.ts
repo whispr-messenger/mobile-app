@@ -92,6 +92,30 @@ async function enrichWithDisplayNames(
   conversations: Conversation[],
   currentUserId: string,
 ): Promise<Conversation[]> {
+  // WHISPR-1357 : pre-warming du cache profils via 1 seul batch /profiles/batch
+  // au lieu de N fetchs unitaires. enrichSingleConversation continue d'utiliser
+  // getUserInfo pour le fallback (member_user_ids absents qui forcent un
+  // getConversation), mais l'appel reseau retourne en cache hit.
+  const otherIdsToWarmup = new Set<string>();
+  for (const conv of conversations) {
+    if (conv.type !== "direct") continue;
+    if (conv.display_name && conv.avatar_url) continue;
+    const memberIds = conv.member_user_ids;
+    if (!memberIds || memberIds.length === 0) continue;
+    const other = memberIds.find((id: string) => id && id !== currentUserId);
+    if (other) otherIdsToWarmup.add(other);
+  }
+
+  if (otherIdsToWarmup.size > 0) {
+    try {
+      await messagingAPI.getUsersInfoBatch(Array.from(otherIdsToWarmup));
+    } catch (err) {
+      // batch en best-effort : si echec, enrichSingleConversation fallback
+      // sur les fetchs unitaires existants.
+      logger.warn("enrich", "Batch profile warmup failed", err);
+    }
+  }
+
   const results = await Promise.all(
     conversations.map((conv) => enrichSingleConversation(conv, currentUserId)),
   );
