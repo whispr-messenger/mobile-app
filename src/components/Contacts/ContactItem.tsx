@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Contact } from "../../types/contact";
 import { Avatar } from "../Chat/Avatar";
+import { ProfileTrigger } from "../Profile/ProfileTrigger";
 import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 
@@ -50,15 +51,17 @@ export const ContactItem: React.FC<ContactItemProps> = ({
         onLongPress={handleLongPress}
         activeOpacity={0.82}
       >
-        <View style={styles.avatarRing}>
-          <Avatar
-            uri={user?.avatar_url}
-            name={displayName}
-            size={52}
-            showOnlineBadge={false}
-            isOnline={false}
-          />
-        </View>
+        <ProfileTrigger userId={contact.contact_id}>
+          <View style={styles.avatarRing}>
+            <Avatar
+              uri={user?.avatar_url}
+              name={displayName}
+              size={52}
+              showOnlineBadge={false}
+              isOnline={false}
+            />
+          </View>
+        </ProfileTrigger>
         <View style={styles.info}>
           <View style={styles.nameRow}>
             <Text
