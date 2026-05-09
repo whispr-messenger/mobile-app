@@ -11,10 +11,15 @@
  * - sur 401, le refresh est fait par AuthService au niveau caller via
  *   `authenticatedFetch` deja utilise dans messaging/api.ts ; ici on
  *   recoit le fetcher en parametre pour rester decouple
+ * - sur erreur batch (400/500/network) : fallback per-id via GET /profile/{id}
+ *   avec concurrence limitee a 5 pour eviter de saturer le throttler
+ *   (WHISPR-1435 - evite que 1 chunk fail = tous les profils perdus)
  */
 import { getApiBaseUrl } from "../apiBase";
 
 const BATCH_MAX_SIZE = 100;
+// concurrence max pour le fallback per-id quand le batch echoue
+const PER_ID_CONCURRENCY = 5;
 
 export interface BatchProfilesResponse<T> {
   /** Profils trouves et autorises (privacy gates serveur appliquees). */
@@ -29,7 +34,52 @@ export type AuthenticatedFetch = (
 ) => Promise<Response>;
 
 /**
+ * Fallback : quand le batch endpoint retourne une erreur (400 validation,
+ * 500 infra, timeout), on retente chaque id individuellement via
+ * GET /user/v1/profile/{id}. Concurrence limitee a PER_ID_CONCURRENCY
+ * pour ne pas saturer le throttler.
+ */
+async function fetchProfilesPerIdFallback<T>(
+  ids: string[],
+  fetcher: AuthenticatedFetch,
+): Promise<BatchProfilesResponse<T>> {
+  const baseUrl = `${getApiBaseUrl()}/user/v1`;
+  const profiles: T[] = [];
+  const missing: string[] = [];
+
+  // traitement en pool de PER_ID_CONCURRENCY requetes paralleles
+  const queue = [...ids];
+  const workers = Array.from({ length: PER_ID_CONCURRENCY }, async () => {
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (!id) break;
+      try {
+        const response = await fetcher(
+          `${baseUrl}/profile/${encodeURIComponent(id)}`,
+        );
+        if (!response.ok) {
+          missing.push(id);
+          continue;
+        }
+        const raw = (await response.json().catch(() => null)) as T | null;
+        if (raw) {
+          profiles.push(raw);
+        } else {
+          missing.push(id);
+        }
+      } catch {
+        missing.push(id);
+      }
+    }
+  });
+
+  await Promise.all(workers);
+  return { profiles, missing };
+}
+
+/**
  * Appelle POST /user/v1/profiles/batch et split en chunks de 100 si besoin.
+ * En cas d'erreur batch sur un chunk, fallback automatique per-id.
  *
  * @param ids liste des userIds a recuperer
  * @param fetcher fetch authentifie (gere refresh 401, headers Bearer)
@@ -37,9 +87,8 @@ export type AuthenticatedFetch = (
  *
  * - retourne `{ profiles: [], missing: [] }` si `ids` est vide pour eviter
  *   le 400 "ArrayMinSize" du backend
- * - sur erreur HTTP non-OK : tous les ids du chunk basculent dans `missing`
- *   pour permettre au caller de fallback (display "Utilisateur indisponible")
- *   plutot que de planter le rendering
+ * - sur erreur HTTP batch : fallback per-id (recupere les profils valides,
+ *   ne perd que les vrais inexistants ou en erreur individuelle)
  */
 export async function fetchProfilesBatch<T = unknown>(
   ids: string[],
@@ -65,20 +114,25 @@ export async function fetchProfilesBatch<T = unknown>(
           body: JSON.stringify({ ids: chunkIds }),
         });
         if (!response.ok) {
-          return { profiles: [], missing: [...chunkIds] };
+          // batch indisponible (400 validation, 500, etc.) : fallback per-id
+          return fetchProfilesPerIdFallback<T>(chunkIds, fetcher);
         }
         const data = (await response
           .json()
           .catch(() => null)) as BatchProfilesResponse<T> | null;
         if (!data) {
-          return { profiles: [], missing: [...chunkIds] };
+          return fetchProfilesPerIdFallback<T>(chunkIds, fetcher);
         }
+        // le batch a reussi mais certains ids sont dans missing : on ne
+        // retente pas per-id pour les missing (ils sont vraiment inexistants
+        // ou prives selon le backend)
         return {
           profiles: Array.isArray(data.profiles) ? data.profiles : [],
           missing: Array.isArray(data.missing) ? data.missing : [],
         };
       } catch {
-        return { profiles: [], missing: [...chunkIds] };
+        // erreur reseau ou parse : fallback per-id
+        return fetchProfilesPerIdFallback<T>(chunkIds, fetcher);
       }
     }),
   );

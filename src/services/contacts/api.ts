@@ -79,10 +79,15 @@ const normalizeRawUser = (u: any, fallbackId?: string): User | null => {
   if (!u || typeof u !== "object") return null;
   const id = String(u.id ?? u.userId ?? fallbackId ?? "");
   if (!id) return null;
+  // phoneNumberMasked expose par UserResponseDto (WHISPR-1422) - forward-compat
+  // camelCase + snake_case pour couvrir les deux styles de serialisation
+  const phoneNumberMasked =
+    u.phoneNumberMasked || u.phone_number_masked || undefined;
   return {
     id,
     username: u.username ?? "",
     phone_number: u.phoneNumber ?? u.phone_number,
+    phone_number_masked: phoneNumberMasked,
     first_name: u.firstName ?? u.first_name,
     last_name: u.lastName ?? u.last_name,
     avatar_url:
