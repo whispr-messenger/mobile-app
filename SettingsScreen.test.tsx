@@ -97,6 +97,19 @@ describe("SettingsScreen", () => {
     });
   });
 
+  it("renders the 7 privacy toggles (4 existing + 3 backend orphans)", async () => {
+    const { getByText } = render(<SettingsScreen />);
+    await waitFor(() => {
+      expect(getByText("Photo de profil")).toBeTruthy();
+    });
+    expect(getByText("Prénom")).toBeTruthy();
+    expect(getByText("Nom de famille")).toBeTruthy();
+    expect(getByText("Biographie")).toBeTruthy();
+    expect(getByText("Dernière connexion")).toBeTruthy();
+    expect(getByText("Statut en ligne")).toBeTruthy();
+    expect(getByText("Permission d'ajout aux groupes")).toBeTruthy();
+  });
+
   it("renders notifications section", async () => {
     const { getByText } = render(<SettingsScreen />);
     await waitFor(() => {

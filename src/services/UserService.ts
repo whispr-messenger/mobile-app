@@ -58,6 +58,9 @@ export interface PrivacySettings {
   firstNameVisibility: "everyone" | "contacts" | "nobody";
   lastNameVisibility: "everyone" | "contacts" | "nobody";
   biographyVisibility: "everyone" | "contacts" | "nobody";
+  lastSeenVisibility: "everyone" | "contacts" | "nobody";
+  onlineStatusVisibility: "everyone" | "contacts" | "nobody";
+  groupAddPermission: "everyone" | "contacts" | "nobody";
   searchVisibility: boolean;
   phoneNumberSearch: "everyone" | "contacts" | "nobody";
 }
@@ -592,6 +595,11 @@ export class UserService {
           raw?.lastNamePrivacy ?? raw?.lastNameVisibility ?? "everyone",
         biographyVisibility:
           raw?.biographyPrivacy ?? raw?.biographyVisibility ?? "everyone",
+        lastSeenVisibility:
+          raw?.lastSeenPrivacy ?? raw?.lastSeenVisibility ?? "everyone",
+        onlineStatusVisibility:
+          raw?.onlineStatus ?? raw?.onlineStatusVisibility ?? "everyone",
+        groupAddPermission: raw?.groupAddPermission ?? "everyone",
         searchVisibility:
           raw?.searchByUsername ?? raw?.searchVisibility ?? true,
         phoneNumberSearch:
@@ -622,6 +630,9 @@ export class UserService {
           firstNamePrivacy: settings.firstNameVisibility,
           lastNamePrivacy: settings.lastNameVisibility,
           biographyPrivacy: settings.biographyVisibility,
+          lastSeenPrivacy: settings.lastSeenVisibility,
+          onlineStatus: settings.onlineStatusVisibility,
+          groupAddPermission: settings.groupAddPermission,
           searchByPhone: settings.phoneNumberSearch !== "nobody",
           searchByUsername: settings.searchVisibility,
         }),
