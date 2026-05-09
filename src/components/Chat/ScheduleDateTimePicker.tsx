@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 12,
-    color: colors.warning,
+    color: colors.ui.warning,
     textAlign: "center",
     marginTop: 8,
   },
