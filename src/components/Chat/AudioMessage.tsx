@@ -1,6 +1,5 @@
 /**
- * AudioMessage - Playback component for voice messages
- * Uses expo-av Audio.Sound for playback with play/pause and duration display.
+ * AudioMessage - lecture des messages vocaux via expo-av Audio.Sound.
  */
 
 import React, {
@@ -45,15 +44,17 @@ function getAudioModule(): any | null {
 interface AudioMessageProps {
   uri: string;
   mediaId?: string;
-  duration?: number; // duration in seconds from metadata
+  duration?: number; // en secondes, depuis les metadata
   isSent?: boolean;
 }
 
 function isStableMediaId(value?: string): boolean {
-  return !!value &&
+  return (
+    !!value &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       value,
-    );
+    )
+  );
 }
 
 function formatDuration(seconds: number): string {
@@ -96,14 +97,16 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
     uriNeedsAuthResolution(uri);
   const [nativeAudioUri, setNativeAudioUri] = useState("");
 
-  // `/media/v1/:id/blob` returns `{ url, expiresAt }` JSON — not the raw
-  // audio bytes. On web we resolve it to a streamed blob URL. On native iOS/
-  // Android, prefer a real local `file://` path because expo-av playback is
-  // more reliable there than `data:` URIs for audio.
+  // `/media/v1/:id/blob` renvoie un JSON `{ url, expiresAt }`, pas les bytes.
+  // Sur web on resoud vers un blob URL streame ; sur natif iOS/Android on
+  // prefere un vrai chemin local `file://` car expo-av est plus fiable la
+  // qu'avec un `data:` URI audio.
   const { resolvedUri: streamedResolvedUri } = useResolvedMediaUrl(
     shouldCacheNativeAudio ? undefined : uri,
   );
-  const resolvedUri = shouldCacheNativeAudio ? nativeAudioUri : streamedResolvedUri;
+  const resolvedUri = shouldCacheNativeAudio
+    ? nativeAudioUri
+    : streamedResolvedUri;
 
   useEffect(() => {
     if (!shouldCacheNativeAudio || !mediaId) {
@@ -133,7 +136,6 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
 
   useEffect(() => {
     return () => {
-      // Cleanup sound on unmount
       if (soundRef.current) {
         soundRef.current.unloadAsync().catch(() => {});
         soundRef.current = null;
@@ -141,8 +143,8 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
     };
   }, []);
 
-  // Unload any previously-loaded sound when the resolved URI changes so the
-  // next play reloads from the fresh source.
+  // l'URI resolue change (ex: refresh d'un signed URL) : decharger l'ancien
+  // sound pour que la prochaine lecture reparte de la nouvelle source.
   useEffect(() => {
     if (soundRef.current) {
       soundRef.current.unloadAsync().catch(() => {});
@@ -188,7 +190,6 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
       }
       setIsPlaying(status.isPlaying || false);
 
-      // Reset when playback finishes
       if (status.didJustFinish) {
         setIsPlaying(false);
         setCurrentPosition(0);
@@ -202,7 +203,7 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
     if (!audioModule) return;
 
     try {
-      // Configure audio mode for playback
+      // bascule en mode lecture (allowsRecordingIOS:false, silentMode:true)
       await audioModule.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -256,7 +257,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={
-          isPlaying ? "Mettre en pause le message vocal" : "Lire le message vocal"
+          isPlaying
+            ? "Mettre en pause le message vocal"
+            : "Lire le message vocal"
         }
       >
         <Ionicons
@@ -278,7 +281,9 @@ export const AudioMessage: React.FC<AudioMessageProps> = ({
                   {
                     height,
                     backgroundColor:
-                      index < playedBarCount ? activeBarColor : inactiveBarColor,
+                      index < playedBarCount
+                        ? activeBarColor
+                        : inactiveBarColor,
                     marginRight: index === waveformBars.length - 1 ? 0 : 3,
                   },
                 ]}

@@ -134,9 +134,9 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
   return promise;
 };
 
-// Some backend search endpoints return `200` with an empty body when no
-// match is found, which makes `response.json()` throw. Read as text first
-// and treat empty/whitespace-only payloads as `null` to avoid noisy errors.
+// certains endpoints search renvoient 200 avec un body vide quand pas de
+// match -> response.json() throw. On passe par text() et on considere
+// payload vide = null pour eviter les erreurs bruyantes.
 const parseJsonSafe = async (response: Response): Promise<unknown> => {
   const text = await response.text().catch(() => "");
   if (!text.trim()) return null;
@@ -170,9 +170,8 @@ const buildSearchResult = (
       is_active: u.isActive ?? u.is_active ?? true,
     },
     is_contact: contactIds ? contactIds.has(userId) : false,
-    // WHISPR-1215 — couvre le sens "je l'ai bloqué". Le sens inverse
-    // ("il m'a bloqué") demande un flag côté serveur et fait l'objet d'un
-    // ticket séparé.
+    // WHISPR-1215 : couvre le sens "je l'ai bloque". Le sens inverse
+    // ("il m'a bloque") demande un flag cote serveur, ticket separe.
     is_blocked: blockedIds ? blockedIds.has(userId) : false,
   };
 };
@@ -247,7 +246,7 @@ export const contactsAPI = {
           : [];
       const contacts = items.map(normalizeContact);
 
-      // Enrich contacts with user data in parallel
+      // enrichissement profils utilisateur en parallele (1 fetch / contact)
       const enriched = await Promise.all(
         contacts.map(async (contact: Contact) => {
           if (contact.contact_id) {
@@ -408,8 +407,8 @@ export const contactsAPI = {
       return [];
     }
 
-    // WHISPR-1215 — fetch contacts and blocked users in parallel so each
-    // result carries the real is_blocked flag (was hard-coded to false).
+    // WHISPR-1215 : fetch contacts + bloques en parallele pour que chaque
+    // resultat porte le vrai is_blocked (auparavant hard-code a false).
     const [contactIds, blockedIds] = await Promise.all([
       this.getContacts()
         .then(({ contacts }) => new Set(contacts.map((c) => c.contact_id)))
@@ -419,10 +418,10 @@ export const contactsAPI = {
         .catch(() => new Set<string>()),
     ]);
 
-    // Run all search strategies in parallel for fuzzy matching
+    // les 3 strategies de recherche tournent en parallele (fuzzy matching)
     const searches: Promise<UserSearchResult[]>[] = [];
 
-    // 1. Search by username (exact match from API)
+    // 1. par username (match exact API)
     searches.push(
       fetch(
         `${API_BASE_URL}/search/username?username=${encodeURIComponent(query)}`,
@@ -433,8 +432,8 @@ export const contactsAPI = {
         .then(async (r) => {
           if (!r.ok) return [];
           const data = (await parseJsonSafe(r)) as any;
-          // WHISPR-1233 — backend wraps the response as `{ user: User | null }`.
-          // Fall back to the raw payload for backwards compatibility.
+          // WHISPR-1233 : le backend wrap la reponse en `{ user: User | null }`.
+          // Fallback raw payload pour retro-compat.
           const user = data?.user ?? data;
           if (!user?.id && !user?.userId) return [];
           return [buildSearchResult(user, contactIds, blockedIds)];
@@ -442,7 +441,7 @@ export const contactsAPI = {
         .catch(() => []),
     );
 
-    // 2. Search by name (fuzzy — backend supports partial match)
+    // 2. par nom (fuzzy, le backend gere le match partiel)
     searches.push(
       fetch(
         `${API_BASE_URL}/search/name?query=${encodeURIComponent(query)}&limit=20`,
@@ -465,7 +464,7 @@ export const contactsAPI = {
         .catch(() => []),
     );
 
-    // 3. Search by phone number (if input looks like a phone number)
+    // 3. par numero (uniquement si la query a une tete de telephone)
     const looksLikePhone = /^[+\d\s()-]{3,}$/.test(query);
     if (looksLikePhone) {
       searches.push(
@@ -479,8 +478,8 @@ export const contactsAPI = {
             if (!r.ok) return [];
             const data = (await parseJsonSafe(r)) as any;
             if (!data) return [];
-            // WHISPR-1233 — backend wraps the response as `{ user: User | null }`.
-            // Unwrap it; fall back to the raw payload for backwards compatibility.
+            // WHISPR-1233 : reponse `{ user: User | null }` -> on unwrap.
+            // Fallback raw payload pour retro-compat.
             const payload = data?.user !== undefined ? data.user : data;
             if (!payload) return [];
             const items = Array.isArray(payload)
@@ -498,7 +497,7 @@ export const contactsAPI = {
 
     const allResults = await Promise.all(searches);
 
-    // Deduplicate by user id
+    // dedup par user id
     const seen = new Set<string>();
     const merged: UserSearchResult[] = [];
     for (const batch of allResults) {
@@ -525,13 +524,13 @@ export const contactsAPI = {
 
     if (!phoneNumbers.length) return [];
 
-    // WHISPR-1215 — pull the user's blocked list once, before issuing the
-    // search calls, so each result reflects the real is_blocked state.
+    // WHISPR-1215 : on tire la liste des bloques une seule fois en amont,
+    // chaque resultat a son vrai is_blocked.
     const blockedIds = await this.getBlockedUsers()
       .then(({ blocked }) => new Set(blocked.map((b) => b.blocked_user_id)))
       .catch(() => new Set<string>());
 
-    // Try batch endpoint first
+    // 1er essai : endpoint batch
     try {
       const batchResponse = await fetch(`${API_BASE_URL}/search/phone/batch`, {
         method: "POST",
@@ -559,12 +558,12 @@ export const contactsAPI = {
         return results;
       }
 
-      // Non-OK response (e.g. 404) — fall through to sequential fallback
+      // 404 ou autre non-OK -> fallback sequentiel
     } catch {
-      // Batch endpoint unavailable — fall through to sequential fallback
+      // batch indispo -> fallback sequentiel
     }
 
-    // Fallback: sequential requests (one per phone number)
+    // fallback : 1 fetch par numero, sequentiel
     const results: UserSearchResult[] = [];
     const seen = new Set<string>();
 
@@ -579,8 +578,7 @@ export const contactsAPI = {
         const data = (await parseJsonSafe(response)) as any;
         if (!data) continue;
 
-        // WHISPR-1233 — backend wraps the response as `{ user: User | null }`.
-        // Unwrap it; fall back to the raw payload for backwards compatibility.
+        // WHISPR-1233 : `{ user: User | null }` -> unwrap, fallback raw.
         const payload = data?.user !== undefined ? data.user : data;
         if (!payload) continue;
 
@@ -598,7 +596,7 @@ export const contactsAPI = {
           }
         }
       } catch {
-        // Skip contacts that fail to resolve
+        // un fetch qui echoue : on saute le contact, pas la suite
       }
     }
 
@@ -784,8 +782,8 @@ export const contactsAPI = {
     };
   },
 
-  // The backend returns all blocked users at once (no pagination support).
-  // page/limit are kept in the signature for interface compatibility.
+  // le backend renvoie tous les utilisateurs bloques en une fois (pas de
+  // pagination). page/limit gardes pour compat de signature.
   async getBlockedUsers(
     _page: number = 1,
     _limit: number = 50,

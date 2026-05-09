@@ -1,5 +1,5 @@
 /**
- * MessageInput - Message input component with send button
+ * MessageInput - barre de saisie + bouton d'envoi.
  */
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -68,10 +68,11 @@ interface MessageInputProps {
   conversationType?: "direct" | "group";
   members?: MentionMember[];
   /**
-   * When true, MessageInput adds its own bottom inset padding so the bar sits
-   * above the home indicator / nav bar. Default false because most screens
-   * already wrap MessageInput in a SafeAreaView with edges=["bottom"]; setting
-   * this to true outside such a wrapper avoids the bar from being clipped.
+   * Quand true, on ajoute soi-même le padding bottom safe-area pour que la
+   * barre passe au-dessus du home indicator. Par defaut false : la plupart
+   * des ecrans wrappent deja MessageInput dans une SafeAreaView avec
+   * edges=["bottom"]. A activer uniquement quand ce n'est pas le cas, sinon
+   * la barre se fait clipper.
    */
   applySafeAreaBottom?: boolean;
 }
@@ -123,9 +124,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     onSendMediaRef.current = onSendMedia;
   }, [onSendMedia]);
 
-  // Track keyboard visibility so we can drop the safe-area bottom padding
-  // when the keyboard is up (it covers the home indicator anyway, and the
-  // KeyboardAvoidingView already pushes the bar above it).
+  // Quand le clavier est ouvert, on degage le padding bottom safe-area : il
+  // recouvre deja le home indicator, et le KeyboardAvoidingView pousse la
+  // barre au-dessus.
   useEffect(() => {
     const showEvent =
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -184,7 +185,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setRecordedAudio(null);
   }, []);
 
-  // Update text when editing message changes
   useEffect(() => {
     if (editingMessage) {
       setText(editingMessage.content);
@@ -206,8 +206,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         setMentionStartIndex(detection.startIndex);
         setShowMentions(true);
       } else if (conversationType === "group" && members.length > 0) {
-        // Only clear mentions when we're in a group — matches the previous
-        // behaviour which only toggled mentions in that branch.
+        // ne fermer le picker de mentions que dans les groupes : ailleurs
+        // l'ancien comportement laissait l'etat ouvert.
         setShowMentions(false);
       }
     },
@@ -305,7 +305,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setMentionQuery("");
       setMentionStartIndex(-1);
 
-      // Focus back on input
       inputRef.current?.focus();
     },
     [text, mentionStartIndex],
@@ -315,7 +314,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (text.trim()) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Extract mentions from text
       const mentionRegex = /@(\w+)/g;
       const mentions: string[] = [];
       let match;
@@ -351,7 +349,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [text, onScheduleSend]);
 
-  // Open camera capture modal
   const handleOpenCamera = useCallback(() => {
     setShowCameraCapture(true);
   }, []);
@@ -365,10 +362,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     setShowAttachmentSheet(true);
   }, []);
 
-  // Handle camera capture result
   const handleCameraCapture = useCallback(
     (result: CameraCaptureResult) => {
-      // Send media with caption integrated in the same message
+      // envoie le media + caption dans le meme message (un seul tour reseau)
       onSendMedia?.(
         result.uri,
         result.type,
@@ -396,14 +392,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Launch image picker without forcing a crop: WHISPR-1039 wants the
-      // user to send images in their native ratio (portrait/landscape/square).
-      // WHISPR-1197 : on ne passe PAS `quality` ici — sur iOS/Android
-      // expo-image-picker re-encode en JPEG dès que `quality` est défini,
-      // ce qui aplatit les GIFs animés (premier frame seulement) et perd
-      // la compression native HEIC. La taille du fichier est déjà bornée
-      // côté upload par WHISPR-1220, on accepte donc un léger surcoût
-      // réseau pour préserver l'animation et le format Apple.
+      // WHISPR-1039 : pas de crop force, on garde le ratio natif de l'image.
+      // WHISPR-1197 : ne pas passer `quality` non plus - des qu'il est defini,
+      // expo-image-picker re-encode en JPEG sur iOS/Android, ce qui aplatit
+      // les GIFs animes (1er frame seulement) et casse le HEIC. La taille
+      // est deja bornee a l'upload (WHISPR-1220), donc on accepte le leger
+      // surcout reseau pour preserver l'animation et le format Apple.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: false,
@@ -442,7 +436,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       }
       const asset = result.assets[0];
 
-      // Cap document size client-side to avoid surprise upload failures.
+      // borne client-side pour eviter un upload qui echoue cote serveur.
       const MAX_BYTES = 25 * 1024 * 1024;
       if (typeof asset.size === "number" && asset.size > MAX_BYTES) {
         Alert.alert(
@@ -500,8 +494,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [isRecording, startRecording, stopRecording]);
 
-  // While the keyboard is up we still want a small breathing gap between
-  // the bar and the keyboard. Otherwise the bar uses the home indicator inset.
+  // clavier ouvert : on veut un petit espace entre la barre et le clavier.
+  // Sinon on utilise l'inset du home indicator.
   const KEYBOARD_OPEN_GAP = 8;
   const bottomPadding = isKeyboardVisible
     ? KEYBOARD_OPEN_GAP

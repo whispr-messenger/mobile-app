@@ -1,13 +1,11 @@
 /**
- * Avatar - User avatar component with fallback
+ * Avatar - avatar utilisateur avec fallback initiales.
  *
- * WHISPR-1258 — passing the bare `/media/v1/:id/blob` URL to <Image> on web
- * triggers an `<img>` request without `Authorization`, which the media service
- * answers with 401. We now route the URL through `useResolvedMediaUrl`, the
- * shared hook that streams the bytes via the authenticated `?stream=1` proxy
- * and surfaces them as a `blob:` (web) or `data:` (native) URI safe for any
- * renderer. While the hook is loading we show the initials placeholder rather
- * than the unauthenticated URL.
+ * WHISPR-1258 : passer le URL brut `/media/v1/:id/blob` a <Image> sur web
+ * declenche un GET <img> sans Authorization, donc 401 cote media service.
+ * On passe par `useResolvedMediaUrl` qui streame via le proxy authentifie
+ * `?stream=1` et expose un URI `blob:` (web) ou `data:` (natif). Pendant
+ * le chargement, on affiche les initiales plutot que l'URL non auth.
  */
 
 import React from "react";
@@ -17,7 +15,8 @@ import { colors } from "../../theme/colors";
 import { getApiBaseUrl } from "../../services/apiBase";
 import { useResolvedMediaUrl } from "../../hooks/useResolvedMediaUrl";
 
-// Extract color values for StyleSheet.create() to avoid runtime resolution issues
+// extraire les couleurs en const : StyleSheet.create() les resoud au mount,
+// pas a chaque render.
 const TEXT_LIGHT_COLOR = colors.text.light;
 const BACKGROUND_PRIMARY_COLOR = colors.background.primary;
 
@@ -124,9 +123,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     return { uri: undefined, mediaId: undefined };
   }, [uri]);
 
-  // Reset the local error flag whenever the source changes — otherwise an
-  // earlier failure would mask a fresh URI for the same component instance
-  // (e.g. ConversationItem re-using the same Avatar across rerenders).
+  // reset du flag d'erreur quand la source change : sinon un ancien echec
+  // masque une nouvelle URI valide pour la meme instance (cf. ConversationItem
+  // qui reutilise Avatar entre re-renders).
   const candidateKey = effectiveCandidate.mediaId ?? effectiveCandidate.uri;
   const lastCandidateKeyRef = React.useRef(candidateKey);
   if (lastCandidateKeyRef.current !== candidateKey) {
@@ -134,9 +133,9 @@ export const Avatar: React.FC<AvatarProps> = ({
     setImageError(false);
   }
 
-  // Route every /media/v1/<id>/blob (or /thumbnail) URL through the shared
-  // resolver hook so we never hand an unauthenticated URL to <Image>. Plain
-  // https / data / file URIs are passed through unchanged by the hook.
+  // toute URL /media/v1/<id>/blob (ou /thumbnail) passe par le hook resolver
+  // pour eviter de filer une URL non auth a <Image>. Les URIs https / data /
+  // file sont retournees telles quelles par le hook.
   const { resolvedUri, loading, error } = useResolvedMediaUrl(
     effectiveCandidate.uri,
   );
