@@ -1,4 +1,4 @@
-import { isReachableUrl } from "./src/utils/urlFilters";
+import { isHttpUrl, isReachableUrl } from "./src/utils/urlFilters";
 
 describe("isReachableUrl", () => {
   it("returns false for undefined", () => {
@@ -49,5 +49,44 @@ describe("isReachableUrl", () => {
 
   it("accepts http URLs that do not match the blocked patterns", () => {
     expect(isReachableUrl("http://cdn.example.com/avatar.png")).toBe(true);
+  });
+});
+
+describe("isHttpUrl", () => {
+  it("accepts https URLs", () => {
+    expect(isHttpUrl("https://example.com")).toBe(true);
+  });
+
+  it("accepts http URLs", () => {
+    expect(isHttpUrl("http://example.com")).toBe(true);
+  });
+
+  it("rejects javascript: scheme", () => {
+    expect(isHttpUrl("javascript:alert(1)")).toBe(false);
+  });
+
+  it("rejects intent: scheme used by Android attacks", () => {
+    expect(isHttpUrl("intent://example#Intent;scheme=http;end")).toBe(false);
+  });
+
+  it("rejects file: scheme", () => {
+    expect(isHttpUrl("file:///etc/passwd")).toBe(false);
+  });
+
+  it("rejects data: scheme", () => {
+    expect(isHttpUrl("data:text/html,<script>alert(1)</script>")).toBe(false);
+  });
+
+  it("rejects malformed input", () => {
+    expect(isHttpUrl("not a url")).toBe(false);
+  });
+
+  it("rejects null and undefined", () => {
+    expect(isHttpUrl(null)).toBe(false);
+    expect(isHttpUrl(undefined)).toBe(false);
+  });
+
+  it("rejects empty string", () => {
+    expect(isHttpUrl("")).toBe(false);
   });
 });
