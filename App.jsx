@@ -105,6 +105,19 @@ export default function App() {
       html.style.height = "100%";
       body.style.height = "100%";
       body.style.overflow = "hidden";
+
+      // WHISPR-1342 - le wrapper `Card` du Stack.Navigator (react-navigation/stack
+      // sans react-native-screens) compile en `min-height: 100%` + `flex: 0 0 auto`
+      // sur web. Du coup tout ecran avec FlatList/ScrollView grandit a la hauteur
+      // de son contenu au lieu d'etre borne au viewport, et le scroll interne ne
+      // se declenche jamais. Le combo de classes `.r-2llsf.r-12vffkv` (min-height:
+      // 100% + pointer-events: none !important) est unique a ce wrapper, on peut
+      // donc le rebrancher en `min-height: 0; flex: 1` sans casser le reste.
+      const stackFix = document.createElement("style");
+      stackFix.id = "whispr-stack-card-fix";
+      stackFix.textContent =
+        ".r-2llsf.r-12vffkv{min-height:0!important;flex:1 1 0%!important;}";
+      document.head.appendChild(stackFix);
     }
   }, []);
 
