@@ -25,6 +25,7 @@ jest.mock('./src/context/ThemeContext', () => ({
     }),
     getFontSize: () => 16,
     getLocalizedText: (key: string) => key,
+    settings: { language: 'fr' },
   }),
 }));
 jest.mock('./src/components/Chat/Avatar', () => ({ Avatar: () => null }));

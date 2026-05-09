@@ -2629,7 +2629,13 @@ export const ChatScreen: React.FC = () => {
               style={styles.notContactBannerButton}
             >
               {addingContact ? (
-                <ActivityIndicator size="small" color={colors.text.light} />
+                // wrapper pour annoncer l'etat busy au screen reader
+                <View
+                  accessibilityState={{ busy: true }}
+                  accessibilityLiveRegion="polite"
+                >
+                  <ActivityIndicator size="small" color={colors.text.light} />
+                </View>
               ) : (
                 <Text style={styles.notContactBannerButtonText}>Ajouter</Text>
               )}
@@ -2690,7 +2696,11 @@ export const ChatScreen: React.FC = () => {
               }
               ListFooterComponent={
                 loadingMore ? (
-                  <View style={styles.loadingMore}>
+                  <View
+                    style={styles.loadingMore}
+                    accessibilityState={{ busy: true }}
+                    accessibilityLiveRegion="polite"
+                  >
                     <ActivityIndicator
                       size="small"
                       color={themeColors.primary}

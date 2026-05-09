@@ -125,6 +125,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           }
         }}
         style={styles.backButton}
+        // hitSlop pour respecter iOS HIG 44pt
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
         accessibilityRole="button"
         accessibilityLabel="Retour"
       >
@@ -196,6 +198,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               styles.actionButton,
               !callsAvailable && styles.actionButtonDisabled,
             ]}
+            // hitSlop pour respecter iOS HIG 44pt
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             accessibilityRole="button"
             accessibilityLabel="Lancer un appel"
           >
