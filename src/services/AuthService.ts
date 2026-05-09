@@ -3,6 +3,7 @@ import { DeviceService } from "./DeviceService";
 import { SignalKeyService } from "./SignalKeyService";
 import { getApiBaseUrl } from "./apiBase";
 import { emitSessionExpired } from "./sessionEvents";
+import { logger } from "../utils/logger";
 
 // NotificationService.handle401 appelle AuthService.refreshTokens : un
 // import statique réciproque crée un cycle module qui, sous Hermes /
@@ -211,8 +212,9 @@ export const AuthService = {
             sessionDead = true;
             await TokenService.clearTokens();
             emitSessionExpired("refresh_failed");
-            console.warn(
-              "[AuthService] tokens cleared, sessionExpired event emitted",
+            logger.warn(
+              "AuthService",
+              "tokens cleared, sessionExpired event emitted",
             );
           } else if (isTransientFailure(status)) {
             // 5xx or network — auth-service is unreachable, not refusing.
@@ -221,10 +223,10 @@ export const AuthService = {
               // Stop hammering — declare unreachable and bounce the user.
               sessionDead = true;
               emitSessionExpired("auth_unreachable");
-              console.warn(
-                "[AuthService] auth-service unreachable after",
-                consecutiveTransientFailures,
-                "attempts; sessionExpired emitted",
+              logger.warn(
+                "AuthService",
+                "auth-service unreachable; sessionExpired emitted",
+                { attempts: consecutiveTransientFailures },
               );
             } else {
               // Exponential backoff: 1 s, 2 s, 4 s.
@@ -284,7 +286,7 @@ export const AuthService = {
         ),
       ]);
     } catch (err) {
-      console.warn("[AuthService] unregisterDevice failed:", err);
+      logger.warn("AuthService", "unregisterDevice failed", err);
     }
     notif.tearDownPushRegistration();
 

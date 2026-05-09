@@ -7,6 +7,7 @@ import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
 import { getApiBaseUrl } from "./apiBase";
 import { normalizeUsername } from "../utils";
+import { logger } from "../utils/logger";
 
 // Types
 export interface UserVisualPreferences {
@@ -254,7 +255,7 @@ export class UserService {
       }
       return { success: true };
     } catch (error) {
-      console.warn("[UserService] bootstrapAccount failed:", error);
+      logger.warn("UserService", "bootstrapAccount failed", error);
       return { success: false, message: "bootstrap failed" };
     }
   }
@@ -270,29 +271,23 @@ export class UserService {
     message?: string;
   }> {
     try {
-      console.log("[PDP-DEBUG][UserService] getProfile → GET /profile/me");
+      logger.debug("PDP-UserService", "getProfile → GET /profile/me");
       const response = await this.authFetch("/profile/me");
 
       if (!response.ok) {
-        console.log(
-          "[PDP-DEBUG][UserService] getProfile ← HTTP",
-          response.status,
-        );
+        logger.debug("PDP-UserService", "getProfile ← HTTP", response.status);
         return { success: false, message: `Erreur ${response.status}` };
       }
 
       const data = await response.json().catch(() => null);
-      console.log(
-        "[PDP-DEBUG][UserService] getProfile ← 200 profilePictureUrl:",
-        data?.profilePictureUrl,
-        "raw keys:",
-        data ? Object.keys(data) : null,
-      );
+      logger.debug("PDP-UserService", "getProfile ← 200", {
+        profilePictureUrl: data?.profilePictureUrl,
+        rawKeys: data ? Object.keys(data) : null,
+      });
       const profile = this.normalizeProfile(data);
-      console.log(
-        "[PDP-DEBUG][UserService] getProfile normalized.profilePicture:",
-        profile?.profilePicture,
-      );
+      logger.debug("PDP-UserService", "getProfile normalized", {
+        profilePicture: profile?.profilePicture,
+      });
       return profile
         ? { success: true, profile }
         : { success: false, message: "Profil invalide reçu du serveur" };
@@ -316,26 +311,25 @@ export class UserService {
       if (!token) return { success: false, message: "Non authentifié" };
 
       const url = `${this.baseUrl}/profile/${encodeURIComponent(userId)}`;
-      console.log("[PDP-DEBUG][UserService] getUserProfile → GET", url);
+      logger.debug("PDP-UserService", "getUserProfile → GET", url);
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {
-        console.log(
-          "[PDP-DEBUG][UserService] getUserProfile ← HTTP",
+        logger.debug(
+          "PDP-UserService",
+          "getUserProfile ← HTTP",
           response.status,
         );
         return { success: false, message: `Erreur ${response.status}` };
       }
 
       const data = await response.json().catch(() => null);
-      console.log(
-        "[PDP-DEBUG][UserService] getUserProfile ← 200 id:",
-        data?.id,
-        "profilePictureUrl:",
-        data?.profilePictureUrl,
-      );
+      logger.debug("PDP-UserService", "getUserProfile ← 200", {
+        id: data?.id,
+        profilePictureUrl: data?.profilePictureUrl,
+      });
       if (data && data.profilePictureUrl && !data.profilePicture) {
         data.profilePicture = data.profilePictureUrl;
       }
@@ -358,8 +352,9 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      console.log(
-        "[PDP-DEBUG][UserService] updateProfile → PATCH /profile/{userId} payload:",
+      logger.debug(
+        "PDP-UserService",
+        "updateProfile → PATCH /profile/{userId} payload",
         profileData,
       );
       const response = await this.authFetch("/profile/{userId}", {
@@ -373,26 +368,22 @@ export class UserService {
           response,
           `Erreur ${response.status}`,
         );
-        console.log(
-          "[PDP-DEBUG][UserService] updateProfile ← HTTP",
-          response.status,
+        logger.debug("PDP-UserService", "updateProfile ← HTTP", {
+          status: response.status,
           msg,
-        );
+        });
         return { success: false, message: msg };
       }
 
       const data = await response.json().catch(() => null);
-      console.log(
-        "[PDP-DEBUG][UserService] updateProfile ← 200 raw:",
-        data,
-        "profilePictureUrl:",
-        data?.profilePictureUrl,
-      );
+      logger.debug("PDP-UserService", "updateProfile ← 200", {
+        raw: data,
+        profilePictureUrl: data?.profilePictureUrl,
+      });
       const normalized = this.normalizeProfile(data);
-      console.log(
-        "[PDP-DEBUG][UserService] updateProfile normalized.profilePicture:",
-        normalized?.profilePicture,
-      );
+      logger.debug("PDP-UserService", "updateProfile normalized", {
+        profilePicture: normalized?.profilePicture,
+      });
       return {
         success: true,
         message: "Profil mis à jour avec succès",
