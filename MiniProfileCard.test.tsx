@@ -2,6 +2,7 @@ import React from "react";
 import { render, waitFor, act, fireEvent } from "@testing-library/react-native";
 import { MiniProfileCard } from "./src/components/Profile/MiniProfileCard";
 import { clearCache } from "./src/services/profile/miniProfileCache";
+import { clearRelationCache } from "./src/services/profile/miniRelationCache";
 
 const mockGetUserProfile = jest.fn();
 jest.mock("./src/services/UserService", () => ({
@@ -40,6 +41,7 @@ const buildProfile = (overrides = {}) => ({
 
 beforeEach(() => {
   clearCache();
+  clearRelationCache();
   mockGetUserProfile.mockReset();
   mockGetBlockedUsers.mockReset().mockResolvedValue({ blocked: [], total: 0 });
   mockGetContacts.mockReset().mockResolvedValue({ contacts: [], total: 0 });
@@ -177,5 +179,98 @@ describe("MiniProfileCard", () => {
       fireEvent.press(getByText("Message"));
     });
     expect(onMessage).toHaveBeenCalled();
+  });
+
+  it("renders the stale banner when refresh fails but cache exists", async () => {
+    const realNow = Date.now;
+    Date.now = jest.fn(() => 1_000_000_000_000);
+
+    // 1er fetch reussi -> remplit le cache
+    mockGetUserProfile.mockResolvedValueOnce({
+      success: true,
+      profile: buildProfile(),
+    });
+    const first = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    await waitFor(() => first.getByTestId("mini-profile-card-loaded"));
+    first.unmount();
+
+    // avance le temps de 6 minutes : le cache devient stale
+    Date.now = jest.fn(() => 1_000_000_000_000 + 6 * 60 * 1000);
+
+    // 2eme rendu : cache hit stale + refresh echoue -> banner stale visible
+    mockGetUserProfile.mockRejectedValueOnce(new Error("network down"));
+    const view = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    await waitFor(() => view.getByTestId("mini-profile-card-stale"));
+    expect(view.getByText("Donnees possiblement obsoletes")).toBeTruthy();
+    expect(view.getByText("Reessayer")).toBeTruthy();
+    Date.now = realNow;
+  });
+
+  it("hides the last seen line when backend returns no value", async () => {
+    mockGetUserProfile.mockResolvedValue({
+      success: true,
+      profile: buildProfile({ isOnline: false, lastSeen: undefined }),
+    });
+    const { queryByText, getByTestId } = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    await waitFor(() => getByTestId("mini-profile-card-loaded"));
+    expect(queryByText("en ligne")).toBeNull();
+    expect(queryByText(/vu /)).toBeNull();
+  });
+
+  it("does not warn when unmounted before fetch resolves", async () => {
+    let resolveProfile: (v: unknown) => void = () => {};
+    mockGetUserProfile.mockReturnValue(
+      new Promise((res) => {
+        resolveProfile = res;
+      }),
+    );
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const { unmount } = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    unmount();
+    await act(async () => {
+      resolveProfile({ success: true, profile: buildProfile() });
+      await Promise.resolve();
+    });
+    const calls = errorSpy.mock.calls.map((c) => String(c[0]));
+    expect(
+      calls.some((m) => m.includes("unmounted") || m.includes("memory leak")),
+    ).toBe(false);
+    errorSpy.mockRestore();
   });
 });

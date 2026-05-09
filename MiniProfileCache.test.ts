@@ -64,4 +64,17 @@ describe("miniProfileCache", () => {
     expect(getCached("u0")).not.toBeNull();
     expect(getCached("u1")).toBeNull();
   });
+
+  it("never exceeds the max size even with rapid burst inserts", () => {
+    for (let i = 0; i < 200; i++) setCached(`u${i}`, baseProfile(`u${i}`));
+    expect(_internalSize()).toBeLessThanOrEqual(50);
+  });
+
+  it("keeps store bounded when updating an existing key", () => {
+    for (let i = 0; i < 50; i++) setCached(`u${i}`, baseProfile(`u${i}`));
+    expect(_internalSize()).toBe(50);
+    // update d'une cle existante : le size doit rester a 50
+    setCached("u10", baseProfile("u10"));
+    expect(_internalSize()).toBe(50);
+  });
 });
