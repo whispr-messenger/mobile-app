@@ -72,6 +72,9 @@ import { filterAndSortContacts } from "../../utils/contactsFilter";
 
 declare module "@expo/vector-icons";
 
+// hauteur d'une row ContactItem (avatar 52 + padding vertical 14*2 + marginBottom 12)
+const CONTACT_ITEM_HEIGHT = 98;
+
 export const ContactsScreen: React.FC = () => {
   const navigation =
     useNavigation<StackNavigationProp<AuthStackParamList, "Contacts">>();
@@ -289,6 +292,16 @@ export const ContactsScreen: React.FC = () => {
   );
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
+
+  // hauteur fixe d'une ContactItem (avatar 52 + padding 14*2 + marginBottom 12)
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<Contact> | null | undefined, index: number) => ({
+      length: CONTACT_ITEM_HEIGHT,
+      offset: CONTACT_ITEM_HEIGHT * index,
+      index,
+    }),
+    [],
+  );
 
   return (
     <LinearGradient
@@ -647,6 +660,7 @@ export const ContactsScreen: React.FC = () => {
             data={filteredContacts}
             renderItem={renderContact}
             keyExtractor={keyExtractor}
+            getItemLayout={getItemLayout}
             style={styles.list}
             showsVerticalScrollIndicator={Platform.OS === "web"}
             refreshControl={
