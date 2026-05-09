@@ -6,8 +6,48 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ExpoCrypto from "expo-crypto";
+import { storage } from "./storage";
 
 const QUEUE_KEY = "whispr.offline.message.queue";
+
+// WHISPR-1359 — migration douce AsyncStorage → SecureStore. Sur Android
+// rooté ou backup ADB non chiffré, lire les messages texte en clair depuis
+// AsyncStorage etait possible. On bascule sur SecureStore (Keychain iOS /
+// Keystore Android, encrypted localStorage sur web via storage.web.ts).
+// Au premier read d'une session, si SecureStore est vide on regarde encore
+// AsyncStorage pour migrer les users existants, puis on purge la cle legacy.
+let migrationDone = false;
+
+async function migrateLegacyQueue(): Promise<void> {
+  if (migrationDone) return;
+  try {
+    const secureRaw = await storage.getItem(QUEUE_KEY);
+    if (secureRaw !== null) {
+      migrationDone = true;
+      return;
+    }
+    const legacyRaw = await AsyncStorage.getItem(QUEUE_KEY);
+    if (legacyRaw === null) {
+      migrationDone = true;
+      return;
+    }
+    await storage.setItem(QUEUE_KEY, legacyRaw);
+    await AsyncStorage.removeItem(QUEUE_KEY);
+    migrationDone = true;
+  } catch {
+    // Swallow — la migration est best-effort. On ne marque pas migrationDone
+    // pour que la prochaine lecture re-essaie.
+  }
+}
+
+/**
+ * Reset the migration latch. Test-only helper so each test starts with a
+ * fresh process state (the in-memory `migrationDone` flag would otherwise
+ * leak across `it` blocks).
+ */
+export const __resetMigrationForTests = (): void => {
+  migrationDone = false;
+};
 
 export interface QueuedMessage {
   id: string; // temp id (temp-{timestamp}-{random})
@@ -65,7 +105,8 @@ export interface DrainResult {
 export const offlineQueue = {
   async getAll(): Promise<QueuedMessage[]> {
     try {
-      const raw = await AsyncStorage.getItem(QUEUE_KEY);
+      await migrateLegacyQueue();
+      const raw = await storage.getItem(QUEUE_KEY);
       if (!raw) return [];
       return JSON.parse(raw) as QueuedMessage[];
     } catch {
@@ -83,10 +124,7 @@ export const offlineQueue = {
         ...message,
         client_message_id: message.client_message_id ?? generateUUID(),
       };
-      await AsyncStorage.setItem(
-        QUEUE_KEY,
-        JSON.stringify([...current, persisted]),
-      );
+      await storage.setItem(QUEUE_KEY, JSON.stringify([...current, persisted]));
     } catch (error) {
       console.error("[offlineQueue] enqueue error:", error);
     }
@@ -95,7 +133,7 @@ export const offlineQueue = {
   async remove(clientRandom: number): Promise<void> {
     try {
       const current = await this.getAll();
-      await AsyncStorage.setItem(
+      await storage.setItem(
         QUEUE_KEY,
         JSON.stringify(current.filter((m) => m.client_random !== clientRandom)),
       );
@@ -106,7 +144,7 @@ export const offlineQueue = {
 
   async clearAll(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(QUEUE_KEY);
+      await storage.deleteItem(QUEUE_KEY);
     } catch (error) {
       console.error("[offlineQueue] clearAll error:", error);
     }
