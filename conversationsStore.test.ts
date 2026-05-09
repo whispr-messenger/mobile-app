@@ -1635,3 +1635,81 @@ describe("conversationsStore — markAsUnread API call (WHISPR-1302)", () => {
     expect(state.manuallyUnreadIds.has("c-fail")).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// enrichSingleConversation — fallback chain (WHISPR-1423)
+// ---------------------------------------------------------------------------
+// le user profile peut etre masque par privacy CONTACTS : display_name vide
+// mais username ou phone_number_masked encore exposes. on doit propager ce
+// qui reste pour eviter "Utilisateur" en clair dans la liste des DM.
+
+describe("conversationsStore — enrichSingleConversation fallback (WHISPR-1423)", () => {
+  beforeEach(() => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+  });
+
+  it("propage username quand display_name est vide", async () => {
+    const conv = makeConv("c-1", {
+      display_name: undefined,
+      avatar_url: undefined,
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "",
+      username: "ada",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.username).toBe("ada");
+  });
+
+  it("propage phone_number_masked quand display_name et username sont vides", async () => {
+    const conv = makeConv("c-2", {
+      display_name: undefined,
+      avatar_url: undefined,
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "",
+      username: undefined,
+      phone_number_masked: "+33 6 ** ** 64 12",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.phone_number).toBe("+33 6 ** ** 64 12");
+  });
+
+  it("ne touche pas a la conversation si tout est vide cote profil", async () => {
+    const conv = makeConv("c-3", {
+      display_name: undefined,
+      avatar_url: undefined,
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "",
+      username: undefined,
+      phone_number_masked: undefined,
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBeUndefined();
+    expect(stored.username).toBeUndefined();
+    expect(stored.phone_number).toBeUndefined();
+  });
+});

@@ -193,6 +193,10 @@ type CachedUserInfo = {
   id: string;
   display_name: string;
   username?: string;
+  // numero masque expose par le backend pour les contacts non-self
+  // (ex: "+33 6 ** ** 64 12") - sert de fallback dans la chaine d'affichage
+  // quand display_name + username sont vides cf WHISPR-1423
+  phone_number_masked?: string;
   avatar_url?: string;
 };
 
@@ -234,8 +238,17 @@ function normalizeRawUserInfo(user: any): CachedUserInfo | null {
   const firstName = user.firstName || user.first_name || "";
   const lastName = user.lastName || user.last_name || "";
   const phoneNumber = user.phoneNumber || user.phone_number || "";
+  // forward-compat avec PR user-service #1430 (champ phoneNumberMasked
+  // expose pour les contacts non-self apres privacy CONTACTS)
+  const phoneNumberMasked =
+    user.phoneNumberMasked || user.phone_number_masked || "";
   const fullName = `${firstName} ${lastName}`.trim();
-  const displayName = fullName || user.username || phoneNumber || "Utilisateur";
+  const displayName =
+    fullName ||
+    user.username ||
+    phoneNumber ||
+    phoneNumberMasked ||
+    "Utilisateur";
   const avatarUrl =
     user.profilePictureUrl ||
     user.profile_picture_url ||
@@ -248,6 +261,7 @@ function normalizeRawUserInfo(user: any): CachedUserInfo | null {
     id,
     display_name: displayName,
     username: user.username,
+    phone_number_masked: phoneNumberMasked || undefined,
     avatar_url: avatarUrl,
   };
 }
