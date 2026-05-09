@@ -201,11 +201,9 @@ export const AuthService = {
           cooldownUntil = 0;
         } catch (err) {
           const status = (err as { status?: number })?.status;
-          console.error(
-            "[AuthService] refreshTokens failed, status=",
-            status,
-            err,
-          );
+          // ne pas logger `err` brut : le body peut contenir le refresh_token
+          // ou un autre secret renvoye par auth-service en cas d'erreur.
+          logger.warn("AuthService", "refreshTokens failed", { status });
 
           if (status === 401 || status === 403) {
             // Auth said "no" — session genuinely dead.

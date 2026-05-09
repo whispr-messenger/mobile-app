@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 import type { MessageLinkPreview } from "../../types/messaging";
-import { isReachableUrl } from "../../utils";
+import { isHttpUrl, isReachableUrl } from "../../utils";
 
 interface LinkPreviewCardProps {
   preview: MessageLinkPreview;
@@ -26,11 +26,18 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({
   const themeColors = getThemeColors();
 
   const handleOpen = useCallback(async () => {
+    const url = preview.canonicalUrl || preview.url;
+    // ne jamais faire confiance au backend sur l'URL : un schema autre
+    // que http(s) (ex: javascript:, intent:, file:) ouvrirait un vecteur
+    // d'execution arbitraire cote client.
+    if (!isHttpUrl(url)) return;
     try {
-      await Linking.openURL(preview.canonicalUrl || preview.url);
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) return;
+      await Linking.openURL(url);
     } catch {
-      // Ignore open failures — keeping the chat interaction resilient matters
-      // more than surfacing a noisy warning.
+      // URL invalide ou ouverture impossible : on garde le chat utilisable
+      // plutot que de remonter un warning bruyant.
     }
   }, [preview.canonicalUrl, preview.url]);
 

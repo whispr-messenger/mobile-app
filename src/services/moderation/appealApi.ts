@@ -3,10 +3,11 @@ import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
 
 /**
- * Données fictives — flux contestation sans appel API réel.
- * TODO(retirer): passer à `false` ou supprimer ce bloc quand POST /moderation/appeal est OK en preprod.
+ * Donnees fictives - flux contestation sans appel API reel quand on tourne
+ * en dev local sans backend moderation up. En preprod / prod, __DEV__ est
+ * false, on tape donc directement le vrai endpoint.
  */
-export const MOCK_MODERATION_APPEAL_SUCCESS = __DEV__ && true;
+export const MOCK_MODERATION_APPEAL_SUCCESS = __DEV__;
 
 const mockDelayMs = 600;
 
