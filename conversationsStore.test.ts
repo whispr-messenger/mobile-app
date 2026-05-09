@@ -18,6 +18,7 @@ jest.mock("./src/services/messaging/api", () => ({
     deleteConversation: jest.fn().mockResolvedValue(undefined),
     archiveConversation: jest.fn().mockResolvedValue(undefined),
     unarchiveConversation: jest.fn().mockResolvedValue(undefined),
+    markMessageAsUnread: jest.fn().mockResolvedValue(undefined),
     getArchivedConversations: jest.fn().mockResolvedValue({
       data: [],
       meta: {
@@ -1455,5 +1456,182 @@ describe("conversationsStore — applyMessageDeleted (WHISPR-1299 user channel f
       .getState()
       .conversations.find((c) => c.id === "g3");
     expect(conv?.last_message?.is_deleted).toBe(false);
+  });
+});
+
+describe("conversationsStore — applyMessageUnread (WHISPR-1302)", () => {
+  function seedWithReadStatus(convId: string, messageId: string) {
+    const conv = {
+      id: convId,
+      type: "direct",
+      display_name: "Alice",
+      avatar_url: null,
+      member_user_ids: ["other", "me"],
+      last_message: {
+        id: messageId,
+        conversation_id: convId,
+        sender_id: "me",
+        message_type: "text",
+        content: "salut",
+        metadata: {},
+        client_random: 1,
+        sent_at: "2026-04-21T10:00:00Z",
+        is_deleted: false,
+        status: "read",
+      },
+      unread_count: 0,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-21T10:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<
+        typeof useConversationsStore.getState
+      >["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  it("revert le status read en delivered sur la preview last_message", () => {
+    seedWithReadStatus("c-rr", "m-rr-1");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageUnread({
+        messageId: "m-rr-1",
+        conversationId: "c-rr",
+      });
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-rr");
+    expect(conv?.last_message?.status).toBe("delivered");
+  });
+
+  it("ne touche pas une conversation inconnue", () => {
+    seedWithReadStatus("c-rr", "m-rr-1");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageUnread({
+        messageId: "m-rr-1",
+        conversationId: "c-other",
+      });
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-rr");
+    expect(conv?.last_message?.status).toBe("read");
+  });
+
+  it("ne touche pas si le message id ne match pas le last_message", () => {
+    seedWithReadStatus("c-rr", "m-rr-1");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageUnread({
+        messageId: "m-other",
+        conversationId: "c-rr",
+      });
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-rr");
+    expect(conv?.last_message?.status).toBe("read");
+  });
+});
+
+describe("conversationsStore — markAsUnread API call (WHISPR-1302)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { messagingAPI } = require("./src/services/messaging/api") as {
+    messagingAPI: { markMessageAsUnread: jest.Mock };
+  };
+
+  function seedConversation(convId: string, lastMessageId?: string) {
+    const conv = {
+      id: convId,
+      type: "direct",
+      display_name: "Alice",
+      avatar_url: null,
+      member_user_ids: ["other", "me"],
+      last_message: lastMessageId
+        ? {
+            id: lastMessageId,
+            conversation_id: convId,
+            sender_id: "other",
+            message_type: "text",
+            content: "salut",
+            metadata: {},
+            client_random: 1,
+            sent_at: "2026-04-21T10:00:00Z",
+            is_deleted: false,
+          }
+        : undefined,
+      unread_count: 0,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-21T10:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<
+        typeof useConversationsStore.getState
+      >["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  beforeEach(() => {
+    messagingAPI.markMessageAsUnread.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("appelle messagingAPI.markMessageAsUnread avec le last message id", async () => {
+    seedConversation("c-mu", "m-mu-1");
+
+    await act(async () => {
+      await useConversationsStore.getState().markAsUnread("c-mu");
+    });
+
+    expect(messagingAPI.markMessageAsUnread).toHaveBeenCalledWith(
+      "m-mu-1",
+      "c-mu",
+    );
+    const state = useConversationsStore.getState();
+    expect(state.manuallyUnreadIds.has("c-mu")).toBe(true);
+    const conv = state.conversations.find((c) => c.id === "c-mu");
+    expect(conv?.unread_count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("skip l API call quand la conversation n a pas de last_message", async () => {
+    seedConversation("c-empty");
+
+    await act(async () => {
+      await useConversationsStore.getState().markAsUnread("c-empty");
+    });
+
+    expect(messagingAPI.markMessageAsUnread).not.toHaveBeenCalled();
+    expect(
+      useConversationsStore.getState().manuallyUnreadIds.has("c-empty"),
+    ).toBe(true);
+  });
+
+  it("rollback l etat local si l API call echoue", async () => {
+    seedConversation("c-fail", "m-fail-1");
+    messagingAPI.markMessageAsUnread.mockRejectedValueOnce(
+      new Error("network fail"),
+    );
+
+    await act(async () => {
+      await useConversationsStore.getState().markAsUnread("c-fail");
+    });
+
+    expect(messagingAPI.markMessageAsUnread).toHaveBeenCalled();
+    const state = useConversationsStore.getState();
+    expect(state.manuallyUnreadIds.has("c-fail")).toBe(false);
   });
 });
