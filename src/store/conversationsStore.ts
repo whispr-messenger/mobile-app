@@ -67,12 +67,21 @@ async function enrichSingleConversation(
     }
 
     const userInfo = await messagingAPI.getUserInfo(otherUserId);
-    if (userInfo?.display_name) {
+    // fallback chain robuste pour eviter "Utilisateur" affiche en clair
+    // quand le profil est masque par privacy CONTACTS (display_name vide
+    // mais username ou phone_number_masked presents) cf WHISPR-1423
+    const userPhoneMasked = (userInfo as any)?.phone_number_masked;
+    if (
+      userInfo?.display_name ||
+      (userInfo as any)?.username ||
+      userPhoneMasked
+    ) {
       return {
         ...conv,
-        display_name: userInfo.display_name,
-        username: (userInfo as any).username ?? conv.username,
-        avatar_url: userInfo.avatar_url || conv.avatar_url,
+        display_name: userInfo?.display_name || conv.display_name,
+        username: (userInfo as any)?.username ?? conv.username,
+        phone_number: userPhoneMasked ?? conv.phone_number,
+        avatar_url: userInfo?.avatar_url || conv.avatar_url,
         member_user_ids: memberIds,
       };
     }
