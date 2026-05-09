@@ -10,6 +10,20 @@ import { logger } from "../utils/logger";
 // Short grace period: absorbs transient empty fetches (e.g. first WS payload
 // arriving just after an HTTP fetch returns []) without flashing an empty UI.
 const EMPTY_STATE_GRACE_PERIOD_MS = 2_000;
+
+/**
+ * Valeurs sentinelles que le messaging-service injecte quand la resolution du
+ * profil echoue cote backend. Ces valeurs NE doivent PAS bloquer l enrichment
+ * cote frontend - elles doivent etre traitees comme "absent" dans les gardes
+ * early-return de enrichSingleConversation et enrichWithDisplayNames.
+ * cf WHISPR-1426 : "Utilisateur" faux positif bloque l early-return.
+ */
+const SENTINEL_DISPLAY_NAMES = new Set(["Utilisateur", "User"]);
+
+function isEnrichedDisplayName(value: string | undefined | null): boolean {
+  if (!value) return false;
+  return !SENTINEL_DISPLAY_NAMES.has(value.trim());
+}
 const MANUALLY_UNREAD_KEY = "@whispr/manually_unread_ids";
 const RECENT_MESSAGE_IDS_MAX = 50;
 const recentMessageIdsByConversation = new Map<string, string[]>();
@@ -37,7 +51,10 @@ async function enrichSingleConversation(
   conv: Conversation,
   currentUserId: string,
 ): Promise<Conversation> {
-  if (conv.type !== "direct" || (conv.display_name && conv.avatar_url)) {
+  if (
+    conv.type !== "direct" ||
+    (isEnrichedDisplayName(conv.display_name) && conv.avatar_url)
+  ) {
     return conv;
   }
 
@@ -108,7 +125,7 @@ async function enrichWithDisplayNames(
   const otherIdsToWarmup = new Set<string>();
   for (const conv of conversations) {
     if (conv.type !== "direct") continue;
-    if (conv.display_name && conv.avatar_url) continue;
+    if (isEnrichedDisplayName(conv.display_name) && conv.avatar_url) continue;
     const memberIds = conv.member_user_ids;
     if (!memberIds || memberIds.length === 0) continue;
     const other = memberIds.find((id: string) => id && id !== currentUserId);
@@ -326,7 +343,8 @@ export const useConversationsStore = create<
       next = [conversation, ...conversations];
       needsEnrichment =
         conversation.type === "direct" &&
-        (!conversation.display_name || !conversation.avatar_url);
+        (!isEnrichedDisplayName(conversation.display_name) ||
+          !conversation.avatar_url);
     } else {
       // Preserve display_name from existing conversation if the update doesn't include one
       const existing = conversations[index];
@@ -422,7 +440,8 @@ export const useConversationsStore = create<
     // Async enrichment for any conversations without display_name
     const needEnrichment = merged.filter(
       (c: Conversation) =>
-        c.type === "direct" && (!c.display_name || !c.avatar_url),
+        c.type === "direct" &&
+        (!isEnrichedDisplayName(c.display_name) || !c.avatar_url),
     );
     if (needEnrichment.length > 0) {
       getCurrentUserId().then((userId) => {
