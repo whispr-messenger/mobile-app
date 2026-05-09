@@ -51,10 +51,18 @@ export const storage = {
         const wrapped = await wrap(value);
         localStorage.setItem(key, wrapped);
         return;
-      } catch {
-        // IndexedDB / SubtleCrypto unavailable (e.g. private mode). Fall back
-        // to plaintext rather than blocking the write — that matches the
-        // behaviour before this fix, so we never regress functionality.
+      } catch (error) {
+        // IndexedDB / SubtleCrypto indisponible (Safari mode privé, vieux
+        // navigateurs sans IDB, Firefox restrictif). Fail-closed sur les
+        // cles sensibles (cle d'identite Signal, tokens auth, queue offline)
+        // pour eviter qu'un XSS exfiltre des secrets via localStorage.
+        // Le caller doit catch et proposer un parcours user-friendly
+        // (logout / re-enrollment / "rouvrez hors mode privé").
+        throw new Error(
+          `[storage.web] crypto vault unavailable, refusing to persist sensitive key "${key}" in plaintext: ${
+            (error as Error)?.message ?? error
+          }`,
+        );
       }
     }
     localStorage.setItem(key, value);

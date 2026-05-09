@@ -100,4 +100,50 @@ describe("storage.web (secure key handling)", () => {
     await storage.deleteItem(IDENTITY_KEY);
     expect(localStorage.getItem(IDENTITY_KEY)).toBeNull();
   });
+
+  describe("fail-closed when crypto vault is unavailable (WHISPR-1366)", () => {
+    let originalSubtle: SubtleCrypto | undefined;
+
+    beforeEach(() => {
+      originalSubtle = (globalThis.crypto as Crypto | undefined)?.subtle;
+    });
+
+    afterEach(() => {
+      if (originalSubtle && globalThis.crypto) {
+        Object.defineProperty(globalThis.crypto, "subtle", {
+          value: originalSubtle,
+          configurable: true,
+        });
+      }
+    });
+
+    function breakSubtleCrypto(): void {
+      Object.defineProperty(globalThis.crypto, "subtle", {
+        value: undefined,
+        configurable: true,
+      });
+    }
+
+    it("throws on setItem for a sensitive key when wrap fails", async () => {
+      breakSubtleCrypto();
+      await expect(
+        storage.setItem(IDENTITY_KEY, "must-not-leak"),
+      ).rejects.toThrow(/crypto vault unavailable/);
+      expect(localStorage.getItem(IDENTITY_KEY)).toBeNull();
+    });
+
+    it("throws on setItem for auth tokens when wrap fails", async () => {
+      breakSubtleCrypto();
+      await expect(
+        storage.setItem("whispr.auth.accessToken", "jwt-secret"),
+      ).rejects.toThrow(/crypto vault unavailable/);
+      expect(localStorage.getItem("whispr.auth.accessToken")).toBeNull();
+    });
+
+    it("still writes plaintext for non-sensitive keys", async () => {
+      breakSubtleCrypto();
+      await storage.setItem("whispr.misc.flag", "ok");
+      expect(localStorage.getItem("whispr.misc.flag")).toBe("ok");
+    });
+  });
 });
