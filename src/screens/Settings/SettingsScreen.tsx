@@ -36,6 +36,7 @@ import {
 } from "../../services/NotificationService";
 import { setReadReceiptsEnabled } from "../../services/messaging/readReceiptsPref";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+import { DangerConfirmModal } from "../../components/Common/DangerConfirmModal";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import {
   DEFAULT_MODERATION_MODEL,
@@ -94,6 +95,8 @@ export const SettingsScreen: React.FC = () => {
   const [selectedPrivacyItem, setSelectedPrivacyItem] = useState<string | null>(
     null,
   );
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // AsyncStorage keys
   const STORAGE_KEYS = {
@@ -591,15 +594,27 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleDeleteAccount = () => {
-    if (Platform.OS === "web") {
-      window.alert("Fonctionnalité à venir");
-      return;
+    setShowDeleteAccountModal(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    // l'endpoint /users/me delete cote backend n'est pas encore livre,
+    // on garde un placeholder mais l'UX du typed-confirm protege la future integration
+    setDeletingAccount(true);
+    try {
+      if (Platform.OS === "web") {
+        window.alert("Fonctionnalité à venir");
+      } else {
+        Alert.alert(
+          getLocalizedText("settings.deleteAccount"),
+          "Fonctionnalité à venir",
+          [{ text: "OK" }],
+        );
+      }
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteAccountModal(false);
     }
-    Alert.alert(
-      getLocalizedText("settings.deleteAccount"),
-      "Fonctionnalité à venir",
-      [{ text: "OK" }],
-    );
   };
 
   const backgroundPresetLabel =
@@ -1452,6 +1467,18 @@ export const SettingsScreen: React.FC = () => {
           layout="vertical"
         />
       )}
+
+      <DangerConfirmModal
+        visible={showDeleteAccountModal}
+        title={getLocalizedText("confirm.deleteAccount.title")}
+        description={getLocalizedText("confirm.deleteAccount.description")}
+        expectedText={getLocalizedText("confirm.expectedDelete")}
+        actionLabel={getLocalizedText("confirm.deleteAccount.action")}
+        actionVariant="destructive"
+        loading={deletingAccount}
+        onCancel={() => setShowDeleteAccountModal(false)}
+        onConfirm={confirmDeleteAccount}
+      />
     </LinearGradient>
   );
 };
