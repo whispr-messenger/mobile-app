@@ -979,23 +979,51 @@ export const useConversationsStore = create<
 
   markAsUnread: async (id) => {
     const { conversations, manuallyUnreadIds } = get();
+    const target = conversations.find((c) => c.id === id);
+    const lastMessageId = target?.last_message?.id;
+
+    // optimistic local update : ajoute au Set + bump unread_count, comme avant
     const nextIds = new Set(manuallyUnreadIds);
     nextIds.add(id);
+    const optimisticConvs = conversations.map((c) =>
+      c.id === id
+        ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) }
+        : c,
+    );
     set({
       manuallyUnreadIds: nextIds,
-      conversations: conversations.map((c) =>
-        c.id === id
-          ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) }
-          : c,
-      ),
+      conversations: optimisticConvs,
     });
+    AsyncStorage.setItem(
+      MANUALLY_UNREAD_KEY,
+      JSON.stringify([...nextIds]),
+    ).catch(() => {});
+
+    if (!lastMessageId) {
+      // pas de message a marquer cote backend (conv vide), on garde juste le
+      // flag local pour l affichage
+      return;
+    }
+
     try {
-      await AsyncStorage.setItem(
+      await messagingAPI.markMessageAsUnread(lastMessageId, id);
+    } catch (err) {
+      // rollback : retire le flag, restore unread_count
+      const { manuallyUnreadIds: currentIds, conversations: currentConvs } =
+        get();
+      const rolledBackIds = new Set(currentIds);
+      rolledBackIds.delete(id);
+      set({
+        manuallyUnreadIds: rolledBackIds,
+        conversations: currentConvs.map((c) =>
+          c.id === id ? { ...c, unread_count: target?.unread_count || 0 } : c,
+        ),
+      });
+      AsyncStorage.setItem(
         MANUALLY_UNREAD_KEY,
-        JSON.stringify([...nextIds]),
-      );
-    } catch {
-      // Storage write failed — local state is still correct for this session
+        JSON.stringify([...rolledBackIds]),
+      ).catch(() => {});
+      logger.warn("conversationsStore", "markAsUnread API failed", err);
     }
   },
 
