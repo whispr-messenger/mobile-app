@@ -47,6 +47,7 @@ import { useAuth } from "../../context/AuthContext";
 import { colors, withOpacity } from "../../theme/colors";
 import { typography } from "../../theme/typography";
 import { Avatar } from "../../components/Chat/Avatar";
+import { ProfileTrigger } from "../../components/Profile/ProfileTrigger";
 import { logger } from "../../utils/logger";
 import {
   groupsAPI,
@@ -1013,12 +1014,14 @@ export const GroupDetailsScreen: React.FC = () => {
             }`}
             entering={FadeInDown.delay(150 + index * 50).springify()}
           >
-            <Avatar
-              uri={member.avatar_url}
-              name={member.display_name}
-              size={48}
-              showOnlineBadge={false}
-            />
+            <ProfileTrigger userId={member.user_id}>
+              <Avatar
+                uri={member.avatar_url}
+                name={member.display_name}
+                size={48}
+                showOnlineBadge={false}
+              />
+            </ProfileTrigger>
             <View style={styles.memberInfo}>
               <View style={styles.memberNameRow}>
                 <Text style={[styles.memberName, { color: colors.text.light }]}>
