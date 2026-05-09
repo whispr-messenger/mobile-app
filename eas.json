@@ -11,6 +11,12 @@
     "preview": {
       "distribution": "internal"
     },
+    "preprod": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ENV": "preprod"
+      }
+    },
     "production": {
       "autoIncrement": true
     }
