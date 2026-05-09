@@ -14,6 +14,7 @@ import {
 } from "../../types/contact";
 import { TokenService } from "../TokenService";
 import { getApiBaseUrl } from "../apiBase";
+import { fetchProfilesBatch } from "../profile/batchFetch";
 
 export type { Contact };
 
@@ -74,6 +75,27 @@ const normalizeContact = (c: any): Contact => {
   };
 };
 
+const normalizeRawUser = (u: any, fallbackId?: string): User | null => {
+  if (!u || typeof u !== "object") return null;
+  const id = String(u.id ?? u.userId ?? fallbackId ?? "");
+  if (!id) return null;
+  return {
+    id,
+    username: u.username ?? "",
+    phone_number: u.phoneNumber ?? u.phone_number,
+    first_name: u.firstName ?? u.first_name,
+    last_name: u.lastName ?? u.last_name,
+    avatar_url:
+      u.profilePictureUrl ??
+      u.profile_picture_url ??
+      u.profilePicture ??
+      u.profile_picture ??
+      u.avatar_url,
+    last_seen: u.lastSeen ?? u.last_seen,
+    is_active: u.isActive ?? u.is_active ?? true,
+  };
+};
+
 const fetchUserById = async (userId: string): Promise<User | null> => {
   if (!IS_TEST) {
     const cached = userProfileCache.get(userId);
@@ -96,23 +118,9 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
         },
       );
       if (!response.ok) return null;
-      const u = await response.json();
-      if (!u) return null;
-      const normalized: User = {
-        id: u.id ?? userId,
-        username: u.username ?? "",
-        phone_number: u.phoneNumber ?? u.phone_number,
-        first_name: u.firstName ?? u.first_name,
-        last_name: u.lastName ?? u.last_name,
-        avatar_url:
-          u.profilePictureUrl ??
-          u.profile_picture_url ??
-          u.profilePicture ??
-          u.profile_picture ??
-          u.avatar_url,
-        last_seen: u.lastSeen ?? u.last_seen,
-        is_active: u.isActive ?? u.is_active ?? true,
-      };
+      const raw = await response.json();
+      const normalized = normalizeRawUser(raw, userId);
+      if (!normalized) return null;
       userProfileCache.set(userId, {
         value: normalized,
         expiresAt: Date.now() + USER_PROFILE_TTL_MS,
@@ -132,6 +140,79 @@ const fetchUserById = async (userId: string): Promise<User | null> => {
     promise.finally(() => userProfileInflight.delete(userId));
   }
   return promise;
+};
+
+/**
+ * Recupere plusieurs profils utilisateur via POST /user/v1/profiles/batch
+ * (WHISPR-1349 / WHISPR-1357). Hydrate `userProfileCache` pour chaque profil
+ * retourne. Les ids manquants (privacy / supprimes) sont caches null TTL
+ * standard pour eviter de rappeler.
+ */
+const fetchUsersBatch = async (
+  userIds: string[],
+): Promise<Map<string, User | null>> => {
+  const result = new Map<string, User | null>();
+  const toFetch: string[] = [];
+  for (const id of userIds) {
+    if (!id || result.has(id)) continue;
+    const cached = !IS_TEST ? userProfileCache.get(id) : null;
+    if (cached && cached.expiresAt > Date.now()) {
+      result.set(id, cached.value);
+    } else {
+      toFetch.push(id);
+    }
+  }
+  if (toFetch.length === 0) return result;
+
+  const authFetch = async (
+    url: string,
+    init?: RequestInit,
+  ): Promise<Response> => {
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...(init?.headers as Record<string, string>),
+        ...(await getAuthHeaders()),
+      },
+    });
+  };
+
+  try {
+    const { profiles, missing } = await fetchProfilesBatch<unknown>(
+      toFetch,
+      authFetch,
+    );
+    const missingSet = new Set(missing);
+    for (const raw of profiles) {
+      const normalized = normalizeRawUser(raw);
+      if (normalized?.id) {
+        if (!IS_TEST) {
+          userProfileCache.set(normalized.id, {
+            value: normalized,
+            expiresAt: Date.now() + USER_PROFILE_TTL_MS,
+          });
+        }
+        result.set(normalized.id, normalized);
+        missingSet.delete(normalized.id);
+      }
+    }
+    for (const id of toFetch) {
+      if (!result.has(id) || missingSet.has(id)) {
+        if (!IS_TEST) {
+          userProfileCache.set(id, {
+            value: null,
+            expiresAt: Date.now() + USER_PROFILE_TTL_MS,
+          });
+        }
+        result.set(id, null);
+      }
+    }
+  } catch {
+    for (const id of toFetch) {
+      if (!result.has(id)) result.set(id, null);
+    }
+  }
+  return result;
 };
 
 // certains endpoints search renvoient 200 avec un body vide quand pas de
@@ -246,18 +327,20 @@ export const contactsAPI = {
           : [];
       const contacts = items.map(normalizeContact);
 
-      // enrichissement profils utilisateur en parallele (1 fetch / contact)
-      const enriched = await Promise.all(
-        contacts.map(async (contact: Contact) => {
-          if (contact.contact_id) {
-            const user = await fetchUserById(contact.contact_id);
-            if (user) {
-              return { ...contact, contact_user: user };
-            }
-          }
-          return contact;
-        }),
-      );
+      // WHISPR-1357 : enrichissement profils via 1 seul appel batch
+      // /profiles/batch au lieu de N fetchs unitaires. Couvre les chunks
+      // > 100 automatiquement, marque les profils prives/supprimes comme
+      // null pour fallback display.
+      const contactIds = contacts
+        .map((c: Contact) => c.contact_id)
+        .filter((id: string): id is string => Boolean(id));
+      const usersMap = await fetchUsersBatch(contactIds);
+      const enriched = contacts.map((contact: Contact) => {
+        if (!contact.contact_id) return contact;
+        const user = usersMap.get(contact.contact_id);
+        if (user) return { ...contact, contact_user: user };
+        return contact;
+      });
 
       const result = { contacts: enriched, total: enriched.length };
       if (!IS_TEST && !params) {
