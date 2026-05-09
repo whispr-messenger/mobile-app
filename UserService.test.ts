@@ -294,6 +294,22 @@ describe("UserService.getPrivacySettings", () => {
     expect(result.settings?.phoneNumberSearch).toBe("contacts");
   });
 
+  it("reads the lastSeen, onlineStatus and groupAdd fields", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          lastSeenPrivacy: "contacts",
+          onlineStatus: "nobody",
+          groupAddPermission: "contacts",
+        },
+      }),
+    );
+    const result = await service.getPrivacySettings();
+    expect(result.settings?.lastSeenVisibility).toBe("contacts");
+    expect(result.settings?.onlineStatusVisibility).toBe("nobody");
+    expect(result.settings?.groupAddPermission).toBe("contacts");
+  });
+
   it("returns an error on non-OK", async () => {
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 500 }));
     const result = await service.getPrivacySettings();
@@ -309,6 +325,9 @@ describe("UserService.updatePrivacySettings", () => {
       firstNameVisibility: "everyone",
       lastNameVisibility: "nobody",
       biographyVisibility: "everyone",
+      lastSeenVisibility: "contacts",
+      onlineStatusVisibility: "nobody",
+      groupAddPermission: "contacts",
       searchVisibility: true,
       phoneNumberSearch: "nobody",
     });
@@ -319,6 +338,9 @@ describe("UserService.updatePrivacySettings", () => {
       firstNamePrivacy: "everyone",
       lastNamePrivacy: "nobody",
       biographyPrivacy: "everyone",
+      lastSeenPrivacy: "contacts",
+      onlineStatus: "nobody",
+      groupAddPermission: "contacts",
       searchByPhone: false,
       searchByUsername: true,
     });

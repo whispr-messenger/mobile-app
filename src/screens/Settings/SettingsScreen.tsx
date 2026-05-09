@@ -46,8 +46,11 @@ import {
 const PRIVACY_ALERT_TITLE: Record<string, string> = {
   profilePhoto: "Photo de profil",
   firstName: "Prénom",
-  lastName: "Nom",
+  lastName: "Nom de famille",
   biography: "Biographie",
+  lastSeen: "Dernière connexion",
+  onlineStatus: "Statut en ligne",
+  groupAdd: "Permission d'ajout aux groupes",
 };
 
 const PRIVACY_VALUE_LABELS: Record<string, string> = {
@@ -106,6 +109,9 @@ export const SettingsScreen: React.FC = () => {
     firstName: "Everyone",
     lastName: "Contacts",
     biography: "Everyone",
+    lastSeen: "Everyone",
+    onlineStatus: "Everyone",
+    groupAdd: "Everyone",
   });
 
   // Notification settings
@@ -167,6 +173,18 @@ export const SettingsScreen: React.FC = () => {
         | "everyone"
         | "contacts"
         | "nobody",
+      lastSeenVisibility: local.lastSeen.toLowerCase() as
+        | "everyone"
+        | "contacts"
+        | "nobody",
+      onlineStatusVisibility: local.onlineStatus.toLowerCase() as
+        | "everyone"
+        | "contacts"
+        | "nobody",
+      groupAddPermission: local.groupAdd.toLowerCase() as
+        | "everyone"
+        | "contacts"
+        | "nobody",
       searchVisibility: true,
       phoneNumberSearch: "everyone",
     }),
@@ -184,6 +202,9 @@ export const SettingsScreen: React.FC = () => {
       firstName: capitalize(api.firstNameVisibility),
       lastName: capitalize(api.lastNameVisibility),
       biography: capitalize(api.biographyVisibility),
+      lastSeen: capitalize(api.lastSeenVisibility),
+      onlineStatus: capitalize(api.onlineStatusVisibility),
+      groupAdd: capitalize(api.groupAddPermission),
     };
   }, []);
 
@@ -757,7 +778,7 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => handlePrivacyItemPress("firstName")}
           />
           <SettingItem
-            label="Nom"
+            label="Nom de famille"
             value={translatePrivacyValue(privacySettings.lastName)}
             onPress={() => handlePrivacyItemPress("lastName")}
           />
@@ -765,6 +786,23 @@ export const SettingsScreen: React.FC = () => {
             label="Biographie"
             value={translatePrivacyValue(privacySettings.biography)}
             onPress={() => handlePrivacyItemPress("biography")}
+          />
+          {/* WHISPR-1298 : 3 toggles ajoutés (lastSeen, onlineStatus,
+              groupAdd) pour couvrir les fields backend orphelins. */}
+          <SettingItem
+            label="Dernière connexion"
+            value={translatePrivacyValue(privacySettings.lastSeen)}
+            onPress={() => handlePrivacyItemPress("lastSeen")}
+          />
+          <SettingItem
+            label="Statut en ligne"
+            value={translatePrivacyValue(privacySettings.onlineStatus)}
+            onPress={() => handlePrivacyItemPress("onlineStatus")}
+          />
+          <SettingItem
+            label="Permission d'ajout aux groupes"
+            value={translatePrivacyValue(privacySettings.groupAdd)}
+            onPress={() => handlePrivacyItemPress("groupAdd")}
           />
           {/* WHISPR-1056: entry point to the BlockedUsersScreen — the
               screen was already registered in AuthNavigator but unreachable
