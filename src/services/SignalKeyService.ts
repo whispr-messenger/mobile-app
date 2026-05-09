@@ -2,6 +2,7 @@ import nacl from "tweetnacl";
 import { encodeBase64 } from "tweetnacl-util";
 import { getRandomBytes } from "expo-crypto";
 import { TokenService } from "./TokenService";
+import { generateClientRandom } from "../utils/crypto";
 import type { SignalKeyBundleDto } from "../types/auth";
 
 // tweetnacl looks for self.crypto which doesn't exist in Hermes — wire it up explicitly
@@ -16,15 +17,16 @@ const NUM_ONE_TIME_PREKEYS = 100;
 // Random 30-bit base avoids same-second collisions when the user
 // reconnects multiple times, and leaves ~100 slots below 2^31 for the
 // one-time prekeys numbered `base + i` (i < 100).
+// CSPRNG pour coherence avec NaCl deja en place (cf. nacl.setPRNG ci-dessus).
 function generateSignedPrekeyId(): number {
-  return Math.floor(Math.random() * 0x40000000);
+  return generateClientRandom() & 0x3fffffff;
 }
 
 function generatePrekeyIdBase(signedPrekeyId: number): number {
   // Pick a different random base for one-time prekeys so they never
   // overlap the signed prekey id even if both are generated in the same
   // second. The +/- spread within 2^30 keeps everything in INT32 range.
-  let base = Math.floor(Math.random() * 0x40000000);
+  let base = generateClientRandom() & 0x3fffffff;
   if (Math.abs(base - signedPrekeyId) < 200) {
     // In the unlikely collision, shift far enough away from signedPrekeyId.
     base = (signedPrekeyId + 0x20000000) & 0x3fffffff;
