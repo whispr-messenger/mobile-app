@@ -72,7 +72,15 @@ export const Avatar: React.FC<AvatarProps> = ({
     const raw = typeof uri === "string" ? uri.trim() : "";
     if (!raw) return { uri: undefined, mediaId: undefined };
 
-    if (raw.startsWith("file://") || raw.startsWith("data:")) {
+    // WHISPR-1335 - sur web, le selecteur d'image fallback expose un
+    // URL.createObjectURL() qui produit un URI "blob:". On doit le
+    // passer tel quel a <Image> pour afficher la preview, sinon la photo
+    // fraichement choisie ne s'affiche pas avant l'upload.
+    if (
+      raw.startsWith("file://") ||
+      raw.startsWith("data:") ||
+      raw.startsWith("blob:")
+    ) {
       return { uri: raw, mediaId: undefined };
     }
 
