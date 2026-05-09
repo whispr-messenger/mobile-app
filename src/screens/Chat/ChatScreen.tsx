@@ -330,6 +330,9 @@ export const ChatScreen: React.FC = () => {
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   const cacheWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // eviter le double-tap envoyant 2 messages distincts sur connexion lente :
+  // chaque tap a son propre client_random donc le serveur ne peut pas dedup.
+  const sendingRef = useRef(false);
   // Horizontal swipe to reveal per-message timestamps. The shared value is
   // consumed by every MessageBubble through MessageSwipeProvider, so all rows
   // translate together without re-rendering.
@@ -1184,134 +1187,148 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMessage = useCallback(
     async (content: string, replyToId?: string, mentions?: string[]) => {
-      // Stop typing indicator
-      sendTyping(conversationId, false);
+      // ref-lock : sur connexion lente, un double-tap genererait 2 messages
+      // avec des client_random differents (donc pas dedup serveur). On ignore
+      // les calls concurrents sans desactiver le bouton (UX intacte).
+      if (sendingRef.current) return;
+      sendingRef.current = true;
+      try {
+        // Stop typing indicator
+        sendTyping(conversationId, false);
 
-      // If editing, update the message
-      if (editingMessage) {
-        try {
-          const updated = await messagingAPI.editMessage(
-            editingMessage.id,
-            conversationId,
+        // If editing, update the message
+        if (editingMessage) {
+          try {
+            const updated = await messagingAPI.editMessage(
+              editingMessage.id,
+              conversationId,
+              content,
+            );
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === editingMessage.id
+                  ? { ...msg, ...updated, edited_at: updated.edited_at }
+                  : msg,
+              ),
+            );
+            setEditingMessage(null);
+            useConversationsStore
+              .getState()
+              .applyMessageUpdated(updated as any);
+          } catch (error) {
+            logger.error("ChatScreen", "Error editing message", error);
+            Alert.alert(
+              getLocalizedText("notif.error"),
+              getLocalizedText("chat.errorEditMessage"),
+            );
+            setEditingMessage(null);
+          }
+          return;
+        }
+
+        const tempMessage: MessageWithRelations = {
+          id: `temp-${Date.now()}`,
+          conversation_id: conversationId,
+          sender_id: userId,
+          message_type: "text",
+          content,
+          metadata: {},
+          client_random: Math.floor(Math.random() * 1000000),
+          sent_at: new Date().toISOString(),
+          is_deleted: false,
+          delete_for_everyone: false,
+          status: "sending",
+          reply_to_id: replyToId,
+          reply_to: replyingTo || undefined,
+        };
+
+        setMessages((prev) => [tempMessage, ...prev]);
+        setReplyingTo(null);
+        useConversationsStore
+          .getState()
+          .applyNewMessage(tempMessage as any, userId)
+          .catch(() => {});
+        useConversationsStore.getState().resetUnreadCount(conversationId);
+
+        // Scroll to bottom so the newly sent text message is visible
+        // (FlatList is inverted, so offset 0 is the bottom)
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }, 100);
+
+        // If offline, queue the message for later delivery
+        if (connectionState !== "connected") {
+          const queued: QueuedMessage = {
+            id: tempMessage.id,
+            conversation_id: conversationId,
             content,
-          );
+            message_type: "text",
+            client_random: tempMessage.client_random as number,
+            reply_to_id: replyToId,
+            queued_at: new Date().toISOString(),
+          };
+          await offlineQueue.enqueue(queued);
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === editingMessage.id
-                ? { ...msg, ...updated, edited_at: updated.edited_at }
-                : msg,
+            prev.map((m) =>
+              m.id === tempMessage.id ? { ...m, status: "queued" as const } : m,
             ),
           );
-          setEditingMessage(null);
-          useConversationsStore.getState().applyMessageUpdated(updated as any);
-        } catch (error) {
-          logger.error("ChatScreen", "Error editing message", error);
-          Alert.alert(
-            getLocalizedText("notif.error"),
-            getLocalizedText("chat.errorEditMessage"),
-          );
-          setEditingMessage(null);
+          useConversationsStore
+            .getState()
+            .applyNewMessage(
+              { ...tempMessage, status: "queued" } as any,
+              userId,
+            )
+            .catch(() => {});
+          useConversationsStore.getState().resetUnreadCount(conversationId);
+          return;
         }
-        return;
-      }
 
-      const tempMessage: MessageWithRelations = {
-        id: `temp-${Date.now()}`,
-        conversation_id: conversationId,
-        sender_id: userId,
-        message_type: "text",
-        content,
-        metadata: {},
-        client_random: Math.floor(Math.random() * 1000000),
-        sent_at: new Date().toISOString(),
-        is_deleted: false,
-        delete_for_everyone: false,
-        status: "sending",
-        reply_to_id: replyToId,
-        reply_to: replyingTo || undefined,
-      };
+        try {
+          const sent = await messagingAPI.sendMessage(conversationId, {
+            content,
+            message_type: "text",
+            client_random: tempMessage.client_random as number,
 
-      setMessages((prev) => [tempMessage, ...prev]);
-      setReplyingTo(null);
-      useConversationsStore
-        .getState()
-        .applyNewMessage(tempMessage as any, userId)
-        .catch(() => {});
-      useConversationsStore.getState().resetUnreadCount(conversationId);
-
-      // Scroll to bottom so the newly sent text message is visible
-      // (FlatList is inverted, so offset 0 is the bottom)
-      setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      }, 100);
-
-      // If offline, queue the message for later delivery
-      if (connectionState !== "connected") {
-        const queued: QueuedMessage = {
-          id: tempMessage.id,
-          conversation_id: conversationId,
-          content,
-          message_type: "text",
-          client_random: tempMessage.client_random as number,
-          reply_to_id: replyToId,
-          queued_at: new Date().toISOString(),
-        };
-        await offlineQueue.enqueue(queued);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempMessage.id ? { ...m, status: "queued" as const } : m,
-          ),
-        );
-        useConversationsStore
-          .getState()
-          .applyNewMessage({ ...tempMessage, status: "queued" } as any, userId)
-          .catch(() => {});
-        useConversationsStore.getState().resetUnreadCount(conversationId);
-        return;
-      }
-
-      try {
-        const sent = await messagingAPI.sendMessage(conversationId, {
-          content,
-          message_type: "text",
-          client_random: tempMessage.client_random as number,
-
-          metadata: {},
-          reply_to_id: replyToId,
-        });
-
-        setMessages((prev) => {
-          const next: MessageWithRelations[] = prev.map((m) => {
-            if (
-              m.id.startsWith("temp-") &&
-              m.client_random === tempMessage.client_random
-            ) {
-              const updated: MessageWithRelations = {
-                ...(sent as MessageWithRelations),
-                status: "sent" as const,
-                reply_to: tempMessage.reply_to,
-              };
-              return updated;
-            }
-            return m;
+            metadata: {},
+            reply_to_id: replyToId,
           });
-          return next;
-        });
-        useConversationsStore
-          .getState()
-          .applyNewMessage(sent as any, userId)
-          .catch(() => {});
-        useConversationsStore.getState().resetUnreadCount(conversationId);
-      } catch (error) {
-        logger.error("ChatScreen", "Error sending message", error);
-        setMessages((prev) => {
-          return prev.map((m) => {
-            if (m.id === tempMessage.id) {
-              return { ...m, status: "failed" };
-            }
-            return m;
+
+          setMessages((prev) => {
+            const next: MessageWithRelations[] = prev.map((m) => {
+              if (
+                m.id.startsWith("temp-") &&
+                m.client_random === tempMessage.client_random
+              ) {
+                const updated: MessageWithRelations = {
+                  ...(sent as MessageWithRelations),
+                  status: "sent" as const,
+                  reply_to: tempMessage.reply_to,
+                };
+                return updated;
+              }
+              return m;
+            });
+            return next;
           });
-        });
+          useConversationsStore
+            .getState()
+            .applyNewMessage(sent as any, userId)
+            .catch(() => {});
+          useConversationsStore.getState().resetUnreadCount(conversationId);
+        } catch (error) {
+          logger.error("ChatScreen", "Error sending message", error);
+          setMessages((prev) => {
+            return prev.map((m) => {
+              if (m.id === tempMessage.id) {
+                return { ...m, status: "failed" };
+              }
+              return m;
+            });
+          });
+        }
+      } finally {
+        sendingRef.current = false;
       }
     },
     [
