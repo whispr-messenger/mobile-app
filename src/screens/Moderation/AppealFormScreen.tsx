@@ -310,7 +310,11 @@ export const AppealFormScreen: React.FC = () => {
               <View style={styles.imagesRow}>
                 {images.map((uri, index) => (
                   <View key={index} style={styles.imageWrapper}>
-                    <Image source={{ uri }} style={styles.imagePreview} />
+                    <Image
+                      source={{ uri }}
+                      style={styles.imagePreview}
+                      accessibilityLabel={`Preuve ${index + 1}`}
+                    />
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => handleRemoveImage(index)}
