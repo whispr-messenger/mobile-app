@@ -473,6 +473,8 @@ export const GroupDetailsScreen: React.FC = () => {
           "Error transferring and leaving",
           error,
         );
+        // resync local state apres echec partiel transfer/leave
+        loadGroupData().catch(() => {});
         Alert.alert(
           "Erreur",
           error.message || "Impossible de transférer et quitter le groupe",
@@ -488,6 +490,7 @@ export const GroupDetailsScreen: React.FC = () => {
       conversationId,
       conversationKey,
       groupId,
+      loadGroupData,
       navigation,
       refreshConversations,
       removeConversationLocal,
@@ -1536,8 +1539,10 @@ export const GroupDetailsScreen: React.FC = () => {
           </AnimatedTouchableOpacity>
           <AnimatedTouchableOpacity
             style={styles.actionButton}
-            onPress={() => {
+            onPress={async () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              // refresh members avant decision pour eviter isLastAdmin stale (concurrent demote)
+              await loadGroupData().catch(() => {});
               // si dernier admin, on saute la typed-confirm et on force le transfert direct
               if (isLastAdmin) {
                 setShowTransferAdminModal(true);
