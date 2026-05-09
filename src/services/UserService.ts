@@ -63,6 +63,8 @@ export interface PrivacySettings {
   groupAddPermission: "everyone" | "contacts" | "nobody";
   searchVisibility: boolean;
   phoneNumberSearch: "everyone" | "contacts" | "nobody";
+  // toggle WhatsApp punitive : si false on n envoie pas et on ne voit pas
+  readReceipts?: boolean;
 }
 
 export class UserService {
@@ -604,6 +606,8 @@ export class UserService {
           raw?.searchByUsername ?? raw?.searchVisibility ?? true,
         phoneNumberSearch:
           raw?.searchByPhone ?? raw?.phoneNumberSearch ?? "everyone",
+        // backend renvoie read_receipts (snake) ou readReceipts selon la version
+        readReceipts: raw?.readReceipts ?? raw?.read_receipts ?? true,
       };
       return { success: true, settings: data };
     } catch (error) {
@@ -616,26 +620,50 @@ export class UserService {
   }
 
   /**
-   * Update privacy settings
+   * Update privacy settings (PATCH partiel : seuls les champs definis sont
+   * envoyes au backend)
    */
   async updatePrivacySettings(
-    settings: PrivacySettings,
+    settings: Partial<PrivacySettings>,
   ): Promise<UpdateProfileResponse> {
     try {
+      // PATCH partiel : on n envoie que les champs definis. Permet aux callers
+      // de toucher uniquement readReceipts sans ecraser le reste de la privacy.
+      const body: Record<string, unknown> = {};
+      if (settings.profilePictureVisibility !== undefined) {
+        body.profilePicturePrivacy = settings.profilePictureVisibility;
+      }
+      if (settings.firstNameVisibility !== undefined) {
+        body.firstNamePrivacy = settings.firstNameVisibility;
+      }
+      if (settings.lastNameVisibility !== undefined) {
+        body.lastNamePrivacy = settings.lastNameVisibility;
+      }
+      if (settings.biographyVisibility !== undefined) {
+        body.biographyPrivacy = settings.biographyVisibility;
+      }
+      if (settings.lastSeenVisibility !== undefined) {
+        body.lastSeenPrivacy = settings.lastSeenVisibility;
+      }
+      if (settings.onlineStatusVisibility !== undefined) {
+        body.onlineStatus = settings.onlineStatusVisibility;
+      }
+      if (settings.groupAddPermission !== undefined) {
+        body.groupAddPermission = settings.groupAddPermission;
+      }
+      if (settings.phoneNumberSearch !== undefined) {
+        body.searchByPhone = settings.phoneNumberSearch !== "nobody";
+      }
+      if (settings.searchVisibility !== undefined) {
+        body.searchByUsername = settings.searchVisibility;
+      }
+      if (settings.readReceipts !== undefined) {
+        body.readReceipts = settings.readReceipts;
+      }
       const response = await this.authFetch("/privacy/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profilePicturePrivacy: settings.profilePictureVisibility,
-          firstNamePrivacy: settings.firstNameVisibility,
-          lastNamePrivacy: settings.lastNameVisibility,
-          biographyPrivacy: settings.biographyVisibility,
-          lastSeenPrivacy: settings.lastSeenVisibility,
-          onlineStatus: settings.onlineStatusVisibility,
-          groupAddPermission: settings.groupAddPermission,
-          searchByPhone: settings.phoneNumberSearch !== "nobody",
-          searchByUsername: settings.searchVisibility,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
