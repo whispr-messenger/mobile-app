@@ -997,6 +997,20 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.retry": "Réessayer",
     "common.optional": "optionnel",
     "common.copyError": "Impossible de copier dans le presse-papiers.",
+
+    // Confirmation forte (typed-confirm)
+    "confirm.expectedDelete": "SUPPRIMER",
+    "confirm.typeToConfirm": "Tape {{text}} pour confirmer",
+    "confirm.actionIrreversible": "Cette action est irréversible.",
+    "confirm.cancel": "Annuler",
+    "confirm.deleteAccount.title": "Supprimer mon compte ?",
+    "confirm.deleteAccount.description":
+      "Cette action est irréversible. Toutes vos conversations, messages et données seront supprimés.",
+    "confirm.deleteAccount.action": "Supprimer définitivement",
+    "confirm.deleteContact.title": "Supprimer ce contact ?",
+    "confirm.deleteContact.description":
+      "Le contact sera retiré de votre liste. Cette action est irréversible.",
+    "confirm.deleteContact.action": "Supprimer",
   },
   en: {
     // Navigation
@@ -1299,6 +1313,20 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.retry": "Retry",
     "common.optional": "optional",
     "common.copyError": "Unable to copy to clipboard.",
+
+    // Strong confirmation (typed-confirm)
+    "confirm.expectedDelete": "DELETE",
+    "confirm.typeToConfirm": "Type {{text}} to confirm",
+    "confirm.actionIrreversible": "This action cannot be undone.",
+    "confirm.cancel": "Cancel",
+    "confirm.deleteAccount.title": "Delete my account?",
+    "confirm.deleteAccount.description":
+      "This action cannot be undone. All your conversations, messages and data will be deleted.",
+    "confirm.deleteAccount.action": "Delete permanently",
+    "confirm.deleteContact.title": "Delete this contact?",
+    "confirm.deleteContact.description":
+      "The contact will be removed from your list. This action cannot be undone.",
+    "confirm.deleteContact.action": "Delete",
   },
 };
 
