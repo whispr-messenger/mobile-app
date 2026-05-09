@@ -317,7 +317,7 @@ export const SettingsScreen: React.FC = () => {
     loadSettings();
     fetchMyRole();
 
-    if (__DEV__) {
+    if (__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") {
       getModerationModelVersion()
         .then((v) => setModerationModel(v))
         .catch(() => setModerationModel(DEFAULT_MODERATION_MODEL));
@@ -1154,8 +1154,8 @@ export const SettingsScreen: React.FC = () => {
           )}
         </SettingSection>
 
-        {/* Developer / Debug — stripped from production bundles */}
-        {__DEV__ && (
+        {/* Developer / Debug - visible en dev local + en build preprod (jamais en prod) */}
+        {(__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") && (
           <SettingSection title="Debug" icon="bug-outline">
             <SettingItem
               label="Modèle de modération"
@@ -1264,7 +1264,7 @@ export const SettingsScreen: React.FC = () => {
         layout="auto"
       />
 
-      {__DEV__ && (
+      {(__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") && (
         <SettingsChoiceAlert
           visible={showModerationModelModal}
           onClose={() => setShowModerationModelModal(false)}
