@@ -178,7 +178,10 @@ async function batchedMap<T, R>(
   return results;
 }
 
-const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
+// le user-service throttle court est a ~10 req/s; on garde 5 in-flight
+// max pour laisser de la marge et eviter le burst 429 au load de la
+// ConversationsList (enrichissement profile en parallele).
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 5;
 
 // --- User profile cache ------------------------------------------------------
 // Avoid re-fetching the same /user/v1/profile/{id} on every render cycle. A
@@ -193,6 +196,10 @@ type CachedUserInfo = {
 };
 
 const USER_INFO_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// TTL court pour les 429 : on attend juste que la fenetre throttle se
+// reouvre, sinon le user reste sans nom/avatar pendant 5 min apres un
+// simple burst.
+const USER_INFO_RATE_LIMIT_TTL_MS = 30 * 1000; // 30 seconds
 const userInfoCache = new Map<
   string,
   { value: CachedUserInfo | null; expiresAt: number }
@@ -705,15 +712,27 @@ export const messagingAPI = {
         );
 
         if (!response.ok) {
-          logger.warn(
-            "getUserInfo",
-            `HTTP ${response.status} for user ${userId}`,
-          );
-          // Cache negative result briefly to prevent a retry storm when the
-          // backend returns 429 — TTL keeps it from being permanently stuck.
+          // 429 = throttler user-service (court 10 req/s). Cas attendu sous
+          // charge (load ConversationsList), pas une erreur. On cache null
+          // avec un TTL court pour laisser la fenetre se reouvrir, sinon le
+          // membre reste sans nom/avatar pendant 5 min apres un simple burst.
+          const isRateLimited = response.status === 429;
+          if (isRateLimited) {
+            logger.info(
+              "getUserInfo",
+              `Rate limited (429) for user ${userId}, retry after short TTL`,
+            );
+          } else {
+            logger.warn(
+              "getUserInfo",
+              `HTTP ${response.status} for user ${userId}`,
+            );
+          }
           userInfoCache.set(userId, {
             value: null,
-            expiresAt: Date.now() + USER_INFO_TTL_MS,
+            expiresAt:
+              Date.now() +
+              (isRateLimited ? USER_INFO_RATE_LIMIT_TTL_MS : USER_INFO_TTL_MS),
           });
           return null;
         }
