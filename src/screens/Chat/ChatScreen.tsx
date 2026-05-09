@@ -76,6 +76,7 @@ import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
 import { EmptyChatState } from "../../components/Chat/EmptyChatState";
 import { ChatHeader } from "./ChatHeader";
 import { getConversationDisplayName } from "../../utils";
+import { generateClientRandom } from "../../utils/crypto";
 import { usePresenceStore } from "../../store/presenceStore";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
@@ -1233,7 +1234,8 @@ export const ChatScreen: React.FC = () => {
           message_type: "text",
           content,
           metadata: {},
-          client_random: Math.floor(Math.random() * 1000000),
+          // crypto random Uint32 pour eviter birthday collision sur dedup serveur
+          client_random: generateClientRandom(),
           sent_at: new Date().toISOString(),
           is_deleted: false,
           delete_for_everyone: false,
@@ -1393,7 +1395,8 @@ export const ChatScreen: React.FC = () => {
           thumbnail_url: uploadUri,
           duration: audioDuration,
         },
-        client_random: Math.floor(Math.random() * 1000000),
+        // crypto random Uint32 pour eviter birthday collision sur dedup serveur
+        client_random: generateClientRandom(),
         sent_at: new Date().toISOString(),
         is_deleted: false,
         delete_for_everyone: false,
