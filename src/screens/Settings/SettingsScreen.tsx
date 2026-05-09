@@ -3,7 +3,7 @@
  * WHISPR-133: Implement SettingsScreen with app configuration
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -127,6 +127,11 @@ export const SettingsScreen: React.FC = () => {
     readReceipts: true,
     typingIndicator: true,
   });
+
+  // compteur de requestId pour le toggle des accuses de lecture. Si l'user
+  // toggle plusieurs fois avant que le backend reponde, seule la derniere
+  // requete a le droit de rollback - les precedentes deviennent obsoletes.
+  const readReceiptsRequestIdRef = useRef(0);
 
   // Application settings
   const [appSettings, setAppSettings] = useState({
@@ -389,16 +394,23 @@ export const SettingsScreen: React.FC = () => {
           if (key === "readReceipts") {
             setReadReceiptsEnabled(value);
             const userService = UserService.getInstance();
+            // increment + capture du requestId : si l'user re-toggle avant que
+            // l'API reponde, ce requestId ne correspondra plus au courant et
+            // on ignore le rollback (l'user a deja change d'avis).
+            readReceiptsRequestIdRef.current += 1;
+            const requestId = readReceiptsRequestIdRef.current;
+            const previousValue = prev.readReceipts;
             userService
               .updatePrivacySettings({ readReceipts: value })
               .then((result) => {
+                if (requestId !== readReceiptsRequestIdRef.current) return;
                 if (!result.success) {
                   // rollback en memoire et en state
-                  setReadReceiptsEnabled(prev.readReceipts);
+                  setReadReceiptsEnabled(previousValue);
                   setMessagingSettings((curr) => {
                     const reverted = {
                       ...curr,
-                      readReceipts: prev.readReceipts,
+                      readReceipts: previousValue,
                     };
                     persistSettings(STORAGE_KEYS.messaging, reverted);
                     return reverted;
@@ -410,9 +422,10 @@ export const SettingsScreen: React.FC = () => {
                 }
               })
               .catch(() => {
-                setReadReceiptsEnabled(prev.readReceipts);
+                if (requestId !== readReceiptsRequestIdRef.current) return;
+                setReadReceiptsEnabled(previousValue);
                 setMessagingSettings((curr) => {
-                  const reverted = { ...curr, readReceipts: prev.readReceipts };
+                  const reverted = { ...curr, readReceipts: previousValue };
                   persistSettings(STORAGE_KEYS.messaging, reverted);
                   return reverted;
                 });
