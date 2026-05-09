@@ -61,8 +61,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   onCapture,
   allowVideo = true,
 }) => {
-  const { getThemeColors } = useTheme();
+  const { getThemeColors, settings } = useTheme();
   const themeColors = getThemeColors();
+  const isDark = settings.theme !== "light";
   const [capturedMedia, setCapturedMedia] = useState<{
     uri: string;
     type: "image" | "video";
@@ -348,7 +349,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       onRequestClose={handleCancel}
       statusBarTranslucent
     >
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <Animated.View style={[styles.modalOverlay, modalAnimatedStyle]}>
         <LinearGradient
           colors={[
