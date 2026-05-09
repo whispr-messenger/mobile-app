@@ -7,10 +7,7 @@ import { enableScreens } from "react-native-screens";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImageBackground, Platform, StyleSheet, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import {
-  DefaultTheme,
-  NavigationContainer,
-} from "@react-navigation/native";
+import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SplashScreen from "expo-splash-screen";
@@ -27,6 +24,7 @@ import { navigationRef } from "./src/navigation/navigationRef";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
+import { hydrateReadReceiptsPref } from "./src/services/messaging/readReceiptsPref";
 
 enableScreens(false);
 
@@ -113,6 +111,12 @@ export default function App() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontsError]);
+
+  // hydrate la preference accuses de lecture des le boot pour que useWebSocket
+  // l ait deja en cache au premier message envoye/recu
+  useEffect(() => {
+    hydrateReadReceiptsPref().catch(() => {});
+  }, []);
 
   const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontsError) {
