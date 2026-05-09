@@ -497,6 +497,24 @@ export const messagingAPI = {
     return unwrap(response);
   },
 
+  async markMessageAsUnread(
+    messageId: string,
+    conversationId: string,
+  ): Promise<void> {
+    // POST /messages/:id/unread?conversation_id=... — backend revert le
+    // delivery_status du message pour le user courant et broadcast un
+    // event message_unread sur le user channel des autres participants.
+    const url = `${API_BASE_URL}/messages/${encodeURIComponent(
+      messageId,
+    )}/unread?conversation_id=${encodeURIComponent(conversationId)}`;
+
+    const response = await authenticatedFetch(url, { method: "POST" });
+
+    if (!response.ok) {
+      throw httpError("Failed to mark message as unread", response);
+    }
+  },
+
   async deleteMessage(
     messageId: string,
     conversationId: string,

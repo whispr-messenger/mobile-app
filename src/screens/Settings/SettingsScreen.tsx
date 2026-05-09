@@ -34,6 +34,7 @@ import {
   NotificationService,
   NotificationSettings,
 } from "../../services/NotificationService";
+import { setReadReceiptsEnabled } from "../../services/messaging/readReceiptsPref";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import {
@@ -296,7 +297,13 @@ export const SettingsScreen: React.FC = () => {
 
         if (privacyJson) setPrivacySettings(JSON.parse(privacyJson));
         if (notifJson) setNotificationSettings(JSON.parse(notifJson));
-        if (msgJson) setMessagingSettings(JSON.parse(msgJson));
+        if (msgJson) {
+          const parsedMsg = JSON.parse(msgJson);
+          setMessagingSettings(parsedMsg);
+          if (typeof parsedMsg.readReceipts === "boolean") {
+            setReadReceiptsEnabled(parsedMsg.readReceipts);
+          }
+        }
         if (appJson) setAppSettings(JSON.parse(appJson));
         if (secJson) setSecuritySettings(JSON.parse(secJson));
 
@@ -310,6 +317,21 @@ export const SettingsScreen: React.FC = () => {
             STORAGE_KEYS.privacy,
             JSON.stringify(localPrivacy),
           );
+          // synchronise readReceipts depuis le backend pour coherence multi-device.
+          // Si la cle est presente on met a jour le state messaging et le mirror
+          // memoire utilise par useWebSocket.
+          if (typeof result.settings.readReceipts === "boolean") {
+            const readReceiptsValue = result.settings.readReceipts;
+            setReadReceiptsEnabled(readReceiptsValue);
+            setMessagingSettings((prev) => {
+              const updated = { ...prev, readReceipts: readReceiptsValue };
+              AsyncStorage.setItem(
+                STORAGE_KEYS.messaging,
+                JSON.stringify(updated),
+              ).catch(() => {});
+              return updated;
+            });
+          }
         }
 
         // Fetch notification settings from notification-service backend (takes precedence over local)
@@ -359,6 +381,47 @@ export const SettingsScreen: React.FC = () => {
         setMessagingSettings((prev) => {
           const updated = { ...prev, [key]: value };
           persistSettings(STORAGE_KEYS.messaging, updated);
+          // accuses de lecture : symetrie WhatsApp punitive. On met a jour le
+          // mirror memoire immediatement pour que useWebSocket le voie au
+          // prochain markAsRead, puis on push au backend (privacy_settings).
+          // Si le backend echoue on rollback : la coherence multi-device
+          // depend de la valeur serveur.
+          if (key === "readReceipts") {
+            setReadReceiptsEnabled(value);
+            const userService = UserService.getInstance();
+            userService
+              .updatePrivacySettings({ readReceipts: value })
+              .then((result) => {
+                if (!result.success) {
+                  // rollback en memoire et en state
+                  setReadReceiptsEnabled(prev.readReceipts);
+                  setMessagingSettings((curr) => {
+                    const reverted = {
+                      ...curr,
+                      readReceipts: prev.readReceipts,
+                    };
+                    persistSettings(STORAGE_KEYS.messaging, reverted);
+                    return reverted;
+                  });
+                  Alert.alert(
+                    "Erreur",
+                    "Impossible de synchroniser ce parametre. Veuillez reessayer.",
+                  );
+                }
+              })
+              .catch(() => {
+                setReadReceiptsEnabled(prev.readReceipts);
+                setMessagingSettings((curr) => {
+                  const reverted = { ...curr, readReceipts: prev.readReceipts };
+                  persistSettings(STORAGE_KEYS.messaging, reverted);
+                  return reverted;
+                });
+                Alert.alert(
+                  "Erreur reseau",
+                  "Impossible de synchroniser ce parametre.",
+                );
+              });
+          }
           return updated;
         });
         break;
