@@ -1376,3 +1376,84 @@ describe("conversationsStore — applyNewMessage on archived conversations", () 
     expect(state.conversations.find((c) => c.id === "c-new")).toBeUndefined();
   });
 });
+
+describe("conversationsStore — applyMessageDeleted (WHISPR-1299 user channel fanout)", () => {
+  beforeEach(() => {
+    useConversationsStore.getState().reset();
+  });
+
+  function seedWithLastMessage(convId: string, msgId: string) {
+    const conv = {
+      id: convId,
+      type: "group",
+      display_name: "Crew",
+      avatar_url: null,
+      member_user_ids: ["a", "b", "c"],
+      last_message: {
+        id: msgId,
+        conversation_id: convId,
+        sender_id: "a",
+        message_type: "text",
+        content: "salut",
+        is_deleted: false,
+        sent_at: "2026-04-21T10:00:00Z",
+      },
+      unread_count: 0,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-21T10:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<
+        typeof useConversationsStore.getState
+      >["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  it("replaces the last_message preview when the deleted id matches", () => {
+    seedWithLastMessage("g1", "m-100");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageDeleted("m-100", true);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "g1");
+    expect(conv?.last_message?.is_deleted).toBe(true);
+    expect(conv?.last_message?.content).toBe("[Message supprimé]");
+  });
+
+  it("ignores soft-delete (deleteForEveryone=false) so private deletions stay local", () => {
+    seedWithLastMessage("g2", "m-200");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageDeleted("m-200", false);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "g2");
+    expect(conv?.last_message?.is_deleted).toBe(false);
+    expect(conv?.last_message?.content).toBe("salut");
+  });
+
+  it("leaves unrelated conversations untouched", () => {
+    seedWithLastMessage("g3", "m-300");
+
+    act(() => {
+      useConversationsStore
+        .getState()
+        .applyMessageDeleted("m-other-conv", true);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "g3");
+    expect(conv?.last_message?.is_deleted).toBe(false);
+  });
+});
