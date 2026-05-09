@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { AuthService } from "./AuthService";
 import { TokenService } from "./TokenService";
+import { logger } from "../utils/logger";
 
 // Lead time (seconds) before JWT `exp` at which we fire a proactive refresh.
 // Must be strictly greater than the 60s buffer used by TokenService.isTokenExpired
@@ -84,7 +85,7 @@ export class TokenRefreshScheduler {
       // refreshTokens already handles session-expired emission; swallow here
       // so the scheduler doesn't crash. If the session died, stop() will be
       // called by AuthContext via the sessionExpired event.
-      console.warn("[TokenRefreshScheduler] refresh failed", err);
+      logger.warn("TokenRefreshScheduler", "refresh failed", err);
       return;
     }
 
