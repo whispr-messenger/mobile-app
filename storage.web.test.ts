@@ -65,11 +65,34 @@ describe("storage.web (secure key handling)", () => {
     expect(localStorage.getItem(IDENTITY_KEY)).toBeNull();
   });
 
-  it("leaves non-secure keys untouched (no wrapping for tokens)", async () => {
+  it("wraps auth tokens just like the identity key (WHISPR-1328)", async () => {
     const accessToken = "header.payload.signature";
     await storage.setItem("whispr.auth.accessToken", accessToken);
-    expect(localStorage.getItem("whispr.auth.accessToken")).toBe(accessToken);
+
+    const stored = localStorage.getItem("whispr.auth.accessToken");
+    expect(stored).not.toBeNull();
+    expect(stored).not.toBe(accessToken);
+    expect(stored!.startsWith(WEB_VAULT_PREFIX)).toBe(true);
     expect(await storage.getItem("whispr.auth.accessToken")).toBe(accessToken);
+  });
+
+  it("wraps the refresh token alongside the access token", async () => {
+    const refreshToken = "refresh-token-secret";
+    await storage.setItem("whispr.auth.refreshToken", refreshToken);
+
+    const stored = localStorage.getItem("whispr.auth.refreshToken");
+    expect(stored).not.toBeNull();
+    expect(stored).not.toBe(refreshToken);
+    expect(stored!.startsWith(WEB_VAULT_PREFIX)).toBe(true);
+    expect(await storage.getItem("whispr.auth.refreshToken")).toBe(
+      refreshToken,
+    );
+  });
+
+  it("leaves arbitrary non-secure keys untouched", async () => {
+    await storage.setItem("whispr.misc.flag", "1");
+    expect(localStorage.getItem("whispr.misc.flag")).toBe("1");
+    expect(await storage.getItem("whispr.misc.flag")).toBe("1");
   });
 
   it("deleteItem removes the stored value", async () => {
