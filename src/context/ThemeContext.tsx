@@ -1011,6 +1011,14 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "confirm.deleteContact.description":
       "Le contact sera retiré de votre liste. Cette action est irréversible.",
     "confirm.deleteContact.action": "Supprimer",
+    "confirm.leaveGroup.title": "Quitter ce groupe ?",
+    "confirm.leaveGroup.description":
+      "Tu ne pourras plus envoyer de messages ni voir l'historique. Tape SUPPRIMER pour confirmer.",
+    "confirm.leaveGroup.action": "Quitter",
+    "confirm.deleteGroup.title": "Supprimer ce groupe ?",
+    "confirm.deleteGroup.description":
+      "Tous les messages, médias et l'historique seront perdus. Action irréversible. Tape SUPPRIMER pour confirmer.",
+    "confirm.deleteGroup.action": "Supprimer définitivement",
   },
   en: {
     // Navigation
@@ -1327,6 +1335,14 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "confirm.deleteContact.description":
       "The contact will be removed from your list. This action cannot be undone.",
     "confirm.deleteContact.action": "Delete",
+    "confirm.leaveGroup.title": "Leave this group?",
+    "confirm.leaveGroup.description":
+      "You will no longer be able to send messages or see history. Type DELETE to confirm.",
+    "confirm.leaveGroup.action": "Leave",
+    "confirm.deleteGroup.title": "Delete this group?",
+    "confirm.deleteGroup.description":
+      "All messages, media and history will be lost. This action cannot be undone. Type DELETE to confirm.",
+    "confirm.deleteGroup.action": "Delete permanently",
   },
 };
 

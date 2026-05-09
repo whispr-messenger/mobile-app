@@ -65,7 +65,17 @@ jest.mock("./src/context/ThemeContext", () => ({
       primary: "#6200ee",
     }),
     getFontSize: () => 16,
-    getLocalizedText: (key: string) => key,
+    getLocalizedText: (key: string) => {
+      // mappe les cles utilisees par DangerConfirmModal vers leurs valeurs FR
+      // pour que le test puisse taper le mot exact attendu
+      const dict: Record<string, string> = {
+        "confirm.expectedDelete": "SUPPRIMER",
+        "confirm.typeToConfirm": "Tape {{text}} pour confirmer",
+        "confirm.cancel": "Annuler",
+        "confirm.actionIrreversible": "Cette action est irréversible.",
+      };
+      return dict[key] ?? key;
+    },
   }),
 }));
 jest.mock("./src/context/AuthContext", () => ({
@@ -89,6 +99,8 @@ jest.mock("./src/services/groups/api", () => ({
     getGroupStats: jest.fn(),
     getGroupLogs: jest.fn(),
     getGroupSettings: jest.fn(),
+    leaveGroup: jest.fn(),
+    deleteGroup: jest.fn(),
   },
 }));
 jest.mock("./src/theme/colors", () => ({
@@ -239,6 +251,126 @@ describe("GroupDetailsScreen", () => {
 
     await waitFor(() => {
       expect(getByText("Ajouter un membre")).toBeTruthy();
+    });
+  });
+
+  describe("typed-confirm group actions (WHISPR-1346)", () => {
+    const memberMe = {
+      id: "user1",
+      user_id: "user1",
+      display_name: "Me",
+      role: "member" as const,
+      joined_at: "2024-01-01T00:00:00Z",
+      is_active: true,
+    };
+    const adminOther = {
+      id: "user2",
+      user_id: "user2",
+      display_name: "Admin Other",
+      role: "admin" as const,
+      joined_at: "2024-01-01T00:00:00Z",
+      is_active: true,
+    };
+    const adminMe = {
+      id: "user1",
+      user_id: "user1",
+      display_name: "Me",
+      role: "admin" as const,
+      joined_at: "2024-01-01T00:00:00Z",
+      is_active: true,
+    };
+
+    it("non-last-admin: quitter ouvre la typed-confirm modal", async () => {
+      mockedGroupsAPI.getGroupMembers.mockResolvedValue({
+        members: [memberMe, adminOther],
+        total: 2,
+      } as any);
+
+      const { getByText, getByTestId, queryByTestId, getAllByText } = render(
+        <GroupDetailsScreen />,
+      );
+      await waitFor(() => {
+        expect(getAllByText("Test Group").length).toBeGreaterThan(0);
+      });
+      // bouton "Quitter le groupe" est dans le tab Parametres
+      fireEvent.press(getByText("Paramètres"));
+      await waitFor(() => {
+        expect(getByText("Quitter le groupe")).toBeTruthy();
+      });
+      expect(queryByTestId("danger-confirm-input")).toBeNull();
+
+      fireEvent.press(getByText("Quitter le groupe"));
+
+      expect(getByTestId("danger-confirm-input")).toBeTruthy();
+    });
+
+    it("leave: action desactivee tant que SUPPRIMER n'est pas tape", async () => {
+      mockedGroupsAPI.getGroupMembers.mockResolvedValue({
+        members: [memberMe, adminOther],
+        total: 2,
+      } as any);
+      (mockedGroupsAPI as any).leaveGroup.mockResolvedValueOnce(undefined);
+
+      const { getByText, getByTestId, getAllByText } = render(
+        <GroupDetailsScreen />,
+      );
+      await waitFor(() => {
+        expect(getAllByText("Test Group").length).toBeGreaterThan(0);
+      });
+      fireEvent.press(getByText("Paramètres"));
+      await waitFor(() => {
+        expect(getByText("Quitter le groupe")).toBeTruthy();
+      });
+
+      fireEvent.press(getByText("Quitter le groupe"));
+      // tap sur action sans input -> rien ne se passe
+      fireEvent.press(getByTestId("danger-confirm-action"));
+      expect((mockedGroupsAPI as any).leaveGroup).not.toHaveBeenCalled();
+
+      fireEvent.changeText(getByTestId("danger-confirm-input"), "SUPPRIMER");
+      fireEvent.press(getByTestId("danger-confirm-action"));
+
+      await waitFor(() => {
+        expect((mockedGroupsAPI as any).leaveGroup).toHaveBeenCalledWith(
+          "g1",
+          "user1",
+          "conv1",
+        );
+      });
+    });
+
+    it("admin: supprimer le groupe necessite SUPPRIMER tape", async () => {
+      mockedGroupsAPI.getGroupMembers.mockResolvedValue({
+        members: [adminMe, adminOther],
+        total: 2,
+      } as any);
+      (mockedGroupsAPI as any).deleteGroup.mockResolvedValueOnce(undefined);
+
+      const { getByText, getByTestId, getAllByText } = render(
+        <GroupDetailsScreen />,
+      );
+      await waitFor(() => {
+        expect(getAllByText("Test Group").length).toBeGreaterThan(0);
+      });
+      fireEvent.press(getByText("Paramètres"));
+      await waitFor(() => {
+        expect(getByText("Supprimer le groupe")).toBeTruthy();
+      });
+
+      fireEvent.press(getByText("Supprimer le groupe"));
+      // sans input, l'API ne doit pas etre appelee
+      fireEvent.press(getByTestId("danger-confirm-action"));
+      expect((mockedGroupsAPI as any).deleteGroup).not.toHaveBeenCalled();
+
+      fireEvent.changeText(getByTestId("danger-confirm-input"), "SUPPRIMER");
+      fireEvent.press(getByTestId("danger-confirm-action"));
+
+      await waitFor(() => {
+        expect((mockedGroupsAPI as any).deleteGroup).toHaveBeenCalledWith(
+          "g1",
+          "conv1",
+        );
+      });
     });
   });
 });
