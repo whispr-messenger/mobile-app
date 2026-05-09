@@ -301,7 +301,10 @@ describe("GroupDetailsScreen", () => {
 
       fireEvent.press(getByText("Quitter le groupe"));
 
-      expect(getByTestId("danger-confirm-input")).toBeTruthy();
+      // refresh state async avant ouverture modal
+      await waitFor(() => {
+        expect(getByTestId("danger-confirm-input")).toBeTruthy();
+      });
     });
 
     it("leave: action desactivee tant que SUPPRIMER n'est pas tape", async () => {
@@ -323,6 +326,10 @@ describe("GroupDetailsScreen", () => {
       });
 
       fireEvent.press(getByText("Quitter le groupe"));
+      // refresh state async avant ouverture modal
+      await waitFor(() => {
+        expect(getByTestId("danger-confirm-action")).toBeTruthy();
+      });
       // tap sur action sans input -> rien ne se passe
       fireEvent.press(getByTestId("danger-confirm-action"));
       expect((mockedGroupsAPI as any).leaveGroup).not.toHaveBeenCalled();
