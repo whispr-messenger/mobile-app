@@ -43,71 +43,35 @@ describe("storage on native platforms", () => {
   });
 });
 
-describe("storage on web", () => {
-  let getItemSpy: jest.SpyInstance;
-  let setItemSpy: jest.SpyInstance;
-  let removeItemSpy: jest.SpyInstance;
-
+describe("storage on web (must not be reachable)", () => {
   beforeEach(() => {
     (Platform as { OS: string }).OS = "web";
     mockedSecureStore.getItemAsync.mockReset();
     mockedSecureStore.setItemAsync.mockReset();
     mockedSecureStore.deleteItemAsync.mockReset();
-
-    (global as any).window = (global as any).window ?? {};
-    (global as any).window.localStorage = {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    };
-    getItemSpy = jest.spyOn(window.localStorage, "getItem");
-    setItemSpy = jest.spyOn(window.localStorage, "setItem");
-    removeItemSpy = jest.spyOn(window.localStorage, "removeItem");
   });
 
-  afterEach(() => {
-    getItemSpy.mockRestore();
-    setItemSpy.mockRestore();
-    removeItemSpy.mockRestore();
-  });
-
-  it("reads from window.localStorage", async () => {
-    getItemSpy.mockReturnValueOnce("web-value");
-    await expect(storage.getItem("key-1")).resolves.toBe("web-value");
-    expect(getItemSpy).toHaveBeenCalledWith("key-1");
+  // WHISPR-1399 - Metro doit resolver storage.web.ts (vault chiffre).
+  // Si on tombe sur ce module sur web, c est une mauvaise resolution
+  // et la cle d identite Signal finirait en clair en localStorage.
+  it("throws on getItem to force the .web variant", async () => {
+    await expect(storage.getItem("key-1")).rejects.toThrow(
+      /storage\.web\.ts/i,
+    );
     expect(mockedSecureStore.getItemAsync).not.toHaveBeenCalled();
   });
 
-  it("writes to window.localStorage", async () => {
-    await storage.setItem("key-1", "value-1");
-    expect(setItemSpy).toHaveBeenCalledWith("key-1", "value-1");
+  it("throws on setItem to force the .web variant", async () => {
+    await expect(storage.setItem("key-1", "value-1")).rejects.toThrow(
+      /storage\.web\.ts/i,
+    );
     expect(mockedSecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 
-  it("removes from window.localStorage", async () => {
-    await storage.deleteItem("key-1");
-    expect(removeItemSpy).toHaveBeenCalledWith("key-1");
+  it("throws on deleteItem to force the .web variant", async () => {
+    await expect(storage.deleteItem("key-1")).rejects.toThrow(
+      /storage\.web\.ts/i,
+    );
     expect(mockedSecureStore.deleteItemAsync).not.toHaveBeenCalled();
-  });
-
-  it("returns null when localStorage.getItem throws", async () => {
-    getItemSpy.mockImplementationOnce(() => {
-      throw new Error("SecurityError");
-    });
-    await expect(storage.getItem("key-1")).resolves.toBeNull();
-  });
-
-  it("swallows errors in setItem", async () => {
-    setItemSpy.mockImplementationOnce(() => {
-      throw new Error("QuotaExceeded");
-    });
-    await expect(storage.setItem("key-1", "value-1")).resolves.toBeUndefined();
-  });
-
-  it("swallows errors in deleteItem", async () => {
-    removeItemSpy.mockImplementationOnce(() => {
-      throw new Error("SecurityError");
-    });
-    await expect(storage.deleteItem("key-1")).resolves.toBeUndefined();
   });
 });
