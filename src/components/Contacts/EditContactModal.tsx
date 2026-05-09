@@ -25,6 +25,7 @@ import { Avatar } from "../Chat/Avatar";
 import { useTheme } from "../../context/ThemeContext";
 import { colors } from "../../theme/colors";
 import { useNavigation } from "@react-navigation/native";
+import { DangerConfirmModal } from "../Common/DangerConfirmModal";
 
 interface EditContactModalProps {
   visible: boolean;
@@ -42,7 +43,9 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
   const [nickname, setNickname] = useState("");
   const [isFavorite, setIsFavorite] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { getThemeColors } = useTheme();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingContact, setDeletingContact] = useState(false);
+  const { getThemeColors, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
   const navigation = useNavigation();
 
@@ -84,41 +87,27 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
 
   const handleDelete = () => {
     if (!contact) return;
+    setShowDeleteConfirm(true);
+  };
 
-    Alert.alert(
-      "Supprimer le contact",
-      "Êtes-vous sûr de vouloir supprimer ce contact ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await contactsAPI.deleteContact(contact.contact_id || contact.id);
-              Alert.alert("Succès", "Contact supprimé", [
-                {
-                  text: "OK",
-                  onPress: () => {
-                    onContactUpdated();
-                    handleClose();
-                  },
-                },
-              ]);
-            } catch (error: any) {
-              console.error(
-                "[EditContactModal] Error deleting contact:",
-                error,
-              );
-              Alert.alert(
-                "Erreur",
-                error.message || "Impossible de supprimer le contact",
-              );
-            }
-          },
-        },
-      ],
-    );
+  const confirmDeleteContact = async () => {
+    if (!contact) return;
+    setDeletingContact(true);
+    try {
+      await contactsAPI.deleteContact(contact.contact_id || contact.id);
+      setShowDeleteConfirm(false);
+      onContactUpdated();
+      handleClose();
+    } catch (error: any) {
+      console.error("[EditContactModal] Error deleting contact:", error);
+      setShowDeleteConfirm(false);
+      Alert.alert(
+        "Erreur",
+        error.message || "Impossible de supprimer le contact",
+      );
+    } finally {
+      setDeletingContact(false);
+    }
   };
 
   const handleClose = () => {
@@ -347,6 +336,19 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
           </View>
         </SafeAreaView>
       </LinearGradient>
+      <DangerConfirmModal
+        visible={showDeleteConfirm}
+        title={getLocalizedText("confirm.deleteContact.title")}
+        description={`${displayName} — ${getLocalizedText(
+          "confirm.deleteContact.description",
+        )}`}
+        expectedText={getLocalizedText("confirm.expectedDelete")}
+        actionLabel={getLocalizedText("confirm.deleteContact.action")}
+        actionVariant="destructive"
+        loading={deletingContact}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDeleteContact}
+      />
     </Modal>
   );
 };
