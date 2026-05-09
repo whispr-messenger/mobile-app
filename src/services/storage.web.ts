@@ -1,9 +1,13 @@
 import { isWrapped, unwrap, wrap } from "./webCryptoVault.web";
 
-// Keys whose values must never sit in localStorage as plaintext. Anything
-// not in this set is stored as-is (short-lived auth tokens are out of scope
-// for this fix — see WHISPR-1212).
-const SECURE_KEYS = new Set<string>(["whispr.signal.identityKeyPrivate"]);
+// Cles dont les valeurs ne doivent jamais finir en clair dans localStorage.
+// On y inclut la cle d'identite Signal (WHISPR-1212) et les tokens d'auth
+// (WHISPR-1328) pour limiter l'exposition en cas de XSS sur le PWA web.
+const SECURE_KEYS = new Set<string>([
+  "whispr.signal.identityKeyPrivate",
+  "whispr.auth.accessToken",
+  "whispr.auth.refreshToken",
+]);
 
 function isSecure(key: string): boolean {
   return SECURE_KEYS.has(key);
