@@ -31,9 +31,16 @@ export const ContactItem: React.FC<ContactItemProps> = ({
   const themeColors = getThemeColors();
 
   const user = contact.contact_user;
+  // chaine de fallback : nickname > prenom > @username > tel masque > "Contact"
+  // phone_number_masked couvre les utilisateurs OTP sans profil (WHISPR-1435)
   const displayName =
-    contact.nickname || user?.first_name || user?.username || "Contact";
-  const subtitle = user?.username || user?.phone_number || "";
+    contact.nickname ||
+    user?.first_name ||
+    user?.username ||
+    user?.phone_number_masked ||
+    "Contact";
+  const subtitle =
+    user?.username || user?.phone_number_masked || user?.phone_number || "";
 
   const handlePress = () => {
     onPress?.(contact);
