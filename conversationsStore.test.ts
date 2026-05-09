@@ -15,6 +15,7 @@ jest.mock("./src/services/messaging/api", () => ({
     getConversation: jest.fn().mockResolvedValue(null),
     getConversationMembers: jest.fn().mockResolvedValue([]),
     getUserInfo: jest.fn().mockResolvedValue(null),
+    getUsersInfoBatch: jest.fn().mockResolvedValue(new Map()),
     deleteConversation: jest.fn().mockResolvedValue(undefined),
     archiveConversation: jest.fn().mockResolvedValue(undefined),
     unarchiveConversation: jest.fn().mockResolvedValue(undefined),
@@ -281,6 +282,7 @@ beforeEach(() => {
     mockedMessagingAPI.getConversations,
     mockedMessagingAPI.getConversation,
     mockedMessagingAPI.getUserInfo,
+    mockedMessagingAPI.getUsersInfoBatch,
     mockedMessagingAPI.deleteConversation,
     mockedMessagingAPI.archiveConversation,
     mockedMessagingAPI.unarchiveConversation,
@@ -304,6 +306,7 @@ beforeEach(() => {
   mockedMessagingAPI.getConversations.mockResolvedValue([]);
   mockedMessagingAPI.getConversation.mockResolvedValue(null);
   mockedMessagingAPI.getUserInfo.mockResolvedValue(null);
+  mockedMessagingAPI.getUsersInfoBatch.mockResolvedValue(new Map());
   mockedMessagingAPI.deleteConversation.mockResolvedValue(undefined);
   mockedMessagingAPI.archiveConversation.mockResolvedValue(undefined);
   mockedMessagingAPI.unarchiveConversation.mockResolvedValue(undefined);
@@ -1711,5 +1714,119 @@ describe("conversationsStore — enrichSingleConversation fallback (WHISPR-1423)
     expect(stored.display_name).toBeUndefined();
     expect(stored.username).toBeUndefined();
     expect(stored.phone_number).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichSingleConversation — sentinel bypass (WHISPR-1426)
+// ---------------------------------------------------------------------------
+// Regression : le messaging-service pre-remplit display_name="Utilisateur" et
+// avatar_url avec une valeur non-null. L early-return de enrichSingleConversation
+// voyait (display_name && avatar_url) = truthy et sautait l enrichment entier.
+// Result : l UI affichait "Utilisateur" meme quand getUserInfo retourne un vrai nom.
+
+describe("conversationsStore — enrichSingleConversation sentinel bypass (WHISPR-1426)", () => {
+  beforeEach(() => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+  });
+
+  it('force l enrichment quand display_name="Utilisateur" meme si avatar_url est set', async () => {
+    const conv = makeConv("c-sentinel", {
+      display_name: "Utilisateur",
+      avatar_url: "https://cdn/placeholder.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "Alice Dupont",
+      username: "alice",
+      avatar_url: "https://cdn/alice.png",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Alice Dupont");
+    expect(stored.avatar_url).toBe("https://cdn/alice.png");
+  });
+
+  it('force l enrichment quand display_name="User" (variante anglaise du sentinel)', async () => {
+    const conv = makeConv("c-sentinel-en", {
+      display_name: "User",
+      avatar_url: "https://cdn/placeholder.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "Bob Martin",
+      username: "bob",
+      avatar_url: "https://cdn/bob.png",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Bob Martin");
+  });
+
+  it("ne refetche pas une conv deja correctement enrichie (display_name reel + avatar_url)", async () => {
+    const conv = makeConv("c-already-enriched", {
+      display_name: "Charlie Leclerc",
+      avatar_url: "https://cdn/charlie.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    // getUserInfo ne doit pas etre appele : l early-return doit laisser passer
+    expect(mockedMessagingAPI.getUserInfo).not.toHaveBeenCalled();
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Charlie Leclerc");
+  });
+
+  it('sentinel bypass declenche enrichment via applyConversationSummaries (WS path)', async () => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+    mockedMessagingAPI.getUserInfo.mockResolvedValue({
+      id: "other",
+      display_name: "Diana Prince",
+      username: "diana",
+      avatar_url: "https://cdn/diana.png",
+    });
+
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([
+        {
+          id: "c-ws-sentinel",
+          type: "direct",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          is_active: true,
+          display_name: "Utilisateur",
+          avatar_url: "https://cdn/placeholder.png",
+          member_user_ids: ["other", "me"],
+        } as any,
+      ]);
+    });
+
+    // async enrichment is kicked off — wait for it
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const stored = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-ws-sentinel");
+    expect(stored?.display_name).toBe("Diana Prince");
   });
 });
