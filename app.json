@@ -33,6 +33,7 @@
         },
         "NSMicrophoneUsageDescription": "Whispr a besoin du micro pour les appels voix et video.",
         "NSCameraUsageDescription": "Whispr a besoin de la camera pour les appels video.",
+        "NSContactsUsageDescription": "Whispr accede aux contacts pour trouver vos amis sur l'application.",
         "UIBackgroundModes": ["voip", "audio"]
       }
     },
@@ -48,7 +49,8 @@
         "RECORD_AUDIO",
         "CAMERA",
         "MODIFY_AUDIO_SETTINGS",
-        "INTERNET"
+        "INTERNET",
+        "READ_CONTACTS"
       ]
     },
     "web": {
