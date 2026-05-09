@@ -16,6 +16,7 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  Platform,
 } from "react-native";
 import {
   SafeAreaView,
@@ -628,6 +629,8 @@ export const ContactsScreen: React.FC = () => {
             data={filteredContacts}
             renderItem={renderContact}
             keyExtractor={keyExtractor}
+            style={styles.list}
+            showsVerticalScrollIndicator={Platform.OS === "web"}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -689,9 +692,24 @@ export const ContactsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    // WHISPR-1254 - sur react-native-web, flex:1 seul ne propage pas la
+    // hauteur disponible jusqu'aux enfants si l'ancetre racine (#root) ne
+    // borne pas son propre contenu. height:100% force le wrapper racine a
+    // occuper exactement la hauteur du viewport.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
   },
   container: {
     flex: 1,
+    // WHISPR-1254 - minHeight:0 est requis par CSS flexbox pour qu'un
+    // enfant scrollable (FlatList) puisse overflow au lieu de pousser le
+    // parent. Sans ca, les contacts depassent le viewport.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
+  list: {
+    flex: 1,
+    // WHISPR-1254 - meme raison que .container : permettre l'overflow
+    // vertical natif cote react-native-web.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   topSection: {
     paddingHorizontal: 16,
