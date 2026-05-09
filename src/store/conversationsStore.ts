@@ -138,6 +138,10 @@ interface ConversationsActions {
   applyNewMessage: (message: Message, currentUserId?: string) => Promise<void>;
   applyMessageUpdated: (message: Message) => void;
   applyMessageDeleted: (messageId: string, deleteForEveryone: boolean) => void;
+  applyMessageUnread: (params: {
+    messageId: string;
+    conversationId: string;
+  }) => void;
   deleteConversation: (id: string) => Promise<void>;
   removeConversationLocal: (id: string) => void;
   archiveConversation: (id: string) => Promise<void>;
@@ -614,6 +618,47 @@ export const useConversationsStore = create<
                 }
               : c,
           ),
+        },
+      });
+    }
+  },
+
+  applyMessageUnread: ({ messageId, conversationId }) => {
+    // symetrique de applyMessageDeleted : si le destinataire repasse un message
+    // en non-lu, on retire le status "read" de la preview locale (le ticker
+    // bleu redevient gris). Le delivery_status broadcast par le backend sera
+    // intercepte par useWebSocket et gere par les ChatScreen ouverts.
+    const { conversations, archived } = get();
+
+    const updateLastMessage = (conv: Conversation): Conversation => {
+      if (conv.id !== conversationId) return conv;
+      if (!conv.last_message || conv.last_message.id !== messageId) return conv;
+      const last = conv.last_message;
+      const nextStatus =
+        last.status === "read" ? ("delivered" as const) : last.status;
+      return {
+        ...conv,
+        last_message: {
+          ...last,
+          status: nextStatus,
+        },
+      };
+    };
+
+    const mainIndex = conversations.findIndex((c) => c.id === conversationId);
+    if (mainIndex !== -1) {
+      const next = conversations.map(updateLastMessage);
+      set({ conversations: next });
+    }
+
+    const archivedIndex = archived.items.findIndex(
+      (c) => c.id === conversationId,
+    );
+    if (archivedIndex !== -1) {
+      set({
+        archived: {
+          ...archived,
+          items: archived.items.map(updateLastMessage),
         },
       });
     }
