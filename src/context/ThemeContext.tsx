@@ -713,6 +713,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.errorConnection": "Une erreur est survenue lors de la connexion",
     "auth.errorSendCode": "Impossible d'envoyer le code de vérification",
     "settings.blockedUsers": "Utilisateurs bloqués",
+    "blockedUsers.blockedSince": "Bloqué le",
     "settings.blockedUsersSubtitle":
       "Voir et débloquer les utilisateurs que vous avez bloqués",
     "devices.title": "Mes appareils",
@@ -1048,6 +1049,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.errorConnection": "An error occurred during connection",
     "auth.errorSendCode": "Unable to send verification code",
     "settings.blockedUsers": "Blocked users",
+    "blockedUsers.blockedSince": "Blocked on",
     "settings.blockedUsersSubtitle": "View and unblock users you've blocked",
     "devices.title": "My devices",
     "devices.subtitle": "View and sign out active sessions",
