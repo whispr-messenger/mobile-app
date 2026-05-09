@@ -6,7 +6,7 @@
  * Le composant ne gere PAS le positionnement : il rend uniquement le contenu
  * de la card. Le wrapping (Modal mobile / Popover web) est dans le host.
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -20,8 +20,13 @@ import { colors, withOpacity } from "../../theme/colors";
 import { UserService, UserProfile } from "../../services/UserService";
 import { contactsAPI } from "../../services/contacts/api";
 import { getCached, setCached } from "../../services/profile/miniProfileCache";
+import {
+  getCachedRelation,
+  invalidateCachedRelation,
+  setCachedRelation,
+  type Relation,
+} from "../../services/profile/miniRelationCache";
 
-type Relation = "self" | "blocked" | "contact" | "unknown";
 type CardState = "loading" | "loaded" | "error" | "notFound";
 
 interface ErrorInfo {
@@ -92,25 +97,45 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
   const [busyAction, setBusyAction] = useState<null | "block" | "unblock">(
     null,
   );
+  // mounted ref pour eviter les setState apres demontage (memory leak si l'user
+  // ferme la card pendant un fetch en cours).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const isSelf = !!currentUserId && currentUserId === userId;
 
   const computeRelation = useCallback(
     async (id: string): Promise<Relation> => {
       if (currentUserId && currentUserId === id) return "self";
+      // hit cache TTL 60s pour eviter 2 appels reseau a chaque ouverture de card
+      const cachedRel = getCachedRelation(id);
+      if (cachedRel !== null) return cachedRel;
+      let result: Relation = "unknown";
       try {
         const { blocked } = await contactsAPI.getBlockedUsers();
-        if (blocked.some((b) => b.blocked_user_id === id)) return "blocked";
+        if (blocked.some((b) => b.blocked_user_id === id)) {
+          result = "blocked";
+        }
       } catch {
         // ne pas bloquer le rendu si la liste blocked echoue
       }
-      try {
-        const { contacts } = await contactsAPI.getContacts();
-        if (contacts.some((c) => c.contact_id === id)) return "contact";
-      } catch {
-        // idem
+      if (result === "unknown") {
+        try {
+          const { contacts } = await contactsAPI.getContacts();
+          if (contacts.some((c) => c.contact_id === id)) {
+            result = "contact";
+          }
+        } catch {
+          // idem
+        }
       }
-      return "unknown";
+      setCachedRelation(id, result);
+      return result;
     },
     [currentUserId],
   );
@@ -120,15 +145,20 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
       // 1. cache hit
       const cached = getCached(userId);
       if (cached && !opts.forceRefresh) {
+        if (!mounted.current) return;
         setProfile(cached.profile);
         setState("loaded");
         // si stale, on continue jusqu'au fetch en background
         if (!cached.isStale) {
           // on resoud quand meme la relation
-          computeRelation(userId).then(setRelation);
+          computeRelation(userId).then((rel) => {
+            if (!mounted.current) return;
+            setRelation(rel);
+          });
           return;
         }
       } else if (!cached) {
+        if (!mounted.current) return;
         setState("loading");
       }
 
@@ -136,6 +166,7 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
         const result = await fetchWithTimeout(
           UserService.getInstance().getUserProfile(userId),
         );
+        if (!mounted.current) return;
         if (!result.success || !result.profile) {
           // 404 -> on l'identifie par message contenant "404"
           if (result.message?.includes("404")) {
@@ -152,18 +183,24 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
           return;
         }
         setCached(userId, result.profile);
+        if (!mounted.current) return;
         setProfile(result.profile);
+        setError(null);
         setState("loaded");
         const rel = await computeRelation(userId);
+        if (!mounted.current) return;
         setRelation(rel);
       } catch (e) {
+        if (!mounted.current) return;
         const isTimeout = (e as Error)?.message === "timeout";
         setError({
           kind: isTimeout ? "timeout" : "network",
           retriable: true,
         });
-        // si on a deja une version cachee on reste en loaded, sinon error
-        if (!cached) setState("error");
+        // on bascule en error meme si on a du stale : la card va l'afficher
+        // avec un banner "donnees possiblement obsoletes" plutot que
+        // renvoyer null silencieusement.
+        setState("error");
       }
     },
     [userId, computeRelation],
@@ -178,11 +215,14 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
     setBusyAction("block");
     try {
       await contactsAPI.blockUser(userId);
+      if (!mounted.current) return;
+      invalidateCachedRelation(userId);
+      setCachedRelation(userId, "blocked");
       setRelation("blocked");
     } catch {
       // si l'appel rate, on garde le relation precedent
     } finally {
-      setBusyAction(null);
+      if (mounted.current) setBusyAction(null);
     }
   }, [userId, busyAction]);
 
@@ -191,11 +231,14 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
     setBusyAction("unblock");
     try {
       await contactsAPI.unblockUser(userId);
+      if (!mounted.current) return;
+      invalidateCachedRelation(userId);
+      setCachedRelation(userId, "contact");
       setRelation("contact");
     } catch {
       // idem
     } finally {
-      setBusyAction(null);
+      if (mounted.current) setBusyAction(null);
     }
   }, [userId, busyAction]);
 
@@ -259,12 +302,39 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
   if (!profile) return null;
 
   const displayName = buildDisplayName(profile);
-  const lastSeenText = profile.isOnline
-    ? "en ligne"
-    : formatLastSeen(profile.lastSeen);
+  const isStale = state === "error" && !!profile;
+  // privacy gate cote client : si le backend a deja masque, on ne ressuscite
+  // PAS la valeur. lastSeen falsy => masque par parametres user. isOnline
+  // doit etre strictement true pour afficher "en ligne". Pas de fallback
+  // "vu il y a longtemps" invente cote client.
+  const lastSeenText =
+    profile.isOnline === true
+      ? "en ligne"
+      : profile.lastSeen
+        ? formatLastSeen(profile.lastSeen)
+        : null;
 
   return (
     <View style={styles.card} testID="mini-profile-card-loaded">
+      {isStale ? (
+        <View style={styles.staleBanner} testID="mini-profile-card-stale">
+          <Ionicons
+            name="cloud-offline-outline"
+            size={14}
+            color={colors.ui.error}
+          />
+          <Text style={styles.staleBannerText}>
+            Donnees possiblement obsoletes
+          </Text>
+          <Pressable
+            onPress={() => void load({ forceRefresh: true })}
+            accessibilityRole="button"
+            hitSlop={8}
+          >
+            <Text style={styles.staleBannerLink}>Reessayer</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {profile.profilePicture ? (
         <Image
           source={{ uri: profile.profilePicture }}
@@ -419,6 +489,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     textAlign: "center",
+  },
+  staleBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: withOpacity(colors.ui.error, 0.12),
+    borderWidth: 1,
+    borderColor: withOpacity(colors.ui.error, 0.3),
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    width: "100%",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  staleBannerText: {
+    color: withOpacity("#FFFFFF", 0.85),
+    fontSize: 12,
+  },
+  staleBannerLink: {
+    color: colors.ui.error,
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   blockedBadge: {
     flexDirection: "row",
