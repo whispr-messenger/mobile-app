@@ -3,7 +3,7 @@ export { FormattedText } from "./textFormatter";
 export { logger } from "./logger";
 export { copyToClipboard } from "./clipboard";
 export { toSnakeCase, snakecaseKeys } from "./caseTransform";
-export { isReachableUrl } from "./urlFilters";
+export { isReachableUrl, isHttpUrl } from "./urlFilters";
 
 /**
  * Format a username for display with a single "@" prefix.
