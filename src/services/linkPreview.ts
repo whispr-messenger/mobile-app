@@ -307,7 +307,7 @@ async function writeStoredCache(
   try {
     await AsyncStorage.setItem(cacheKey(url), JSON.stringify(entry));
   } catch {
-    // Best effort only — memory cache still protects the current session.
+    // best-effort : le cache memoire couvre deja la session courante.
   }
 }
 
