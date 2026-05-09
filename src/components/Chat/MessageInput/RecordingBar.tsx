@@ -191,6 +191,8 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
           onPress={onCancel}
           style={styles.sideButton}
           activeOpacity={0.7}
+          // hitSlop pour respecter iOS HIG 44pt
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Annuler l'enregistrement vocal"
         >
@@ -244,6 +246,8 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
             onPress={handleTogglePause}
             style={styles.sideButton}
             activeOpacity={0.7}
+            // hitSlop pour respecter iOS HIG 44pt
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={
               isPaused
@@ -262,6 +266,8 @@ export const RecordingBar: React.FC<RecordingBarProps> = ({
           testID="recording-stop-btn"
           onPress={onStop}
           activeOpacity={0.7}
+          // hitSlop pour respecter iOS HIG 44pt
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel="Arrêter l'enregistrement vocal"
         >

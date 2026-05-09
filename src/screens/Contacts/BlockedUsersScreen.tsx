@@ -28,8 +28,10 @@ export const BlockedUsersScreen: React.FC = () => {
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [unblockingId, setUnblockingId] = useState<string | null>(null);
-  const { getThemeColors } = useTheme();
+  const { getThemeColors, getLocalizedText, settings } = useTheme();
   const themeColors = getThemeColors();
+  // locale dynamique selon la langue choisie par l'utilisateur
+  const dateLocale = settings.language === "en" ? "en-US" : "fr-FR";
 
   const loadBlockedUsers = useCallback(async () => {
     try {
@@ -130,7 +132,8 @@ export const BlockedUsersScreen: React.FC = () => {
               style={[styles.blockDate, { color: themeColors.text.tertiary }]}
               numberOfLines={1}
             >
-              Bloqué le {new Date(item.blocked_at).toLocaleDateString("fr-FR")}
+              {getLocalizedText("blockedUsers.blockedSince")}{" "}
+              {new Date(item.blocked_at).toLocaleDateString(dateLocale)}
             </Text>
           </View>
           <TouchableOpacity
@@ -158,7 +161,7 @@ export const BlockedUsersScreen: React.FC = () => {
         </View>
       );
     },
-    [unblockingId, handleUnblock, themeColors],
+    [unblockingId, handleUnblock, themeColors, getLocalizedText, dateLocale],
   );
 
   return (

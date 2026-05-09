@@ -242,6 +242,8 @@ export const TwoFactorAuthScreen: React.FC = () => {
                 navigation.goBack();
               }}
               activeOpacity={0.7}
+              // hitSlop pour respecter iOS HIG 44pt
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               <Ionicons
                 name="arrow-back"
@@ -455,7 +457,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     activeOpacity={0.8}
                   >
                     {actionLoading ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      // wrapper pour annoncer l'etat busy au screen reader
+                      <View
+                        accessibilityState={{ busy: true }}
+                        accessibilityLiveRegion="polite"
+                      >
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      </View>
                     ) : (
                       <Text
                         style={{
@@ -530,7 +538,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     ]}
                   >
                     {actionLoading ? (
-                      <ActivityIndicator size="small" color={accentColor} />
+                      // wrapper pour annoncer l'etat busy au screen reader
+                      <View
+                        accessibilityState={{ busy: true }}
+                        accessibilityLiveRegion="polite"
+                      >
+                        <ActivityIndicator size="small" color={accentColor} />
+                      </View>
                     ) : (
                       <Ionicons
                         name="key-outline"
@@ -671,7 +685,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
                       activeOpacity={0.8}
                     >
                       {actionLoading ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        // wrapper pour annoncer l'etat busy au screen reader
+                        <View
+                          accessibilityState={{ busy: true }}
+                          accessibilityLiveRegion="polite"
+                        >
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        </View>
                       ) : (
                         <Text
                           style={{

@@ -308,7 +308,12 @@ export const ProfileSetupScreen: React.FC = () => {
               accessibilityHint="Ouvre la bibliothèque photo pour choisir une image de profil"
             >
               {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                // image decorative, le bouton parent porte deja le label
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={styles.avatar}
+                  accessible={false}
+                />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarPlaceholderIcon}>📷</Text>
