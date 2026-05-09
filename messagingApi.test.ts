@@ -624,6 +624,50 @@ describe("messagingAPI.getUserInfo cache", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it("caches null with a short TTL on 429 (refetches after 30s)", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    try {
+      mockFetch
+        .mockResolvedValueOnce(mockResponse({ status: 429 }))
+        .mockResolvedValueOnce(
+          mockResponse({ body: { id: "u-1", username: "ada" } }),
+        );
+
+      const first = await messagingAPI.getUserInfo("u-1");
+      expect(first).toBeNull();
+      // dans la fenetre 30s : sert le cache, pas de retry storm
+      const cached = await messagingAPI.getUserInfo("u-1");
+      expect(cached).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // apres 30s + 1s, le cache short-TTL expire et on refetch
+      jest.setSystemTime(new Date("2026-05-09T12:00:31Z"));
+      const second = await messagingAPI.getUserInfo("u-1");
+      expect(second).toMatchObject({ id: "u-1" });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps the standard 5-min TTL for non-429 errors (e.g. 500)", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    try {
+      mockFetch.mockResolvedValueOnce(mockResponse({ status: 500 }));
+
+      const first = await messagingAPI.getUserInfo("u-1");
+      expect(first).toBeNull();
+
+      // a 31s, le cache 5min tient toujours, pas de refetch
+      jest.setSystemTime(new Date("2026-05-09T12:00:31Z"));
+      const stillCached = await messagingAPI.getUserInfo("u-1");
+      expect(stillCached).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

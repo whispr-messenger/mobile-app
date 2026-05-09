@@ -117,7 +117,10 @@ async function batchedMap<T, R>(
   return results;
 }
 
-const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
+// le user-service throttle court est a ~10 req/s; on garde 5 in-flight
+// max pour laisser de la marge et eviter le burst 429 au load de la
+// ConversationsList (enrichissement profile en parallele).
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 5;
 
 interface ConversationPayload {
   memberUserIds?: string[];
