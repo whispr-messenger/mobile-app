@@ -32,14 +32,19 @@ export function getCached(userId: string): {
 }
 
 export function setCached(userId: string, profile: UserProfile): void {
+  // refresh LRU position si la cle existe deja (delete + reinsert)
   if (store.has(userId)) {
     store.delete(userId);
-  } else if (store.size >= MAX_ENTRIES) {
-    // eviction du moins recemment utilise (premiere clef de l'iter)
-    const oldestKey = store.keys().next().value;
-    if (oldestKey !== undefined) store.delete(oldestKey);
   }
   store.set(userId, { profile, fetchedAt: Date.now() });
+  // eviction du moins recemment utilise tant qu'on depasse la taille
+  // bornee. Trigger meme sur update de cle existante au cas ou la
+  // limite a ete depassee dans une session anterieure.
+  while (store.size > MAX_ENTRIES) {
+    const oldestKey = store.keys().next().value;
+    if (oldestKey === undefined) break;
+    store.delete(oldestKey);
+  }
 }
 
 export function clearCache(): void {
