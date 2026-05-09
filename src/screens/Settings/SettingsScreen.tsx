@@ -19,6 +19,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { storage as secureStorage } from "../../services/storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -148,17 +149,30 @@ export const SettingsScreen: React.FC = () => {
   });
 
   /**
-   * Persist a settings category to AsyncStorage
+   * Persist a settings category to storage. The security category is routed
+   * through SecureStore (Keychain iOS / Keystore Android, encrypted vault on
+   * web) — WHISPR-1359 — so the local 2FA / biometric flags can not be
+   * tampered with by a rooted device or an unencrypted ADB backup. Other
+   * categories stay on AsyncStorage: they are UX preferences, not security
+   * boundaries.
+   *
+   * fix(settings) Le flag local biometricAuth/twoFactorAuth ne suffit PAS
+   * pour autoriser une action sensible. Toujours valider cote serveur (cf
+   * endpoint /auth/v1/2fa/status). Le flag sert juste a piloter l UI.
    */
   const persistSettings = useCallback(
     async (key: string, value: Record<string, any>) => {
       try {
+        if (key === STORAGE_KEYS.security) {
+          await secureStorage.setItem(key, JSON.stringify(value));
+          return;
+        }
         await AsyncStorage.setItem(key, JSON.stringify(value));
       } catch (error) {
         console.error("Error persisting settings:", error);
       }
     },
-    [],
+    [STORAGE_KEYS.security],
   );
 
   /**
@@ -289,7 +303,36 @@ export const SettingsScreen: React.FC = () => {
   );
 
   /**
-   * Load all settings from AsyncStorage and privacy from API on mount
+   * Lit la categorie security depuis SecureStore. Si vide, regarde encore
+   * AsyncStorage pour migrer les users existants, puis purge la cle legacy.
+   */
+  const loadSecurityFromStorage = useCallback(async (): Promise<
+    string | null
+  > => {
+    try {
+      const secureRaw = await secureStorage.getItem(STORAGE_KEYS.security);
+      if (secureRaw !== null) return secureRaw;
+      const legacyRaw = await AsyncStorage.getItem(STORAGE_KEYS.security);
+      if (legacyRaw === null) return null;
+      await secureStorage.setItem(STORAGE_KEYS.security, legacyRaw);
+      await AsyncStorage.removeItem(STORAGE_KEYS.security);
+      return legacyRaw;
+    } catch {
+      return null;
+    }
+  }, [STORAGE_KEYS.security]);
+
+  /**
+   * Load all settings from storage and privacy from API on mount.
+   *
+   * fix(settings) Le flag local biometricAuth/twoFactorAuth ne suffit PAS
+   * pour autoriser une action sensible. Toujours valider cote serveur (cf
+   * endpoint /auth/v1/2fa/status). Le flag sert juste a piloter l UI.
+   *
+   * WHISPR-1359 — la categorie security est lue depuis SecureStore. Pour les
+   * users existants qui ont encore la valeur dans AsyncStorage, on migre
+   * doucement : fallback AsyncStorage si SecureStore vide, puis purge la
+   * cle legacy.
    */
   useEffect(() => {
     const loadSettings = async () => {
@@ -300,7 +343,7 @@ export const SettingsScreen: React.FC = () => {
             AsyncStorage.getItem(STORAGE_KEYS.notifications),
             AsyncStorage.getItem(STORAGE_KEYS.messaging),
             AsyncStorage.getItem(STORAGE_KEYS.app),
-            AsyncStorage.getItem(STORAGE_KEYS.security),
+            loadSecurityFromStorage(),
           ]);
 
         if (privacyJson) setPrivacySettings(JSON.parse(privacyJson));
