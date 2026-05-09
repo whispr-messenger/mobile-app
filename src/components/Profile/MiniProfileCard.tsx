@@ -6,7 +6,7 @@
  * Le composant ne gere PAS le positionnement : il rend uniquement le contenu
  * de la card. Le wrapping (Modal mobile / Popover web) est dans le host.
  */
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -92,6 +92,15 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
   const [busyAction, setBusyAction] = useState<null | "block" | "unblock">(
     null,
   );
+  // mounted ref pour eviter les setState apres demontage (memory leak si l'user
+  // ferme la card pendant un fetch en cours).
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const isSelf = !!currentUserId && currentUserId === userId;
 
@@ -120,15 +129,20 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
       // 1. cache hit
       const cached = getCached(userId);
       if (cached && !opts.forceRefresh) {
+        if (!mounted.current) return;
         setProfile(cached.profile);
         setState("loaded");
         // si stale, on continue jusqu'au fetch en background
         if (!cached.isStale) {
           // on resoud quand meme la relation
-          computeRelation(userId).then(setRelation);
+          computeRelation(userId).then((rel) => {
+            if (!mounted.current) return;
+            setRelation(rel);
+          });
           return;
         }
       } else if (!cached) {
+        if (!mounted.current) return;
         setState("loading");
       }
 
@@ -136,6 +150,7 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
         const result = await fetchWithTimeout(
           UserService.getInstance().getUserProfile(userId),
         );
+        if (!mounted.current) return;
         if (!result.success || !result.profile) {
           // 404 -> on l'identifie par message contenant "404"
           if (result.message?.includes("404")) {
@@ -152,11 +167,14 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
           return;
         }
         setCached(userId, result.profile);
+        if (!mounted.current) return;
         setProfile(result.profile);
         setState("loaded");
         const rel = await computeRelation(userId);
+        if (!mounted.current) return;
         setRelation(rel);
       } catch (e) {
+        if (!mounted.current) return;
         const isTimeout = (e as Error)?.message === "timeout";
         setError({
           kind: isTimeout ? "timeout" : "network",
@@ -178,11 +196,12 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
     setBusyAction("block");
     try {
       await contactsAPI.blockUser(userId);
+      if (!mounted.current) return;
       setRelation("blocked");
     } catch {
       // si l'appel rate, on garde le relation precedent
     } finally {
-      setBusyAction(null);
+      if (mounted.current) setBusyAction(null);
     }
   }, [userId, busyAction]);
 
@@ -191,11 +210,12 @@ export const MiniProfileCard: React.FC<MiniProfileCardProps> = ({
     setBusyAction("unblock");
     try {
       await contactsAPI.unblockUser(userId);
+      if (!mounted.current) return;
       setRelation("contact");
     } catch {
       // idem
     } finally {
-      setBusyAction(null);
+      if (mounted.current) setBusyAction(null);
     }
   }, [userId, busyAction]);
 

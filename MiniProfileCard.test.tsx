@@ -178,4 +178,34 @@ describe("MiniProfileCard", () => {
     });
     expect(onMessage).toHaveBeenCalled();
   });
+
+  it("does not warn when unmounted before fetch resolves", async () => {
+    let resolveProfile: (v: unknown) => void = () => {};
+    mockGetUserProfile.mockReturnValue(
+      new Promise((res) => {
+        resolveProfile = res;
+      }),
+    );
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const { unmount } = render(
+      <MiniProfileCard
+        userId="u1"
+        currentUserId="me"
+        onClose={() => {}}
+        onOpenFullProfile={() => {}}
+        onOpenSelfProfile={() => {}}
+        onMessage={() => {}}
+      />,
+    );
+    unmount();
+    await act(async () => {
+      resolveProfile({ success: true, profile: buildProfile() });
+      await Promise.resolve();
+    });
+    const calls = errorSpy.mock.calls.map((c) => String(c[0]));
+    expect(
+      calls.some((m) => m.includes("unmounted") || m.includes("memory leak")),
+    ).toBe(false);
+    errorSpy.mockRestore();
+  });
 });
