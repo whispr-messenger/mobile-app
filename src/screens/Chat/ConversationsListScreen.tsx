@@ -67,6 +67,10 @@ import { useUIStore } from "../../store/uiStore";
 import { messagingAPI } from "../../services/messaging/api";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { getConversationDisplayName } from "../../utils";
+import { BellIcon } from "../../components/Common/BellIcon";
+import { InboxPanel } from "../../components/Common/InboxPanel";
+import { SafariPWABanner } from "../../components/Common/SafariPWABanner";
+import { useInboxStore } from "../../store/inboxStore";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
 
@@ -134,6 +138,11 @@ export const ConversationsListScreen: React.FC = () => {
     (s) => s.loadManuallyUnreadIds,
   );
   const setBottomTabBarHidden = useUIStore((s) => s.setBottomTabBarHidden);
+
+  // Inbox store
+  const inboxUnreadCount = useInboxStore((s) => s.unread_count);
+  const hydrateInbox = useInboxStore((s) => s.hydrate);
+  const [inboxPanelOpen, setInboxPanelOpen] = useState(false);
 
   // UI-only state
   const [refreshing, setRefreshing] = useState(false);
@@ -205,6 +214,11 @@ export const ConversationsListScreen: React.FC = () => {
     }
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
+
+  // Charge l'inbox au montage du screen principal
+  useEffect(() => {
+    if (userId) hydrateInbox();
+  }, [userId, hydrateInbox]);
 
   const { connectionState, joinConversationChannel, markAsRead } = useWebSocket(
     {
@@ -637,26 +651,32 @@ export const ConversationsListScreen: React.FC = () => {
           <Text
             style={[styles.headerTitle, { color: colors.text.light }]}
           ></Text>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowNewConversationModal(true);
-            }}
-            style={styles.headerButton}
-          >
-            <LinearGradient
-              colors={["#FFB07B", "#F04882"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.composeButton}
+          <View style={styles.headerRightGroup}>
+            <BellIcon
+              unreadCount={inboxUnreadCount}
+              onPress={() => setInboxPanelOpen(true)}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowNewConversationModal(true);
+              }}
+              style={styles.headerButton}
             >
-              <Ionicons
-                name="create-outline"
-                size={20}
-                color={colors.text.light}
-              />
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={["#FFB07B", "#F04882"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.composeButton}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={colors.text.light}
+                />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -843,6 +863,13 @@ export const ConversationsListScreen: React.FC = () => {
           }, 100);
         }}
       />
+
+      <InboxPanel
+        visible={inboxPanelOpen}
+        onClose={() => setInboxPanelOpen(false)}
+      />
+
+      <SafariPWABanner />
     </LinearGradient>
   );
 };
@@ -887,6 +914,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  headerRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   archiveIconButton: {
     width: 40,
