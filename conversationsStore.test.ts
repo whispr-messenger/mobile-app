@@ -1794,7 +1794,7 @@ describe("conversationsStore — enrichSingleConversation sentinel bypass (WHISP
     expect(stored.display_name).toBe("Charlie Leclerc");
   });
 
-  it('sentinel bypass declenche enrichment via applyConversationSummaries (WS path)', async () => {
+  it("sentinel bypass declenche enrichment via applyConversationSummaries (WS path)", async () => {
     mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
     mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
     mockedMessagingAPI.getUserInfo.mockResolvedValue({

@@ -2,18 +2,18 @@
  * EmptyChatState - Empty state when no messages in conversation
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
 
 interface EmptyChatStateProps {
   conversationName?: string;
 }
 
 export const EmptyChatState: React.FC<EmptyChatStateProps> = ({
-  conversationName = 'Contact',
+  conversationName = "Contact",
 }) => {
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
@@ -33,8 +33,8 @@ export const EmptyChatState: React.FC<EmptyChatStateProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   iconContainer: {
@@ -44,18 +44,18 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
 });

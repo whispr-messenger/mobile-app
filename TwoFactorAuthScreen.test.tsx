@@ -214,9 +214,7 @@ describe("TwoFactorAuthScreen", () => {
 
     expect(getByPlaceholderText("twoFactor.enterCode")).toBeTruthy();
     // Nothing hit the backend yet
-    expect(
-      mockedTwoFactorService.regenerateBackupCodes,
-    ).not.toHaveBeenCalled();
+    expect(mockedTwoFactorService.regenerateBackupCodes).not.toHaveBeenCalled();
   });
 
   it("calls regenerateBackupCodes and navigates on valid TOTP code", async () => {
@@ -235,10 +233,7 @@ describe("TwoFactorAuthScreen", () => {
       fireEvent.press(await findByText("twoFactor.regenerateCodes"));
     });
 
-    fireEvent.changeText(
-      getByPlaceholderText("twoFactor.enterCode"),
-      "123456",
-    );
+    fireEvent.changeText(getByPlaceholderText("twoFactor.enterCode"), "123456");
 
     // Second occurrence is the confirm button inside the inline card
     const regenerateButtons = getAllByText("twoFactor.regenerateCodes");

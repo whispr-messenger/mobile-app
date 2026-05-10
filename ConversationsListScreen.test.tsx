@@ -85,6 +85,8 @@ jest.mock("./src/store/conversationsStore", () => ({
       applyConversationUpdate: jest.fn(),
       applyConversationSummaries: jest.fn(),
       applyNewMessage: jest.fn(),
+      applyMessageUpdated: jest.fn(),
+      applyMessageDeleted: jest.fn(),
       deleteConversation: jest.fn().mockResolvedValue(undefined),
       archiveConversation: jest.fn().mockResolvedValue(undefined),
       applyArchiveBroadcast: jest.fn(),
@@ -134,6 +136,31 @@ jest.mock("./src/theme/colors", () => ({
     ui: { error: "#f00" },
     secondary: { main: "#03dac6" },
   },
+  withOpacity: (color: string, _opacity: number) => color,
+}));
+jest.mock("./src/store/inboxStore", () => ({
+  useInboxStore: (selector: any) =>
+    selector({
+      items: [],
+      unread_count: 0,
+      loading: false,
+      has_more: false,
+      next_cursor: null,
+      hydrate: jest.fn().mockResolvedValue(undefined),
+      loadMore: jest.fn().mockResolvedValue(undefined),
+      markAllRead: jest.fn().mockResolvedValue(undefined),
+      markRead: jest.fn().mockResolvedValue(undefined),
+      addNew: jest.fn(),
+    }),
+}));
+jest.mock("./src/components/Common/BellIcon", () => ({
+  BellIcon: () => null,
+}));
+jest.mock("./src/components/Common/InboxPanel", () => ({
+  InboxPanel: () => null,
+}));
+jest.mock("./src/components/Common/SafariPWABanner", () => ({
+  SafariPWABanner: () => null,
 }));
 
 describe("ConversationsListScreen", () => {

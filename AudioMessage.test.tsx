@@ -15,7 +15,8 @@ jest.mock("./src/services/TokenService", () => ({
 const mockDownloadAudioToCacheFile = jest.fn();
 jest.mock("./src/services/MediaService", () => ({
   MediaService: {
-    downloadAudioToCacheFile: (...a: any[]) => mockDownloadAudioToCacheFile(...a),
+    downloadAudioToCacheFile: (...a: any[]) =>
+      mockDownloadAudioToCacheFile(...a),
   },
 }));
 

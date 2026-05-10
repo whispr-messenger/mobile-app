@@ -86,17 +86,15 @@ jest.mock("./src/services/TokenService", () => ({
     decodeAccessToken: jest.fn().mockReturnValue({ sub: "user1" }),
   },
 }));
-const mockGetProfile = jest
-  .fn()
-  .mockResolvedValue({
-    success: true,
-    profile: {
-      firstName: "John",
-      lastName: "Doe",
-      username: "johndoe",
-      phoneNumber: "+33612345678",
-    },
-  });
+const mockGetProfile = jest.fn().mockResolvedValue({
+  success: true,
+  profile: {
+    firstName: "John",
+    lastName: "Doe",
+    username: "johndoe",
+    phoneNumber: "+33612345678",
+  },
+});
 const mockUpdateProfile = jest.fn().mockResolvedValue({ success: true });
 jest.mock("./src/services", () => ({
   UserService: {

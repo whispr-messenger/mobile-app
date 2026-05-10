@@ -2,10 +2,10 @@
  * DateSeparator - Display date separator between message groups
  */
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../../context/ThemeContext';
-import { colors } from '../../theme/colors';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { useTheme } from "../../context/ThemeContext";
+import { colors } from "../../theme/colors";
 
 interface DateSeparatorProps {
   date: Date;
@@ -27,21 +27,23 @@ export const DateSeparator: React.FC<DateSeparatorProps> = ({ date }) => {
     if (dateStr === todayStr) {
       return "Aujourd'hui";
     } else if (dateStr === yesterdayStr) {
-      return 'Hier';
+      return "Hier";
     } else {
       // Format: "Lundi 15 janvier" or "15/01/2024" if older than 7 days
-      const daysDiff = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+      const daysDiff = Math.floor(
+        (today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
+      );
       if (daysDiff <= 7) {
-        return date.toLocaleDateString('fr-FR', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
+        return date.toLocaleDateString("fr-FR", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
         });
       } else {
-        return date.toLocaleDateString('fr-FR', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
+        return date.toLocaleDateString("fr-FR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
         });
       }
     }
@@ -49,19 +51,23 @@ export const DateSeparator: React.FC<DateSeparatorProps> = ({ date }) => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.line, { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]} />
+      <View
+        style={[styles.line, { backgroundColor: "rgba(255, 255, 255, 0.1)" }]}
+      />
       <Text style={[styles.dateText, { color: themeColors.text.secondary }]}>
         {formatDate(date)}
       </Text>
-      <View style={[styles.line, { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]} />
+      <View
+        style={[styles.line, { backgroundColor: "rgba(255, 255, 255, 0.1)" }]}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 16,
     paddingHorizontal: 16,
   },
@@ -71,9 +77,8 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     paddingHorizontal: 12,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
 });
-

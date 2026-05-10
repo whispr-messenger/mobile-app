@@ -24,6 +24,8 @@ import {
 } from "../services/calls/systemCallProvider";
 import { isCallsAvailable } from "./useCallsAvailable";
 import { getReadReceiptsEnabled } from "../services/messaging/readReceiptsPref";
+import { useInboxStore } from "../store/inboxStore";
+import type { InboxItem } from "../types/inbox";
 
 /** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
 export interface ReactionRealtimePayload {
@@ -208,6 +210,13 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
           callbacksRef.current.onMessageDeleted?.(messageId, true);
         }
       },
+      // inbox:new : notification-service envoie un InboxItem temps-reel
+      // via le user channel. On prepend dans le store sans refetch HTTP.
+      onInboxNew: (data: InboxItem) => {
+        if (data?.id) {
+          useInboxStore.getState().addNew(data);
+        }
+      },
       // call_ended: remote party hung up or server timed out the call.
       // WHISPR-1203 : reset() disconnect la Room LiveKit + clear active +
       // clear incoming. setIncoming(null) seul laissait l'autre côté
@@ -251,6 +260,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.off("conversation_archived", userHandlers.onConvArchived);
     userChannel.off("incoming_call", userHandlers.onIncomingCall);
     userChannel.off("call_ended", userHandlers.onCallEnded);
+    userChannel.off("inbox:new", userHandlers.onInboxNew);
 
     userChannel.on("new_message", userHandlers.onMsg);
     userChannel.on("message_created", userHandlers.onMsg);
@@ -261,6 +271,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     userChannel.on("conversation_archived", userHandlers.onConvArchived);
     userChannel.on("incoming_call", userHandlers.onIncomingCall);
     userChannel.on("call_ended", userHandlers.onCallEnded);
+    userChannel.on("inbox:new", userHandlers.onInboxNew);
 
     return () => {
       userChannel.off("new_message", userHandlers.onMsg);
@@ -272,6 +283,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       userChannel.off("conversation_archived", userHandlers.onConvArchived);
       userChannel.off("incoming_call", userHandlers.onIncomingCall);
       userChannel.off("call_ended", userHandlers.onCallEnded);
+      userChannel.off("inbox:new", userHandlers.onInboxNew);
     };
   }, [options.userId, options.token, userHandlers]);
 
