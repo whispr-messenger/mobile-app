@@ -197,23 +197,25 @@ describe("MessageBubble — tombstone hides media surface", () => {
   it("reconstructs the real media_id from metadata media_url instead of falling back to message.id", () => {
     render(
       <MessageBubble
-        message={{
-          id: "msg-real-id",
-          conversation_id: "conv-1",
-          sender_id: "user-1",
-          content: "Message vocal",
-          message_type: "media",
-          sent_at: new Date("2026-04-24T12:00:00Z").toISOString(),
-          status: "sent",
-          is_deleted: false,
-          delete_for_everyone: false,
-          metadata: {
-            media_type: "audio",
-            media_url: "https://example.test/media/v1/media-real-123/blob",
-            mime_type: "audio/mp4",
-            duration: 6,
-          },
-        } as any}
+        message={
+          {
+            id: "msg-real-id",
+            conversation_id: "conv-1",
+            sender_id: "user-1",
+            content: "Message vocal",
+            message_type: "media",
+            sent_at: new Date("2026-04-24T12:00:00Z").toISOString(),
+            status: "sent",
+            is_deleted: false,
+            delete_for_everyone: false,
+            metadata: {
+              media_type: "audio",
+              media_url: "https://example.test/media/v1/media-real-123/blob",
+              mime_type: "audio/mp4",
+              duration: 6,
+            },
+          } as any
+        }
         isSent={true}
         currentUserId="user-1"
       />,
@@ -338,10 +340,12 @@ describe("MessageBubble — link previews", () => {
 
     const { queryByText } = render(
       <MessageBubble
-        message={{
-          ...baseTextMessage,
-          content: "Regarde https://openai.com/",
-        } as any}
+        message={
+          {
+            ...baseTextMessage,
+            content: "Regarde https://openai.com/",
+          } as any
+        }
         isSent={false}
         currentUserId="user-1"
       />,
@@ -357,19 +361,21 @@ describe("MessageBubble — link previews", () => {
   it("prefers the preview already present in metadata without refetching", async () => {
     const { queryByText } = render(
       <MessageBubble
-        message={{
-          ...baseTextMessage,
-          metadata: {
-            link_preview: {
-              url: "https://whispr.app/blog",
-              canonicalUrl: "https://whispr.app/blog",
-              title: "Whispr Blog",
-              description: "Dernieres actus produit",
-              siteName: "Whispr",
-              domain: "whispr.app",
+        message={
+          {
+            ...baseTextMessage,
+            metadata: {
+              link_preview: {
+                url: "https://whispr.app/blog",
+                canonicalUrl: "https://whispr.app/blog",
+                title: "Whispr Blog",
+                description: "Dernieres actus produit",
+                siteName: "Whispr",
+                domain: "whispr.app",
+              },
             },
-          },
-        } as any}
+          } as any
+        }
         isSent={true}
         currentUserId="user-1"
       />,

@@ -1,9 +1,17 @@
 import { isWrapped, unwrap, wrap } from "./webCryptoVault.web";
 
-// Keys whose values must never sit in localStorage as plaintext. Anything
-// not in this set is stored as-is (short-lived auth tokens are out of scope
-// for this fix — see WHISPR-1212).
-const SECURE_KEYS = new Set<string>(["whispr.signal.identityKeyPrivate"]);
+// Cles dont les valeurs ne doivent jamais finir en clair dans localStorage.
+// On y inclut la cle d'identite Signal (WHISPR-1212), les tokens d'auth
+// (WHISPR-1328), la queue offline qui contient des messages en clair tant
+// qu'ils n'ont pas pu etre envoyes (WHISPR-1359) et les flags security
+// (WHISPR-1359) pour limiter l'exposition en cas de XSS sur le PWA web.
+const SECURE_KEYS = new Set<string>([
+  "whispr.signal.identityKeyPrivate",
+  "whispr.auth.accessToken",
+  "whispr.auth.refreshToken",
+  "whispr.offline.message.queue",
+  "@whispr_settings_security",
+]);
 
 function isSecure(key: string): boolean {
   return SECURE_KEYS.has(key);
@@ -43,10 +51,18 @@ export const storage = {
         const wrapped = await wrap(value);
         localStorage.setItem(key, wrapped);
         return;
-      } catch {
-        // IndexedDB / SubtleCrypto unavailable (e.g. private mode). Fall back
-        // to plaintext rather than blocking the write — that matches the
-        // behaviour before this fix, so we never regress functionality.
+      } catch (error) {
+        // IndexedDB / SubtleCrypto indisponible (Safari mode privé, vieux
+        // navigateurs sans IDB, Firefox restrictif). Fail-closed sur les
+        // cles sensibles (cle d'identite Signal, tokens auth, queue offline)
+        // pour eviter qu'un XSS exfiltre des secrets via localStorage.
+        // Le caller doit catch et proposer un parcours user-friendly
+        // (logout / re-enrollment / "rouvrez hors mode privé").
+        throw new Error(
+          `[storage.web] crypto vault unavailable, refusing to persist sensitive key "${key}" in plaintext: ${
+            (error as Error)?.message ?? error
+          }`,
+        );
       }
     }
     localStorage.setItem(key, value);

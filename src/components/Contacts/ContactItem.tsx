@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Contact } from "../../types/contact";
 import { Avatar } from "../Chat/Avatar";
+import { ProfileTrigger } from "../Profile/ProfileTrigger";
 import { useTheme } from "../../context/ThemeContext";
 import { colors, withOpacity } from "../../theme/colors";
 
@@ -30,9 +31,16 @@ export const ContactItem: React.FC<ContactItemProps> = ({
   const themeColors = getThemeColors();
 
   const user = contact.contact_user;
+  // chaine de fallback : nickname > prenom > @username > tel masque > "Contact"
+  // phone_number_masked couvre les utilisateurs OTP sans profil (WHISPR-1435)
   const displayName =
-    contact.nickname || user?.first_name || user?.username || "Contact";
-  const subtitle = user?.username || user?.phone_number || "";
+    contact.nickname ||
+    user?.first_name ||
+    user?.username ||
+    user?.phone_number_masked ||
+    "Contact";
+  const subtitle =
+    user?.username || user?.phone_number_masked || user?.phone_number || "";
 
   const handlePress = () => {
     onPress?.(contact);
@@ -50,15 +58,17 @@ export const ContactItem: React.FC<ContactItemProps> = ({
         onLongPress={handleLongPress}
         activeOpacity={0.82}
       >
-        <View style={styles.avatarRing}>
-          <Avatar
-            uri={user?.avatar_url}
-            name={displayName}
-            size={52}
-            showOnlineBadge={false}
-            isOnline={false}
-          />
-        </View>
+        <ProfileTrigger userId={contact.contact_id}>
+          <View style={styles.avatarRing}>
+            <Avatar
+              uri={user?.avatar_url}
+              name={displayName}
+              size={52}
+              showOnlineBadge={false}
+              isOnline={false}
+            />
+          </View>
+        </ProfileTrigger>
         <View style={styles.info}>
           <View style={styles.nameRow}>
             <Text

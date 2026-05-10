@@ -7,16 +7,20 @@ import {
   type ModerationModelVersion,
 } from "./model-version";
 
-type TF = typeof import("@tensorflow/tfjs");
+// scope reduce: import core + converter + webgl au lieu du bundle complet @tensorflow/tfjs
+// (le bundle full = ~500KB min+gzip non tree-shakeable, on n'a besoin que de loadGraphModel + tensor4d)
+type TFCore = typeof import("@tensorflow/tfjs-core");
+type TFConverter = typeof import("@tensorflow/tfjs-converter");
 
-let tf: TF | null = null;
+let tfCore: TFCore | null = null;
+let tfConverter: TFConverter | null = null;
 
 const MODEL_URLS: Record<ModerationModelVersion, string> = {
   v2: "/models/tfjs/model.json",
   v3: "/models/v3-tfjs/model.json",
 };
 
-type LoadedModel = Awaited<ReturnType<TF["loadGraphModel"]>>;
+type LoadedModel = Awaited<ReturnType<TFConverter["loadGraphModel"]>>;
 
 const models: Partial<Record<ModerationModelVersion, LoadedModel>> = {};
 const loading: Partial<Record<ModerationModelVersion, Promise<void>>> = {};
@@ -27,8 +31,18 @@ async function ensureModel(version: ModerationModelVersion): Promise<void> {
   if (inFlight) return inFlight;
 
   const promise = (async () => {
-    if (!tf) tf = await import("@tensorflow/tfjs");
-    models[version] = await tf.loadGraphModel(MODEL_URLS[version]);
+    if (!tfCore || !tfConverter) {
+      const [core, converter] = await Promise.all([
+        import("@tensorflow/tfjs-core"),
+        import("@tensorflow/tfjs-converter"),
+        import("@tensorflow/tfjs-backend-webgl"),
+      ]);
+      tfCore = core;
+      tfConverter = converter;
+      await tfCore.setBackend("webgl");
+      await tfCore.ready();
+    }
+    models[version] = await tfConverter.loadGraphModel(MODEL_URLS[version]);
   })();
 
   loading[version] = promise;
@@ -49,7 +63,7 @@ async function gate(params: {
 
   await ensureModel(resolvedVersion);
   const model = models[resolvedVersion];
-  if (!tf || !model) throw new Error("TFJS model failed to load");
+  if (!tfCore || !model) throw new Error("TFJS model failed to load");
 
   const flat = await imageUriToFloatTensor_0_255({
     uri,
@@ -57,8 +71,8 @@ async function gate(params: {
     height: INPUT_SIZE,
   });
 
-  const input = tf.tensor4d(flat, [1, INPUT_SIZE, INPUT_SIZE, 3]);
-  const output = model.predict(input) as import("@tensorflow/tfjs").Tensor;
+  const input = tfCore.tensor4d(flat, [1, INPUT_SIZE, INPUT_SIZE, 3]);
+  const output = model.predict(input) as import("@tensorflow/tfjs-core").Tensor;
   const data = output.dataSync();
 
   input.dispose();

@@ -93,14 +93,45 @@ jest.mock("./src/components/Contacts/EditContactModal", () => ({
 jest.mock("./src/components/Contacts/SyncContactsModal", () => ({
   SyncContactsModal: () => null,
 }));
+jest.mock("./src/components/Contacts/DeleteContactModal", () => ({
+  DeleteContactModal: () => null,
+}));
+jest.mock("expo-blur", () => ({
+  BlurView: ({ children }: any) => children,
+}));
 jest.mock("./src/theme/colors", () => ({
   colors: {
     background: { gradient: { app: ["#000", "#111"] } },
-    primary: { main: "#6200ee" },
+    primary: { main: "#6200ee", light: "#9c57ff" },
+    secondary: { main: "#ff4882" },
     text: { light: "#fff" },
     ui: { success: "#0f0", error: "#f00" },
   },
   withOpacity: (color: string) => color,
+}));
+jest.mock("./src/components/Chat/SkeletonLoader", () => ({
+  ContactItemSkeleton: () => null,
+  SkeletonLoader: () => null,
+  ConversationSkeleton: () => null,
+  MessageBubbleSkeleton: () => null,
+  InboxItemSkeleton: () => null,
+}));
+const mockBellIcon = jest.fn(() => null);
+jest.mock("./src/components/Common/BellIcon", () => ({
+  BellIcon: (props: any) => mockBellIcon(props),
+}));
+jest.mock("./src/components/Common/InboxPanel", () => ({
+  InboxPanel: () => null,
+}));
+jest.mock("./src/store/inboxStore", () => ({
+  useInboxStore: (sel: any) => sel({ unread_count: 0, hydrate: jest.fn() }),
+}));
+jest.mock("./src/services/contacts/favorites", () => ({
+  getFavoriteIds: jest.fn().mockResolvedValue(new Set()),
+  toggleFavorite: jest.fn().mockResolvedValue(false),
+}));
+jest.mock("./src/utils/contactsFilter", () => ({
+  filterAndSortContacts: (_contacts: any[]) => _contacts,
 }));
 
 const mockedContactsAPI = contactsAPI as jest.Mocked<typeof contactsAPI>;
@@ -109,6 +140,7 @@ const mockedMessagingAPI = messagingAPI as jest.Mocked<typeof messagingAPI>;
 describe("ContactsScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockBellIcon.mockClear();
     mockedContactsAPI.getContacts.mockResolvedValue({ contacts: [] });
     mockedContactsAPI.getContactRequests.mockResolvedValue([]);
   });
@@ -116,6 +148,11 @@ describe("ContactsScreen", () => {
   it("renders contacts header", async () => {
     const { getAllByText } = render(<ContactsScreen />);
     expect(getAllByText("Contacts").length).toBeGreaterThan(0);
+  });
+
+  it("affiche le BellIcon dans le header", () => {
+    render(<ContactsScreen />);
+    expect(mockBellIcon).toHaveBeenCalled();
   });
 
   it("shows empty state when no contacts", async () => {

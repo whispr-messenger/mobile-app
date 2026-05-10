@@ -10,6 +10,7 @@ const contactMatchesQuery = (contact: Contact, query: string): boolean => {
     contact.contact_user?.first_name,
     contact.contact_user?.last_name,
     contact.contact_user?.phone_number,
+    contact.contact_user?.phone_number_masked,
   ];
   return fields.some((field) => toLowerOrEmpty(field).includes(query));
 };

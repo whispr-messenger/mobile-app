@@ -166,11 +166,11 @@ Once all CI checks are green, use `mcp__github__merge_pull_request`:
   "owner": "whispr-messenger",
   "repo": "mobile-app",
   "pullNumber": <number>,
-  "merge_method": "squash"
+  "merge_method": "merge"
 }
 ```
 
-Always use **squash** merge to keep `deploy/preprod` history linear.
+Always use **merge** (not squash — per user global rules §26) to keep the granular commit history.
 
 ---
 

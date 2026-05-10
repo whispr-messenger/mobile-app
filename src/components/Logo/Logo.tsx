@@ -3,12 +3,12 @@
  * Displays the Whispr brand logo with different variants
  */
 
-import React from 'react';
-import { Image, StyleSheet, View, ViewStyle } from 'react-native';
+import React from "react";
+import { Image, StyleSheet, View, ViewStyle } from "react-native";
 
 interface LogoProps {
-  variant?: 'full' | 'icon';
-  size?: 'small' | 'medium' | 'large' | 'xlarge';
+  variant?: "full" | "icon";
+  size?: "small" | "medium" | "large" | "xlarge";
   style?: ViewStyle;
 }
 
@@ -20,13 +20,14 @@ const SIZES = {
 };
 
 export const Logo: React.FC<LogoProps> = ({
-  variant = 'icon',
-  size = 'medium',
+  variant = "icon",
+  size = "medium",
   style,
 }) => {
-  const logoSource = variant === 'full'
-    ? require('../../../assets/images/logo-full.png')
-    : require('../../../assets/images/logo-icon.png');
+  const logoSource =
+    variant === "full"
+      ? require("../../../assets/images/logo-full.png")
+      : require("../../../assets/images/logo-icon.png");
 
   const logoSize = SIZES[size];
 
@@ -46,10 +47,9 @@ export const Logo: React.FC<LogoProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
 export default Logo;
-

@@ -3,6 +3,24 @@
  * Displays list of conversations with real-time updates
  */
 
+/**
+ * @danger-zone-mobile-layout
+ *
+ * DANGER ZONE - Layout web/iOS critique
+ *
+ * Bug historique : scroll bottom inaccessible sur Safari iOS PWA si la chaine flex
+ * ne porte pas le pattern WHISPR-1254 (height:100% + minHeight:0 web).
+ *
+ * AVANT TOUTE MODIF :
+ * 1. Tester live sur Safari iOS PWA (whispr-preprod.roadmvn.com).
+ * 2. Verifier scroll vers le bas + boutons visibles + retour fonctionnel.
+ * 3. Preserver les Platform.OS === 'web' ? minHeight:0 sur containers/scroll.
+ *
+ * Tickets historiques : WHISPR-1254, WHISPR-1291, WHISPR-1313, WHISPR-1335
+ *
+ * Tag parsable : @danger-zone-mobile-layout (utilise par script CI grep pour detection).
+ */
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
@@ -13,6 +31,7 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  AppState,
 } from "react-native";
 import {
   SafeAreaView,
@@ -27,7 +46,7 @@ import {
 } from "../../components/Navigation/floatingTabBarLayout";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -48,8 +67,14 @@ import { useUIStore } from "../../store/uiStore";
 import { messagingAPI } from "../../services/messaging/api";
 import { OfflineBanner } from "../../components/Chat/OfflineBanner";
 import { getConversationDisplayName } from "../../utils";
+import { BellIcon } from "../../components/Common/BellIcon";
+import { InboxPanel } from "../../components/Common/InboxPanel";
+import { SafariPWABanner } from "../../components/Common/SafariPWABanner";
+import { useInboxStore } from "../../store/inboxStore";
 
 type NavigationProp = StackNavigationProp<AuthStackParamList, "Chat">;
+
+const AUTO_REFRESH_INTERVAL_MS = 2500;
 
 export const ConversationsListScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -69,6 +94,12 @@ export const ConversationsListScreen: React.FC = () => {
     (s) => s.applyConversationSummaries,
   );
   const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
+  const applyMessageUpdated = useConversationsStore(
+    (s) => s.applyMessageUpdated,
+  );
+  const applyMessageDeleted = useConversationsStore(
+    (s) => s.applyMessageDeleted,
+  );
   const storeDeleteConversation = useConversationsStore(
     (s) => s.deleteConversation,
   );
@@ -107,6 +138,11 @@ export const ConversationsListScreen: React.FC = () => {
     (s) => s.loadManuallyUnreadIds,
   );
   const setBottomTabBarHidden = useUIStore((s) => s.setBottomTabBarHidden);
+
+  // Inbox store
+  const inboxUnreadCount = useInboxStore((s) => s.unread_count);
+  const hydrateInbox = useInboxStore((s) => s.hydrate);
+  const [inboxPanelOpen, setInboxPanelOpen] = useState(false);
 
   // UI-only state
   const [refreshing, setRefreshing] = useState(false);
@@ -179,6 +215,11 @@ export const ConversationsListScreen: React.FC = () => {
     TokenService.getAccessToken().then((t) => setToken(t ?? ""));
   }, [userId]);
 
+  // Charge l'inbox au montage du screen principal
+  useEffect(() => {
+    if (userId) hydrateInbox();
+  }, [userId, hydrateInbox]);
+
   const { connectionState, joinConversationChannel, markAsRead } = useWebSocket(
     {
       userId,
@@ -186,6 +227,12 @@ export const ConversationsListScreen: React.FC = () => {
       onNewMessage: (message: Message) => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         applyNewMessage(message, userId);
+      },
+      onMessageUpdated: (message: Message) => {
+        applyMessageUpdated(message);
+      },
+      onMessageDeleted: (messageId: string, deleteForEveryone: boolean) => {
+        applyMessageDeleted(messageId, deleteForEveryone === true);
       },
       onConversationUpdate: (conversation: Conversation) => {
         applyConversationUpdate(conversation);
@@ -209,7 +256,7 @@ export const ConversationsListScreen: React.FC = () => {
     .sort()
     .join(",");
   useEffect(() => {
-    if (!token || connectionState !== "connected" || !conversationIdsKey) {
+    if (!token || !conversationIdsKey) {
       return;
     }
     const ids = conversationIdsKey.split(",");
@@ -221,7 +268,7 @@ export const ConversationsListScreen: React.FC = () => {
     return () => {
       cleanups.forEach((c) => c());
     };
-  }, [token, connectionState, conversationIdsKey, joinConversationChannel]);
+  }, [token, conversationIdsKey, joinConversationChannel]);
 
   useEffect(() => {
     if (!userId) return;
@@ -241,6 +288,42 @@ export const ConversationsListScreen: React.FC = () => {
     }
     prevConnStateRef.current = connectionState;
   }, [connectionState, refreshConversations]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      let interval: ReturnType<typeof setInterval> | null = null;
+      let lastTick = 0;
+
+      const tick = async () => {
+        if (cancelled) return;
+        if (AppState.currentState !== "active") return;
+        const now = Date.now();
+        if (now - lastTick < AUTO_REFRESH_INTERVAL_MS - 200) return;
+        lastTick = now;
+        try {
+          await refreshConversations();
+        } catch {}
+      };
+
+      tick().catch(() => {});
+      interval = setInterval(() => {
+        tick().catch(() => {});
+      }, AUTO_REFRESH_INTERVAL_MS);
+
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          tick().catch(() => {});
+        }
+      });
+
+      return () => {
+        cancelled = true;
+        if (interval) clearInterval(interval);
+        sub.remove();
+      };
+    }, [refreshConversations]),
+  );
 
   const handleConversationPress = useCallback(
     (conversationId: string) => {
@@ -568,26 +651,32 @@ export const ConversationsListScreen: React.FC = () => {
           <Text
             style={[styles.headerTitle, { color: colors.text.light }]}
           ></Text>
-          <TouchableOpacity
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowNewConversationModal(true);
-            }}
-            style={styles.headerButton}
-          >
-            <LinearGradient
-              colors={["#FFB07B", "#F04882"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.composeButton}
+          <View style={styles.headerRightGroup}>
+            <BellIcon
+              unreadCount={inboxUnreadCount}
+              onPress={() => setInboxPanelOpen(true)}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowNewConversationModal(true);
+              }}
+              style={styles.headerButton}
             >
-              <Ionicons
-                name="create-outline"
-                size={20}
-                color={colors.text.light}
-              />
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={["#FFB07B", "#F04882"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.composeButton}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={colors.text.light}
+                />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -774,6 +863,13 @@ export const ConversationsListScreen: React.FC = () => {
           }, 100);
         }}
       />
+
+      <InboxPanel
+        visible={inboxPanelOpen}
+        onClose={() => setInboxPanelOpen(false)}
+      />
+
+      <SafariPWABanner />
     </LinearGradient>
   );
 };
@@ -818,6 +914,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  headerRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   archiveIconButton: {
     width: 40,

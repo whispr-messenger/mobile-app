@@ -47,6 +47,8 @@ import { useAuth } from "../../context/AuthContext";
 import { colors, withOpacity } from "../../theme/colors";
 import { typography } from "../../theme/typography";
 import { Avatar } from "../../components/Chat/Avatar";
+import { DangerConfirmModal } from "../../components/Common/DangerConfirmModal";
+import { ProfileTrigger } from "../../components/Profile/ProfileTrigger";
 import { logger } from "../../utils/logger";
 import {
   groupsAPI,
@@ -147,7 +149,7 @@ export const GroupDetailsScreen: React.FC = () => {
   );
   const [memberActionLoading, setMemberActionLoading] = useState(false);
 
-  const { settings: themeSettings } = useTheme();
+  const { settings: themeSettings, getLocalizedText } = useTheme();
   const hasCustomBackground =
     themeSettings?.backgroundPreset === "custom" &&
     !!themeSettings?.customBackgroundUri;
@@ -303,10 +305,10 @@ export const GroupDetailsScreen: React.FC = () => {
 
     try {
       setLeaving(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await groupsAPI.leaveGroup(groupId, CURRENT_USER_ID, conversationId);
       removeConversationLocal(conversationKey);
       refreshConversations().catch(() => {});
+      // haptic apres succes API pour eviter le feedback positif sur un fail
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.navigate("ConversationsList");
     } catch (error: any) {
@@ -331,8 +333,8 @@ export const GroupDetailsScreen: React.FC = () => {
   const handleDeleteGroup = useCallback(async () => {
     try {
       setDeleting(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       await groupsAPI.deleteGroup(groupId, conversationId);
+      // haptic apres succes API pour eviter le feedback positif sur un fail
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Le groupe a été supprimé");
       navigation.navigate("ConversationsList");
@@ -344,7 +346,7 @@ export const GroupDetailsScreen: React.FC = () => {
       setDeleting(false);
       setShowDeleteModal(false);
     }
-  }, [groupId, navigation]);
+  }, [groupId, conversationId, navigation]);
 
   const updateGroupSetting = useCallback(
     async (updates: Partial<GroupSettings>) => {
@@ -471,6 +473,8 @@ export const GroupDetailsScreen: React.FC = () => {
           "Error transferring and leaving",
           error,
         );
+        // resync local state apres echec partiel transfer/leave
+        loadGroupData().catch(() => {});
         Alert.alert(
           "Erreur",
           error.message || "Impossible de transférer et quitter le groupe",
@@ -486,6 +490,7 @@ export const GroupDetailsScreen: React.FC = () => {
       conversationId,
       conversationKey,
       groupId,
+      loadGroupData,
       navigation,
       refreshConversations,
       removeConversationLocal,
@@ -1013,12 +1018,14 @@ export const GroupDetailsScreen: React.FC = () => {
             }`}
             entering={FadeInDown.delay(150 + index * 50).springify()}
           >
-            <Avatar
-              uri={member.avatar_url}
-              name={member.display_name}
-              size={48}
-              showOnlineBadge={false}
-            />
+            <ProfileTrigger userId={member.user_id}>
+              <Avatar
+                uri={member.avatar_url}
+                name={member.display_name}
+                size={48}
+                showOnlineBadge={false}
+              />
+            </ProfileTrigger>
             <View style={styles.memberInfo}>
               <View style={styles.memberNameRow}>
                 <Text style={[styles.memberName, { color: colors.text.light }]}>
@@ -1532,9 +1539,16 @@ export const GroupDetailsScreen: React.FC = () => {
           </AnimatedTouchableOpacity>
           <AnimatedTouchableOpacity
             style={styles.actionButton}
-            onPress={() => {
+            onPress={async () => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setShowLeaveModal(true);
+              // refresh members avant decision pour eviter isLastAdmin stale (concurrent demote)
+              await loadGroupData().catch(() => {});
+              // si dernier admin, on saute la typed-confirm et on force le transfert direct
+              if (isLastAdmin) {
+                setShowTransferAdminModal(true);
+              } else {
+                setShowLeaveModal(true);
+              }
             }}
             activeOpacity={0.7}
             entering={FadeInDown.delay(200).duration(300)}
@@ -1631,176 +1645,31 @@ export const GroupDetailsScreen: React.FC = () => {
   };
 
   const renderLeaveModal = () => (
-    <Modal
+    <DangerConfirmModal
       visible={showLeaveModal}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowLeaveModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <AnimatedView
-          style={styles.modalContainer}
-          entering={FadeInDown.duration(300).springify()}
-        >
-          <LinearGradient
-            colors={colors.background.gradient.app}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.modalGradient}
-          >
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIconContainer}>
-                <LinearGradient
-                  colors={[colors.primary.main, colors.primary.dark]}
-                  style={styles.modalIconGradient}
-                >
-                  <Ionicons
-                    name="exit-outline"
-                    size={28}
-                    color={colors.text.light}
-                  />
-                </LinearGradient>
-              </View>
-              <Text style={styles.modalTitle}>Quitter le groupe</Text>
-              <Text style={styles.modalDescription}>
-                {isLastAdmin
-                  ? "Vous êtes le dernier administrateur. Vous devez transférer l'administration avant de quitter le groupe, sinon le groupe sera supprimé."
-                  : `Êtes-vous sûr de vouloir quitter "${groupDetails?.name}" ? Vous ne recevrez plus les messages de ce groupe.`}
-              </Text>
-            </View>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalButtonCancel}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowLeaveModal(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalButtonCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalButtonConfirm}
-                onPress={handleLeaveGroup}
-                disabled={leaving}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={[colors.primary.main, colors.primary.dark]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.modalButtonGradient}
-                >
-                  {leaving ? (
-                    <ActivityIndicator size="small" color={colors.text.light} />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="exit-outline"
-                        size={18}
-                        color={colors.text.light}
-                        style={styles.modalButtonIcon}
-                      />
-                      <Text style={styles.modalButtonConfirmText}>Quitter</Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </AnimatedView>
-      </View>
-    </Modal>
+      title={getLocalizedText("confirm.leaveGroup.title")}
+      description={getLocalizedText("confirm.leaveGroup.description")}
+      expectedText={getLocalizedText("confirm.expectedDelete")}
+      actionLabel={getLocalizedText("confirm.leaveGroup.action")}
+      actionVariant="destructive"
+      loading={leaving}
+      onCancel={() => setShowLeaveModal(false)}
+      onConfirm={handleLeaveGroup}
+    />
   );
 
   const renderDeleteModal = () => (
-    <Modal
+    <DangerConfirmModal
       visible={showDeleteModal}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setShowDeleteModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <AnimatedView
-          style={styles.modalContainer}
-          entering={FadeInDown.duration(300).springify()}
-        >
-          <LinearGradient
-            colors={colors.background.gradient.app}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.modalGradient}
-          >
-            <View style={styles.modalHeader}>
-              <View
-                style={[
-                  styles.modalIconContainer,
-                  styles.modalIconContainerDanger,
-                ]}
-              >
-                <LinearGradient
-                  colors={[colors.ui.error, "#E02D20"]}
-                  style={styles.modalIconGradient}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={28}
-                    color={colors.text.light}
-                  />
-                </LinearGradient>
-              </View>
-              <Text style={styles.modalTitle}>Supprimer le groupe</Text>
-              <Text style={styles.modalDescription}>
-                Êtes-vous sûr de vouloir supprimer "{groupDetails?.name}" ?
-                Cette action est irréversible après 7 jours. Tous les membres
-                seront retirés et toutes les données seront supprimées.
-              </Text>
-            </View>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalButtonCancel}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowDeleteModal(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalButtonCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalButtonDelete}
-                onPress={handleDeleteGroup}
-                disabled={deleting}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={[colors.ui.error, "#E02D20"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.modalButtonGradient}
-                >
-                  {deleting ? (
-                    <ActivityIndicator size="small" color={colors.text.light} />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="trash-outline"
-                        size={18}
-                        color={colors.text.light}
-                        style={styles.modalButtonIcon}
-                      />
-                      <Text style={styles.modalButtonDeleteText}>
-                        Supprimer
-                      </Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </AnimatedView>
-      </View>
-    </Modal>
+      title={getLocalizedText("confirm.deleteGroup.title")}
+      description={getLocalizedText("confirm.deleteGroup.description")}
+      expectedText={getLocalizedText("confirm.expectedDelete")}
+      actionLabel={getLocalizedText("confirm.deleteGroup.action")}
+      actionVariant="destructive"
+      loading={deleting}
+      onCancel={() => setShowDeleteModal(false)}
+      onConfirm={handleDeleteGroup}
+    />
   );
 
   const renderTransferAdminModal = () => {
@@ -2708,9 +2577,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     overflow: "hidden",
   },
-  modalIconContainerDanger: {
-    // Style spécifique pour le danger
-  },
   modalIconContainerInfo: {
     // Style spécifique pour l'info
   },
@@ -2750,46 +2616,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: withOpacity(colors.ui.divider, 0.3),
   },
-  modalButtonConfirm: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: "hidden",
-    boxShadow: `0px 4px 8px ${withOpacity(colors.primary.main, 0.3)}`,
-    elevation: 5,
-  },
-  modalButtonDelete: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: "hidden",
-    boxShadow: `0px 4px 8px ${withOpacity(colors.ui.error, 0.3)}`,
-    elevation: 5,
-  },
-  modalButtonGradient: {
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-  modalButtonIcon: {
-    marginRight: 4,
-  },
   modalButtonCancelText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semiBold,
     color: withOpacity(colors.text.light, 0.9),
-    letterSpacing: 0.3,
-  },
-  modalButtonConfirmText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.light,
-    letterSpacing: 0.3,
-  },
-  modalButtonDeleteText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text.light,
     letterSpacing: 0.3,
   },
   membersList: {

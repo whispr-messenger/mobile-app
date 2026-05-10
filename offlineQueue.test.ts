@@ -1,22 +1,42 @@
 /**
- * Unit tests for offlineQueue.drainAll (WHISPR-1060).
- * AsyncStorage is mocked in-memory so we can exercise persistence without
- * hitting native code.
+ * Unit tests for offlineQueue (WHISPR-1060, WHISPR-1219, WHISPR-1359).
+ * Both AsyncStorage and the SecureStore wrapper are mocked in-memory: the
+ * queue now persists through `services/storage.ts` (SecureStore-backed) but
+ * still touches AsyncStorage during the soft migration of legacy values.
  */
 
-const storage: Record<string, string> = {};
+const secureBackend: Record<string, string> = {};
+const asyncBackend: Record<string, string> = {};
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: jest.fn(async (key: string) => storage[key] ?? null),
+  getItem: jest.fn(async (key: string) => asyncBackend[key] ?? null),
   setItem: jest.fn(async (key: string, value: string) => {
-    storage[key] = value;
+    asyncBackend[key] = value;
   }),
   removeItem: jest.fn(async (key: string) => {
-    delete storage[key];
+    delete asyncBackend[key];
   }),
 }));
 
-import { offlineQueue, type QueuedMessage } from "./src/services/offlineQueue";
+jest.mock("./src/services/storage", () => ({
+  storage: {
+    getItem: jest.fn(async (key: string) => secureBackend[key] ?? null),
+    setItem: jest.fn(async (key: string, value: string) => {
+      secureBackend[key] = value;
+    }),
+    deleteItem: jest.fn(async (key: string) => {
+      delete secureBackend[key];
+    }),
+  },
+}));
+
+import {
+  offlineQueue,
+  type QueuedMessage,
+  __resetMigrationForTests,
+} from "./src/services/offlineQueue";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { storage as secureStorage } from "./src/services/storage";
 
 const makeMessage = (
   overrides: Partial<QueuedMessage> = {},
@@ -31,7 +51,15 @@ const makeMessage = (
 });
 
 beforeEach(async () => {
-  for (const key of Object.keys(storage)) delete storage[key];
+  for (const key of Object.keys(secureBackend)) delete secureBackend[key];
+  for (const key of Object.keys(asyncBackend)) delete asyncBackend[key];
+  __resetMigrationForTests();
+  (AsyncStorage.getItem as jest.Mock).mockClear();
+  (AsyncStorage.setItem as jest.Mock).mockClear();
+  (AsyncStorage.removeItem as jest.Mock).mockClear();
+  (secureStorage.getItem as jest.Mock).mockClear();
+  (secureStorage.setItem as jest.Mock).mockClear();
+  (secureStorage.deleteItem as jest.Mock).mockClear();
 });
 
 describe("offlineQueue.drainAll (WHISPR-1060)", () => {
@@ -212,7 +240,7 @@ describe("offlineQueue.getAll", () => {
   });
 
   it("returns an empty array when persisted JSON is corrupted", async () => {
-    storage["whispr.offline.message.queue"] = "not-json";
+    secureBackend["whispr.offline.message.queue"] = "not-json";
     await expect(offlineQueue.getAll()).resolves.toEqual([]);
   });
 });
@@ -278,5 +306,76 @@ describe("offlineQueue.getForConversation", () => {
 
     const result = await offlineQueue.getForConversation("conv-a");
     expect(result.map((m) => m.client_random)).toEqual([701, 703]);
+  });
+});
+
+describe("offlineQueue SecureStore routing (WHISPR-1359)", () => {
+  it("persists enqueued messages through the SecureStore wrapper, not AsyncStorage", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 901 }));
+
+    expect(secureStorage.setItem).toHaveBeenCalledWith(
+      "whispr.offline.message.queue",
+      expect.any(String),
+    );
+    expect(secureBackend["whispr.offline.message.queue"]).toBeDefined();
+    // No write to AsyncStorage past the migration path.
+    expect(asyncBackend["whispr.offline.message.queue"]).toBeUndefined();
+  });
+
+  it("clearAll deletes the SecureStore key", async () => {
+    await offlineQueue.enqueue(makeMessage({ client_random: 902 }));
+    await offlineQueue.clearAll();
+
+    expect(secureStorage.deleteItem).toHaveBeenCalledWith(
+      "whispr.offline.message.queue",
+    );
+    expect(secureBackend["whispr.offline.message.queue"]).toBeUndefined();
+  });
+
+  it("migrates a legacy AsyncStorage queue to SecureStore on first read", async () => {
+    const legacy: QueuedMessage[] = [
+      makeMessage({ client_random: 911, content: "legacy-1" }),
+      makeMessage({ client_random: 912, content: "legacy-2" }),
+    ];
+    asyncBackend["whispr.offline.message.queue"] = JSON.stringify(legacy);
+
+    const all = await offlineQueue.getAll();
+
+    expect(all.map((m) => m.content)).toEqual(["legacy-1", "legacy-2"]);
+    // Migrated to SecureStore.
+    expect(secureBackend["whispr.offline.message.queue"]).toBeDefined();
+    // Legacy key purged.
+    expect(asyncBackend["whispr.offline.message.queue"]).toBeUndefined();
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(
+      "whispr.offline.message.queue",
+    );
+  });
+
+  it("does not touch AsyncStorage when SecureStore already has data", async () => {
+    secureBackend["whispr.offline.message.queue"] = JSON.stringify([
+      makeMessage({ client_random: 921, content: "secure-only" }),
+    ]);
+    asyncBackend["whispr.offline.message.queue"] = JSON.stringify([
+      makeMessage({ client_random: 999, content: "should-be-ignored" }),
+    ]);
+
+    const all = await offlineQueue.getAll();
+
+    expect(all).toHaveLength(1);
+    expect(all[0].content).toBe("secure-only");
+    // Legacy still there because we did not migrate this user.
+    expect(asyncBackend["whispr.offline.message.queue"]).toBeDefined();
+  });
+
+  it("runs the migration only once per session", async () => {
+    asyncBackend["whispr.offline.message.queue"] = JSON.stringify([
+      makeMessage({ client_random: 931 }),
+    ]);
+
+    await offlineQueue.getAll();
+    await offlineQueue.getAll();
+    await offlineQueue.getAll();
+
+    expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(1);
   });
 });

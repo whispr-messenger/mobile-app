@@ -23,6 +23,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getConversationDisplayName } from "../../utils";
 import { messagingAPI } from "../../services/messaging/api";
 import { buildConversationPreviewSnippet } from "../../utils/conversationPreview";
+import { ProfileTrigger } from "../Profile/ProfileTrigger";
 
 const EMPTY_GROUP_AVATARS: Array<{ uri?: string; name: string }> = [];
 
@@ -351,6 +352,17 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
                   </View>
                 ))}
               </View>
+            ) : conversation.type === "direct" && otherUserId ? (
+              // mini-card profil sur clic gauche / appui long de l'avatar direct
+              <ProfileTrigger userId={otherUserId}>
+                <Avatar
+                  size={48}
+                  uri={conversation.avatar_url}
+                  name={displayName}
+                  showOnlineBadge
+                  isOnline={isOtherOnline}
+                />
+              </ProfileTrigger>
             ) : (
               <Avatar
                 size={48}
