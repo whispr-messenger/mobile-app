@@ -22,12 +22,17 @@ jest.mock(
       IOSAudioQuality: { MAX: "max" },
       RecordingOptionsPresets: {
         HIGH_QUALITY: {
-          android: { extension: ".3gp", outputFormat: "old", audioEncoder: "old" },
+          android: {
+            extension: ".3gp",
+            outputFormat: "old",
+            audioEncoder: "old",
+          },
           ios: { extension: ".caf", outputFormat: "old", audioQuality: "old" },
           web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
         },
       },
-      requestPermissionsAsync: (...a: any[]) => mockRequestPermissionsAsync(...a),
+      requestPermissionsAsync: (...a: any[]) =>
+        mockRequestPermissionsAsync(...a),
       setAudioModeAsync: (...a: any[]) => mockSetAudioModeAsync(...a),
       Recording: {
         createAsync: (...a: any[]) => mockRecordingCreateAsync(...a),
@@ -193,7 +198,9 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-  mockRequestPermissionsAsync.mockReset().mockResolvedValue({ status: "granted" });
+  mockRequestPermissionsAsync
+    .mockReset()
+    .mockResolvedValue({ status: "granted" });
   mockSetAudioModeAsync.mockReset().mockResolvedValue(undefined);
   mockRecordingCreateAsync.mockReset().mockResolvedValue({
     recording: {
