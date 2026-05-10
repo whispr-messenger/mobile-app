@@ -7,6 +7,9 @@ export interface User {
   id: string;
   username: string;
   phone_number?: string;
+  // numero masque expose par le backend (ex: "+33***1234") - fallback display
+  // quand first_name + username sont vides (utilisateurs OTP sans profil)
+  phone_number_masked?: string;
   first_name?: string;
   last_name?: string;
   avatar_url?: string;
@@ -59,7 +62,7 @@ export interface ContactStats {
 
 export interface ContactSearchParams {
   search?: string;
-  sort?: 'name' | 'added_at' | 'last_seen' | 'favorites';
+  sort?: "name" | "added_at" | "last_seen" | "favorites";
   page?: number;
   limit?: number;
   favorites?: boolean;
@@ -76,7 +79,7 @@ export interface UserSearchResult {
   is_blocked: boolean;
 }
 
-export type ContactRequestStatus = 'pending' | 'accepted' | 'rejected';
+export type ContactRequestStatus = "pending" | "accepted" | "rejected";
 
 export interface ContactRequest {
   id: string;

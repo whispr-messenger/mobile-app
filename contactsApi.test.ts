@@ -31,11 +31,13 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-// Allow each test to prime the enrichment fetch (fetchUserById) with nulls.
+// Allow each test to prime the batch enrichment fetch (1 call /profiles/batch
+// pour tous les contacts). Si count vaut 0 le batch n est pas appele du tout.
 const primeUserEnrichment = (count: number) => {
-  for (let i = 0; i < count; i++) {
-    mockFetch.mockResolvedValueOnce(mockResponse({ status: 404 }));
-  }
+  if (count === 0) return;
+  mockFetch.mockResolvedValueOnce(
+    mockResponse({ body: { profiles: [], missing: [] } }),
+  );
 };
 
 describe("contactsAPI.getContacts", () => {
@@ -110,10 +112,15 @@ describe("contactsAPI.getContacts", () => {
     mockFetch.mockResolvedValueOnce(
       mockResponse({
         body: {
-          id: "u-1",
-          username: "ada",
-          firstName: "Ada",
-          profilePictureUrl: "https://cdn/x.png",
+          profiles: [
+            {
+              id: "u-1",
+              username: "ada",
+              firstName: "Ada",
+              profilePictureUrl: "https://cdn/x.png",
+            },
+          ],
+          missing: [],
         },
       }),
     );

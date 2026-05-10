@@ -73,6 +73,12 @@ function nextRef(): string {
 /** Phoenix/custom close codes that indicate an authentication failure. */
 const AUTH_CLOSE_CODES = new Set([1008, 4001]);
 
+// codes serveur fatals : 1011 = internal server error, 1010 = mandatory ext.
+// quand le serveur les renvoie c est pas la peine de marteler la reconnexion,
+// on circuit-break en limitant le nombre de tentatives.
+const FATAL_CLOSE_CODES = new Set([1010, 1011]);
+const FATAL_MAX_RECONNECT_ATTEMPTS = 3;
+
 /**
  * Encode a message in Phoenix v2 array format.
  */
@@ -118,6 +124,10 @@ export class SocketConnection {
       callbacks: Record<string, EventCallback[]>;
       joined: boolean;
       joinRef: string | null; // tracks the join_ref for this channel
+      // ref count : plusieurs hooks/screens partagent le meme topic
+      // (ex user:<id> joine par ChatScreen + ConversationsListScreen + ContactsScreen).
+      // leave() ne fait phx_leave que quand le dernier consumer relache son ref.
+      refCount: number;
     }
   > = {};
   private pendingTopics: Set<string> = new Set();
@@ -213,6 +223,9 @@ export class SocketConnection {
 
       logger.info("WS", "Connected");
       this.reconnectAttempt = 0;
+      // si on avait baisse maxReconnectAttempts a cause d un close fatal,
+      // on remonte la limite vu que la reconnexion vient de reussir.
+      this.maxReconnectAttempts = 20;
       this.setConnectionState("connected");
       this.startHeartbeat();
 
@@ -302,6 +315,14 @@ export class SocketConnection {
         ch.joined = false;
         ch.joinRef = null;
       });
+      // close code fatal cote serveur : on coupe la boucle de reconnect
+      // pour eviter de marteler un backend en panne.
+      if (FATAL_CLOSE_CODES.has(ev.code)) {
+        this.maxReconnectAttempts = Math.min(
+          this.maxReconnectAttempts,
+          FATAL_MAX_RECONNECT_ATTEMPTS,
+        );
+      }
       if (this.shouldReconnect) {
         this.setConnectionState("reconnecting");
         this.scheduleReconnect();
@@ -376,10 +397,14 @@ export class SocketConnection {
       return;
     }
 
-    const delay = Math.min(
-      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempt),
-      this.maxReconnectDelay,
-    );
+    // jitter pour eviter le thundering herd quand tous les clients
+    // reconnectent simultanement (rolling update k8s, blip reseau global).
+    const jitter = 0.5 + Math.random() * 0.5;
+    const delay =
+      Math.min(
+        this.baseReconnectDelay * Math.pow(2, this.reconnectAttempt),
+        this.maxReconnectDelay,
+      ) * jitter;
     this.reconnectAttempt++;
 
     this.reconnectTimer = setTimeout(async () => {
@@ -439,6 +464,7 @@ export class SocketConnection {
     }
     this.reconnectAttempt = 0;
     this.lastCloseCode = 0;
+    this.maxReconnectAttempts = 20;
     this.setConnectionState("disconnected");
   }
 
@@ -448,12 +474,18 @@ export class SocketConnection {
         callbacks: {},
         joined: false,
         joinRef: null,
+        refCount: 0,
       };
     }
 
     const join = async (): Promise<{ status: string }> => {
       const ch = this.channels[topic];
-      if (ch?.joined) return { status: "ok" };
+      if (!ch) return { status: "error" };
+      // chaque join() incremente le compteur. leave() decremente, et
+      // n envoie phx_leave que quand le dernier consumer s en va.
+      ch.refCount += 1;
+
+      if (ch.joined) return { status: "ok" };
 
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
         this.pendingTopics.add(topic);
@@ -487,11 +519,17 @@ export class SocketConnection {
     };
 
     const leave = (): void => {
+      const ch = this.channels[topic];
+      if (!ch) return;
+      // ref counting : tant qu un autre consumer (ChatScreen, ContactsScreen,
+      // etc) partage ce topic, on ne touche pas le channel cote serveur.
+      if (ch.refCount > 0) ch.refCount -= 1;
+      if (ch.refCount > 0) return;
+
       if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        const ch = this.channels[topic];
         const ref = nextRef();
         this.socket.send(
-          encodeMessage(ch?.joinRef ?? null, ref, topic, "phx_leave", {}),
+          encodeMessage(ch.joinRef ?? null, ref, topic, "phx_leave", {}),
         );
       }
       delete this.channels[topic];

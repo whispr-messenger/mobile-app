@@ -19,6 +19,7 @@ jest.mock("react-native", () => ({
 
 import {
   probeMediaUrlThrottled,
+  streamMediaToRenderableUri,
   streamMediaToRenderableUriThrottled,
 } from "./src/hooks/useResolvedMediaUrl";
 
@@ -246,5 +247,101 @@ describe("probeMediaUrlThrottled", () => {
     await expect(
       probeMediaUrlThrottled("/media/v1/abc/thumbnail", {}),
     ).rejects.toThrow(/offline/);
+  });
+});
+
+describe("fetch abort signal propagation", () => {
+  it("propage le signal abort du caller au fetch (stream)", async () => {
+    const fetchMock = jest.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          const sig = init?.signal;
+          if (!sig) return;
+          const onAbort = () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          };
+          if (sig.aborted) onAbort();
+          else sig.addEventListener("abort", onAbort);
+        }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    // on appelle la version non-throttled pour eviter les retries qui
+    // multiplient les calls fetch et brouillent l'assertion
+    const controller = new AbortController();
+    const pending = streamMediaToRenderableUri(
+      "/media/v1/abc/blob",
+      "token",
+      controller.signal,
+    );
+    // simule un unmount du composant pendant que le fetch est en l'air
+    setTimeout(() => controller.abort(), 5);
+    await expect(pending).rejects.toThrow(/abort/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const callInit = fetchMock.mock.calls[0][1] as
+      | { signal?: AbortSignal }
+      | undefined;
+    expect(callInit?.signal).toBeDefined();
+  });
+
+  it("propage le signal abort du caller au fetch (probe)", async () => {
+    const fetchMock = jest.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          const sig = init?.signal;
+          if (!sig) return;
+          const onAbort = () => {
+            const err = new Error("aborted");
+            err.name = "AbortError";
+            reject(err);
+          };
+          if (sig.aborted) onAbort();
+          else sig.addEventListener("abort", onAbort);
+        }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const controller = new AbortController();
+    const pending = probeMediaUrlThrottled(
+      "/media/v1/abc/thumbnail",
+      {},
+      controller.signal,
+    );
+    setTimeout(() => controller.abort(), 5);
+    await expect(pending).rejects.toThrow(/abort/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("declenche un abort apres le timeout interne sur le stream", async () => {
+    jest.useFakeTimers();
+    const fetchMock = jest.fn(
+      (_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise<Response>((_resolve, reject) => {
+          const sig = init?.signal;
+          if (!sig) return;
+          const onAbort = () => {
+            const err = new Error("aborted by timeout");
+            err.name = "AbortError";
+            reject(err);
+          };
+          if (sig.aborted) onAbort();
+          else sig.addEventListener("abort", onAbort);
+        }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    // version non-throttled pour eviter les retries qui consommeraient
+    // chacun un timeout 15s
+    const pending = streamMediaToRenderableUri("/media/v1/abc/blob", "token");
+    // catch en avance pour eviter unhandled rejection avant l'advance timers
+    const settled = pending.catch((err) => err);
+    // avance le temps au-dela du timeout interne 15s
+    await jest.advanceTimersByTimeAsync(16_000);
+    const result = await settled;
+    expect(result).toBeInstanceOf(Error);
+    expect(String(result)).toMatch(/abort/i);
+    jest.useRealTimers();
   });
 });

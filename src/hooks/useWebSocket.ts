@@ -15,6 +15,7 @@ import {
 import { Conversation, Message } from "../types/messaging";
 import { usePresenceStore } from "../store/presenceStore";
 import { useCallsStore } from "../store/callsStore";
+import { useConversationsStore } from "../store/conversationsStore";
 import { navigate, navigationRef } from "../navigation/navigationRef";
 import type { CallType } from "../types/calls";
 import {
@@ -22,6 +23,9 @@ import {
   systemCallProvider,
 } from "../services/calls/systemCallProvider";
 import { isCallsAvailable } from "./useCallsAvailable";
+import { getReadReceiptsEnabled } from "../services/messaging/readReceiptsPref";
+import { useInboxStore } from "../store/inboxStore";
+import type { InboxItem } from "../types/inbox";
 
 /** Payload normalisé (snake_case) pour reaction_added / reaction_removed */
 export interface ReactionRealtimePayload {
@@ -85,6 +89,10 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     return () => {
       removeListener();
+      // libere le ref count cote socket : si ce hook etait le dernier
+      // consumer (logout, changement de user) le channel est ferme cote
+      // serveur, sinon les autres screens continuent a recevoir leurs events.
+      userChannel.leave();
     };
   }, [options.userId, options.token]);
 
@@ -99,7 +107,29 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
         if (msg?.id) callbacksRef.current.onNewMessage?.(msg);
       },
       onDelivery: (data: { message_id: string; status: string }) => {
+        // symetrie punitive : si l user a desactive ses accuses, il ne doit
+        // pas voir non plus les accuses des autres. Les statuts sent /
+        // delivered passent toujours, seul "read" est filtre.
+        if (data.status === "read" && !getReadReceiptsEnabled()) return;
         callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
+      },
+      // message_unread : symetrique de message_read, emis quand un destinataire
+      // a appuye sur "Marquer comme non-lu". Le backend revert le delivery_status
+      // -> on retire le read_at de l affichage. Filtre par toggle local : si l
+      // user a coupe ses accuses, il ignore aussi cet event.
+      onMessageUnread: (data: {
+        message_id?: string;
+        conversation_id?: string;
+      }) => {
+        if (!getReadReceiptsEnabled()) return;
+        if (!data?.message_id || !data?.conversation_id) return;
+        useConversationsStore.getState().applyMessageUnread({
+          messageId: data.message_id,
+          conversationId: data.conversation_id,
+        });
+        // re-broadcast en delivery_status "delivered" pour les ChatScreen
+        // ouverts qui ecoutent l event et veulent rafraichir leurs bulles
+        callbacksRef.current.onDeliveryStatus?.(data.message_id, "delivered");
       },
       onConvUpdate: (data: { conversation: Conversation }) => {
         callbacksRef.current.onConversationUpdate?.(data.conversation);
@@ -166,6 +196,27 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
         navigate("IncomingCall");
       },
+      // message_deleted sur user channel : messaging-service fanout vers
+      // user:<id> pour les groupes, sinon ConversationsListScreen rate la
+      // suppression "for everyone" tant qu'elle n'est pas abonnée au
+      // canal de la conversation. Le payload backend est { id, conversation_id }.
+      onMsgDeletedUser: (data: {
+        id?: string;
+        message_id?: string;
+        conversation_id?: string;
+      }) => {
+        const messageId = data.id ?? data.message_id;
+        if (messageId) {
+          callbacksRef.current.onMessageDeleted?.(messageId, true);
+        }
+      },
+      // inbox:new : notification-service envoie un InboxItem temps-reel
+      // via le user channel. On prepend dans le store sans refetch HTTP.
+      onInboxNew: (data: InboxItem) => {
+        if (data?.id) {
+          useInboxStore.getState().addNew(data);
+        }
+      },
       // call_ended: remote party hung up or server timed out the call.
       // WHISPR-1203 : reset() disconnect la Room LiveKit + clear active +
       // clear incoming. setIncoming(null) seul laissait l'autre côté
@@ -201,26 +252,38 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     // Remove any prior listeners before registering new ones to prevent
     // duplicate subscriptions when the component re-renders during reconnect.
     userChannel.off("new_message", userHandlers.onMsg);
+    userChannel.off("message_created", userHandlers.onMsg);
+    userChannel.off("message_deleted", userHandlers.onMsgDeletedUser);
     userChannel.off("delivery_status", userHandlers.onDelivery);
+    userChannel.off("message_unread", userHandlers.onMessageUnread);
     userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.off("conversation_archived", userHandlers.onConvArchived);
     userChannel.off("incoming_call", userHandlers.onIncomingCall);
     userChannel.off("call_ended", userHandlers.onCallEnded);
+    userChannel.off("inbox:new", userHandlers.onInboxNew);
 
     userChannel.on("new_message", userHandlers.onMsg);
+    userChannel.on("message_created", userHandlers.onMsg);
+    userChannel.on("message_deleted", userHandlers.onMsgDeletedUser);
     userChannel.on("delivery_status", userHandlers.onDelivery);
+    userChannel.on("message_unread", userHandlers.onMessageUnread);
     userChannel.on("conversation_summaries", userHandlers.onConvSummaries);
     userChannel.on("conversation_archived", userHandlers.onConvArchived);
     userChannel.on("incoming_call", userHandlers.onIncomingCall);
     userChannel.on("call_ended", userHandlers.onCallEnded);
+    userChannel.on("inbox:new", userHandlers.onInboxNew);
 
     return () => {
       userChannel.off("new_message", userHandlers.onMsg);
+      userChannel.off("message_created", userHandlers.onMsg);
+      userChannel.off("message_deleted", userHandlers.onMsgDeletedUser);
       userChannel.off("delivery_status", userHandlers.onDelivery);
+      userChannel.off("message_unread", userHandlers.onMessageUnread);
       userChannel.off("conversation_summaries", userHandlers.onConvSummaries);
       userChannel.off("conversation_archived", userHandlers.onConvArchived);
       userChannel.off("incoming_call", userHandlers.onIncomingCall);
       userChannel.off("call_ended", userHandlers.onCallEnded);
+      userChannel.off("inbox:new", userHandlers.onInboxNew);
     };
   }, [options.userId, options.token, userHandlers]);
 
@@ -256,6 +319,8 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
       }
     };
     const onDelivery = (data: { message_id: string; status: string }) => {
+      // cf. user channel : on filtre "read" quand l user a coupe ses accuses
+      if (data.status === "read" && !getReadReceiptsEnabled()) return;
       callbacksRef.current.onDeliveryStatus?.(data.message_id, data.status);
     };
     const onPresenceDiff = (data: {
@@ -334,6 +399,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
     };
 
     channel.on("new_message", onMsg);
+    channel.on("message_created", onMsg);
     channel.on("user_typing", onTyping);
     channel.on("message_updated", onMsgUpdated);
     channel.on("message_deleted", onMsgDeleted);
@@ -345,6 +411,7 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
     const cleanup = () => {
       channel.off("new_message", onMsg);
+      channel.off("message_created", onMsg);
       channel.off("user_typing", onTyping);
       channel.off("message_updated", onMsgUpdated);
       channel.off("message_deleted", onMsgDeleted);
@@ -391,6 +458,11 @@ export const useWebSocket = (options: UseWebSocketOptions) => {
 
   const markAsRead = useCallback(
     (conversationId: string, messageId: string) => {
+      // symetrie WhatsApp punitive : si l user a desactive les accuses de
+      // lecture, on ne broadcast pas message_read aux autres. Le marquage
+      // local "lu" en zustand reste, mais aucun delivery_status n est emis.
+      if (!getReadReceiptsEnabled()) return;
+
       const socket = getSharedSocket();
       if (!socket.isConnected()) return;
 

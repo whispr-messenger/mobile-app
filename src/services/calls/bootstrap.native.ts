@@ -1,4 +1,5 @@
 import { getCallsAvailability } from "../../hooks/useCallsAvailable";
+import { logger } from "../../utils/logger";
 
 declare const require: (path: string) => any;
 
@@ -17,13 +18,15 @@ if (available) {
       require("@livekit/react-native") as typeof import("@livekit/react-native");
     livekit.registerGlobals();
   } catch (error) {
-    console.warn(
-      "[calls/bootstrap] registerGlobals failed — continuing without LiveKit globals:",
+    logger.warn(
+      "calls/bootstrap",
+      "registerGlobals failed - continuing without LiveKit globals",
       error,
     );
   }
 } else if (reason === "no-webrtc") {
-  console.warn(
-    "[calls/bootstrap] WebRTC native module missing — skipping LiveKit registerGlobals. Rebuild the iOS/Android dev client (e.g. `npx expo run:ios`) after adding @livekit/react-native-webrtc.",
+  logger.warn(
+    "calls/bootstrap",
+    "WebRTC native module missing - skipping LiveKit registerGlobals. Rebuild the iOS/Android dev client (e.g. `npx expo run:ios`) after adding @livekit/react-native-webrtc.",
   );
 }

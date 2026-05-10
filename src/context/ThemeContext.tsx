@@ -713,6 +713,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.errorConnection": "Une erreur est survenue lors de la connexion",
     "auth.errorSendCode": "Impossible d'envoyer le code de vérification",
     "settings.blockedUsers": "Utilisateurs bloqués",
+    "blockedUsers.blockedSince": "Bloqué le",
     "settings.blockedUsersSubtitle":
       "Voir et débloquer les utilisateurs que vous avez bloqués",
     "devices.title": "Mes appareils",
@@ -997,6 +998,28 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.retry": "Réessayer",
     "common.optional": "optionnel",
     "common.copyError": "Impossible de copier dans le presse-papiers.",
+
+    // Confirmation forte (typed-confirm)
+    "confirm.expectedDelete": "SUPPRIMER",
+    "confirm.typeToConfirm": "Tape {{text}} pour confirmer",
+    "confirm.actionIrreversible": "Cette action est irréversible.",
+    "confirm.cancel": "Annuler",
+    "confirm.deleteAccount.title": "Supprimer mon compte ?",
+    "confirm.deleteAccount.description":
+      "Cette action est irréversible. Toutes vos conversations, messages et données seront supprimés.",
+    "confirm.deleteAccount.action": "Supprimer définitivement",
+    "confirm.deleteContact.title": "Supprimer ce contact ?",
+    "confirm.deleteContact.description":
+      "Le contact sera retiré de votre liste. Cette action est irréversible.",
+    "confirm.deleteContact.action": "Supprimer",
+    "confirm.leaveGroup.title": "Quitter ce groupe ?",
+    "confirm.leaveGroup.description":
+      "Tu ne pourras plus envoyer de messages ni voir l'historique. Tape SUPPRIMER pour confirmer.",
+    "confirm.leaveGroup.action": "Quitter",
+    "confirm.deleteGroup.title": "Supprimer ce groupe ?",
+    "confirm.deleteGroup.description":
+      "Tous les messages, médias et l'historique seront perdus. Action irréversible. Tape SUPPRIMER pour confirmer.",
+    "confirm.deleteGroup.action": "Supprimer définitivement",
   },
   en: {
     // Navigation
@@ -1026,6 +1049,7 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "auth.errorConnection": "An error occurred during connection",
     "auth.errorSendCode": "Unable to send verification code",
     "settings.blockedUsers": "Blocked users",
+    "blockedUsers.blockedSince": "Blocked on",
     "settings.blockedUsersSubtitle": "View and unblock users you've blocked",
     "devices.title": "My devices",
     "devices.subtitle": "View and sign out active sessions",
@@ -1299,6 +1323,28 @@ const localizedTexts: Record<Language, Record<string, string>> = {
     "common.retry": "Retry",
     "common.optional": "optional",
     "common.copyError": "Unable to copy to clipboard.",
+
+    // Strong confirmation (typed-confirm)
+    "confirm.expectedDelete": "DELETE",
+    "confirm.typeToConfirm": "Type {{text}} to confirm",
+    "confirm.actionIrreversible": "This action cannot be undone.",
+    "confirm.cancel": "Cancel",
+    "confirm.deleteAccount.title": "Delete my account?",
+    "confirm.deleteAccount.description":
+      "This action cannot be undone. All your conversations, messages and data will be deleted.",
+    "confirm.deleteAccount.action": "Delete permanently",
+    "confirm.deleteContact.title": "Delete this contact?",
+    "confirm.deleteContact.description":
+      "The contact will be removed from your list. This action cannot be undone.",
+    "confirm.deleteContact.action": "Delete",
+    "confirm.leaveGroup.title": "Leave this group?",
+    "confirm.leaveGroup.description":
+      "You will no longer be able to send messages or see history. Type DELETE to confirm.",
+    "confirm.leaveGroup.action": "Leave",
+    "confirm.deleteGroup.title": "Delete this group?",
+    "confirm.deleteGroup.description":
+      "All messages, media and history will be lost. This action cannot be undone. Type DELETE to confirm.",
+    "confirm.deleteGroup.action": "Delete permanently",
   },
 };
 

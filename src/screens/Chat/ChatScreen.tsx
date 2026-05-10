@@ -41,6 +41,7 @@ import {
   PinnedMessage,
 } from "../../types/messaging";
 import { messagingAPI } from "../../services/messaging/api";
+import { cacheService } from "../../services/messaging/cache";
 import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -51,6 +52,7 @@ import { useSharedValue, withSpring } from "react-native-reanimated";
 
 const MESSAGE_SWIPE_DISTANCE = 40;
 const MESSAGE_SWIPE_SPRING = { damping: 18, stiffness: 180 };
+const MESSAGES_PAGE_SIZE = 50;
 import { MessageInput } from "../../components/Chat/MessageInput";
 import { TypingIndicator } from "../../components/Chat/TypingIndicator";
 import { Avatar } from "../../components/Chat/Avatar";
@@ -74,6 +76,7 @@ import { PinnedMessagesBar } from "../../components/Chat/PinnedMessagesBar";
 import { EmptyChatState } from "../../components/Chat/EmptyChatState";
 import { ChatHeader } from "./ChatHeader";
 import { getConversationDisplayName } from "../../utils";
+import { generateClientRandom } from "../../utils/crypto";
 import { usePresenceStore } from "../../store/presenceStore";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors, withOpacity } from "../../theme/colors";
@@ -327,6 +330,10 @@ export const ChatScreen: React.FC = () => {
   const handleSendMediaRef = useRef<typeof handleSendMedia>(null!);
   const conversationChannelRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
+  const cacheWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // eviter le double-tap envoyant 2 messages distincts sur connexion lente :
+  // chaque tap a son propre client_random donc le serveur ne peut pas dedup.
+  const sendingRef = useRef(false);
   // Horizontal swipe to reveal per-message timestamps. The shared value is
   // consumed by every MessageBubble through MessageSwipeProvider, so all rows
   // translate together without re-rendering.
@@ -493,6 +500,11 @@ export const ChatScreen: React.FC = () => {
             ...prev,
           ];
         });
+        useConversationsStore
+          .getState()
+          .applyNewMessage(message as any, userId)
+          .catch(() => {});
+        useConversationsStore.getState().resetUnreadCount(conversationId);
         // Mark as read if chat is open
         markAsRead(conversationId, message.id);
         // Auto-scroll to the new message only when the user was already
@@ -541,11 +553,18 @@ export const ChatScreen: React.FC = () => {
           ),
         );
       }
+      useConversationsStore.getState().applyMessageUpdated(message);
     },
     onMessageDeleted: (
       messageId: string,
       deleteForEveryone: boolean | string,
     ) => {
+      useConversationsStore
+        .getState()
+        .applyMessageDeleted(
+          messageId,
+          deleteForEveryone === true || deleteForEveryone === "true",
+        );
       if (deleteForEveryone === true || deleteForEveryone === "true") {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -763,6 +782,28 @@ export const ChatScreen: React.FC = () => {
     // Load data
     initialScrollDoneRef.current = false;
     loadConversation();
+    let cancelled = false;
+    cacheService
+      .getMessages(conversationId)
+      .then((cached) => {
+        if (cancelled) return;
+        if (!cached || cached.length === 0) return;
+        setMessages((prev) => {
+          if (prev.length === 0) return cached;
+          const existingIds = new Set(prev.map((m) => m.id));
+          const merged = [
+            ...prev,
+            ...cached.filter((m) => !existingIds.has(m.id)),
+          ];
+          return merged.sort(
+            (a, b) =>
+              new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+          );
+        });
+        setHasMore(cached.length >= MESSAGES_PAGE_SIZE);
+        setLoading(false);
+      })
+      .catch(() => {});
     loadMessages();
     loadPinnedMessages();
 
@@ -772,6 +813,7 @@ export const ChatScreen: React.FC = () => {
       conversationChannelRef.current = channel;
 
       return () => {
+        cancelled = true;
         cleanup();
         channel?.leave();
         Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
@@ -780,6 +822,26 @@ export const ChatScreen: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, token]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+    if (messages.length === 0) return;
+    if (cacheWriteTimerRef.current) {
+      clearTimeout(cacheWriteTimerRef.current);
+    }
+    const stable = messages
+      .filter((m) => m && typeof m.id === "string" && !m.id.startsWith("temp-"))
+      .slice(0, 75);
+    cacheWriteTimerRef.current = setTimeout(() => {
+      cacheService.saveMessages(conversationId, stable).catch(() => {});
+    }, 400);
+    return () => {
+      if (cacheWriteTimerRef.current) {
+        clearTimeout(cacheWriteTimerRef.current);
+        cacheWriteTimerRef.current = null;
+      }
+    };
+  }, [conversationId, messages]);
 
   // Applies an admin decision on a blocked-image appeal.
   // On approve: re-submit the original image bypassing the gate.
@@ -970,7 +1032,7 @@ export const ChatScreen: React.FC = () => {
         }
 
         const data = await messagingAPI.getMessages(conversationId, {
-          limit: 50,
+          limit: MESSAGES_PAGE_SIZE,
           before,
         });
 
@@ -1081,7 +1143,7 @@ export const ChatScreen: React.FC = () => {
                 new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
             );
           });
-          setHasMore(messagesWithRelations.length === 50);
+          setHasMore(messagesWithRelations.length === MESSAGES_PAGE_SIZE);
         } else {
           // Initial load — merge with any messages already received via WS
           setMessages((prev) => {
@@ -1096,7 +1158,7 @@ export const ChatScreen: React.FC = () => {
                 new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
             );
           });
-          setHasMore(messagesWithRelations.length === 50);
+          setHasMore(messagesWithRelations.length === MESSAGES_PAGE_SIZE);
           // Mark the newest message as read so the sender gets a read receipt
           if (messagesWithRelations.length > 0) {
             markAsRead(conversationId, messagesWithRelations[0].id);
@@ -1126,118 +1188,149 @@ export const ChatScreen: React.FC = () => {
 
   const handleSendMessage = useCallback(
     async (content: string, replyToId?: string, mentions?: string[]) => {
-      // Stop typing indicator
-      sendTyping(conversationId, false);
+      // ref-lock : sur connexion lente, un double-tap genererait 2 messages
+      // avec des client_random differents (donc pas dedup serveur). On ignore
+      // les calls concurrents sans desactiver le bouton (UX intacte).
+      if (sendingRef.current) return;
+      sendingRef.current = true;
+      try {
+        // Stop typing indicator
+        sendTyping(conversationId, false);
 
-      // If editing, update the message
-      if (editingMessage) {
-        try {
-          const updated = await messagingAPI.editMessage(
-            editingMessage.id,
-            conversationId,
+        // If editing, update the message
+        if (editingMessage) {
+          try {
+            const updated = await messagingAPI.editMessage(
+              editingMessage.id,
+              conversationId,
+              content,
+            );
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === editingMessage.id
+                  ? { ...msg, ...updated, edited_at: updated.edited_at }
+                  : msg,
+              ),
+            );
+            setEditingMessage(null);
+            useConversationsStore
+              .getState()
+              .applyMessageUpdated(updated as any);
+          } catch (error) {
+            logger.error("ChatScreen", "Error editing message", error);
+            Alert.alert(
+              getLocalizedText("notif.error"),
+              getLocalizedText("chat.errorEditMessage"),
+            );
+            setEditingMessage(null);
+          }
+          return;
+        }
+
+        const tempMessage: MessageWithRelations = {
+          id: `temp-${Date.now()}`,
+          conversation_id: conversationId,
+          sender_id: userId,
+          message_type: "text",
+          content,
+          metadata: {},
+          // crypto random Uint32 pour eviter birthday collision sur dedup serveur
+          client_random: generateClientRandom(),
+          sent_at: new Date().toISOString(),
+          is_deleted: false,
+          delete_for_everyone: false,
+          status: "sending",
+          reply_to_id: replyToId,
+          reply_to: replyingTo || undefined,
+        };
+
+        setMessages((prev) => [tempMessage, ...prev]);
+        setReplyingTo(null);
+        useConversationsStore
+          .getState()
+          .applyNewMessage(tempMessage as any, userId)
+          .catch(() => {});
+        useConversationsStore.getState().resetUnreadCount(conversationId);
+
+        // Scroll to bottom so the newly sent text message is visible
+        // (FlatList is inverted, so offset 0 is the bottom)
+        setTimeout(() => {
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }, 100);
+
+        // If offline, queue the message for later delivery
+        if (connectionState !== "connected") {
+          const queued: QueuedMessage = {
+            id: tempMessage.id,
+            conversation_id: conversationId,
             content,
-          );
+            message_type: "text",
+            client_random: tempMessage.client_random as number,
+            reply_to_id: replyToId,
+            queued_at: new Date().toISOString(),
+          };
+          await offlineQueue.enqueue(queued);
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === editingMessage.id
-                ? { ...msg, ...updated, edited_at: updated.edited_at }
-                : msg,
+            prev.map((m) =>
+              m.id === tempMessage.id ? { ...m, status: "queued" as const } : m,
             ),
           );
-          setEditingMessage(null);
-        } catch (error) {
-          logger.error("ChatScreen", "Error editing message", error);
-          Alert.alert(
-            getLocalizedText("notif.error"),
-            getLocalizedText("chat.errorEditMessage"),
-          );
-          setEditingMessage(null);
+          useConversationsStore
+            .getState()
+            .applyNewMessage(
+              { ...tempMessage, status: "queued" } as any,
+              userId,
+            )
+            .catch(() => {});
+          useConversationsStore.getState().resetUnreadCount(conversationId);
+          return;
         }
-        return;
-      }
 
-      const tempMessage: MessageWithRelations = {
-        id: `temp-${Date.now()}`,
-        conversation_id: conversationId,
-        sender_id: userId,
-        message_type: "text",
-        content,
-        metadata: {},
-        client_random: Math.floor(Math.random() * 1000000),
-        sent_at: new Date().toISOString(),
-        is_deleted: false,
-        delete_for_everyone: false,
-        status: "sending",
-        reply_to_id: replyToId,
-        reply_to: replyingTo || undefined,
-      };
+        try {
+          const sent = await messagingAPI.sendMessage(conversationId, {
+            content,
+            message_type: "text",
+            client_random: tempMessage.client_random as number,
 
-      setMessages((prev) => [tempMessage, ...prev]);
-      setReplyingTo(null);
-
-      // Scroll to bottom so the newly sent text message is visible
-      // (FlatList is inverted, so offset 0 is the bottom)
-      setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      }, 100);
-
-      // If offline, queue the message for later delivery
-      if (connectionState !== "connected") {
-        const queued: QueuedMessage = {
-          id: tempMessage.id,
-          conversation_id: conversationId,
-          content,
-          message_type: "text",
-          client_random: tempMessage.client_random as number,
-          reply_to_id: replyToId,
-          queued_at: new Date().toISOString(),
-        };
-        await offlineQueue.enqueue(queued);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempMessage.id ? { ...m, status: "queued" as const } : m,
-          ),
-        );
-        return;
-      }
-
-      try {
-        const sent = await messagingAPI.sendMessage(conversationId, {
-          content,
-          message_type: "text",
-          client_random: tempMessage.client_random as number,
-
-          metadata: {},
-          reply_to_id: replyToId,
-        });
-
-        setMessages((prev) => {
-          const next: MessageWithRelations[] = prev.map((m) => {
-            if (
-              m.id.startsWith("temp-") &&
-              m.client_random === tempMessage.client_random
-            ) {
-              const updated: MessageWithRelations = {
-                ...(sent as MessageWithRelations),
-                status: "sent" as const,
-                reply_to: tempMessage.reply_to,
-              };
-              return updated;
-            }
-            return m;
+            metadata: {},
+            reply_to_id: replyToId,
           });
-          return next;
-        });
-      } catch (error) {
-        logger.error("ChatScreen", "Error sending message", error);
-        setMessages((prev) => {
-          return prev.map((m) => {
-            if (m.id === tempMessage.id) {
-              return { ...m, status: "failed" };
-            }
-            return m;
+
+          setMessages((prev) => {
+            const next: MessageWithRelations[] = prev.map((m) => {
+              if (
+                m.id.startsWith("temp-") &&
+                m.client_random === tempMessage.client_random
+              ) {
+                const updated: MessageWithRelations = {
+                  ...(sent as MessageWithRelations),
+                  status: "sent" as const,
+                  reply_to: tempMessage.reply_to,
+                };
+                return updated;
+              }
+              return m;
+            });
+            return next;
           });
-        });
+          useConversationsStore
+            .getState()
+            .applyNewMessage(sent as any, userId)
+            .catch(() => {});
+          useConversationsStore.getState().resetUnreadCount(conversationId);
+        } catch (error) {
+          logger.error("ChatScreen", "Error sending message", error);
+          setMessages((prev) => {
+            return prev.map((m) => {
+              if (m.id === tempMessage.id) {
+                return { ...m, status: "failed" };
+              }
+              return m;
+            });
+          });
+        }
+      } finally {
+        sendingRef.current = false;
       }
     },
     [
@@ -1302,7 +1395,8 @@ export const ChatScreen: React.FC = () => {
           thumbnail_url: uploadUri,
           duration: audioDuration,
         },
-        client_random: Math.floor(Math.random() * 1000000),
+        // crypto random Uint32 pour eviter birthday collision sur dedup serveur
+        client_random: generateClientRandom(),
         sent_at: new Date().toISOString(),
         is_deleted: false,
         delete_for_everyone: false,
@@ -1329,6 +1423,11 @@ export const ChatScreen: React.FC = () => {
 
       setMessages((prev) => [tempMessage, ...prev]);
       setReplyingTo(null);
+      useConversationsStore
+        .getState()
+        .applyNewMessage(tempMessage as any, userId)
+        .catch(() => {});
+      useConversationsStore.getState().resetUnreadCount(conversationId);
 
       // Scroll to bottom so the newly sent media message is visible
       setTimeout(() => {
@@ -1589,6 +1688,11 @@ export const ChatScreen: React.FC = () => {
               : msg,
           ),
         );
+        useConversationsStore
+          .getState()
+          .applyNewMessage(sentMessage as any, userId)
+          .catch(() => {});
+        useConversationsStore.getState().resetUnreadCount(conversationId);
       } catch (error) {
         console.error("[ChatScreen] Error sending media:", error);
         // Keep message in chat with failed status and error indication
@@ -1997,6 +2101,9 @@ export const ChatScreen: React.FC = () => {
             prev.filter((msg) => msg.id !== selectedMessage.id),
           );
         }
+        useConversationsStore
+          .getState()
+          .applyMessageDeleted(selectedMessage.id, deleteForEveryone);
         await loadPinnedMessages();
       } catch (error) {
         logger.error("ChatScreen", "Error deleting message", error);
@@ -2525,7 +2632,13 @@ export const ChatScreen: React.FC = () => {
               style={styles.notContactBannerButton}
             >
               {addingContact ? (
-                <ActivityIndicator size="small" color={colors.text.light} />
+                // wrapper pour annoncer l'etat busy au screen reader
+                <View
+                  accessibilityState={{ busy: true }}
+                  accessibilityLiveRegion="polite"
+                >
+                  <ActivityIndicator size="small" color={colors.text.light} />
+                </View>
               ) : (
                 <Text style={styles.notContactBannerButtonText}>Ajouter</Text>
               )}
@@ -2586,7 +2699,11 @@ export const ChatScreen: React.FC = () => {
               }
               ListFooterComponent={
                 loadingMore ? (
-                  <View style={styles.loadingMore}>
+                  <View
+                    style={styles.loadingMore}
+                    accessibilityState={{ busy: true }}
+                    accessibilityLiveRegion="polite"
+                  >
                     <ActivityIndicator
                       size="small"
                       color={themeColors.primary}

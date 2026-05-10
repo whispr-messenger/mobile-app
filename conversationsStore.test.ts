@@ -15,9 +15,11 @@ jest.mock("./src/services/messaging/api", () => ({
     getConversation: jest.fn().mockResolvedValue(null),
     getConversationMembers: jest.fn().mockResolvedValue([]),
     getUserInfo: jest.fn().mockResolvedValue(null),
+    getUsersInfoBatch: jest.fn().mockResolvedValue(new Map()),
     deleteConversation: jest.fn().mockResolvedValue(undefined),
     archiveConversation: jest.fn().mockResolvedValue(undefined),
     unarchiveConversation: jest.fn().mockResolvedValue(undefined),
+    markMessageAsUnread: jest.fn().mockResolvedValue(undefined),
     getArchivedConversations: jest.fn().mockResolvedValue({
       data: [],
       meta: {
@@ -209,7 +211,7 @@ describe("conversationsStore — applyNewMessage unread_count (WHISPR-1050)", ()
     await act(async () => {
       await useConversationsStore
         .getState()
-        .applyNewMessage(msg("c1", "me"), "me");
+        .applyNewMessage(msg("c1", "me", "m-own-echo"), "me");
     });
 
     const conv = useConversationsStore
@@ -224,7 +226,9 @@ describe("conversationsStore — applyNewMessage unread_count (WHISPR-1050)", ()
     seed("c1", 0);
 
     await act(async () => {
-      await useConversationsStore.getState().applyNewMessage(msg("c1", "me"));
+      await useConversationsStore
+        .getState()
+        .applyNewMessage(msg("c1", "me", "m-legacy"));
     });
 
     const conv = useConversationsStore
@@ -278,6 +282,7 @@ beforeEach(() => {
     mockedMessagingAPI.getConversations,
     mockedMessagingAPI.getConversation,
     mockedMessagingAPI.getUserInfo,
+    mockedMessagingAPI.getUsersInfoBatch,
     mockedMessagingAPI.deleteConversation,
     mockedMessagingAPI.archiveConversation,
     mockedMessagingAPI.unarchiveConversation,
@@ -301,6 +306,7 @@ beforeEach(() => {
   mockedMessagingAPI.getConversations.mockResolvedValue([]);
   mockedMessagingAPI.getConversation.mockResolvedValue(null);
   mockedMessagingAPI.getUserInfo.mockResolvedValue(null);
+  mockedMessagingAPI.getUsersInfoBatch.mockResolvedValue(new Map());
   mockedMessagingAPI.deleteConversation.mockResolvedValue(undefined);
   mockedMessagingAPI.archiveConversation.mockResolvedValue(undefined);
   mockedMessagingAPI.unarchiveConversation.mockResolvedValue(undefined);
@@ -1372,5 +1378,509 @@ describe("conversationsStore — applyNewMessage on archived conversations", () 
     const state = useConversationsStore.getState();
     expect(state.archived.items).toHaveLength(0);
     expect(state.conversations.find((c) => c.id === "c-new")).toBeUndefined();
+  });
+});
+
+describe("conversationsStore — applyMessageDeleted (WHISPR-1299 user channel fanout)", () => {
+  beforeEach(() => {
+    useConversationsStore.getState().reset();
+  });
+
+  function seedWithLastMessage(convId: string, msgId: string) {
+    const conv = {
+      id: convId,
+      type: "group",
+      display_name: "Crew",
+      avatar_url: null,
+      member_user_ids: ["a", "b", "c"],
+      last_message: {
+        id: msgId,
+        conversation_id: convId,
+        sender_id: "a",
+        message_type: "text",
+        content: "salut",
+        is_deleted: false,
+        sent_at: "2026-04-21T10:00:00Z",
+      },
+      unread_count: 0,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-21T10:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<
+        typeof useConversationsStore.getState
+      >["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  it("replaces the last_message preview when the deleted id matches", () => {
+    seedWithLastMessage("g1", "m-100");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageDeleted("m-100", true);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "g1");
+    expect(conv?.last_message?.is_deleted).toBe(true);
+    expect(conv?.last_message?.content).toBe("[Message supprimé]");
+  });
+
+  it("ignores soft-delete (deleteForEveryone=false) so private deletions stay local", () => {
+    seedWithLastMessage("g2", "m-200");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageDeleted("m-200", false);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "g2");
+    expect(conv?.last_message?.is_deleted).toBe(false);
+    expect(conv?.last_message?.content).toBe("salut");
+  });
+
+  it("leaves unrelated conversations untouched", () => {
+    seedWithLastMessage("g3", "m-300");
+
+    act(() => {
+      useConversationsStore
+        .getState()
+        .applyMessageDeleted("m-other-conv", true);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "g3");
+    expect(conv?.last_message?.is_deleted).toBe(false);
+  });
+});
+
+describe("conversationsStore — applyMessageUnread (WHISPR-1302)", () => {
+  function seedWithReadStatus(convId: string, messageId: string) {
+    const conv = {
+      id: convId,
+      type: "direct",
+      display_name: "Alice",
+      avatar_url: null,
+      member_user_ids: ["other", "me"],
+      last_message: {
+        id: messageId,
+        conversation_id: convId,
+        sender_id: "me",
+        message_type: "text",
+        content: "salut",
+        metadata: {},
+        client_random: 1,
+        sent_at: "2026-04-21T10:00:00Z",
+        is_deleted: false,
+        status: "read",
+      },
+      unread_count: 0,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-21T10:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<
+        typeof useConversationsStore.getState
+      >["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  it("revert le status read en delivered sur la preview last_message", () => {
+    seedWithReadStatus("c-rr", "m-rr-1");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageUnread({
+        messageId: "m-rr-1",
+        conversationId: "c-rr",
+      });
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-rr");
+    expect(conv?.last_message?.status).toBe("delivered");
+  });
+
+  it("ne touche pas une conversation inconnue", () => {
+    seedWithReadStatus("c-rr", "m-rr-1");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageUnread({
+        messageId: "m-rr-1",
+        conversationId: "c-other",
+      });
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-rr");
+    expect(conv?.last_message?.status).toBe("read");
+  });
+
+  it("ne touche pas si le message id ne match pas le last_message", () => {
+    seedWithReadStatus("c-rr", "m-rr-1");
+
+    act(() => {
+      useConversationsStore.getState().applyMessageUnread({
+        messageId: "m-other",
+        conversationId: "c-rr",
+      });
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-rr");
+    expect(conv?.last_message?.status).toBe("read");
+  });
+});
+
+describe("conversationsStore — markAsUnread API call (WHISPR-1302)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { messagingAPI } = require("./src/services/messaging/api") as {
+    messagingAPI: { markMessageAsUnread: jest.Mock };
+  };
+
+  function seedConversation(convId: string, lastMessageId?: string) {
+    const conv = {
+      id: convId,
+      type: "direct",
+      display_name: "Alice",
+      avatar_url: null,
+      member_user_ids: ["other", "me"],
+      last_message: lastMessageId
+        ? {
+            id: lastMessageId,
+            conversation_id: convId,
+            sender_id: "other",
+            message_type: "text",
+            content: "salut",
+            metadata: {},
+            client_random: 1,
+            sent_at: "2026-04-21T10:00:00Z",
+            is_deleted: false,
+          }
+        : undefined,
+      unread_count: 0,
+      is_pinned: false,
+      is_muted: false,
+      is_active: true,
+      is_archived: false,
+      updated_at: "2026-04-21T10:00:00Z",
+    } as unknown as Parameters<
+      ReturnType<
+        typeof useConversationsStore.getState
+      >["applyConversationSummaries"]
+    >[0][number];
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([conv]);
+    });
+  }
+
+  beforeEach(() => {
+    messagingAPI.markMessageAsUnread.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("appelle messagingAPI.markMessageAsUnread avec le last message id", async () => {
+    seedConversation("c-mu", "m-mu-1");
+
+    await act(async () => {
+      await useConversationsStore.getState().markAsUnread("c-mu");
+    });
+
+    expect(messagingAPI.markMessageAsUnread).toHaveBeenCalledWith(
+      "m-mu-1",
+      "c-mu",
+    );
+    const state = useConversationsStore.getState();
+    expect(state.manuallyUnreadIds.has("c-mu")).toBe(true);
+    const conv = state.conversations.find((c) => c.id === "c-mu");
+    expect(conv?.unread_count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("skip l API call quand la conversation n a pas de last_message", async () => {
+    seedConversation("c-empty");
+
+    await act(async () => {
+      await useConversationsStore.getState().markAsUnread("c-empty");
+    });
+
+    expect(messagingAPI.markMessageAsUnread).not.toHaveBeenCalled();
+    expect(
+      useConversationsStore.getState().manuallyUnreadIds.has("c-empty"),
+    ).toBe(true);
+  });
+
+  it("rollback l etat local si l API call echoue", async () => {
+    seedConversation("c-fail", "m-fail-1");
+    messagingAPI.markMessageAsUnread.mockRejectedValueOnce(
+      new Error("network fail"),
+    );
+
+    await act(async () => {
+      await useConversationsStore.getState().markAsUnread("c-fail");
+    });
+
+    expect(messagingAPI.markMessageAsUnread).toHaveBeenCalled();
+    const state = useConversationsStore.getState();
+    expect(state.manuallyUnreadIds.has("c-fail")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichSingleConversation — fallback chain (WHISPR-1423)
+// ---------------------------------------------------------------------------
+// le user profile peut etre masque par privacy CONTACTS : display_name vide
+// mais username ou phone_number_masked encore exposes. on doit propager ce
+// qui reste pour eviter "Utilisateur" en clair dans la liste des DM.
+
+describe("conversationsStore — enrichSingleConversation fallback (WHISPR-1423)", () => {
+  beforeEach(() => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+  });
+
+  it("propage username quand display_name est vide", async () => {
+    const conv = makeConv("c-1", {
+      display_name: undefined,
+      avatar_url: undefined,
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "",
+      username: "ada",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.username).toBe("ada");
+  });
+
+  it("propage phone_number_masked quand display_name et username sont vides", async () => {
+    const conv = makeConv("c-2", {
+      display_name: undefined,
+      avatar_url: undefined,
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "",
+      username: undefined,
+      phone_number_masked: "+33 6 ** ** 64 12",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.phone_number).toBe("+33 6 ** ** 64 12");
+  });
+
+  it("ne touche pas a la conversation si tout est vide cote profil", async () => {
+    const conv = makeConv("c-3", {
+      display_name: undefined,
+      avatar_url: undefined,
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "",
+      username: undefined,
+      phone_number_masked: undefined,
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBeUndefined();
+    expect(stored.username).toBeUndefined();
+    expect(stored.phone_number).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichSingleConversation — sentinel bypass (WHISPR-1426)
+// ---------------------------------------------------------------------------
+// Regression : le messaging-service pre-remplit display_name="Utilisateur" et
+// avatar_url avec une valeur non-null. L early-return de enrichSingleConversation
+// voyait (display_name && avatar_url) = truthy et sautait l enrichment entier.
+// Result : l UI affichait "Utilisateur" meme quand getUserInfo retourne un vrai nom.
+
+describe("conversationsStore — enrichSingleConversation sentinel bypass (WHISPR-1426)", () => {
+  beforeEach(() => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+  });
+
+  it('force l enrichment quand display_name="Utilisateur" meme si avatar_url est set', async () => {
+    const conv = makeConv("c-sentinel", {
+      display_name: "Utilisateur",
+      avatar_url: "https://cdn/placeholder.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "Alice Dupont",
+      username: "alice",
+      avatar_url: "https://cdn/alice.png",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Alice Dupont");
+    expect(stored.avatar_url).toBe("https://cdn/alice.png");
+  });
+
+  it('force l enrichment quand display_name="User" (variante anglaise du sentinel)', async () => {
+    const conv = makeConv("c-sentinel-en", {
+      display_name: "User",
+      avatar_url: "https://cdn/placeholder.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "Bob Martin",
+      username: "bob",
+      avatar_url: "https://cdn/bob.png",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Bob Martin");
+  });
+
+  it("ne refetche pas une conv deja correctement enrichie (display_name reel + avatar_url)", async () => {
+    const conv = makeConv("c-already-enriched", {
+      display_name: "Charlie Leclerc",
+      avatar_url: "https://cdn/charlie.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    // getUserInfo ne doit pas etre appele : l early-return doit laisser passer
+    expect(mockedMessagingAPI.getUserInfo).not.toHaveBeenCalled();
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Charlie Leclerc");
+  });
+
+  it("sentinel bypass declenche enrichment via applyConversationSummaries (WS path)", async () => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+    mockedMessagingAPI.getUserInfo.mockResolvedValue({
+      id: "other",
+      display_name: "Diana Prince",
+      username: "diana",
+      avatar_url: "https://cdn/diana.png",
+    });
+
+    act(() => {
+      useConversationsStore.getState().applyConversationSummaries([
+        {
+          id: "c-ws-sentinel",
+          type: "direct",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          is_active: true,
+          display_name: "Utilisateur",
+          avatar_url: "https://cdn/placeholder.png",
+          member_user_ids: ["other", "me"],
+        } as any,
+      ]);
+    });
+
+    // async enrichment is kicked off — wait for it
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const stored = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-ws-sentinel");
+    expect(stored?.display_name).toBe("Diana Prince");
+  });
+
+  it('sentinel bypass declenche enrichment via applyConversationUpdate (nouvelle conv avec display_name="Utilisateur")', async () => {
+    mockedTokenService.getAccessToken.mockResolvedValue("fake-token");
+    mockedTokenService.decodeAccessToken.mockReturnValue({ sub: "me" });
+    mockedMessagingAPI.getUserInfo.mockResolvedValue({
+      id: "other",
+      display_name: "Eve Torres",
+      username: "eve",
+      avatar_url: "https://cdn/eve.png",
+    });
+
+    act(() => {
+      useConversationsStore.getState().applyConversationUpdate(
+        makeConv("c-update-sentinel", {
+          display_name: "Utilisateur",
+          avatar_url: "https://cdn/placeholder.png",
+          member_user_ids: ["other", "me"],
+        }),
+      );
+    });
+
+    // async enrichment is kicked off — wait for it
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    const stored = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-update-sentinel");
+    expect(stored?.display_name).toBe("Eve Torres");
+  });
+
+  it("enrichWithDisplayNames inclut les convs avec sentinel dans le batch warmup", async () => {
+    const conv = makeConv("c-batch-sentinel", {
+      display_name: "Utilisateur",
+      avatar_url: "https://cdn/placeholder.png",
+      member_user_ids: ["other", "me"],
+    });
+    mockedMessagingAPI.getConversations.mockResolvedValueOnce([conv]);
+    mockedMessagingAPI.getUserInfo.mockResolvedValueOnce({
+      id: "other",
+      display_name: "Frank Castle",
+      username: "frank",
+    });
+
+    await act(async () => {
+      await useConversationsStore.getState().fetchConversations();
+    });
+
+    // getUsersInfoBatch doit avoir ete appele pour le warmup (sentinel = non enrichi)
+    expect(mockedMessagingAPI.getUsersInfoBatch).toHaveBeenCalled();
+    const stored = useConversationsStore.getState().conversations[0];
+    expect(stored.display_name).toBe("Frank Castle");
   });
 });
