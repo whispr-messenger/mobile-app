@@ -130,7 +130,7 @@ const STEPS: Array<{
   },
   {
     text: "Fais defiler et choisis \"Sur l'ecran d'accueil\"",
-    icon: "add-square-outline",
+    icon: "square-outline",
   },
   {
     text: 'Appuie sur "Ajouter" en haut a droite',
