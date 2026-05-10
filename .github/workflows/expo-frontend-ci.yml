@@ -45,6 +45,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Danger-zone layout check
+        run: bash scripts/check-danger-zone.sh
+
       - name: Type check
         run: npm run type-check
 

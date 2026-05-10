@@ -10,7 +10,35 @@ import { logger } from "../utils/logger";
 // Short grace period: absorbs transient empty fetches (e.g. first WS payload
 // arriving just after an HTTP fetch returns []) without flashing an empty UI.
 const EMPTY_STATE_GRACE_PERIOD_MS = 2_000;
+
+/**
+ * Valeurs sentinelles que le messaging-service injecte quand la resolution du
+ * profil echoue cote backend. Ces valeurs NE doivent PAS bloquer l enrichment
+ * cote frontend - elles doivent etre traitees comme "absent" dans les gardes
+ * early-return de enrichSingleConversation et enrichWithDisplayNames.
+ * cf WHISPR-1426 : "Utilisateur" faux positif bloque l early-return.
+ */
+const SENTINEL_DISPLAY_NAMES = new Set(["Utilisateur", "User"]);
+
+function isEnrichedDisplayName(value: string | undefined | null): boolean {
+  if (!value) return false;
+  return !SENTINEL_DISPLAY_NAMES.has(value.trim());
+}
 const MANUALLY_UNREAD_KEY = "@whispr/manually_unread_ids";
+const RECENT_MESSAGE_IDS_MAX = 50;
+const recentMessageIdsByConversation = new Map<string, string[]>();
+
+function wasMessageSeen(conversationId: string, messageId: string): boolean {
+  if (!conversationId || !messageId) return false;
+  const list = recentMessageIdsByConversation.get(conversationId) ?? [];
+  if (list.includes(messageId)) return true;
+  const next = [messageId, ...list];
+  recentMessageIdsByConversation.set(
+    conversationId,
+    next.slice(0, RECENT_MESSAGE_IDS_MAX),
+  );
+  return false;
+}
 
 async function getCurrentUserId(): Promise<string | null> {
   const token = await TokenService.getAccessToken();
@@ -23,7 +51,10 @@ async function enrichSingleConversation(
   conv: Conversation,
   currentUserId: string,
 ): Promise<Conversation> {
-  if (conv.type !== "direct" || (conv.display_name && conv.avatar_url)) {
+  if (
+    conv.type !== "direct" ||
+    (isEnrichedDisplayName(conv.display_name) && conv.avatar_url)
+  ) {
     return conv;
   }
 
@@ -53,12 +84,21 @@ async function enrichSingleConversation(
     }
 
     const userInfo = await messagingAPI.getUserInfo(otherUserId);
-    if (userInfo?.display_name) {
+    // fallback chain robuste pour eviter "Utilisateur" affiche en clair
+    // quand le profil est masque par privacy CONTACTS (display_name vide
+    // mais username ou phone_number_masked presents) cf WHISPR-1423
+    const userPhoneMasked = (userInfo as any)?.phone_number_masked;
+    if (
+      userInfo?.display_name ||
+      (userInfo as any)?.username ||
+      userPhoneMasked
+    ) {
       return {
         ...conv,
-        display_name: userInfo.display_name,
-        username: (userInfo as any).username ?? conv.username,
-        avatar_url: userInfo.avatar_url || conv.avatar_url,
+        display_name: userInfo?.display_name || conv.display_name,
+        username: (userInfo as any)?.username ?? conv.username,
+        phone_number: userPhoneMasked ?? conv.phone_number,
+        avatar_url: userInfo?.avatar_url || conv.avatar_url,
         member_user_ids: memberIds,
       };
     }
@@ -78,6 +118,30 @@ async function enrichWithDisplayNames(
   conversations: Conversation[],
   currentUserId: string,
 ): Promise<Conversation[]> {
+  // WHISPR-1357 : pre-warming du cache profils via 1 seul batch /profiles/batch
+  // au lieu de N fetchs unitaires. enrichSingleConversation continue d'utiliser
+  // getUserInfo pour le fallback (member_user_ids absents qui forcent un
+  // getConversation), mais l'appel reseau retourne en cache hit.
+  const otherIdsToWarmup = new Set<string>();
+  for (const conv of conversations) {
+    if (conv.type !== "direct") continue;
+    if (isEnrichedDisplayName(conv.display_name) && conv.avatar_url) continue;
+    const memberIds = conv.member_user_ids;
+    if (!memberIds || memberIds.length === 0) continue;
+    const other = memberIds.find((id: string) => id && id !== currentUserId);
+    if (other) otherIdsToWarmup.add(other);
+  }
+
+  if (otherIdsToWarmup.size > 0) {
+    try {
+      await messagingAPI.getUsersInfoBatch(Array.from(otherIdsToWarmup));
+    } catch (err) {
+      // batch en best-effort : si echec, enrichSingleConversation fallback
+      // sur les fetchs unitaires existants.
+      logger.warn("enrich", "Batch profile warmup failed", err);
+    }
+  }
+
   const results = await Promise.all(
     conversations.map((conv) => enrichSingleConversation(conv, currentUserId)),
   );
@@ -122,6 +186,12 @@ interface ConversationsActions {
   applyConversationUpdate: (conversation: Conversation) => void;
   applyConversationSummaries: (conversations: Conversation[]) => void;
   applyNewMessage: (message: Message, currentUserId?: string) => Promise<void>;
+  applyMessageUpdated: (message: Message) => void;
+  applyMessageDeleted: (messageId: string, deleteForEveryone: boolean) => void;
+  applyMessageUnread: (params: {
+    messageId: string;
+    conversationId: string;
+  }) => void;
   deleteConversation: (id: string) => Promise<void>;
   removeConversationLocal: (id: string) => void;
   archiveConversation: (id: string) => Promise<void>;
@@ -273,7 +343,8 @@ export const useConversationsStore = create<
       next = [conversation, ...conversations];
       needsEnrichment =
         conversation.type === "direct" &&
-        (!conversation.display_name || !conversation.avatar_url);
+        (!isEnrichedDisplayName(conversation.display_name) ||
+          !conversation.avatar_url);
     } else {
       // Preserve display_name from existing conversation if the update doesn't include one
       const existing = conversations[index];
@@ -369,7 +440,8 @@ export const useConversationsStore = create<
     // Async enrichment for any conversations without display_name
     const needEnrichment = merged.filter(
       (c: Conversation) =>
-        c.type === "direct" && (!c.display_name || !c.avatar_url),
+        c.type === "direct" &&
+        (!isEnrichedDisplayName(c.display_name) || !c.avatar_url),
     );
     if (needEnrichment.length > 0) {
       getCurrentUserId().then((userId) => {
@@ -399,6 +471,7 @@ export const useConversationsStore = create<
   },
 
   applyNewMessage: async (message, currentUserId) => {
+    if (wasMessageSeen(message.conversation_id, message.id)) return;
     const { conversations, archived, _cancelGracePeriod } = get();
     const mainIndex = conversations.findIndex(
       (conv) => conv.id === message.conversation_id,
@@ -499,6 +572,147 @@ export const useConversationsStore = create<
         "applyNewMessage: failed to fetch unknown conversation",
         err,
       );
+    }
+  },
+
+  applyMessageUpdated: (message) => {
+    const { conversations, archived } = get();
+    const mainIndex = conversations.findIndex(
+      (c) => c.last_message?.id === message.id,
+    );
+    if (mainIndex !== -1) {
+      const current = conversations[mainIndex];
+      set({
+        conversations: conversations.map((c, i) =>
+          i === mainIndex
+            ? {
+                ...current,
+                last_message: {
+                  ...(current.last_message as Message),
+                  ...message,
+                },
+              }
+            : c,
+        ),
+      });
+      return;
+    }
+
+    const archivedIndex = archived.items.findIndex(
+      (c) => c.last_message?.id === message.id,
+    );
+    if (archivedIndex !== -1) {
+      const current = archived.items[archivedIndex];
+      set({
+        archived: {
+          ...archived,
+          items: archived.items.map((c, i) =>
+            i === archivedIndex
+              ? {
+                  ...current,
+                  last_message: {
+                    ...(current.last_message as Message),
+                    ...message,
+                  },
+                }
+              : c,
+          ),
+        },
+      });
+    }
+  },
+
+  applyMessageDeleted: (messageId, deleteForEveryone) => {
+    if (!deleteForEveryone) return;
+    const { conversations, archived } = get();
+
+    const mainIndex = conversations.findIndex(
+      (c) => c.last_message?.id === messageId,
+    );
+    if (mainIndex !== -1) {
+      const current = conversations[mainIndex];
+      set({
+        conversations: conversations.map((c, i) =>
+          i === mainIndex
+            ? {
+                ...current,
+                last_message: {
+                  ...(current.last_message as Message),
+                  is_deleted: true,
+                  delete_for_everyone: true,
+                  content: "[Message supprimé]",
+                },
+              }
+            : c,
+        ),
+      });
+      return;
+    }
+
+    const archivedIndex = archived.items.findIndex(
+      (c) => c.last_message?.id === messageId,
+    );
+    if (archivedIndex !== -1) {
+      const current = archived.items[archivedIndex];
+      set({
+        archived: {
+          ...archived,
+          items: archived.items.map((c, i) =>
+            i === archivedIndex
+              ? {
+                  ...current,
+                  last_message: {
+                    ...(current.last_message as Message),
+                    is_deleted: true,
+                    delete_for_everyone: true,
+                    content: "[Message supprimé]",
+                  },
+                }
+              : c,
+          ),
+        },
+      });
+    }
+  },
+
+  applyMessageUnread: ({ messageId, conversationId }) => {
+    // symetrique de applyMessageDeleted : si le destinataire repasse un message
+    // en non-lu, on retire le status "read" de la preview locale (le ticker
+    // bleu redevient gris). Le delivery_status broadcast par le backend sera
+    // intercepte par useWebSocket et gere par les ChatScreen ouverts.
+    const { conversations, archived } = get();
+
+    const updateLastMessage = (conv: Conversation): Conversation => {
+      if (conv.id !== conversationId) return conv;
+      if (!conv.last_message || conv.last_message.id !== messageId) return conv;
+      const last = conv.last_message;
+      const nextStatus =
+        last.status === "read" ? ("delivered" as const) : last.status;
+      return {
+        ...conv,
+        last_message: {
+          ...last,
+          status: nextStatus,
+        },
+      };
+    };
+
+    const mainIndex = conversations.findIndex((c) => c.id === conversationId);
+    if (mainIndex !== -1) {
+      const next = conversations.map(updateLastMessage);
+      set({ conversations: next });
+    }
+
+    const archivedIndex = archived.items.findIndex(
+      (c) => c.id === conversationId,
+    );
+    if (archivedIndex !== -1) {
+      set({
+        archived: {
+          ...archived,
+          items: archived.items.map(updateLastMessage),
+        },
+      });
     }
   },
 
@@ -817,23 +1031,51 @@ export const useConversationsStore = create<
 
   markAsUnread: async (id) => {
     const { conversations, manuallyUnreadIds } = get();
+    const target = conversations.find((c) => c.id === id);
+    const lastMessageId = target?.last_message?.id;
+
+    // optimistic local update : ajoute au Set + bump unread_count, comme avant
     const nextIds = new Set(manuallyUnreadIds);
     nextIds.add(id);
+    const optimisticConvs = conversations.map((c) =>
+      c.id === id
+        ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) }
+        : c,
+    );
     set({
       manuallyUnreadIds: nextIds,
-      conversations: conversations.map((c) =>
-        c.id === id
-          ? { ...c, unread_count: Math.max(c.unread_count || 0, 1) }
-          : c,
-      ),
+      conversations: optimisticConvs,
     });
+    AsyncStorage.setItem(
+      MANUALLY_UNREAD_KEY,
+      JSON.stringify([...nextIds]),
+    ).catch(() => {});
+
+    if (!lastMessageId) {
+      // pas de message a marquer cote backend (conv vide), on garde juste le
+      // flag local pour l affichage
+      return;
+    }
+
     try {
-      await AsyncStorage.setItem(
+      await messagingAPI.markMessageAsUnread(lastMessageId, id);
+    } catch (err) {
+      // rollback : retire le flag, restore unread_count
+      const { manuallyUnreadIds: currentIds, conversations: currentConvs } =
+        get();
+      const rolledBackIds = new Set(currentIds);
+      rolledBackIds.delete(id);
+      set({
+        manuallyUnreadIds: rolledBackIds,
+        conversations: currentConvs.map((c) =>
+          c.id === id ? { ...c, unread_count: target?.unread_count || 0 } : c,
+        ),
+      });
+      AsyncStorage.setItem(
         MANUALLY_UNREAD_KEY,
-        JSON.stringify([...nextIds]),
-      );
-    } catch {
-      // Storage write failed — local state is still correct for this session
+        JSON.stringify([...rolledBackIds]),
+      ).catch(() => {});
+      logger.warn("conversationsStore", "markAsUnread API failed", err);
     }
   },
 

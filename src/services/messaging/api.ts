@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "../apiBase";
 import { snakecaseKeys } from "../../utils/caseTransform";
 import { logger } from "../../utils/logger";
 import { isReachableUrl, isValidUuid } from "../../utils";
+import { fetchProfilesBatch } from "../profile/batchFetch";
 
 const API_BASE_URL = `${getApiBaseUrl()}/messaging/api/v1`;
 
@@ -178,7 +179,10 @@ async function batchedMap<T, R>(
   return results;
 }
 
-const MEMBER_PROFILE_FETCH_CONCURRENCY = 20;
+// le user-service throttle court est a ~10 req/s; on garde 5 in-flight
+// max pour laisser de la marge et eviter le burst 429 au load de la
+// ConversationsList (enrichissement profile en parallele).
+const MEMBER_PROFILE_FETCH_CONCURRENCY = 5;
 
 // --- User profile cache ------------------------------------------------------
 // Avoid re-fetching the same /user/v1/profile/{id} on every render cycle. A
@@ -189,10 +193,18 @@ type CachedUserInfo = {
   id: string;
   display_name: string;
   username?: string;
+  // numero masque expose par le backend pour les contacts non-self
+  // (ex: "+33 6 ** ** 64 12") - sert de fallback dans la chaine d'affichage
+  // quand display_name + username sont vides cf WHISPR-1423
+  phone_number_masked?: string;
   avatar_url?: string;
 };
 
 const USER_INFO_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// TTL court pour les 429 : on attend juste que la fenetre throttle se
+// reouvre, sinon le user reste sans nom/avatar pendant 5 min apres un
+// simple burst.
+const USER_INFO_RATE_LIMIT_TTL_MS = 30 * 1000; // 30 seconds
 const userInfoCache = new Map<
   string,
   { value: CachedUserInfo | null; expiresAt: number }
@@ -214,6 +226,45 @@ export const invalidateUserInfoCache = (userId?: string): void => {
     userInfoInflight.clear();
   }
 };
+
+/**
+ * Normalise un payload brut du user-service (camelCase ou snake_case) en
+ * CachedUserInfo. Utilise par getUserInfo unitaire et par getUsersInfoBatch.
+ */
+function normalizeRawUserInfo(user: any): CachedUserInfo | null {
+  if (!user || typeof user !== "object") return null;
+  const id = String(user.id ?? user.userId ?? "");
+  if (!id) return null;
+  const firstName = user.firstName || user.first_name || "";
+  const lastName = user.lastName || user.last_name || "";
+  const phoneNumber = user.phoneNumber || user.phone_number || "";
+  // forward-compat avec PR user-service #1430 (champ phoneNumberMasked
+  // expose pour les contacts non-self apres privacy CONTACTS)
+  const phoneNumberMasked =
+    user.phoneNumberMasked || user.phone_number_masked || "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  const displayName =
+    fullName ||
+    user.username ||
+    phoneNumber ||
+    phoneNumberMasked ||
+    "Utilisateur";
+  const avatarUrl =
+    user.profilePictureUrl ||
+    user.profile_picture_url ||
+    user.profilePicture ||
+    user.profile_picture ||
+    user.avatarUrl ||
+    user.avatar_url ||
+    undefined;
+  return {
+    id,
+    display_name: displayName,
+    username: user.username,
+    phone_number_masked: phoneNumberMasked || undefined,
+    avatar_url: avatarUrl,
+  };
+}
 
 export const messagingAPI = {
   async getConversations(params?: {
@@ -497,6 +548,24 @@ export const messagingAPI = {
     return unwrap(response);
   },
 
+  async markMessageAsUnread(
+    messageId: string,
+    conversationId: string,
+  ): Promise<void> {
+    // POST /messages/:id/unread?conversation_id=... — backend revert le
+    // delivery_status du message pour le user courant et broadcast un
+    // event message_unread sur le user channel des autres participants.
+    const url = `${API_BASE_URL}/messages/${encodeURIComponent(
+      messageId,
+    )}/unread?conversation_id=${encodeURIComponent(conversationId)}`;
+
+    const response = await authenticatedFetch(url, { method: "POST" });
+
+    if (!response.ok) {
+      throw httpError("Failed to mark message as unread", response);
+    }
+  },
+
   async deleteMessage(
     messageId: string,
     conversationId: string,
@@ -687,21 +756,34 @@ export const messagingAPI = {
         );
 
         if (!response.ok) {
-          logger.warn(
-            "getUserInfo",
-            `HTTP ${response.status} for user ${userId}`,
-          );
-          // Cache negative result briefly to prevent a retry storm when the
-          // backend returns 429 — TTL keeps it from being permanently stuck.
+          // 429 = throttler user-service (court 10 req/s). Cas attendu sous
+          // charge (load ConversationsList), pas une erreur. On cache null
+          // avec un TTL court pour laisser la fenetre se reouvrir, sinon le
+          // membre reste sans nom/avatar pendant 5 min apres un simple burst.
+          const isRateLimited = response.status === 429;
+          if (isRateLimited) {
+            logger.info(
+              "getUserInfo",
+              `Rate limited (429) for user ${userId}, retry after short TTL`,
+            );
+          } else {
+            logger.warn(
+              "getUserInfo",
+              `HTTP ${response.status} for user ${userId}`,
+            );
+          }
           userInfoCache.set(userId, {
             value: null,
-            expiresAt: Date.now() + USER_INFO_TTL_MS,
+            expiresAt:
+              Date.now() +
+              (isRateLimited ? USER_INFO_RATE_LIMIT_TTL_MS : USER_INFO_TTL_MS),
           });
           return null;
         }
 
         const user = await response.json().catch(() => null);
-        if (!user) {
+        const info = normalizeRawUserInfo(user);
+        if (!info) {
           logger.warn("getUserInfo", `Empty body for user ${userId}`);
           userInfoCache.set(userId, {
             value: null,
@@ -709,31 +791,6 @@ export const messagingAPI = {
           });
           return null;
         }
-
-        // Handle both camelCase (from user-service) and snake_case formats
-        const firstName = user.firstName || user.first_name || "";
-        const lastName = user.lastName || user.last_name || "";
-        const phoneNumber = user.phoneNumber || user.phone_number || "";
-        const fullName = `${firstName} ${lastName}`.trim();
-        const displayName =
-          fullName || user.username || phoneNumber || "Utilisateur";
-
-        const avatarUrl =
-          user.profilePictureUrl ||
-          user.profile_picture_url ||
-          user.profilePicture ||
-          user.profile_picture ||
-          user.avatarUrl ||
-          user.avatar_url ||
-          undefined;
-
-        const info: CachedUserInfo = {
-          id: user.id,
-          display_name: displayName,
-          username: user.username,
-          avatar_url: avatarUrl,
-        };
-
         userInfoCache.set(userId, {
           value: info,
           expiresAt: Date.now() + USER_INFO_TTL_MS,
@@ -749,6 +806,83 @@ export const messagingAPI = {
 
     userInfoInflight.set(userId, promise);
     return promise;
+  },
+
+  /**
+   * Recupere plusieurs profils utilisateurs en un seul appel batch
+   * (POST /user/v1/profiles/batch, WHISPR-1349 / WHISPR-1357). Hydrate le
+   * cache `userInfoCache` pour chaque profil retourne, et marque les
+   * `missing` comme null (TTL court) pour eviter de retenter au prochain
+   * render.
+   *
+   * Sert au load de ConversationsList et ContactsScreen ou on a une liste
+   * d'IDs connue d'avance et on veut eviter le burst de N fetchs.
+   *
+   * Retourne un Map id -> info|null couvrant tous les ids demandes.
+   */
+  async getUsersInfoBatch(
+    userIds: string[],
+  ): Promise<Map<string, CachedUserInfo | null>> {
+    const result = new Map<string, CachedUserInfo | null>();
+    const toFetch: string[] = [];
+
+    // Premier passage : on recolte les hits cache frais et on liste le reste
+    for (const id of userIds) {
+      if (!id) continue;
+      if (result.has(id)) continue;
+      const cached = userInfoCache.get(id);
+      if (cached && cached.expiresAt > Date.now()) {
+        result.set(id, cached.value);
+      } else {
+        toFetch.push(id);
+      }
+    }
+
+    if (toFetch.length === 0) {
+      return result;
+    }
+
+    try {
+      const { profiles, missing } = await fetchProfilesBatch<unknown>(
+        toFetch,
+        authenticatedFetch,
+      );
+      const missingSet = new Set(missing);
+      for (const raw of profiles) {
+        const info = normalizeRawUserInfo(raw);
+        if (info?.id) {
+          userInfoCache.set(info.id, {
+            value: info,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          result.set(info.id, info);
+          missingSet.delete(info.id);
+        }
+      }
+      // Tout id non resolu (renvoye missing par le backend, ou non present
+      // dans le payload) bascule null en cache pour eviter un second appel
+      // immediat. TTL standard suffit : si le profil reapparait l'utilisateur
+      // declenchera un nouveau fetch au prochain reload.
+      for (const id of toFetch) {
+        if (!result.has(id) || missingSet.has(id)) {
+          userInfoCache.set(id, {
+            value: null,
+            expiresAt: Date.now() + USER_INFO_TTL_MS,
+          });
+          result.set(id, null);
+        }
+      }
+    } catch (err) {
+      logger.warn(
+        "getUsersInfoBatch",
+        `Batch fetch failed for ${toFetch.length} ids`,
+        err,
+      );
+      for (const id of toFetch) {
+        if (!result.has(id)) result.set(id, null);
+      }
+    }
+    return result;
   },
 
   async getConversationMembers(conversationId: string): Promise<

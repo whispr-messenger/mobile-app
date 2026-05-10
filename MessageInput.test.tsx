@@ -22,12 +22,17 @@ jest.mock(
       IOSAudioQuality: { MAX: "max" },
       RecordingOptionsPresets: {
         HIGH_QUALITY: {
-          android: { extension: ".3gp", outputFormat: "old", audioEncoder: "old" },
+          android: {
+            extension: ".3gp",
+            outputFormat: "old",
+            audioEncoder: "old",
+          },
           ios: { extension: ".caf", outputFormat: "old", audioQuality: "old" },
           web: { mimeType: "audio/webm", bitsPerSecond: 128000 },
         },
       },
-      requestPermissionsAsync: (...a: any[]) => mockRequestPermissionsAsync(...a),
+      requestPermissionsAsync: (...a: any[]) =>
+        mockRequestPermissionsAsync(...a),
       setAudioModeAsync: (...a: any[]) => mockSetAudioModeAsync(...a),
       Recording: {
         createAsync: (...a: any[]) => mockRecordingCreateAsync(...a),
@@ -158,6 +163,23 @@ import {
   buildRecordingOptions,
   MessageInput,
 } from "./src/components/Chat/MessageInput";
+import {
+  MIN_INPUT_HEIGHT,
+  MAX_INPUT_HEIGHT,
+  INPUT_LINE_HEIGHT,
+  INPUT_VERTICAL_PADDING,
+} from "./src/components/Chat/MessageInput/ComposerInput";
+
+// Helper: calcule la hauteur attendue pour un nombre de lignes mesurees,
+// en fonction des constantes du ComposerInput (clamp entre MIN et MAX).
+const expectedShellHeight = (lineCount: number) =>
+  Math.max(
+    MIN_INPUT_HEIGHT,
+    Math.min(
+      MAX_INPUT_HEIGHT,
+      lineCount * INPUT_LINE_HEIGHT + INPUT_VERTICAL_PADDING * 2,
+    ),
+  );
 
 type MediaRecorderLike = { isTypeSupported?: (mime: string) => boolean };
 
@@ -176,7 +198,9 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-  mockRequestPermissionsAsync.mockReset().mockResolvedValue({ status: "granted" });
+  mockRequestPermissionsAsync
+    .mockReset()
+    .mockResolvedValue({ status: "granted" });
   mockSetAudioModeAsync.mockReset().mockResolvedValue(undefined);
   mockRecordingCreateAsync.mockReset().mockResolvedValue({
     recording: {
@@ -279,7 +303,7 @@ describe("MessageInput auto-resize", () => {
     expect(shell.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          height: 80,
+          height: expectedShellHeight(3),
         }),
       ]),
     );
@@ -298,13 +322,15 @@ describe("MessageInput auto-resize", () => {
     fireEvent(shell, "layout", {
       nativeEvent: { layout: { width: 240, height: 40, x: 0, y: 0 } },
     });
-    fireEvent.changeText(
-      input,
-      "Une ligne\nDeux lignes\nTrois lignes\nQuatre lignes\nCinq lignes\nSix lignes",
-    );
+    // assez de lignes pour depasser MAX_INPUT_HEIGHT (cap + scroll active)
+    const linesNeeded =
+      Math.ceil(
+        (MAX_INPUT_HEIGHT - INPUT_VERTICAL_PADDING * 2) / INPUT_LINE_HEIGHT,
+      ) + 3;
+    fireEvent.changeText(input, Array(linesNeeded).fill("ligne").join("\n"));
 
     fireEvent(measure, "textLayout", {
-      nativeEvent: { lines: [{}, {}, {}, {}, {}, {}, {}] },
+      nativeEvent: { lines: Array(linesNeeded).fill({}) },
     });
 
     const updatedInput = getByTestId("message-composer-input");
@@ -312,7 +338,7 @@ describe("MessageInput auto-resize", () => {
     expect(shell.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          height: 120,
+          height: MAX_INPUT_HEIGHT,
         }),
       ]),
     );
@@ -336,10 +362,11 @@ describe("MessageInput auto-resize", () => {
       nativeEvent: { lines: [{}] },
     });
 
+    // "Premiere ligne\n".split("\n") => 2 entries, donc 2 lignes effectives
     expect(shell.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          height: 60,
+          height: expectedShellHeight(2),
         }),
       ]),
     );
@@ -363,7 +390,7 @@ describe("MessageInput auto-resize", () => {
     expect(shell.props.style).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          height: 40,
+          height: MIN_INPUT_HEIGHT,
         }),
       ]),
     );

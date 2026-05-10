@@ -1,5 +1,5 @@
-describe('App', () => {
-  it('is defined', () => {
+describe("App", () => {
+  it("is defined", () => {
     expect(true).toBe(true);
   });
 });

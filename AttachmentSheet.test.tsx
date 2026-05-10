@@ -66,5 +66,4 @@ describe("AttachmentSheet", () => {
     jest.advanceTimersByTime(500);
     jest.useRealTimers();
   });
-
 });

@@ -17,6 +17,10 @@ web-build/
 .env.local
 .env.*.local
 
+# Firebase config files - rotated via EAS secrets, see WHISPR-1402
+google-services.json
+GoogleService-Info.plist
+
 # Logs
 *.log
 npm-debug.log*
@@ -34,6 +38,11 @@ Thumbs.db
 
 # Test artifacts
 test-results/
+
+# Playwright artifacts
+playwright-report/
+playwright/.cache/
+e2e-results/
 
 # Build
 build/

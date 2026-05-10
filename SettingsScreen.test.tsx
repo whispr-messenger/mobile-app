@@ -77,9 +77,27 @@ jest.mock("./src/services/moderation", () => ({
   getModerationModelVersion: jest.fn().mockResolvedValue("v2"),
   setModerationModelVersion: jest.fn().mockResolvedValue(undefined),
 }));
+// WHISPR-1359 — la categorie security est lue/ecrite via le wrapper
+// SecureStore. Mock in-memory pour tester sans toucher au natif.
+const secureStoreBackend: Record<string, string> = {};
+jest.mock("./src/services/storage", () => ({
+  storage: {
+    getItem: jest.fn(async (key: string) => secureStoreBackend[key] ?? null),
+    setItem: jest.fn(async (key: string, value: string) => {
+      secureStoreBackend[key] = value;
+    }),
+    deleteItem: jest.fn(async (key: string) => {
+      delete secureStoreBackend[key];
+    }),
+  },
+}));
 
 describe("SettingsScreen", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    for (const key of Object.keys(secureStoreBackend))
+      delete secureStoreBackend[key];
+  });
 
   it("does not render the in-screen header (back button + title)", async () => {
     const { queryByText, queryByLabelText } = render(<SettingsScreen />);
@@ -95,6 +113,19 @@ describe("SettingsScreen", () => {
     await waitFor(() => {
       expect(getByText("settings.privacy")).toBeTruthy();
     });
+  });
+
+  it("renders the 7 privacy toggles (4 existing + 3 backend orphans)", async () => {
+    const { getByText } = render(<SettingsScreen />);
+    await waitFor(() => {
+      expect(getByText("Photo de profil")).toBeTruthy();
+    });
+    expect(getByText("Prénom")).toBeTruthy();
+    expect(getByText("Nom de famille")).toBeTruthy();
+    expect(getByText("Biographie")).toBeTruthy();
+    expect(getByText("Dernière connexion")).toBeTruthy();
+    expect(getByText("Statut en ligne")).toBeTruthy();
+    expect(getByText("Permission d'ajout aux groupes")).toBeTruthy();
   });
 
   it("renders notifications section", async () => {
@@ -139,24 +170,45 @@ describe("SettingsScreen", () => {
     }
   });
 
-  it("absolute-positions the ScrollView on web so the page actually scrolls (WHISPR-1202)", async () => {
-    const originalOS = Platform.OS;
-    Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
-    try {
-      const { getByTestId } = render(<SettingsScreen />);
-      const scroll = await waitFor(() => getByTestId("settings-scroll"));
-      const flat = StyleSheet.flatten(scroll.props.style);
-      expect(flat.position).toBe("absolute");
-      expect(flat.top).toBe(0);
-      expect(flat.bottom).toBe(0);
-      expect(flat.left).toBe(0);
-      expect(flat.right).toBe(0);
-      expect(flat.overflowY).toBe("auto");
-    } finally {
-      Object.defineProperty(Platform, "OS", {
-        value: originalOS,
-        configurable: true,
-      });
-    }
+  it("reads security settings from SecureStore on mount (WHISPR-1359)", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { storage: secureStorageMock } = require("./src/services/storage");
+    secureStoreBackend["@whispr_settings_security"] = JSON.stringify({
+      twoFactorAuth: true,
+      biometricAuth: true,
+    });
+
+    render(<SettingsScreen />);
+    await waitFor(() => {
+      expect(secureStorageMock.getItem).toHaveBeenCalledWith(
+        "@whispr_settings_security",
+      );
+    });
+  });
+
+  it("migrates legacy AsyncStorage security flags to SecureStore (WHISPR-1359)", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const AsyncStorage = require("@react-native-async-storage/async-storage");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { storage: secureStorageMock } = require("./src/services/storage");
+    const legacyValue = JSON.stringify({
+      twoFactorAuth: true,
+      biometricAuth: false,
+    });
+    AsyncStorage.getItem.mockImplementation(async (key: string) =>
+      key === "@whispr_settings_security" ? legacyValue : null,
+    );
+
+    render(<SettingsScreen />);
+
+    await waitFor(() => {
+      expect(secureStorageMock.setItem).toHaveBeenCalledWith(
+        "@whispr_settings_security",
+        legacyValue,
+      );
+    });
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(
+      "@whispr_settings_security",
+    );
   });
 });

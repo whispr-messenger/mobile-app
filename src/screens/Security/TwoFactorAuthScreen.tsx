@@ -3,6 +3,24 @@
  * Two-factor authentication management screen
  */
 
+/**
+ * @danger-zone-mobile-layout
+ *
+ * DANGER ZONE - Layout web/iOS critique
+ *
+ * Bug historique : scroll bottom inaccessible sur Safari iOS PWA si la chaine flex
+ * ne porte pas le pattern WHISPR-1254 (height:100% + minHeight:0 web).
+ *
+ * AVANT TOUTE MODIF :
+ * 1. Tester live sur Safari iOS PWA (whispr-preprod.roadmvn.com).
+ * 2. Verifier scroll vers le bas + boutons visibles + retour fonctionnel.
+ * 3. Preserver les Platform.OS === 'web' ? minHeight:0 sur containers/scroll.
+ *
+ * Tickets historiques : WHISPR-1254, WHISPR-1291, WHISPR-1313, WHISPR-1335
+ *
+ * Tag parsable : @danger-zone-mobile-layout (utilise par script CI grep pour detection).
+ */
+
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
@@ -224,6 +242,8 @@ export const TwoFactorAuthScreen: React.FC = () => {
                 navigation.goBack();
               }}
               activeOpacity={0.7}
+              // hitSlop pour respecter iOS HIG 44pt
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               <Ionicons
                 name="arrow-back"
@@ -437,7 +457,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     activeOpacity={0.8}
                   >
                     {actionLoading ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      // wrapper pour annoncer l'etat busy au screen reader
+                      <View
+                        accessibilityState={{ busy: true }}
+                        accessibilityLiveRegion="polite"
+                      >
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      </View>
                     ) : (
                       <Text
                         style={{
@@ -512,7 +538,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
                     ]}
                   >
                     {actionLoading ? (
-                      <ActivityIndicator size="small" color={accentColor} />
+                      // wrapper pour annoncer l'etat busy au screen reader
+                      <View
+                        accessibilityState={{ busy: true }}
+                        accessibilityLiveRegion="polite"
+                      >
+                        <ActivityIndicator size="small" color={accentColor} />
+                      </View>
                     ) : (
                       <Ionicons
                         name="key-outline"
@@ -653,7 +685,13 @@ export const TwoFactorAuthScreen: React.FC = () => {
                       activeOpacity={0.8}
                     >
                       {actionLoading ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
+                        // wrapper pour annoncer l'etat busy au screen reader
+                        <View
+                          accessibilityState={{ busy: true }}
+                          accessibilityLiveRegion="polite"
+                        >
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        </View>
                       ) : (
                         <Text
                           style={{
@@ -685,9 +723,23 @@ export const TwoFactorAuthScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  animatedContainer: { flex: 1 },
-  scrollView: { flex: 1 },
+  container: {
+    flex: 1,
+    // WHISPR-1254 - sur react-native-web, le wrapper racine doit borner la
+    // hauteur du viewport sinon flex:1 ne propage pas aux enfants.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
+  },
+  animatedContainer: {
+    flex: 1,
+    // WHISPR-1254 - minHeight:0 permet a la ScrollView enfant d'overflow
+    // verticalement au lieu de pousser le parent.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
+  scrollView: {
+    flex: 1,
+    // WHISPR-1254 - meme raison : autoriser l'overflow vertical.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
   scrollContent: { paddingBottom: 40 },
   header: {
     flexDirection: "row",

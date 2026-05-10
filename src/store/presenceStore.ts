@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface PresenceState {
   /** Set of user IDs currently online */
@@ -18,53 +18,58 @@ interface PresenceActions {
   reset: () => void;
 }
 
-export const usePresenceStore = create<PresenceState & PresenceActions>((set, get) => ({
-  onlineUserIds: new Set<string>(),
-  lastSeenAt: {},
+export const usePresenceStore = create<PresenceState & PresenceActions>(
+  (set, get) => ({
+    onlineUserIds: new Set<string>(),
+    lastSeenAt: {},
 
-  setUserOnline: (userId) => {
-    set((state) => {
-      const next = new Set(state.onlineUserIds);
-      next.add(userId);
-      return { onlineUserIds: next };
-    });
-  },
-
-  setUserOffline: (userId) => {
-    set((state) => {
-      const next = new Set(state.onlineUserIds);
-      next.delete(userId);
-      return {
-        onlineUserIds: next,
-        lastSeenAt: { ...state.lastSeenAt, [userId]: new Date().toISOString() },
-      };
-    });
-  },
-
-  setPresenceState: (userIds) => {
-    set(() => ({
-      onlineUserIds: new Set(userIds),
-    }));
-  },
-
-  applyPresenceDiff: (joins, leaves) => {
-    set((state) => {
-      const next = new Set(state.onlineUserIds);
-      const nextLastSeen = { ...state.lastSeenAt };
-      joins.forEach((uid) => next.add(uid));
-      leaves.forEach((uid) => {
-        next.delete(uid);
-        nextLastSeen[uid] = new Date().toISOString();
+    setUserOnline: (userId) => {
+      set((state) => {
+        const next = new Set(state.onlineUserIds);
+        next.add(userId);
+        return { onlineUserIds: next };
       });
-      return { onlineUserIds: next, lastSeenAt: nextLastSeen };
-    });
-  },
+    },
 
-  isOnline: (userId) => {
-    return get().onlineUserIds.has(userId);
-  },
+    setUserOffline: (userId) => {
+      set((state) => {
+        const next = new Set(state.onlineUserIds);
+        next.delete(userId);
+        return {
+          onlineUserIds: next,
+          lastSeenAt: {
+            ...state.lastSeenAt,
+            [userId]: new Date().toISOString(),
+          },
+        };
+      });
+    },
 
-  reset: () => {
-    set({ onlineUserIds: new Set<string>(), lastSeenAt: {} });
-  },
-}));
+    setPresenceState: (userIds) => {
+      set(() => ({
+        onlineUserIds: new Set(userIds),
+      }));
+    },
+
+    applyPresenceDiff: (joins, leaves) => {
+      set((state) => {
+        const next = new Set(state.onlineUserIds);
+        const nextLastSeen = { ...state.lastSeenAt };
+        joins.forEach((uid) => next.add(uid));
+        leaves.forEach((uid) => {
+          next.delete(uid);
+          nextLastSeen[uid] = new Date().toISOString();
+        });
+        return { onlineUserIds: next, lastSeenAt: nextLastSeen };
+      });
+    },
+
+    isOnline: (userId) => {
+      return get().onlineUserIds.has(userId);
+    },
+
+    reset: () => {
+      set({ onlineUserIds: new Set<string>(), lastSeenAt: {} });
+    },
+  }),
+);

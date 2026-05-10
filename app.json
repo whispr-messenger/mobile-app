@@ -6,8 +6,6 @@
     "version": "1.0.0",
     "extra": {
       "apiBaseUrl": "https://whispr.devzeyu.com",
-      "devAuthApiUrl": "http://10.0.2.2:3010",
-      "devUserApiUrl": "http://10.0.2.2:3011",
       "legalPrivacyUrl": "https://whispr.example/privacy",
       "legalTermsUrl": "https://whispr.example/terms",
       "appVersion": "1.0.0",
@@ -33,6 +31,7 @@
         },
         "NSMicrophoneUsageDescription": "Whispr a besoin du micro pour les appels voix et video.",
         "NSCameraUsageDescription": "Whispr a besoin de la camera pour les appels video.",
+        "NSContactsUsageDescription": "Whispr accede aux contacts pour trouver vos amis sur l'application.",
         "UIBackgroundModes": ["voip", "audio"]
       }
     },
@@ -48,7 +47,8 @@
         "RECORD_AUDIO",
         "CAMERA",
         "MODIFY_AUDIO_SETTINGS",
-        "INTERNET"
+        "INTERNET",
+        "READ_CONTACTS"
       ]
     },
     "web": {

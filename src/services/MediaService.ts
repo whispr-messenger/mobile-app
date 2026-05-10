@@ -3,6 +3,7 @@ import { TokenService } from "./TokenService";
 import { getApiBaseUrl } from "./apiBase";
 import { Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
+import { logger } from "../utils/logger";
 
 type ApiError = Error & { status?: number; body?: unknown };
 
@@ -320,9 +321,9 @@ export const MediaService = {
       });
     }
 
-    console.log(
-      "[PDP-DEBUG][MediaService] uploadMedia → POST",
-      `${getMediaBaseUrl()}/upload`,
+    logger.debug(
+      "PDP-MediaService",
+      `uploadMedia → POST ${getMediaBaseUrl()}/upload`,
       {
         context: meta?.context,
         ownerId: meta?.ownerId,
@@ -338,11 +339,10 @@ export const MediaService = {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      console.log(
-        "[PDP-DEBUG][MediaService] uploadMedia ← HTTP",
-        response.status,
+      logger.debug("PDP-MediaService", "uploadMedia ← HTTP", {
+        status: response.status,
         body,
-      );
+      });
       const error = new Error(
         (body as { message?: string })?.message ??
           `Upload failed: HTTP ${response.status}`,
@@ -352,9 +352,9 @@ export const MediaService = {
     }
 
     const raw = await response.json();
-    console.log("[PDP-DEBUG][MediaService] uploadMedia ← 200 raw:", raw);
+    logger.debug("PDP-MediaService", "uploadMedia ← 200 raw", raw);
     const normalised = normaliseUpload(raw);
-    console.log("[PDP-DEBUG][MediaService] uploadMedia normalised:", {
+    logger.debug("PDP-MediaService", "uploadMedia normalised", {
       id: normalised.id,
       url: normalised.url,
       thumbnail_url: normalised.thumbnail_url,

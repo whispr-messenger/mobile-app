@@ -3,7 +3,7 @@
  * Primary, Secondary, and Ghost button variants based on Figma design
  */
 
-import React from 'react';
+import React from "react";
 import {
   TouchableOpacity,
   Text,
@@ -11,11 +11,11 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
-} from 'react-native';
-import { colors, spacing, borderRadius, shadows } from '../../theme';
+} from "react-native";
+import { colors, spacing, borderRadius, shadows } from "../../theme";
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'small' | 'medium' | 'large';
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonSize = "small" | "medium" | "large";
 
 interface ButtonProps {
   title: string;
@@ -53,8 +53,8 @@ const SIZES = {
 export const Button: React.FC<ButtonProps> = ({
   title,
   onPress,
-  variant = 'primary',
-  size = 'medium',
+  variant = "primary",
+  size = "medium",
   disabled = false,
   loading = false,
   fullWidth = false,
@@ -69,38 +69,40 @@ export const Button: React.FC<ButtonProps> = ({
       paddingHorizontal: sizeStyles.paddingHorizontal,
       height: sizeStyles.height,
       borderRadius: borderRadius.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'row',
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
     };
 
     if (fullWidth) {
-      baseStyle.width = '100%';
+      baseStyle.width = "100%";
     }
 
     switch (variant) {
-      case 'primary':
+      case "primary":
         return {
           ...baseStyle,
           backgroundColor: disabled ? colors.ui.border : colors.primary.main,
           ...shadows.sm,
         };
-      case 'secondary':
+      case "secondary":
         return {
           ...baseStyle,
-          backgroundColor: 'transparent',
+          backgroundColor: "transparent",
           borderWidth: 1.5,
-          borderColor: disabled ? 'rgba(255,255,255,0.2)' : colors.secondary.main,
+          borderColor: disabled
+            ? "rgba(255,255,255,0.2)"
+            : colors.secondary.main,
           ...shadows.sm,
         };
-      case 'ghost':
+      case "ghost":
         return {
           ...baseStyle,
-          backgroundColor: 'transparent',
+          backgroundColor: "transparent",
           borderWidth: 1,
           borderColor: disabled ? colors.ui.border : colors.primary.main,
         };
-      case 'danger':
+      case "danger":
         return {
           ...baseStyle,
           backgroundColor: disabled ? colors.ui.border : colors.ui.error,
@@ -114,22 +116,22 @@ export const Button: React.FC<ButtonProps> = ({
   const getTextStyles = (): TextStyle => {
     const baseTextStyle: TextStyle = {
       fontSize: sizeStyles.fontSize,
-      fontWeight: '600',
+      fontWeight: "600",
     };
 
     switch (variant) {
-      case 'primary':
-      case 'danger':
+      case "primary":
+      case "danger":
         return {
           ...baseTextStyle,
           color: colors.text.light,
         };
-      case 'secondary':
+      case "secondary":
         return {
           ...baseTextStyle,
-          color: disabled ? 'rgba(255,255,255,0.35)' : colors.text.light,
+          color: disabled ? "rgba(255,255,255,0.35)" : colors.text.light,
         };
-      case 'ghost':
+      case "ghost":
         return {
           ...baseTextStyle,
           color: disabled ? colors.text.disabled : colors.primary.main,
@@ -147,7 +149,9 @@ export const Button: React.FC<ButtonProps> = ({
       activeOpacity={0.7}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'ghost' ? colors.primary.main : colors.text.light} />
+        <ActivityIndicator
+          color={variant === "ghost" ? colors.primary.main : colors.text.light}
+        />
       ) : (
         <Text style={[getTextStyles(), textStyle]}>{title}</Text>
       )}
@@ -158,14 +162,3 @@ export const Button: React.FC<ButtonProps> = ({
 const styles = StyleSheet.create({});
 
 export default Button;
-
-
-
-
-
-
-
-
-
-
-
