@@ -100,7 +100,9 @@ describe("DeleteContactModal", () => {
     mockDeleteContact.mockRejectedValueOnce(new Error("network"));
     const onClose = jest.fn();
     const onContactDeleted = jest.fn();
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const consoleSpy = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const { getByTestId } = render(
       <DeleteContactModal
         visible={true}

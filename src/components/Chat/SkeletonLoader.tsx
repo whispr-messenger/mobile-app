@@ -2,9 +2,15 @@
  * SkeletonLoader - Loading skeleton for conversation items
  */
 
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+import React from "react";
+import { View, StyleSheet } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 
 interface SkeletonLoaderProps {
   width?: number | string;
@@ -14,7 +20,7 @@ interface SkeletonLoaderProps {
 }
 
 export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
-  width = '100%',
+  width = "100%",
   height = 20,
   borderRadius = 4,
   style,
@@ -25,7 +31,7 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
     opacity.value = withRepeat(
       withTiming(0.7, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
       -1,
-      true
+      true,
     );
   }, [opacity]);
 
@@ -41,7 +47,7 @@ export const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
           width,
           height,
           borderRadius,
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          backgroundColor: "rgba(255, 255, 255, 0.1)",
         },
         animatedStyle,
         style,
@@ -67,15 +73,15 @@ export const ConversationSkeleton: React.FC = () => {
 
 const styles = StyleSheet.create({
   skeleton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
   },
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
   content: {
     flex: 1,
@@ -85,7 +91,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   meta: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
 });
-

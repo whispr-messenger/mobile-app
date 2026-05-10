@@ -3,9 +3,9 @@
  * Verifies role-based gating: admin/moderator see children, user sees access denied
  */
 
-import React from 'react';
-import { render } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import React from "react";
+import { render } from "@testing-library/react-native";
+import { Text } from "react-native";
 
 // Mock the store before importing the component
 const mockStoreState = {
@@ -13,9 +13,9 @@ const mockStoreState = {
   isModerator: false,
 };
 
-jest.mock('./src/store/moderationStore', () => ({
+jest.mock("./src/store/moderationStore", () => ({
   useModerationStore: (selector?: any) => {
-    if (typeof selector === 'function') {
+    if (typeof selector === "function") {
       return selector(mockStoreState);
     }
     return mockStoreState;
@@ -24,11 +24,11 @@ jest.mock('./src/store/moderationStore', () => ({
   useIsStaff: () => mockStoreState.isAdmin || mockStoreState.isModerator,
 }));
 
-jest.mock('@expo/vector-icons', () => ({
+jest.mock("@expo/vector-icons", () => ({
   Ionicons: () => null,
 }));
 
-import { AdminGate } from './src/components/Moderation/AdminGate';
+import { AdminGate } from "./src/components/Moderation/AdminGate";
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -41,19 +41,19 @@ beforeEach(() => {
 
 // ─── Tests ───────────────────────────────────────────────────────
 
-describe('AdminGate', () => {
-  it('shows access denied for regular user', () => {
+describe("AdminGate", () => {
+  it("shows access denied for regular user", () => {
     const { queryByText } = render(
       <AdminGate>
         <ProtectedContent />
       </AdminGate>,
     );
 
-    expect(queryByText('Protected Content')).toBeNull();
+    expect(queryByText("Protected Content")).toBeNull();
     expect(queryByText(/refus/i)).toBeTruthy();
   });
 
-  it('renders children for admin', () => {
+  it("renders children for admin", () => {
     mockStoreState.isAdmin = true;
     mockStoreState.isModerator = true;
 
@@ -63,10 +63,10 @@ describe('AdminGate', () => {
       </AdminGate>,
     );
 
-    expect(getByText('Protected Content')).toBeTruthy();
+    expect(getByText("Protected Content")).toBeTruthy();
   });
 
-  it('renders children for moderator', () => {
+  it("renders children for moderator", () => {
     mockStoreState.isAdmin = false;
     mockStoreState.isModerator = true;
 
@@ -76,29 +76,27 @@ describe('AdminGate', () => {
       </AdminGate>,
     );
 
-    expect(getByText('Protected Content')).toBeTruthy();
+    expect(getByText("Protected Content")).toBeTruthy();
   });
 
-  it('shows access denied message with correct text', () => {
+  it("shows access denied message with correct text", () => {
     const { getByText } = render(
       <AdminGate>
         <ProtectedContent />
       </AdminGate>,
     );
 
-    expect(
-      getByText(/administrateur ou mod/i),
-    ).toBeTruthy();
+    expect(getByText(/administrateur ou mod/i)).toBeTruthy();
   });
 
-  it('switches from denied to allowed when role changes', () => {
+  it("switches from denied to allowed when role changes", () => {
     const { queryByText, rerender } = render(
       <AdminGate>
         <ProtectedContent />
       </AdminGate>,
     );
 
-    expect(queryByText('Protected Content')).toBeNull();
+    expect(queryByText("Protected Content")).toBeNull();
 
     // Promote to moderator
     mockStoreState.isModerator = true;
@@ -109,10 +107,10 @@ describe('AdminGate', () => {
       </AdminGate>,
     );
 
-    expect(queryByText('Protected Content')).toBeTruthy();
+    expect(queryByText("Protected Content")).toBeTruthy();
   });
 
-  it('renders multiple children correctly when authorized', () => {
+  it("renders multiple children correctly when authorized", () => {
     mockStoreState.isAdmin = true;
     mockStoreState.isModerator = true;
 
@@ -123,7 +121,7 @@ describe('AdminGate', () => {
       </AdminGate>,
     );
 
-    expect(getByText('Child 1')).toBeTruthy();
-    expect(getByText('Child 2')).toBeTruthy();
+    expect(getByText("Child 1")).toBeTruthy();
+    expect(getByText("Child 2")).toBeTruthy();
   });
 });

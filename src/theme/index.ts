@@ -3,9 +3,9 @@
  * Central export for all design tokens
  */
 
-import { colors, withOpacity } from './colors';
-import { typography, textStyles } from './typography';
-import { spacing, borderRadius, shadows } from './spacing';
+import { colors, withOpacity } from "./colors";
+import { typography, textStyles } from "./typography";
+import { spacing, borderRadius, shadows } from "./spacing";
 
 // Re-export individual modules
 export { colors, withOpacity };

@@ -334,10 +334,7 @@ describe("fetch abort signal propagation", () => {
 
     // version non-throttled pour eviter les retries qui consommeraient
     // chacun un timeout 15s
-    const pending = streamMediaToRenderableUri(
-      "/media/v1/abc/blob",
-      "token",
-    );
+    const pending = streamMediaToRenderableUri("/media/v1/abc/blob", "token");
     // catch en avance pour eviter unhandled rejection avant l'advance timers
     const settled = pending.catch((err) => err);
     // avance le temps au-dela du timeout interne 15s

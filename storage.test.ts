@@ -55,9 +55,7 @@ describe("storage on web (must not be reachable)", () => {
   // Si on tombe sur ce module sur web, c est une mauvaise resolution
   // et la cle d identite Signal finirait en clair en localStorage.
   it("throws on getItem to force the .web variant", async () => {
-    await expect(storage.getItem("key-1")).rejects.toThrow(
-      /storage\.web\.ts/i,
-    );
+    await expect(storage.getItem("key-1")).rejects.toThrow(/storage\.web\.ts/i);
     expect(mockedSecureStore.getItemAsync).not.toHaveBeenCalled();
   });
 

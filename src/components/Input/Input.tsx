@@ -3,10 +3,17 @@
  * Text input with Whispr design system styling
  */
 
-import React, { useState } from 'react';
-import { TextInput, View, Text, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
-import { colors, spacing, borderRadius, typography } from '../../theme';
-import { useTheme } from '../../context/ThemeContext';
+import React, { useState } from "react";
+import {
+  TextInput,
+  View,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextInputProps,
+} from "react-native";
+import { colors, spacing, borderRadius, typography } from "../../theme";
+import { useTheme } from "../../context/ThemeContext";
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -18,12 +25,20 @@ interface InputProps extends TextInputProps {
 }
 
 export const Input: React.FC<InputProps> = (inputs) => {
-
   const [isFocused, setIsFocused] = useState(false);
   const { getThemeColors } = useTheme();
   const themeColors = getThemeColors();
 
-  const { label, error, helperText, leftIcon, rightIcon, containerStyle, style, ...textInputProps } = inputs;
+  const {
+    label,
+    error,
+    helperText,
+    leftIcon,
+    rightIcon,
+    containerStyle,
+    style,
+    ...textInputProps
+  } = inputs;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -51,25 +66,27 @@ export const Input: React.FC<InputProps> = (inputs) => {
       </View>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
-      {helperText && !error && <Text style={styles.helperText}>{helperText}</Text>}
+      {helperText && !error && (
+        <Text style={styles.helperText}>{helperText}</Text>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    width: "100%",
     marginBottom: spacing.md,
   },
   label: {
     fontSize: typography.fontSize.sm,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.ui.border,
@@ -109,4 +126,3 @@ const styles = StyleSheet.create({
 });
 
 export default Input;
-
