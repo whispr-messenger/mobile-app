@@ -3,6 +3,24 @@
  * Séparé de UserProfileScreen (consultation d'un profil tiers) — WHISPR-1189.
  */
 
+/**
+ * @danger-zone-mobile-layout
+ *
+ * DANGER ZONE - Layout web/iOS critique
+ *
+ * Bug historique : scroll bottom inaccessible sur Safari iOS PWA si la chaine flex
+ * ne porte pas le pattern WHISPR-1254 (height:100% + minHeight:0 web).
+ *
+ * AVANT TOUTE MODIF :
+ * 1. Tester live sur Safari iOS PWA (whispr-preprod.roadmvn.com).
+ * 2. Verifier scroll vers le bas + boutons visibles + retour fonctionnel.
+ * 3. Preserver les Platform.OS === 'web' ? minHeight:0 sur containers/scroll.
+ *
+ * Tickets historiques : WHISPR-1254, WHISPR-1291, WHISPR-1313, WHISPR-1335
+ *
+ * Tag parsable : @danger-zone-mobile-layout (utilise par script CI grep pour detection).
+ */
+
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
@@ -611,7 +629,25 @@ export const MyProfileScreen: React.FC = () => {
   const handleHomePress = () => navigation.navigate("ConversationsList");
 
   const handleBackPress = () => {
+    // WHISPR-1335 - Alert.alert sur react-native-web ne rend pas le menu
+    // d'actions; le bouton Retour parait inactif. On retombe sur
+    // window.confirm (single-action) sur web pour ne pas bloquer.
+    const confirmWeb = (msg: string) =>
+      typeof window !== "undefined" &&
+      typeof window.confirm === "function" &&
+      window.confirm(msg);
+
     if (loading) {
+      if (Platform.OS === "web") {
+        if (
+          confirmWeb("Sauvegarde en cours. Annuler la sauvegarde et quitter ?")
+        ) {
+          cancelSave();
+          setIsEditing(false);
+          navigation.goBack();
+        }
+        return;
+      }
       Alert.alert(
         "Sauvegarde en cours",
         "Voulez-vous annuler la sauvegarde et quitter ?",
@@ -629,6 +665,17 @@ export const MyProfileScreen: React.FC = () => {
         ],
       );
     } else if (isEditing) {
+      if (Platform.OS === "web") {
+        if (
+          confirmWeb(
+            "Modifications non sauvegardees. Quitter sans sauvegarder ?",
+          )
+        ) {
+          setIsEditing(false);
+          navigation.goBack();
+        }
+        return;
+      }
       Alert.alert(
         "Modifications non sauvegardées",
         "Voulez-vous vraiment quitter sans sauvegarder ?",
@@ -702,7 +749,8 @@ export const MyProfileScreen: React.FC = () => {
 
           <ScrollView
             style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={Platform.OS === "web"}
           >
             <ProfilePictureBlock
               uri={profile.profilePicture}
@@ -910,9 +958,22 @@ export const MyProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  keyboardView: { flex: 1 },
-  content: { flex: 1 },
+  container: {
+    flex: 1,
+    // WHISPR-1254 / WHISPR-1335 - sur react-native-web le wrapper racine
+    // doit borner la hauteur du viewport sinon flex:1 ne propage pas aux
+    // enfants et la ScrollView ne peut pas scroller (bouton Sauvegarder
+    // hors ecran).
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
+  },
+  keyboardView: {
+    flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
+  content: {
+    flex: 1,
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
   iconButton: { padding: spacing.sm },
   cancelButtonText: {
     fontSize: typography.fontSize.base,
@@ -922,6 +983,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     paddingHorizontal: spacing.lg,
+    // WHISPR-1254 / WHISPR-1335 - minHeight:0 autorise la ScrollView a
+    // overflow verticalement au lieu de pousser ses parents.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
+  scrollContent: {
+    // garantir un padding bas suffisant pour que le bouton Sauvegarder
+    // ne soit pas masque par la BottomTabBar flottante sur web et iOS.
+    paddingBottom: spacing.xxxl,
   },
   profileInfo: {
     paddingBottom: spacing.sm,
@@ -953,6 +1022,10 @@ const styles = StyleSheet.create({
   nameInputsContainer: {
     flexDirection: "row",
     gap: spacing.sm,
+    // WHISPR-1335 - Safari iOS web: sans minWidth:0 sur le container, les
+    // flex items conservent leur min-width:auto et debordent du parent
+    // (le second input "Nom" sort a droite de l'ecran).
+    ...(Platform.OS === "web" ? { width: "100%" } : {}),
   },
   input: {
     borderWidth: 1,
@@ -970,7 +1043,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  nameInput: { flex: 1 },
+  nameInput: {
+    flex: 1,
+    // WHISPR-1335 - en CSS flexbox, min-width:auto fait que l'input garde
+    // sa taille intrinseque et peut depasser du parent. minWidth:0 force
+    // les deux inputs a partager equitablement la largeur disponible.
+    ...(Platform.OS === "web" ? { minWidth: 0 } : {}),
+  },
   biographyInput: {
     height: 100,
     textAlignVertical: "top",

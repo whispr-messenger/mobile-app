@@ -3,6 +3,24 @@
  * Séparé de MyProfileScreen (édition du profil personnel) — WHISPR-1189.
  */
 
+/**
+ * @danger-zone-mobile-layout
+ *
+ * DANGER ZONE - Layout web/iOS critique
+ *
+ * Bug historique : scroll bottom inaccessible sur Safari iOS PWA si la chaine flex
+ * ne porte pas le pattern WHISPR-1254 (height:100% + minHeight:0 web).
+ *
+ * AVANT TOUTE MODIF :
+ * 1. Tester live sur Safari iOS PWA (whispr-preprod.roadmvn.com).
+ * 2. Verifier scroll vers le bas + boutons visibles + retour fonctionnel.
+ * 3. Preserver les Platform.OS === 'web' ? minHeight:0 sur containers/scroll.
+ *
+ * Tickets historiques : WHISPR-1254, WHISPR-1291, WHISPR-1313, WHISPR-1335
+ *
+ * Tag parsable : @danger-zone-mobile-layout (utilise par script CI grep pour detection).
+ */
+
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -12,6 +30,7 @@ import {
   Animated,
   ActivityIndicator,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -213,12 +232,24 @@ export const UserProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1 },
+  container: {
+    flex: 1,
+    // WHISPR-1254 - sur react-native-web, le wrapper racine doit borner la
+    // hauteur du viewport sinon flex:1 ne propage pas aux enfants.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
+  },
+  content: {
+    flex: 1,
+    // WHISPR-1254 - minHeight:0 permet a la ScrollView enfant d'overflow
+    // verticalement au lieu de pousser le parent.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
   iconButton: { padding: spacing.sm },
   scrollView: {
     flex: 1,
     paddingHorizontal: spacing.lg,
+    // WHISPR-1254 - meme raison que .content : autoriser l'overflow.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   profileInfo: {
     paddingBottom: spacing.xl,

@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
   withRepeat,
   withSequence,
+  cancelAnimation,
   SharedValue,
 } from "react-native-reanimated";
 import { colors } from "../../theme/colors";
@@ -34,9 +35,16 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
   const dot3Y = useSharedValue(0);
 
   useEffect(() => {
-    // Animate dots with 150ms stagger
+    // Animation des points avec stagger 150ms.
+    // Important : on garde les ids de setTimeout et on annule les boucles
+    // Reanimated au demontage, sinon le composant continue d'animer en
+    // arriere-plan (warnings + CPU non nul + crash potentiel sous Reanimated 3
+    // strict mode quand un setTimeout orphelin set .value sur un noeud
+    // desinscrit).
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
     const animateDot = (dotY: SharedValue<number>, delay: number) => {
-      setTimeout(() => {
+      const id = setTimeout(() => {
         dotY.value = withRepeat(
           withSequence(
             withTiming(-8, { duration: 400 }),
@@ -46,11 +54,19 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
           false,
         );
       }, delay);
+      timeouts.push(id);
     };
 
     animateDot(dot1Y, 0);
     animateDot(dot2Y, 150);
     animateDot(dot3Y, 300);
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+      cancelAnimation(dot1Y);
+      cancelAnimation(dot2Y);
+      cancelAnimation(dot3Y);
+    };
   }, [dot1Y, dot2Y, dot3Y]);
 
   const dot1Style = useAnimatedStyle(() => ({

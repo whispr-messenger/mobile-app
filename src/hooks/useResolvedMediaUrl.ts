@@ -78,6 +78,17 @@ function mimeToExtension(mime: string | null | undefined): string {
   if (t === "image/webp") return "webp";
   if (t === "image/heic" || t === "image/heif") return "heic";
   if (t === "image/jpeg" || t === "image/jpg") return "jpg";
+  if (t === "video/quicktime") return "mov";
+  if (t === "video/mp4") return "mp4";
+  if (t === "video/webm") return "webm";
+  if (t === "video/x-matroska") return "mkv";
+  if (t === "audio/mpeg") return "mp3";
+  if (t === "audio/ogg") return "ogg";
+  if (t === "audio/wav") return "wav";
+  if (t === "audio/mp4") return "m4a";
+  if (t === "audio/aac") return "aac";
+  if (t === "audio/x-caf") return "caf";
+  if (t === "audio/x-m4a") return "m4a";
   return "bin";
 }
 
@@ -94,6 +105,16 @@ async function readDiskCache(uri: string): Promise<string | null> {
     const meta = JSON.parse(raw) as DiskCacheMeta;
     if (!meta?.fileUri || typeof meta.storedAt !== "number") return null;
     if (Date.now() - meta.storedAt > DISK_MEDIA_CACHE_TTL_MS) {
+      await FileSystem.deleteAsync(meta.fileUri, { idempotent: true }).catch(
+        () => {},
+      );
+      await FileSystem.deleteAsync(metaPath, { idempotent: true }).catch(
+        () => {},
+      );
+      return null;
+    }
+    // If the cached file has a .bin extension, delete it and re-download
+    if (meta.fileUri.endsWith(".bin")) {
       await FileSystem.deleteAsync(meta.fileUri, { idempotent: true }).catch(
         () => {},
       );
@@ -221,16 +242,63 @@ export function uriNeedsAuthResolution(uri: string | undefined): boolean {
  * `data:` URL because `blob:` URIs don't round-trip cleanly through React
  * Native's media elements.
  */
+// timeout de garde reseau pour eviter qu'un fetch reste bloque ad vitam
+// sur un mobile lent ou un proxy qui ne ferme jamais la connexion
+const STREAM_FETCH_TIMEOUT_MS = 15_000;
+const PROBE_FETCH_TIMEOUT_MS = 15_000;
+
+// fallback portable a AbortSignal.any / AbortSignal.timeout (Hermes peut
+// ne pas exposer les deux) : on chaine un AbortController au signal du
+// caller et on declenche un abort si le timeout expire ou si le caller
+// annule.
+function createLinkedTimeoutSignal(
+  externalSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener("abort", onExternalAbort);
+    }
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      if (externalSignal) {
+        externalSignal.removeEventListener("abort", onExternalAbort);
+      }
+    },
+  };
+}
+
 export async function streamMediaToRenderableUri(
   uri: string,
   token: string | null,
+  signal?: AbortSignal,
 ): Promise<string> {
   const headers: Record<string, string> = {
     Accept: "application/octet-stream",
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const separator = uri.includes("?") ? "&" : "?";
-  const response = await fetch(`${uri}${separator}stream=1`, { headers });
+  const { signal: linkedSignal, cleanup } = createLinkedTimeoutSignal(
+    signal,
+    STREAM_FETCH_TIMEOUT_MS,
+  );
+  let response: Response;
+  try {
+    response = await fetch(`${uri}${separator}stream=1`, {
+      headers,
+      signal: linkedSignal,
+    });
+  } finally {
+    cleanup();
+  }
   if (!response.ok) {
     throw new Error(`stream failed: HTTP ${response.status}`);
   }
@@ -310,12 +378,13 @@ function isRetryableStreamError(err: unknown): boolean {
 export async function streamMediaToRenderableUriThrottled(
   uri: string,
   token: string | null,
+  signal?: AbortSignal,
 ): Promise<string> {
   const maxAttempts = 4;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await acquireStreamSlot();
     try {
-      return await streamMediaToRenderableUri(uri, token);
+      return await streamMediaToRenderableUri(uri, token, signal);
     } catch (err) {
       if (!isRetryableStreamError(err) || attempt === maxAttempts) {
         throw err;
@@ -338,14 +407,24 @@ export async function streamMediaToRenderableUriThrottled(
 export async function probeMediaUrlThrottled(
   uri: string,
   headers: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const maxAttempts = 4;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await acquireStreamSlot();
     let res: Response;
+    const { signal: linkedSignal, cleanup } = createLinkedTimeoutSignal(
+      signal,
+      PROBE_FETCH_TIMEOUT_MS,
+    );
     try {
-      res = await fetch(uri, { headers, redirect: "follow" });
+      res = await fetch(uri, {
+        headers,
+        redirect: "follow",
+        signal: linkedSignal,
+      });
     } finally {
+      cleanup();
       releaseStreamSlot();
     }
     if (res.ok) return res;
@@ -400,6 +479,9 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
     }
 
     let cancelled = false;
+    // controller propage aux fetch sous-jacents pour qu'un unmount du
+    // composant arrete vraiment la requete au lieu de la laisser leaker
+    const abortController = new AbortController();
     const canUseNativeCache = Platform.OS !== "web";
     if (canUseNativeCache) {
       const cached = readNativeCache(uri);
@@ -409,6 +491,7 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         setError(false);
         return () => {
           cancelled = true;
+          abortController.abort();
           revokeBlobUrl();
         };
       }
@@ -442,31 +525,35 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         const isThumbnail = uri.includes("/thumbnail");
 
         if (isThumbnail) {
-          const probeRes = await probeMediaUrlThrottled(uri, headers);
-          if (cancelled) return;
-          if (!probeRes.ok) {
-            console.warn(
-              `[useResolvedMediaUrl] Failed to resolve media URL: HTTP ${probeRes.status}`,
-            );
-            setError(true);
-            return;
-          }
-
           let blobExists = true;
-          const contentType = probeRes.headers.get("content-type") || "";
-          if (contentType.includes("application/json")) {
-            try {
-              const body = (await probeRes.json()) as {
-                url?: string | null;
-              };
-              if (body && "url" in body && body.url === null) {
-                blobExists = false;
+          try {
+            const probeRes = await probeMediaUrlThrottled(
+              uri,
+              headers,
+              abortController.signal,
+            );
+            if (!cancelled && probeRes.ok) {
+              const contentType = probeRes.headers.get("content-type") || "";
+              if (contentType.includes("application/json")) {
+                try {
+                  const body = (await probeRes.json()) as {
+                    url?: string | null;
+                  };
+                  if (body && "url" in body && body.url === null) {
+                    blobExists = false;
+                  }
+                } catch {
+                  // Unparseable JSON → assume the thumbnail exists; the
+                  // stream call below will surface an explicit 404 if it
+                  // really is gone.
+                }
               }
-            } catch {
-              // Unparseable JSON → assume the thumbnail exists; the
-              // stream call below will surface an explicit 404 if it
-              // really is gone.
             }
+          } catch (err) {
+            console.warn(
+              `[useResolvedMediaUrl] Thumbnail probe failed, will try streaming anyway:`,
+              err,
+            );
           }
 
           if (!blobExists) {
@@ -481,7 +568,11 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         // the server-side 30 req/s short throttle.
         const renderableUri =
           Platform.OS === "web"
-            ? await streamMediaToRenderableUriThrottled(uri, token)
+            ? await streamMediaToRenderableUriThrottled(
+                uri,
+                token,
+                abortController.signal,
+              )
             : await writeDiskCache(uri, token);
         if (cancelled) {
           if (
@@ -502,6 +593,13 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
         setResolvedUri(renderableUri);
       } catch (err) {
         if (cancelled) return;
+        // un AbortError vient soit du unmount soit du timeout reseau, on
+        // ne le remonte pas comme une erreur visible quand le composant
+        // est deja parti
+        const isAbort =
+          err instanceof Error &&
+          (err.name === "AbortError" || err.message.includes("aborted"));
+        if (isAbort && abortController.signal.aborted) return;
         console.warn("[useResolvedMediaUrl] Error resolving media URL:", err);
         setError(true);
       } finally {
@@ -511,6 +609,7 @@ export function useResolvedMediaUrl(uri: string | undefined): ResolvedMediaUrl {
 
     return () => {
       cancelled = true;
+      abortController.abort();
       revokeBlobUrl();
     };
   }, [uri]);

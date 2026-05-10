@@ -25,6 +25,8 @@ import {
   useResolvedMediaUrl,
   uriNeedsAuthResolution,
 } from "../../hooks/useResolvedMediaUrl";
+import { isHttpUrl } from "../../utils/urlFilters";
+import { logger } from "../../utils/logger";
 
 let Video: any = null;
 let ResizeMode: any = null;
@@ -33,17 +35,13 @@ let triedLoadingExpoAvVideo = false;
 function ensureExpoAvVideoLoaded(): void {
   if (Video || triedLoadingExpoAvVideo) return;
   triedLoadingExpoAvVideo = true;
-  const native = NativeModules as Record<string, unknown>;
-  if (!native?.ExponentAV) return;
   try {
     const expoAv = require("expo-av");
     Video = expoAv.Video;
     ResizeMode = expoAv.ResizeMode;
+    logger.debug("MediaMessage", "expo-av loaded successfully");
   } catch (error) {
-    console.warn(
-      "[MediaMessage] expo-av not available, using fallback:",
-      error,
-    );
+    logger.warn("MediaMessage", "expo-av not available, using fallback", error);
   }
 }
 
@@ -165,27 +163,31 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             const loadResult = await playerVideoRef.current.loadAsync({
               uri: resolvedMainUri,
             });
-            console.log(
-              "[MediaMessage] Video preloaded",
+            logger.debug(
+              "MediaMessage",
+              "Video preloaded",
               loadResult ? "with status" : "no status",
             );
 
             // Play immediately after load
             const playResult = await playerVideoRef.current.playAsync();
-            console.log(
-              "[MediaMessage] Video playing",
+            logger.debug(
+              "MediaMessage",
+              "Video playing",
               playResult ? "with status" : "no status",
             );
           } catch (loadError: any) {
-            console.error(
-              "[MediaMessage] Error in loadAsync/playAsync:",
+            logger.error(
+              "MediaMessage",
+              "Error in loadAsync/playAsync",
               loadError?.message || loadError,
             );
             // Don't rethrow, let the component handle it
           }
         } catch (error: any) {
-          console.error(
-            "[MediaMessage] Error loading/playing video:",
+          logger.error(
+            "MediaMessage",
+            "Error loading/playing video",
             error?.message || error,
           );
           // Don't show alert here, let onError handle it
@@ -313,21 +315,31 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
 
   // Video with thumbnail and player
   const handleVideoPress = async () => {
-    console.log("[MediaMessage] Video pressed, opening player");
+    logger.debug("MediaMessage", "Video pressed, opening player");
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (!Video) {
-      // Fallback: ouvrir dans le lecteur natif
-      console.log("[MediaMessage] expo-av not available, opening with Linking");
+      // Fallback: ouvrir dans le lecteur natif. On valide le scheme avant
+      // d'appeler Linking pour eviter qu'une URL backend compromise (ex:
+      // javascript:, intent:) ne devienne un vecteur d'execution.
+      logger.debug(
+        "MediaMessage",
+        "expo-av not available, opening with Linking",
+      );
+      const target = resolvedMainUri || uri;
+      if (!isHttpUrl(target)) {
+        Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
+        return;
+      }
       try {
-        const supported = await Linking.canOpenURL(uri);
+        const supported = await Linking.canOpenURL(target);
         if (supported) {
-          await Linking.openURL(uri);
+          await Linking.openURL(target);
         } else {
           Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
         }
       } catch (error) {
-        console.error("[MediaMessage] Error opening video:", error);
+        logger.error("MediaMessage", "Error opening video", error);
         Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
       }
       return;
@@ -337,17 +349,17 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
   };
 
   const handleCloseVideo = () => {
-    console.log("[MediaMessage] Closing video player");
+    logger.debug("MediaMessage", "Closing video player");
     if (playerVideoRef.current && Video) {
       try {
         playerVideoRef.current
           .pauseAsync()
           .then(() => playerVideoRef.current?.unloadAsync?.())
           .catch((error: any) => {
-            console.error("[MediaMessage] Error stopping video:", error);
+            logger.error("MediaMessage", "Error stopping video", error);
           });
       } catch (error) {
-        console.error("[MediaMessage] Error pausing video:", error);
+        logger.error("MediaMessage", "Error pausing video", error);
       }
     }
     setShowVideoPlayer(false);
@@ -360,8 +372,14 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
         activeOpacity={0.9}
         style={styles.videoContainer}
       >
-        {/* Video preview - use Video component for thumbnail to show actual video frame */}
-        {Video && resolvedMainUri && !thumbnailError ? (
+        {/* Video preview - use thumbnail image first if available, else Video component or placeholder */}
+        {resolvedThumbUri ? (
+          <Image
+            source={{ uri: resolvedThumbUri }}
+            style={styles.videoThumbnail}
+            resizeMode="cover"
+          />
+        ) : Video && resolvedMainUri && !thumbnailError ? (
           <Video
             ref={thumbnailVideoRef}
             source={{ uri: resolvedMainUri }}
@@ -373,26 +391,30 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
             onLoad={(status: any) => {
               // Silently ignore null or invalid status to prevent crashes
               if (!status || typeof status !== "object" || status === null) {
-                console.log(
-                  "[MediaMessage] Video thumbnail loaded (null status, ignoring)",
+                logger.debug(
+                  "MediaMessage",
+                  "Video thumbnail loaded (null status, ignoring)",
                 );
                 return;
               }
               try {
-                console.log(
-                  "[MediaMessage] Video thumbnail loaded successfully",
+                logger.debug(
+                  "MediaMessage",
+                  "Video thumbnail loaded successfully",
                 );
                 setThumbnailError(false);
               } catch (error: any) {
                 // Silently ignore errors
-                console.log(
-                  "[MediaMessage] Thumbnail load completed (status may be null, ignoring)",
+                logger.debug(
+                  "MediaMessage",
+                  "Thumbnail load completed (status may be null, ignoring)",
                 );
               }
             }}
             onError={(error: any) => {
-              console.error(
-                "[MediaMessage] Video thumbnail error, using placeholder:",
+              logger.error(
+                "MediaMessage",
+                "Video thumbnail error, using placeholder",
                 error?.message || error,
               );
               setThumbnailError(true);
@@ -494,36 +516,40 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       if (isLoaded && !isPlaying && playerVideoRef.current) {
                         // Auto-play if loaded but not playing
                         playerVideoRef.current.playAsync().catch((err: any) => {
-                          console.error(
-                            "[MediaMessage] Error auto-playing:",
+                          logger.error(
+                            "MediaMessage",
+                            "Error auto-playing",
                             err?.message || err,
                           );
                         });
                       }
                     } catch (error: any) {
                       // Silently catch all errors to prevent crashes
-                      console.error(
-                        "[MediaMessage] Error in onPlaybackStatusUpdate:",
+                      logger.error(
+                        "MediaMessage",
+                        "Error in onPlaybackStatusUpdate",
                         error?.message || error,
                       );
                     }
                   }}
                   onLoadStart={() => {
-                    console.log("[MediaMessage] Video load started");
+                    logger.debug("MediaMessage", "Video load started");
                   }}
                   onLoad={(status: any) => {
                     // Completely ignore null/undefined status to prevent crashes
                     if (status == null || typeof status !== "object") {
-                      console.log(
-                        "[MediaMessage] Video loaded (null/undefined status, ignoring)",
+                      logger.debug(
+                        "MediaMessage",
+                        "Video loaded (null/undefined status, ignoring)",
                       );
                       return;
                     }
                     try {
                       // Safely access properties with optional chaining
                       const isLoaded = status?.isLoaded === true;
-                      console.log(
-                        "[MediaMessage] Video loaded, auto-playing",
+                      logger.debug(
+                        "MediaMessage",
+                        "Video loaded, auto-playing",
                         isLoaded,
                       );
                       if (status) {
@@ -532,24 +558,27 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                       // Auto-play immediately when loaded
                       if (playerVideoRef.current && isLoaded) {
                         playerVideoRef.current.playAsync().catch((err: any) => {
-                          console.error(
-                            "[MediaMessage] Error playing after load:",
+                          logger.error(
+                            "MediaMessage",
+                            "Error playing after load",
                             err?.message || err,
                           );
                         });
                       }
                     } catch (error: any) {
                       // Silently catch all errors to prevent crashes
-                      console.error(
-                        "[MediaMessage] Error in onLoad:",
+                      logger.error(
+                        "MediaMessage",
+                        "Error in onLoad",
                         error?.message || error,
                       );
                     }
                   }}
                   onError={(error: any) => {
                     // Catch error but don't show alert to avoid interrupting user
-                    console.error(
-                      "[MediaMessage] Video error:",
+                    logger.error(
+                      "MediaMessage",
+                      "Video error",
                       error?.message || error,
                     );
                   }}
@@ -568,6 +597,10 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                 <TouchableOpacity
                   style={styles.videoFallbackButton}
                   onPress={async () => {
+                    if (!isHttpUrl(uri)) {
+                      Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
+                      return;
+                    }
                     try {
                       const supported = await Linking.canOpenURL(uri);
                       if (supported) {
@@ -577,7 +610,11 @@ export const MediaMessage: React.FC<MediaMessageProps> = ({
                         Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
                       }
                     } catch (error) {
-                      console.error("[MediaMessage] Error:", error);
+                      logger.error(
+                        "MediaMessage",
+                        "Error opening video",
+                        error,
+                      );
                       Alert.alert("Erreur", "Impossible d'ouvrir la vidéo.");
                     }
                   }}

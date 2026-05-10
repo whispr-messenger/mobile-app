@@ -1,13 +1,2 @@
-export { SplashScreen } from './SplashScreen';
-export { default } from './SplashScreen';
-
-
-
-
-
-
-
-
-
-
-
+export { SplashScreen } from "./SplashScreen";
+export { default } from "./SplashScreen";

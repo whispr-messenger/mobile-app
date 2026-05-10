@@ -3,6 +3,7 @@ import { PermissionsAndroid, Platform } from "react-native";
 import { navigate, navigationRef } from "../../navigation/navigationRef";
 import { useCallsStore, type IncomingCallInfo } from "../../store/callsStore";
 import { isCallsAvailable } from "../../hooks/useCallsAvailable";
+import { logger } from "../../utils/logger";
 
 type CallKeepModule = typeof import("react-native-call-keeper").default;
 
@@ -241,8 +242,9 @@ class SystemCallProvider {
       !nativeState.connected &&
       Date.now() - nativeState.startedAt < OUTGOING_END_EVENT_GRACE_MS
     ) {
-      console.warn(
-        "[systemCallProvider] Ignoring early endCall for outgoing call",
+      logger.warn(
+        "systemCallProvider",
+        "Ignoring early endCall for outgoing call",
         callUUID,
       );
       return;

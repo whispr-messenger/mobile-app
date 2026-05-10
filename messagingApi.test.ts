@@ -624,6 +624,50 @@ describe("messagingAPI.getUserInfo cache", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it("caches null with a short TTL on 429 (refetches after 30s)", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    try {
+      mockFetch
+        .mockResolvedValueOnce(mockResponse({ status: 429 }))
+        .mockResolvedValueOnce(
+          mockResponse({ body: { id: "u-1", username: "ada" } }),
+        );
+
+      const first = await messagingAPI.getUserInfo("u-1");
+      expect(first).toBeNull();
+      // dans la fenetre 30s : sert le cache, pas de retry storm
+      const cached = await messagingAPI.getUserInfo("u-1");
+      expect(cached).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // apres 30s + 1s, le cache short-TTL expire et on refetch
+      jest.setSystemTime(new Date("2026-05-09T12:00:31Z"));
+      const second = await messagingAPI.getUserInfo("u-1");
+      expect(second).toMatchObject({ id: "u-1" });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps the standard 5-min TTL for non-429 errors (e.g. 500)", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    try {
+      mockFetch.mockResolvedValueOnce(mockResponse({ status: 500 }));
+
+      const first = await messagingAPI.getUserInfo("u-1");
+      expect(first).toBeNull();
+
+      // a 31s, le cache 5min tient toujours, pas de refetch
+      jest.setSystemTime(new Date("2026-05-09T12:00:31Z"));
+      const stillCached = await messagingAPI.getUserInfo("u-1");
+      expect(stillCached).toBeNull();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -646,5 +690,126 @@ describe("authenticatedFetch 401 retry", () => {
     mockedAuth.refreshTokens.mockRejectedValueOnce(new Error("dead"));
 
     await expect(messagingAPI.getConversation("c-1")).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getUsersInfoBatch (WHISPR-1357)
+// ---------------------------------------------------------------------------
+
+describe("messagingAPI.getUsersInfoBatch", () => {
+  it("POSTs to /user/v1/profiles/batch with the deduped ids", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          profiles: [
+            { id: "u-1", username: "ada", firstName: "Ada" },
+            { id: "u-2", username: "bob", firstName: "Bob" },
+          ],
+          missing: [],
+        },
+      }),
+    );
+
+    const result = await messagingAPI.getUsersInfoBatch([
+      "u-1",
+      "u-2",
+      "u-1", // doublon : doit etre dedup avant l'envoi
+      "",
+    ]);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("https://api.test/user/v1/profiles/batch");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ ids: ["u-1", "u-2"] });
+    expect(result.get("u-1")).toMatchObject({ id: "u-1", display_name: "Ada" });
+    expect(result.get("u-2")).toMatchObject({ id: "u-2", display_name: "Bob" });
+  });
+
+  it("returns null entries for missing ids and caches them", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          profiles: [{ id: "u-1", username: "ada" }],
+          missing: ["u-2"],
+        },
+      }),
+    );
+
+    const result = await messagingAPI.getUsersInfoBatch(["u-1", "u-2"]);
+    expect(result.get("u-1")).toMatchObject({ id: "u-1" });
+    expect(result.get("u-2")).toBeNull();
+
+    // Le second appel ne doit pas refaire de batch : tout est en cache.
+    const second = await messagingAPI.getUsersInfoBatch(["u-1", "u-2"]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(second.get("u-2")).toBeNull();
+  });
+
+  it("splits requests larger than 100 ids into chunks", async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => `u-${i}`);
+    mockFetch
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: {
+            profiles: ids.slice(0, 100).map((id) => ({ id, username: id })),
+            missing: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          body: {
+            profiles: ids.slice(100).map((id) => ({ id, username: id })),
+            missing: [],
+          },
+        }),
+      );
+
+    const result = await messagingAPI.getUsersInfoBatch(ids);
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const firstChunk = JSON.parse(mockFetch.mock.calls[0][1].body) as {
+      ids: string[];
+    };
+    const secondChunk = JSON.parse(mockFetch.mock.calls[1][1].body) as {
+      ids: string[];
+    };
+    expect(firstChunk.ids).toHaveLength(100);
+    expect(secondChunk.ids).toHaveLength(50);
+    expect(result.size).toBe(150);
+    expect(result.get("u-149")).toMatchObject({ id: "u-149" });
+  });
+
+  it("returns null for every id when the batch endpoint fails", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ status: 500 }));
+
+    const result = await messagingAPI.getUsersInfoBatch(["u-1", "u-2"]);
+    expect(result.get("u-1")).toBeNull();
+    expect(result.get("u-2")).toBeNull();
+  });
+
+  it("returns an empty map without calling fetch when ids is empty", async () => {
+    const result = await messagingAPI.getUsersInfoBatch([]);
+    expect(result.size).toBe(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("hydrates the unitary getUserInfo cache so a follow-up call hits cache", async () => {
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          profiles: [{ id: "u-1", username: "ada", firstName: "Ada" }],
+          missing: [],
+        },
+      }),
+    );
+
+    await messagingAPI.getUsersInfoBatch(["u-1"]);
+    const cached = await messagingAPI.getUserInfo("u-1");
+    expect(cached).toMatchObject({ id: "u-1", display_name: "Ada" });
+    // pas de second fetch unitaire : tout est servi par le cache batch
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

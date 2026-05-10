@@ -1,3 +1,21 @@
+/**
+ * @danger-zone-mobile-layout
+ *
+ * DANGER ZONE - Layout web/iOS critique
+ *
+ * Bug historique : scroll bottom inaccessible sur Safari iOS PWA si la chaine flex
+ * ne porte pas le pattern WHISPR-1254 (height:100% + minHeight:0 web).
+ *
+ * AVANT TOUTE MODIF :
+ * 1. Tester live sur Safari iOS PWA (whispr-preprod.roadmvn.com).
+ * 2. Verifier scroll vers le bas + boutons visibles + retour fonctionnel.
+ * 3. Preserver les Platform.OS === 'web' ? minHeight:0 sur containers/scroll.
+ *
+ * Tickets historiques : WHISPR-1254, WHISPR-1291, WHISPR-1313, WHISPR-1335
+ *
+ * Tag parsable : @danger-zone-mobile-layout (utilise par script CI grep pour detection).
+ */
+
 import React, {
   useState,
   useEffect,
@@ -16,6 +34,7 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  Platform,
 } from "react-native";
 import {
   SafeAreaView,
@@ -50,8 +69,15 @@ import {
   toggleFavorite,
 } from "../../services/contacts/favorites";
 import { filterAndSortContacts } from "../../utils/contactsFilter";
+import { ContactItemSkeleton } from "../../components/Chat/SkeletonLoader";
+import { BellIcon } from "../../components/Common/BellIcon";
+import { InboxPanel } from "../../components/Common/InboxPanel";
+import { useInboxStore } from "../../store/inboxStore";
 
 declare module "@expo/vector-icons";
+
+// hauteur d'une row ContactItem (avatar 52 + padding vertical 14*2 + marginBottom 12)
+const CONTACT_ITEM_HEIGHT = 98;
 
 export const ContactsScreen: React.FC = () => {
   const navigation =
@@ -76,6 +102,14 @@ export const ContactsScreen: React.FC = () => {
   const userId = rawUserId ?? "";
   const [token, setToken] = useState<string>("");
   const lastRefreshAtRef = useRef<number>(0);
+
+  const inboxUnreadCount = useInboxStore((s) => s.unread_count);
+  const hydrateInbox = useInboxStore((s) => s.hydrate);
+  const [inboxPanelOpen, setInboxPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (userId) hydrateInbox();
+  }, [userId, hydrateInbox]);
 
   useEffect(() => {
     if (!userId) {
@@ -271,6 +305,16 @@ export const ContactsScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: Contact) => item.id, []);
 
+  // hauteur fixe d'une ContactItem (avatar 52 + padding 14*2 + marginBottom 12)
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<Contact> | null | undefined, index: number) => ({
+      length: CONTACT_ITEM_HEIGHT,
+      offset: CONTACT_ITEM_HEIGHT * index,
+      index,
+    }),
+    [],
+  );
+
   return (
     <LinearGradient
       colors={colors.background.gradient.app}
@@ -294,6 +338,10 @@ export const ContactsScreen: React.FC = () => {
                 <Text style={styles.headerSubtitle}>Vos contact Whispr.</Text>
               </View>
               <View style={styles.headerActions}>
+                <BellIcon
+                  unreadCount={inboxUnreadCount}
+                  onPress={() => setInboxPanelOpen(true)}
+                />
                 <TouchableOpacity
                   style={styles.headerIconButton}
                   onPress={() => navigation.navigate("MyQRCode")}
@@ -503,15 +551,8 @@ export const ContactsScreen: React.FC = () => {
         </View>
 
         {/* Contact Requests */}
-        {loadingRequests && pendingRequests.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text
-              style={[styles.emptyText, { color: themeColors.text.secondary }]}
-            >
-              Chargement
-            </Text>
-          </View>
-        ) : pendingRequests.length > 0 ? (
+        {loadingRequests &&
+        pendingRequests.length === 0 ? null : pendingRequests.length > 0 ? (
           <BlurView intensity={34} tint="dark" style={styles.requestsBlur}>
             <View style={styles.requestsContainer}>
               <Text
@@ -593,12 +634,10 @@ export const ContactsScreen: React.FC = () => {
 
         {/* Contacts List */}
         {loading && contacts.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text
-              style={[styles.emptyText, { color: themeColors.text.secondary }]}
-            >
-              Chargement
-            </Text>
+          <View style={styles.skeletonContainer}>
+            {[...Array(6)].map((_, i) => (
+              <ContactItemSkeleton key={i} />
+            ))}
           </View>
         ) : filteredContacts.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -628,6 +667,9 @@ export const ContactsScreen: React.FC = () => {
             data={filteredContacts}
             renderItem={renderContact}
             keyExtractor={keyExtractor}
+            getItemLayout={getItemLayout}
+            style={styles.list}
+            showsVerticalScrollIndicator={Platform.OS === "web"}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -682,6 +724,11 @@ export const ContactsScreen: React.FC = () => {
           onContactsSynced={loadContacts}
         />
       </SafeAreaView>
+
+      <InboxPanel
+        visible={inboxPanelOpen}
+        onClose={() => setInboxPanelOpen(false)}
+      />
     </LinearGradient>
   );
 };
@@ -689,9 +736,24 @@ export const ContactsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+    // WHISPR-1254 - sur react-native-web, flex:1 seul ne propage pas la
+    // hauteur disponible jusqu'aux enfants si l'ancetre racine (#root) ne
+    // borne pas son propre contenu. height:100% force le wrapper racine a
+    // occuper exactement la hauteur du viewport.
+    ...(Platform.OS === "web" ? { height: "100%" } : {}),
   },
   container: {
     flex: 1,
+    // WHISPR-1254 - minHeight:0 est requis par CSS flexbox pour qu'un
+    // enfant scrollable (FlatList) puisse overflow au lieu de pousser le
+    // parent. Sans ca, les contacts depassent le viewport.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
+  },
+  list: {
+    flex: 1,
+    // WHISPR-1254 - meme raison que .container : permettre l'overflow
+    // vertical natif cote react-native-web.
+    ...(Platform.OS === "web" ? { minHeight: 0 } : {}),
   },
   topSection: {
     paddingHorizontal: 16,
@@ -811,6 +873,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 16,
+  },
+  skeletonContainer: {
+    flex: 1,
+    paddingTop: 8,
   },
   emptyContainer: {
     flex: 1,

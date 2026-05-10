@@ -3,7 +3,7 @@
  * Custom implementation (no external datetimepicker dependency).
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { colors, withOpacity } from '../../theme/colors';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { colors, withOpacity } from "../../theme/colors";
 
 interface ScheduleDateTimePickerProps {
   visible: boolean;
@@ -25,23 +25,23 @@ interface ScheduleDateTimePickerProps {
 }
 
 const QUICK_OPTIONS = [
-  { label: 'Dans 30 min', minutes: 30 },
-  { label: 'Dans 1 heure', minutes: 60 },
-  { label: 'Dans 2 heures', minutes: 120 },
-  { label: 'Dans 4 heures', minutes: 240 },
-  { label: 'Demain 9h', custom: 'tomorrow9' as const },
-  { label: 'Demain 14h', custom: 'tomorrow14' as const },
+  { label: "Dans 30 min", minutes: 30 },
+  { label: "Dans 1 heure", minutes: 60 },
+  { label: "Dans 2 heures", minutes: 120 },
+  { label: "Dans 4 heures", minutes: 240 },
+  { label: "Demain 9h", custom: "tomorrow9" as const },
+  { label: "Demain 14h", custom: "tomorrow14" as const },
 ];
 
-function getQuickDate(option: typeof QUICK_OPTIONS[number]): Date {
+function getQuickDate(option: (typeof QUICK_OPTIONS)[number]): Date {
   const now = new Date();
-  if (option.custom === 'tomorrow9') {
+  if (option.custom === "tomorrow9") {
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     d.setHours(9, 0, 0, 0);
     return d;
   }
-  if (option.custom === 'tomorrow14') {
+  if (option.custom === "tomorrow14") {
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     d.setHours(14, 0, 0, 0);
@@ -55,8 +55,18 @@ function padZero(n: number): string {
 }
 
 const MONTHS = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
 ];
 
 export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
@@ -65,13 +75,13 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
   onConfirm,
 }) => {
   const now = useMemo(() => new Date(), [visible]);
-  const [mode, setMode] = useState<'quick' | 'custom'>('quick');
+  const [mode, setMode] = useState<"quick" | "custom">("quick");
   const [selectedDay, setSelectedDay] = useState(now.getDate());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedHour, setSelectedHour] = useState(now.getHours());
   const [selectedMinute, setSelectedMinute] = useState(
-    Math.ceil(now.getMinutes() / 5) * 5 % 60,
+    (Math.ceil(now.getMinutes() / 5) * 5) % 60,
   );
 
   // Reset state when modal opens
@@ -82,8 +92,8 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
       setSelectedMonth(fresh.getMonth());
       setSelectedYear(fresh.getFullYear());
       setSelectedHour(fresh.getHours());
-      setSelectedMinute(Math.ceil(fresh.getMinutes() / 5) * 5 % 60);
-      setMode('quick');
+      setSelectedMinute((Math.ceil(fresh.getMinutes() / 5) * 5) % 60);
+      setMode("quick");
     }
   }, [visible]);
 
@@ -92,14 +102,25 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
   }, [selectedYear, selectedMonth]);
 
   const buildDate = useCallback((): Date => {
-    return new Date(selectedYear, selectedMonth, selectedDay, selectedHour, selectedMinute, 0, 0);
+    return new Date(
+      selectedYear,
+      selectedMonth,
+      selectedDay,
+      selectedHour,
+      selectedMinute,
+      0,
+      0,
+    );
   }, [selectedYear, selectedMonth, selectedDay, selectedHour, selectedMinute]);
 
-  const handleQuickSelect = useCallback((option: typeof QUICK_OPTIONS[number]) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const date = getQuickDate(option);
-    onConfirm(date);
-  }, [onConfirm]);
+  const handleQuickSelect = useCallback(
+    (option: (typeof QUICK_OPTIONS)[number]) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const date = getQuickDate(option);
+      onConfirm(date);
+    },
+    [onConfirm],
+  );
 
   const handleCustomConfirm = useCallback(() => {
     const date = buildDate();
@@ -117,9 +138,16 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
 
   const formattedPreview = useMemo(() => {
     const date = buildDate();
-    const dayName = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+    const dayName = date.toLocaleDateString("fr-FR", { weekday: "long" });
     return `${dayName} ${selectedDay} ${MONTHS[selectedMonth]} ${selectedYear} à ${padZero(selectedHour)}:${padZero(selectedMinute)}`;
-  }, [buildDate, selectedDay, selectedMonth, selectedYear, selectedHour, selectedMinute]);
+  }, [
+    buildDate,
+    selectedDay,
+    selectedMonth,
+    selectedYear,
+    selectedHour,
+    selectedMinute,
+  ]);
 
   return (
     <Modal
@@ -147,35 +175,56 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
             {/* Mode Tabs */}
             <View style={styles.tabs}>
               <TouchableOpacity
-                style={[styles.tab, mode === 'quick' && styles.tabActive]}
-                onPress={() => setMode('quick')}
+                style={[styles.tab, mode === "quick" && styles.tabActive]}
+                onPress={() => setMode("quick")}
               >
                 <Ionicons
                   name="flash-outline"
                   size={16}
-                  color={mode === 'quick' ? colors.text.light : withOpacity(colors.text.light, 0.5)}
+                  color={
+                    mode === "quick"
+                      ? colors.text.light
+                      : withOpacity(colors.text.light, 0.5)
+                  }
                 />
-                <Text style={[styles.tabText, mode === 'quick' && styles.tabTextActive]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    mode === "quick" && styles.tabTextActive,
+                  ]}
+                >
                   Rapide
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.tab, mode === 'custom' && styles.tabActive]}
-                onPress={() => setMode('custom')}
+                style={[styles.tab, mode === "custom" && styles.tabActive]}
+                onPress={() => setMode("custom")}
               >
                 <Ionicons
                   name="calendar-outline"
                   size={16}
-                  color={mode === 'custom' ? colors.text.light : withOpacity(colors.text.light, 0.5)}
+                  color={
+                    mode === "custom"
+                      ? colors.text.light
+                      : withOpacity(colors.text.light, 0.5)
+                  }
                 />
-                <Text style={[styles.tabText, mode === 'custom' && styles.tabTextActive]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    mode === "custom" && styles.tabTextActive,
+                  ]}
+                >
                   Personnalisé
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-              {mode === 'quick' ? (
+            <ScrollView
+              style={styles.body}
+              showsVerticalScrollIndicator={false}
+            >
+              {mode === "quick" ? (
                 <View style={styles.quickOptions}>
                   {QUICK_OPTIONS.map((option, idx) => {
                     const date = getQuickDate(option);
@@ -187,12 +236,22 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
                         onPress={() => handleQuickSelect(option)}
                         activeOpacity={0.7}
                       >
-                        <Ionicons name="time-outline" size={20} color={colors.primary.main} />
+                        <Ionicons
+                          name="time-outline"
+                          size={20}
+                          color={colors.primary.main}
+                        />
                         <View style={styles.quickOptionText}>
-                          <Text style={styles.quickOptionLabel}>{option.label}</Text>
+                          <Text style={styles.quickOptionLabel}>
+                            {option.label}
+                          </Text>
                           <Text style={styles.quickOptionTime}>{timeStr}</Text>
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color={withOpacity(colors.text.light, 0.3)} />
+                        <Ionicons
+                          name="chevron-forward"
+                          size={18}
+                          color={withOpacity(colors.text.light, 0.3)}
+                        />
                       </TouchableOpacity>
                     );
                   })}
@@ -206,16 +265,30 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
                     <View style={styles.pickerCol}>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedDay(d => d < daysInMonth ? d + 1 : 1)}
+                        onPress={() =>
+                          setSelectedDay((d) => (d < daysInMonth ? d + 1 : 1))
+                        }
                       >
-                        <Ionicons name="chevron-up" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-up"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
-                      <Text style={styles.pickerValue}>{padZero(selectedDay)}</Text>
+                      <Text style={styles.pickerValue}>
+                        {padZero(selectedDay)}
+                      </Text>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedDay(d => d > 1 ? d - 1 : daysInMonth)}
+                        onPress={() =>
+                          setSelectedDay((d) => (d > 1 ? d - 1 : daysInMonth))
+                        }
                       >
-                        <Ionicons name="chevron-down" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-down"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
                       <Text style={styles.pickerLabel}>Jour</Text>
                     </View>
@@ -224,16 +297,30 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
                     <View style={styles.pickerCol}>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedMonth(m => m < 11 ? m + 1 : 0)}
+                        onPress={() =>
+                          setSelectedMonth((m) => (m < 11 ? m + 1 : 0))
+                        }
                       >
-                        <Ionicons name="chevron-up" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-up"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
-                      <Text style={styles.pickerValue}>{MONTHS[selectedMonth].substring(0, 3)}</Text>
+                      <Text style={styles.pickerValue}>
+                        {MONTHS[selectedMonth].substring(0, 3)}
+                      </Text>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedMonth(m => m > 0 ? m - 1 : 11)}
+                        onPress={() =>
+                          setSelectedMonth((m) => (m > 0 ? m - 1 : 11))
+                        }
                       >
-                        <Ionicons name="chevron-down" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-down"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
                       <Text style={styles.pickerLabel}>Mois</Text>
                     </View>
@@ -242,38 +329,66 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
                     <View style={styles.pickerCol}>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedYear(y => y + 1)}
+                        onPress={() => setSelectedYear((y) => y + 1)}
                       >
-                        <Ionicons name="chevron-up" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-up"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
                       <Text style={styles.pickerValue}>{selectedYear}</Text>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedYear(y => Math.max(y - 1, now.getFullYear()))}
+                        onPress={() =>
+                          setSelectedYear((y) =>
+                            Math.max(y - 1, now.getFullYear()),
+                          )
+                        }
                       >
-                        <Ionicons name="chevron-down" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-down"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
                       <Text style={styles.pickerLabel}>Année</Text>
                     </View>
                   </View>
 
                   {/* Time Row */}
-                  <Text style={[styles.sectionLabel, { marginTop: 20 }]}>HEURE</Text>
+                  <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
+                    HEURE
+                  </Text>
                   <View style={styles.pickerRow}>
                     {/* Hour */}
                     <View style={styles.pickerCol}>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedHour(h => h < 23 ? h + 1 : 0)}
+                        onPress={() =>
+                          setSelectedHour((h) => (h < 23 ? h + 1 : 0))
+                        }
                       >
-                        <Ionicons name="chevron-up" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-up"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
-                      <Text style={styles.pickerValue}>{padZero(selectedHour)}</Text>
+                      <Text style={styles.pickerValue}>
+                        {padZero(selectedHour)}
+                      </Text>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedHour(h => h > 0 ? h - 1 : 23)}
+                        onPress={() =>
+                          setSelectedHour((h) => (h > 0 ? h - 1 : 23))
+                        }
                       >
-                        <Ionicons name="chevron-down" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-down"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
                       <Text style={styles.pickerLabel}>Heures</Text>
                     </View>
@@ -284,16 +399,30 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
                     <View style={styles.pickerCol}>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedMinute(m => m < 55 ? m + 5 : 0)}
+                        onPress={() =>
+                          setSelectedMinute((m) => (m < 55 ? m + 5 : 0))
+                        }
                       >
-                        <Ionicons name="chevron-up" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-up"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
-                      <Text style={styles.pickerValue}>{padZero(selectedMinute)}</Text>
+                      <Text style={styles.pickerValue}>
+                        {padZero(selectedMinute)}
+                      </Text>
                       <TouchableOpacity
                         style={styles.pickerArrow}
-                        onPress={() => setSelectedMinute(m => m > 0 ? m - 5 : 55)}
+                        onPress={() =>
+                          setSelectedMinute((m) => (m > 0 ? m - 5 : 55))
+                        }
                       >
-                        <Ionicons name="chevron-down" size={20} color={colors.text.light} />
+                        <Ionicons
+                          name="chevron-down"
+                          size={20}
+                          color={colors.text.light}
+                        />
                       </TouchableOpacity>
                       <Text style={styles.pickerLabel}>Minutes</Text>
                     </View>
@@ -301,7 +430,11 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
 
                   {/* Preview */}
                   <View style={styles.preview}>
-                    <Ionicons name="calendar" size={16} color={colors.primary.main} />
+                    <Ionicons
+                      name="calendar"
+                      size={16}
+                      color={colors.primary.main}
+                    />
                     <Text style={styles.previewText}>{formattedPreview}</Text>
                   </View>
 
@@ -312,12 +445,20 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
                     activeOpacity={0.7}
                   >
                     <LinearGradient
-                      colors={isCustomDateValid ? ['#FFB07B', '#F04882'] : ['#555', '#444']}
+                      colors={
+                        isCustomDateValid
+                          ? ["#FFB07B", "#F04882"]
+                          : ["#555", "#444"]
+                      }
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.confirmButton}
                     >
-                      <Ionicons name="send" size={18} color={colors.text.light} />
+                      <Ionicons
+                        name="send"
+                        size={18}
+                        color={colors.text.light}
+                      />
                       <Text style={styles.confirmButtonText}>
                         Programmer l'envoi
                       </Text>
@@ -342,14 +483,14 @@ export const ScheduleDateTimePicker: React.FC<ScheduleDateTimePickerProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "flex-end",
   },
   container: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '80%',
-    overflow: 'hidden',
+    maxHeight: "80%",
+    overflow: "hidden",
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -361,9 +502,9 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
@@ -372,7 +513,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text.light,
     letterSpacing: -0.5,
   },
@@ -382,7 +523,7 @@ const styles = StyleSheet.create({
     backgroundColor: withOpacity(colors.background.dark, 0.4),
   },
   tabs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginHorizontal: 24,
     marginTop: 16,
     borderRadius: 12,
@@ -391,9 +532,9 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 10,
     borderRadius: 10,
     gap: 6,
@@ -403,7 +544,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: withOpacity(colors.text.light, 0.5),
   },
   tabTextActive: {
@@ -417,8 +558,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   quickOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -432,7 +573,7 @@ const styles = StyleSheet.create({
   },
   quickOptionLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text.light,
   },
   quickOptionTime: {
@@ -445,20 +586,20 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 1.2,
     color: withOpacity(colors.text.light, 0.5),
     marginBottom: 12,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   pickerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 16,
   },
   pickerCol: {
-    alignItems: 'center',
+    alignItems: "center",
     minWidth: 70,
   },
   pickerArrow: {
@@ -466,14 +607,14 @@ const styles = StyleSheet.create({
   },
   pickerValue: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text.light,
     paddingVertical: 8,
     minWidth: 60,
-    textAlign: 'center',
+    textAlign: "center",
     backgroundColor: withOpacity(colors.background.dark, 0.4),
     borderRadius: 10,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   pickerLabel: {
     fontSize: 11,
@@ -482,14 +623,14 @@ const styles = StyleSheet.create({
   },
   timeSeparator: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text.light,
     marginBottom: 20,
   },
   preview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 20,
     marginBottom: 20,
     paddingVertical: 12,
@@ -502,26 +643,26 @@ const styles = StyleSheet.create({
   },
   previewText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text.light,
   },
   confirmButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 14,
     gap: 8,
   },
   confirmButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text.light,
   },
   errorText: {
     fontSize: 12,
-    color: '#F04882',
-    textAlign: 'center',
+    color: colors.ui.warning,
+    textAlign: "center",
     marginTop: 8,
   },
 });

@@ -7,6 +7,7 @@ import { TokenService } from "./TokenService";
 import { AuthService } from "./AuthService";
 import { getApiBaseUrl } from "./apiBase";
 import { normalizeUsername } from "../utils";
+import { logger } from "../utils/logger";
 
 // Types
 export interface UserVisualPreferences {
@@ -58,8 +59,13 @@ export interface PrivacySettings {
   firstNameVisibility: "everyone" | "contacts" | "nobody";
   lastNameVisibility: "everyone" | "contacts" | "nobody";
   biographyVisibility: "everyone" | "contacts" | "nobody";
+  lastSeenVisibility: "everyone" | "contacts" | "nobody";
+  onlineStatusVisibility: "everyone" | "contacts" | "nobody";
+  groupAddPermission: "everyone" | "contacts" | "nobody";
   searchVisibility: boolean;
   phoneNumberSearch: "everyone" | "contacts" | "nobody";
+  // toggle WhatsApp punitive : si false on n envoie pas et on ne voit pas
+  readReceipts?: boolean;
 }
 
 export class UserService {
@@ -249,7 +255,7 @@ export class UserService {
       }
       return { success: true };
     } catch (error) {
-      console.warn("[UserService] bootstrapAccount failed:", error);
+      logger.warn("UserService", "bootstrapAccount failed", error);
       return { success: false, message: "bootstrap failed" };
     }
   }
@@ -265,29 +271,23 @@ export class UserService {
     message?: string;
   }> {
     try {
-      console.log("[PDP-DEBUG][UserService] getProfile → GET /profile/me");
+      logger.debug("PDP-UserService", "getProfile → GET /profile/me");
       const response = await this.authFetch("/profile/me");
 
       if (!response.ok) {
-        console.log(
-          "[PDP-DEBUG][UserService] getProfile ← HTTP",
-          response.status,
-        );
+        logger.debug("PDP-UserService", "getProfile ← HTTP", response.status);
         return { success: false, message: `Erreur ${response.status}` };
       }
 
       const data = await response.json().catch(() => null);
-      console.log(
-        "[PDP-DEBUG][UserService] getProfile ← 200 profilePictureUrl:",
-        data?.profilePictureUrl,
-        "raw keys:",
-        data ? Object.keys(data) : null,
-      );
+      logger.debug("PDP-UserService", "getProfile ← 200", {
+        profilePictureUrl: data?.profilePictureUrl,
+        rawKeys: data ? Object.keys(data) : null,
+      });
       const profile = this.normalizeProfile(data);
-      console.log(
-        "[PDP-DEBUG][UserService] getProfile normalized.profilePicture:",
-        profile?.profilePicture,
-      );
+      logger.debug("PDP-UserService", "getProfile normalized", {
+        profilePicture: profile?.profilePicture,
+      });
       return profile
         ? { success: true, profile }
         : { success: false, message: "Profil invalide reçu du serveur" };
@@ -311,26 +311,25 @@ export class UserService {
       if (!token) return { success: false, message: "Non authentifié" };
 
       const url = `${this.baseUrl}/profile/${encodeURIComponent(userId)}`;
-      console.log("[PDP-DEBUG][UserService] getUserProfile → GET", url);
+      logger.debug("PDP-UserService", "getUserProfile → GET", url);
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {
-        console.log(
-          "[PDP-DEBUG][UserService] getUserProfile ← HTTP",
+        logger.debug(
+          "PDP-UserService",
+          "getUserProfile ← HTTP",
           response.status,
         );
         return { success: false, message: `Erreur ${response.status}` };
       }
 
       const data = await response.json().catch(() => null);
-      console.log(
-        "[PDP-DEBUG][UserService] getUserProfile ← 200 id:",
-        data?.id,
-        "profilePictureUrl:",
-        data?.profilePictureUrl,
-      );
+      logger.debug("PDP-UserService", "getUserProfile ← 200", {
+        id: data?.id,
+        profilePictureUrl: data?.profilePictureUrl,
+      });
       if (data && data.profilePictureUrl && !data.profilePicture) {
         data.profilePicture = data.profilePictureUrl;
       }
@@ -353,8 +352,9 @@ export class UserService {
         return { success: false, message: validation.error };
       }
 
-      console.log(
-        "[PDP-DEBUG][UserService] updateProfile → PATCH /profile/{userId} payload:",
+      logger.debug(
+        "PDP-UserService",
+        "updateProfile → PATCH /profile/{userId} payload",
         profileData,
       );
       const response = await this.authFetch("/profile/{userId}", {
@@ -368,26 +368,22 @@ export class UserService {
           response,
           `Erreur ${response.status}`,
         );
-        console.log(
-          "[PDP-DEBUG][UserService] updateProfile ← HTTP",
-          response.status,
+        logger.debug("PDP-UserService", "updateProfile ← HTTP", {
+          status: response.status,
           msg,
-        );
+        });
         return { success: false, message: msg };
       }
 
       const data = await response.json().catch(() => null);
-      console.log(
-        "[PDP-DEBUG][UserService] updateProfile ← 200 raw:",
-        data,
-        "profilePictureUrl:",
-        data?.profilePictureUrl,
-      );
+      logger.debug("PDP-UserService", "updateProfile ← 200", {
+        raw: data,
+        profilePictureUrl: data?.profilePictureUrl,
+      });
       const normalized = this.normalizeProfile(data);
-      console.log(
-        "[PDP-DEBUG][UserService] updateProfile normalized.profilePicture:",
-        normalized?.profilePicture,
-      );
+      logger.debug("PDP-UserService", "updateProfile normalized", {
+        profilePicture: normalized?.profilePicture,
+      });
       return {
         success: true,
         message: "Profil mis à jour avec succès",
@@ -592,10 +588,17 @@ export class UserService {
           raw?.lastNamePrivacy ?? raw?.lastNameVisibility ?? "everyone",
         biographyVisibility:
           raw?.biographyPrivacy ?? raw?.biographyVisibility ?? "everyone",
+        lastSeenVisibility:
+          raw?.lastSeenPrivacy ?? raw?.lastSeenVisibility ?? "everyone",
+        onlineStatusVisibility:
+          raw?.onlineStatus ?? raw?.onlineStatusVisibility ?? "everyone",
+        groupAddPermission: raw?.groupAddPermission ?? "everyone",
         searchVisibility:
           raw?.searchByUsername ?? raw?.searchVisibility ?? true,
         phoneNumberSearch:
           raw?.searchByPhone ?? raw?.phoneNumberSearch ?? "everyone",
+        // backend renvoie read_receipts (snake) ou readReceipts selon la version
+        readReceipts: raw?.readReceipts ?? raw?.read_receipts ?? true,
       };
       return { success: true, settings: data };
     } catch (error) {
@@ -608,23 +611,50 @@ export class UserService {
   }
 
   /**
-   * Update privacy settings
+   * Update privacy settings (PATCH partiel : seuls les champs definis sont
+   * envoyes au backend)
    */
   async updatePrivacySettings(
-    settings: PrivacySettings,
+    settings: Partial<PrivacySettings>,
   ): Promise<UpdateProfileResponse> {
     try {
+      // PATCH partiel : on n envoie que les champs definis. Permet aux callers
+      // de toucher uniquement readReceipts sans ecraser le reste de la privacy.
+      const body: Record<string, unknown> = {};
+      if (settings.profilePictureVisibility !== undefined) {
+        body.profilePicturePrivacy = settings.profilePictureVisibility;
+      }
+      if (settings.firstNameVisibility !== undefined) {
+        body.firstNamePrivacy = settings.firstNameVisibility;
+      }
+      if (settings.lastNameVisibility !== undefined) {
+        body.lastNamePrivacy = settings.lastNameVisibility;
+      }
+      if (settings.biographyVisibility !== undefined) {
+        body.biographyPrivacy = settings.biographyVisibility;
+      }
+      if (settings.lastSeenVisibility !== undefined) {
+        body.lastSeenPrivacy = settings.lastSeenVisibility;
+      }
+      if (settings.onlineStatusVisibility !== undefined) {
+        body.onlineStatus = settings.onlineStatusVisibility;
+      }
+      if (settings.groupAddPermission !== undefined) {
+        body.groupAddPermission = settings.groupAddPermission;
+      }
+      if (settings.phoneNumberSearch !== undefined) {
+        body.searchByPhone = settings.phoneNumberSearch !== "nobody";
+      }
+      if (settings.searchVisibility !== undefined) {
+        body.searchByUsername = settings.searchVisibility;
+      }
+      if (settings.readReceipts !== undefined) {
+        body.readReceipts = settings.readReceipts;
+      }
       const response = await this.authFetch("/privacy/{userId}", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profilePicturePrivacy: settings.profilePictureVisibility,
-          firstNamePrivacy: settings.firstNameVisibility,
-          lastNamePrivacy: settings.lastNameVisibility,
-          biographyPrivacy: settings.biographyVisibility,
-          searchByPhone: settings.phoneNumberSearch !== "nobody",
-          searchByUsername: settings.searchVisibility,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

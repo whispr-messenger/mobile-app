@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// Global Jest setup: shared mocks for native/expo modules.
+// Setup global Jest : mocks partages pour les modules natifs / expo.
 
-// IndexedDB polyfill so the web-only services that persist a wrapping key
-// (see src/services/webCryptoVault.web.ts) can run under Jest.
+// polyfill IndexedDB pour que les services web qui persistent une wrapping
+// key (cf. src/services/webCryptoVault.web.ts) tournent sous Jest.
 require("fake-indexeddb/auto");
 
-// jsdom < 24 ships a partial crypto without SubtleCrypto. webcrypto from
-// node:crypto is API-compatible with the browser globals webCryptoVault
-// relies on (subtle, getRandomValues), so swap in the full implementation.
+// jsdom < 24 livre un crypto partiel sans SubtleCrypto. webcrypto de
+// node:crypto est compatible API avec les globals navigateur que
+// webCryptoVault attend (subtle, getRandomValues), on swap.
 if (!globalThis.crypto || !globalThis.crypto.subtle) {
   Object.defineProperty(globalThis, "crypto", {
     value: require("crypto").webcrypto,
@@ -16,15 +16,31 @@ if (!globalThis.crypto || !globalThis.crypto.subtle) {
   });
 }
 
-// jsdom on the Node version pinned by jest-expo doesn't expose
-// TextEncoder/TextDecoder on the test global; node:util has the same API.
+// jsdom (sur la version de Node pinned par jest-expo) n'expose pas
+// TextEncoder / TextDecoder en global de test. node:util a la meme API.
 if (typeof globalThis.TextEncoder === "undefined") {
   const util = require("util");
   globalThis.TextEncoder = util.TextEncoder;
   globalThis.TextDecoder = util.TextDecoder;
 }
 
-// react-native-safe-area-context — provide full API surface
+// jest-expo n'expose pas window.dispatchEvent par defaut. react-native-web et
+// certains hooks du theme l'appellent au mount, ce qui crashe le rendu de
+// plusieurs ecrans (Groups, etc). On stub le minimum requis.
+if (typeof globalThis.window === "undefined") {
+  globalThis.window = globalThis;
+}
+if (typeof globalThis.window.dispatchEvent !== "function") {
+  globalThis.window.dispatchEvent = () => true;
+}
+if (typeof globalThis.window.addEventListener !== "function") {
+  globalThis.window.addEventListener = () => {};
+}
+if (typeof globalThis.window.removeEventListener !== "function") {
+  globalThis.window.removeEventListener = () => {};
+}
+
+// react-native-safe-area-context : on expose l'API complete
 jest.mock("react-native-safe-area-context", () => {
   const React = require("react");
   const insets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -43,21 +59,21 @@ jest.mock("react-native-safe-area-context", () => {
   };
 });
 
-// expo-linear-gradient — default pass-through
+// expo-linear-gradient : pass-through par defaut
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }) => children,
 }));
 
-// @expo/vector-icons — render nothing
+// @expo/vector-icons : rien afficher
 jest.mock("@expo/vector-icons", () => {
   const Noop = () => null;
   return new Proxy({ __esModule: true, default: Noop }, { get: () => Noop });
 });
 
-// expo-secure-store — WHISPR-994: src/services/storage.ts now imports this
-// unconditionally (no more dynamic require fallback), so every test that
-// touches storage would crash without a stable mock at the setup level.
-jest.mock('expo-secure-store', () => ({
+// expo-secure-store : WHISPR-994 : src/services/storage.ts l'importe en
+// statique (pas de fallback require dynamique). Sans ce mock setup-level,
+// chaque test qui touche storage plante.
+jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),
   setItemAsync: jest.fn().mockResolvedValue(undefined),
   deleteItemAsync: jest.fn().mockResolvedValue(undefined),

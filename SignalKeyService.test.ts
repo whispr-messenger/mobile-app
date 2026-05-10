@@ -123,4 +123,37 @@ describe("SignalKeyService.generateKeyBundle", () => {
     // 1 identity + 1 signed-prekey + 100 one-time prekeys
     expect(mockedNacl.box.keyPair).toHaveBeenCalledTimes(102);
   });
+
+  it("derives prekey ids from CSPRNG (expo-crypto), not Math.random", async () => {
+    // les ids viennent de getRandomBytes(4), donc on doit pouvoir les piloter
+    // via le mock pour verifier que c'est bien la source utilisee.
+    const expoCrypto = jest.requireMock("expo-crypto") as {
+      getRandomBytes: jest.Mock;
+    };
+    let call = 0;
+    expoCrypto.getRandomBytes.mockImplementation((n: number) => {
+      call += 1;
+      const buf = new Uint8Array(n);
+      // octets non-zero pour eviter l'ambiguite avec un mock par defaut
+      for (let i = 0; i < n; i++) buf[i] = (call * 13 + i) & 0xff;
+      return buf;
+    });
+
+    const bundle = await SignalKeyService.generateKeyBundle();
+
+    // au moins 2 appels dedies aux ids prekey (signed + base) sur l'ensemble
+    expect(expoCrypto.getRandomBytes).toHaveBeenCalledWith(4);
+    expect(bundle.signedPreKey.keyId).toBeGreaterThan(0);
+    expect(bundle.preKeys[0].keyId).toBeGreaterThan(0);
+    // ids dans l'INT32 signe
+    expect(bundle.signedPreKey.keyId).toBeLessThan(0x80000000);
+    for (const pk of bundle.preKeys) {
+      expect(pk.keyId).toBeLessThan(0x80000000);
+    }
+
+    expoCrypto.getRandomBytes.mockReset();
+    expoCrypto.getRandomBytes.mockImplementation(
+      (n: number) => new Uint8Array(n),
+    );
+  });
 });

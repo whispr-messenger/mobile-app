@@ -50,6 +50,8 @@ type NavigationProp = StackNavigationProp<
 
 const SWIPE_BUTTON_SIZE = 52;
 const SWIPE_BUTTON_GAP = 12;
+// hauteur d'une row ConversationItem - meme valeur que ConversationsListScreen
+const ARCHIVED_ITEM_HEIGHT = 72;
 
 interface SwipeableArchivedItemProps {
   conversation: Conversation;
@@ -203,6 +205,16 @@ export const ArchivedConversationsScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: Conversation) => item.id, []);
 
+  // hauteur fixe d'une row ConversationItem (cf ConversationsListScreen)
+  const getItemLayout = useCallback(
+    (_data: ArrayLike<Conversation> | null | undefined, index: number) => ({
+      length: ARCHIVED_ITEM_HEIGHT,
+      offset: ARCHIVED_ITEM_HEIGHT * index,
+      index,
+    }),
+    [],
+  );
+
   const renderFooter = () => {
     if (!archived.loadingMore) return null;
     return (
@@ -266,6 +278,7 @@ export const ArchivedConversationsScreen: React.FC = () => {
         data={archived.items}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: insets.bottom + 32 },

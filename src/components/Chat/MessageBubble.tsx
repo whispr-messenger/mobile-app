@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { Avatar } from "./Avatar";
+import { ProfileTrigger } from "../Profile/ProfileTrigger";
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -738,7 +739,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <View style={styles.receivedRow}>
                 <View style={styles.avatarSlot}>
                   {!isConsecutive ? (
-                    <Avatar uri={safeAvatarUri} name={senderName} size={32} />
+                    <ProfileTrigger userId={message.sender_id}>
+                      <Avatar uri={safeAvatarUri} name={senderName} size={32} />
+                    </ProfileTrigger>
                   ) : null}
                 </View>
                 <View style={styles.receivedBubbleWrapper}>

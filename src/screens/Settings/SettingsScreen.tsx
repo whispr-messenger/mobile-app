@@ -3,7 +3,7 @@
  * WHISPR-133: Implement SettingsScreen with app configuration
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { storage as secureStorage } from "../../services/storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useNavigation } from "@react-navigation/native";
@@ -34,7 +35,9 @@ import {
   NotificationService,
   NotificationSettings,
 } from "../../services/NotificationService";
+import { setReadReceiptsEnabled } from "../../services/messaging/readReceiptsPref";
 import { SettingsChoiceAlert } from "./SettingsChoiceAlert";
+import { DangerConfirmModal } from "../../components/Common/DangerConfirmModal";
 import { FLOATING_TAB_BAR_RESERVED_SPACE } from "../../components/Navigation/floatingTabBarLayout";
 import {
   DEFAULT_MODERATION_MODEL,
@@ -46,8 +49,11 @@ import {
 const PRIVACY_ALERT_TITLE: Record<string, string> = {
   profilePhoto: "Photo de profil",
   firstName: "Prénom",
-  lastName: "Nom",
+  lastName: "Nom de famille",
   biography: "Biographie",
+  lastSeen: "Dernière connexion",
+  onlineStatus: "Statut en ligne",
+  groupAdd: "Permission d'ajout aux groupes",
 };
 
 const PRIVACY_VALUE_LABELS: Record<string, string> = {
@@ -90,6 +96,8 @@ export const SettingsScreen: React.FC = () => {
   const [selectedPrivacyItem, setSelectedPrivacyItem] = useState<string | null>(
     null,
   );
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // AsyncStorage keys
   const STORAGE_KEYS = {
@@ -106,6 +114,9 @@ export const SettingsScreen: React.FC = () => {
     firstName: "Everyone",
     lastName: "Contacts",
     biography: "Everyone",
+    lastSeen: "Everyone",
+    onlineStatus: "Everyone",
+    groupAdd: "Everyone",
   });
 
   // Notification settings
@@ -121,6 +132,11 @@ export const SettingsScreen: React.FC = () => {
     typingIndicator: true,
   });
 
+  // compteur de requestId pour le toggle des accuses de lecture. Si l'user
+  // toggle plusieurs fois avant que le backend reponde, seule la derniere
+  // requete a le droit de rollback - les precedentes deviennent obsoletes.
+  const readReceiptsRequestIdRef = useRef(0);
+
   // Application settings
   const [appSettings, setAppSettings] = useState({
     autoPlayMedia: true,
@@ -133,17 +149,30 @@ export const SettingsScreen: React.FC = () => {
   });
 
   /**
-   * Persist a settings category to AsyncStorage
+   * Persist a settings category to storage. The security category is routed
+   * through SecureStore (Keychain iOS / Keystore Android, encrypted vault on
+   * web) — WHISPR-1359 — so the local 2FA / biometric flags can not be
+   * tampered with by a rooted device or an unencrypted ADB backup. Other
+   * categories stay on AsyncStorage: they are UX preferences, not security
+   * boundaries.
+   *
+   * fix(settings) Le flag local biometricAuth/twoFactorAuth ne suffit PAS
+   * pour autoriser une action sensible. Toujours valider cote serveur (cf
+   * endpoint /auth/v1/2fa/status). Le flag sert juste a piloter l UI.
    */
   const persistSettings = useCallback(
     async (key: string, value: Record<string, any>) => {
       try {
+        if (key === STORAGE_KEYS.security) {
+          await secureStorage.setItem(key, JSON.stringify(value));
+          return;
+        }
         await AsyncStorage.setItem(key, JSON.stringify(value));
       } catch (error) {
         console.error("Error persisting settings:", error);
       }
     },
-    [],
+    [STORAGE_KEYS.security],
   );
 
   /**
@@ -167,6 +196,18 @@ export const SettingsScreen: React.FC = () => {
         | "everyone"
         | "contacts"
         | "nobody",
+      lastSeenVisibility: local.lastSeen.toLowerCase() as
+        | "everyone"
+        | "contacts"
+        | "nobody",
+      onlineStatusVisibility: local.onlineStatus.toLowerCase() as
+        | "everyone"
+        | "contacts"
+        | "nobody",
+      groupAddPermission: local.groupAdd.toLowerCase() as
+        | "everyone"
+        | "contacts"
+        | "nobody",
       searchVisibility: true,
       phoneNumberSearch: "everyone",
     }),
@@ -184,6 +225,9 @@ export const SettingsScreen: React.FC = () => {
       firstName: capitalize(api.firstNameVisibility),
       lastName: capitalize(api.lastNameVisibility),
       biography: capitalize(api.biographyVisibility),
+      lastSeen: capitalize(api.lastSeenVisibility),
+      onlineStatus: capitalize(api.onlineStatusVisibility),
+      groupAdd: capitalize(api.groupAddPermission),
     };
   }, []);
 
@@ -259,7 +303,36 @@ export const SettingsScreen: React.FC = () => {
   );
 
   /**
-   * Load all settings from AsyncStorage and privacy from API on mount
+   * Lit la categorie security depuis SecureStore. Si vide, regarde encore
+   * AsyncStorage pour migrer les users existants, puis purge la cle legacy.
+   */
+  const loadSecurityFromStorage = useCallback(async (): Promise<
+    string | null
+  > => {
+    try {
+      const secureRaw = await secureStorage.getItem(STORAGE_KEYS.security);
+      if (secureRaw !== null) return secureRaw;
+      const legacyRaw = await AsyncStorage.getItem(STORAGE_KEYS.security);
+      if (legacyRaw === null) return null;
+      await secureStorage.setItem(STORAGE_KEYS.security, legacyRaw);
+      await AsyncStorage.removeItem(STORAGE_KEYS.security);
+      return legacyRaw;
+    } catch {
+      return null;
+    }
+  }, [STORAGE_KEYS.security]);
+
+  /**
+   * Load all settings from storage and privacy from API on mount.
+   *
+   * fix(settings) Le flag local biometricAuth/twoFactorAuth ne suffit PAS
+   * pour autoriser une action sensible. Toujours valider cote serveur (cf
+   * endpoint /auth/v1/2fa/status). Le flag sert juste a piloter l UI.
+   *
+   * WHISPR-1359 — la categorie security est lue depuis SecureStore. Pour les
+   * users existants qui ont encore la valeur dans AsyncStorage, on migre
+   * doucement : fallback AsyncStorage si SecureStore vide, puis purge la
+   * cle legacy.
    */
   useEffect(() => {
     const loadSettings = async () => {
@@ -270,12 +343,18 @@ export const SettingsScreen: React.FC = () => {
             AsyncStorage.getItem(STORAGE_KEYS.notifications),
             AsyncStorage.getItem(STORAGE_KEYS.messaging),
             AsyncStorage.getItem(STORAGE_KEYS.app),
-            AsyncStorage.getItem(STORAGE_KEYS.security),
+            loadSecurityFromStorage(),
           ]);
 
         if (privacyJson) setPrivacySettings(JSON.parse(privacyJson));
         if (notifJson) setNotificationSettings(JSON.parse(notifJson));
-        if (msgJson) setMessagingSettings(JSON.parse(msgJson));
+        if (msgJson) {
+          const parsedMsg = JSON.parse(msgJson);
+          setMessagingSettings(parsedMsg);
+          if (typeof parsedMsg.readReceipts === "boolean") {
+            setReadReceiptsEnabled(parsedMsg.readReceipts);
+          }
+        }
         if (appJson) setAppSettings(JSON.parse(appJson));
         if (secJson) setSecuritySettings(JSON.parse(secJson));
 
@@ -289,6 +368,21 @@ export const SettingsScreen: React.FC = () => {
             STORAGE_KEYS.privacy,
             JSON.stringify(localPrivacy),
           );
+          // synchronise readReceipts depuis le backend pour coherence multi-device.
+          // Si la cle est presente on met a jour le state messaging et le mirror
+          // memoire utilise par useWebSocket.
+          if (typeof result.settings.readReceipts === "boolean") {
+            const readReceiptsValue = result.settings.readReceipts;
+            setReadReceiptsEnabled(readReceiptsValue);
+            setMessagingSettings((prev) => {
+              const updated = { ...prev, readReceipts: readReceiptsValue };
+              AsyncStorage.setItem(
+                STORAGE_KEYS.messaging,
+                JSON.stringify(updated),
+              ).catch(() => {});
+              return updated;
+            });
+          }
         }
 
         // Fetch notification settings from notification-service backend (takes precedence over local)
@@ -317,7 +411,7 @@ export const SettingsScreen: React.FC = () => {
     loadSettings();
     fetchMyRole();
 
-    if (__DEV__) {
+    if (__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") {
       getModerationModelVersion()
         .then((v) => setModerationModel(v))
         .catch(() => setModerationModel(DEFAULT_MODERATION_MODEL));
@@ -338,6 +432,55 @@ export const SettingsScreen: React.FC = () => {
         setMessagingSettings((prev) => {
           const updated = { ...prev, [key]: value };
           persistSettings(STORAGE_KEYS.messaging, updated);
+          // accuses de lecture : symetrie WhatsApp punitive. On met a jour le
+          // mirror memoire immediatement pour que useWebSocket le voie au
+          // prochain markAsRead, puis on push au backend (privacy_settings).
+          // Si le backend echoue on rollback : la coherence multi-device
+          // depend de la valeur serveur.
+          if (key === "readReceipts") {
+            setReadReceiptsEnabled(value);
+            const userService = UserService.getInstance();
+            // increment + capture du requestId : si l'user re-toggle avant que
+            // l'API reponde, ce requestId ne correspondra plus au courant et
+            // on ignore le rollback (l'user a deja change d'avis).
+            readReceiptsRequestIdRef.current += 1;
+            const requestId = readReceiptsRequestIdRef.current;
+            const previousValue = prev.readReceipts;
+            userService
+              .updatePrivacySettings({ readReceipts: value })
+              .then((result) => {
+                if (requestId !== readReceiptsRequestIdRef.current) return;
+                if (!result.success) {
+                  // rollback en memoire et en state
+                  setReadReceiptsEnabled(previousValue);
+                  setMessagingSettings((curr) => {
+                    const reverted = {
+                      ...curr,
+                      readReceipts: previousValue,
+                    };
+                    persistSettings(STORAGE_KEYS.messaging, reverted);
+                    return reverted;
+                  });
+                  Alert.alert(
+                    "Erreur",
+                    "Impossible de synchroniser ce parametre. Veuillez reessayer.",
+                  );
+                }
+              })
+              .catch(() => {
+                if (requestId !== readReceiptsRequestIdRef.current) return;
+                setReadReceiptsEnabled(previousValue);
+                setMessagingSettings((curr) => {
+                  const reverted = { ...curr, readReceipts: previousValue };
+                  persistSettings(STORAGE_KEYS.messaging, reverted);
+                  return reverted;
+                });
+                Alert.alert(
+                  "Erreur reseau",
+                  "Impossible de synchroniser ce parametre.",
+                );
+              });
+          }
           return updated;
         });
         break;
@@ -494,15 +637,27 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleDeleteAccount = () => {
-    if (Platform.OS === "web") {
-      window.alert("Fonctionnalité à venir");
-      return;
+    setShowDeleteAccountModal(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    // l'endpoint /users/me delete cote backend n'est pas encore livre,
+    // on garde un placeholder mais l'UX du typed-confirm protege la future integration
+    setDeletingAccount(true);
+    try {
+      if (Platform.OS === "web") {
+        window.alert("Fonctionnalité à venir");
+      } else {
+        Alert.alert(
+          getLocalizedText("settings.deleteAccount"),
+          "Fonctionnalité à venir",
+          [{ text: "OK" }],
+        );
+      }
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteAccountModal(false);
     }
-    Alert.alert(
-      getLocalizedText("settings.deleteAccount"),
-      "Fonctionnalité à venir",
-      [{ text: "OK" }],
-    );
   };
 
   const backgroundPresetLabel =
@@ -757,7 +912,7 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => handlePrivacyItemPress("firstName")}
           />
           <SettingItem
-            label="Nom"
+            label="Nom de famille"
             value={translatePrivacyValue(privacySettings.lastName)}
             onPress={() => handlePrivacyItemPress("lastName")}
           />
@@ -765,6 +920,23 @@ export const SettingsScreen: React.FC = () => {
             label="Biographie"
             value={translatePrivacyValue(privacySettings.biography)}
             onPress={() => handlePrivacyItemPress("biography")}
+          />
+          {/* WHISPR-1298 : 3 toggles ajoutés (lastSeen, onlineStatus,
+              groupAdd) pour couvrir les fields backend orphelins. */}
+          <SettingItem
+            label="Dernière connexion"
+            value={translatePrivacyValue(privacySettings.lastSeen)}
+            onPress={() => handlePrivacyItemPress("lastSeen")}
+          />
+          <SettingItem
+            label="Statut en ligne"
+            value={translatePrivacyValue(privacySettings.onlineStatus)}
+            onPress={() => handlePrivacyItemPress("onlineStatus")}
+          />
+          <SettingItem
+            label="Permission d'ajout aux groupes"
+            value={translatePrivacyValue(privacySettings.groupAdd)}
+            onPress={() => handlePrivacyItemPress("groupAdd")}
           />
           {/* WHISPR-1056: entry point to the BlockedUsersScreen — the
               screen was already registered in AuthNavigator but unreachable
@@ -1154,8 +1326,8 @@ export const SettingsScreen: React.FC = () => {
           )}
         </SettingSection>
 
-        {/* Developer / Debug — stripped from production bundles */}
-        {__DEV__ && (
+        {/* Developer / Debug - visible en dev local + en build preprod (jamais en prod) */}
+        {(__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") && (
           <SettingSection title="Debug" icon="bug-outline">
             <SettingItem
               label="Modèle de modération"
@@ -1264,7 +1436,7 @@ export const SettingsScreen: React.FC = () => {
         layout="auto"
       />
 
-      {__DEV__ && (
+      {(__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") && (
         <SettingsChoiceAlert
           visible={showModerationModelModal}
           onClose={() => setShowModerationModelModal(false)}
@@ -1338,6 +1510,18 @@ export const SettingsScreen: React.FC = () => {
           layout="vertical"
         />
       )}
+
+      <DangerConfirmModal
+        visible={showDeleteAccountModal}
+        title={getLocalizedText("confirm.deleteAccount.title")}
+        description={getLocalizedText("confirm.deleteAccount.description")}
+        expectedText={getLocalizedText("confirm.expectedDelete")}
+        actionLabel={getLocalizedText("confirm.deleteAccount.action")}
+        actionVariant="destructive"
+        loading={deletingAccount}
+        onCancel={() => setShowDeleteAccountModal(false)}
+        onConfirm={confirmDeleteAccount}
+      />
     </LinearGradient>
   );
 };
