@@ -1,6 +1,6 @@
 /**
  * API client pour l'inbox de notifications (WHISPR-1437).
- * Endpoint : /notifications/api/v1/inbox
+ * Endpoint : /notification/api/v1/inbox  (singulier — nginx ingress)
  */
 
 import { getApiBaseUrl } from "./apiBase";
@@ -8,7 +8,9 @@ import { TokenService } from "./TokenService";
 import type { InboxResponse, MarkReadResponse } from "../types/inbox";
 
 function getBaseUrl(): string {
-  return `${getApiBaseUrl()}/notifications/api/v1`;
+  // /notification (singulier) — cf nginx ingress notif-service PR #69.
+  // Le pluriel /notifications tombe sur le SPA fallback et retourne du HTML.
+  return `${getApiBaseUrl()}/notification/api/v1`;
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
