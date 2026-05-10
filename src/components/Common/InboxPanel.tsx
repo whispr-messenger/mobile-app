@@ -26,6 +26,7 @@ import type { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { useInboxStore } from "../../store/inboxStore";
 import { colors, withOpacity } from "../../theme/colors";
 import { Avatar } from "../Chat/Avatar";
+import { InboxItemSkeleton } from "../Chat/SkeletonLoader";
 import type {
   InboxItem,
   MentionPayload,
@@ -217,13 +218,23 @@ export const InboxPanel: React.FC<InboxPanelProps> = ({ visible, onClose }) => {
   const keyExtractor = useCallback((item: InboxItem) => item.id, []);
 
   const renderFooter = () => {
-    if (!loading) return null;
+    // chargement de page supplementaire (pagination) : spinner discret
+    if (!loading || items.length === 0) return null;
     return (
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color={colors.primary.main} />
       </View>
     );
   };
+
+  // chargement initial : afficher des skeletons plutot qu'un spinner centre
+  const renderInitialLoading = () => (
+    <View>
+      {[...Array(5)].map((_, i) => (
+        <InboxItemSkeleton key={i} />
+      ))}
+    </View>
+  );
 
   // Sur web on centre la modal, sur mobile on fait un bottom-sheet 75%
   const isWeb = Platform.OS === "web";
@@ -268,20 +279,24 @@ export const InboxPanel: React.FC<InboxPanelProps> = ({ visible, onClose }) => {
             </TouchableOpacity>
           </View>
 
-          {/* List */}
-          <FlatList
-            data={items}
-            keyExtractor={keyExtractor}
-            renderItem={renderItem}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.3}
-            ListEmptyComponent={loading ? null : <EmptyState />}
-            ListFooterComponent={renderFooter}
-            contentContainerStyle={
-              items.length === 0 ? styles.listEmpty : undefined
-            }
-            showsVerticalScrollIndicator={false}
-          />
+          {/* List — skeletons sur le premier chargement */}
+          {loading && items.length === 0 ? (
+            renderInitialLoading()
+          ) : (
+            <FlatList
+              data={items}
+              keyExtractor={keyExtractor}
+              renderItem={renderItem}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.3}
+              ListEmptyComponent={<EmptyState />}
+              ListFooterComponent={renderFooter}
+              contentContainerStyle={
+                items.length === 0 ? styles.listEmpty : undefined
+              }
+              showsVerticalScrollIndicator={false}
+            />
+          )}
 
           {/* Close button web */}
           {isWeb && (
