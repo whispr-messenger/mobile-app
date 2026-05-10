@@ -74,8 +74,10 @@ jobs:
           REF="${INPUT_REF:-$GITHUB_REF}"
           if [[ "$REF" == *"deploy/preprod"* ]]; then
             echo "url=https://whispr.devzeyu.com" >> $GITHUB_OUTPUT
+          elif [[ "$REF" == "refs/heads/main" || "$REF" == "main" ]]; then
+            echo "url=https://whispr-api.roadmvn.com" >> $GITHUB_OUTPUT
           else
-            echo "::error::No production API URL configured for ref $REF — refusing to bake an old hardcoded domain into the image."
+            echo "::error::No production API URL configured for ref $REF - refusing to bake an old hardcoded domain into the image."
             exit 1
           fi
 
