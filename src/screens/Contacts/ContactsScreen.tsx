@@ -69,6 +69,10 @@ import {
   toggleFavorite,
 } from "../../services/contacts/favorites";
 import { filterAndSortContacts } from "../../utils/contactsFilter";
+import { ContactItemSkeleton } from "../../components/Chat/SkeletonLoader";
+import { BellIcon } from "../../components/Common/BellIcon";
+import { InboxPanel } from "../../components/Common/InboxPanel";
+import { useInboxStore } from "../../store/inboxStore";
 
 declare module "@expo/vector-icons";
 
@@ -98,6 +102,14 @@ export const ContactsScreen: React.FC = () => {
   const userId = rawUserId ?? "";
   const [token, setToken] = useState<string>("");
   const lastRefreshAtRef = useRef<number>(0);
+
+  const inboxUnreadCount = useInboxStore((s) => s.unread_count);
+  const hydrateInbox = useInboxStore((s) => s.hydrate);
+  const [inboxPanelOpen, setInboxPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (userId) hydrateInbox();
+  }, [userId, hydrateInbox]);
 
   useEffect(() => {
     if (!userId) {
@@ -326,6 +338,10 @@ export const ContactsScreen: React.FC = () => {
                 <Text style={styles.headerSubtitle}>Vos contact Whispr.</Text>
               </View>
               <View style={styles.headerActions}>
+                <BellIcon
+                  unreadCount={inboxUnreadCount}
+                  onPress={() => setInboxPanelOpen(true)}
+                />
                 <TouchableOpacity
                   style={styles.headerIconButton}
                   onPress={() => navigation.navigate("MyQRCode")}
@@ -535,15 +551,8 @@ export const ContactsScreen: React.FC = () => {
         </View>
 
         {/* Contact Requests */}
-        {loadingRequests && pendingRequests.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text
-              style={[styles.emptyText, { color: themeColors.text.secondary }]}
-            >
-              Chargement
-            </Text>
-          </View>
-        ) : pendingRequests.length > 0 ? (
+        {loadingRequests &&
+        pendingRequests.length === 0 ? null : pendingRequests.length > 0 ? (
           <BlurView intensity={34} tint="dark" style={styles.requestsBlur}>
             <View style={styles.requestsContainer}>
               <Text
@@ -625,12 +634,10 @@ export const ContactsScreen: React.FC = () => {
 
         {/* Contacts List */}
         {loading && contacts.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text
-              style={[styles.emptyText, { color: themeColors.text.secondary }]}
-            >
-              Chargement
-            </Text>
+          <View style={styles.skeletonContainer}>
+            {[...Array(6)].map((_, i) => (
+              <ContactItemSkeleton key={i} />
+            ))}
           </View>
         ) : filteredContacts.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -717,6 +724,11 @@ export const ContactsScreen: React.FC = () => {
           onContactsSynced={loadContacts}
         />
       </SafeAreaView>
+
+      <InboxPanel
+        visible={inboxPanelOpen}
+        onClose={() => setInboxPanelOpen(false)}
+      />
     </LinearGradient>
   );
 };
@@ -861,6 +873,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 16,
+  },
+  skeletonContainer: {
+    flex: 1,
+    paddingTop: 8,
   },
   emptyContainer: {
     flex: 1,
