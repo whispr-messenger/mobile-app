@@ -10,6 +10,8 @@ import { MyProfileScreen } from "../screens/Profile/MyProfileScreen";
 import { UserProfileScreen } from "../screens/Profile/UserProfileScreen";
 import { SettingsScreen } from "../screens/Settings/SettingsScreen";
 import { AboutContentScreen } from "../screens/Settings/AboutContentScreen";
+import { PrivacyPolicyScreen } from "../screens/Settings/PrivacyPolicyScreen";
+import { TermsOfUseScreen } from "../screens/Settings/TermsOfUseScreen";
 import { DevicesScreen } from "../screens/Settings/DevicesScreen";
 import { SecurityKeysScreen } from "../screens/Security/SecurityKeysScreen";
 import { TwoFactorAuthScreen } from "../screens/Security/TwoFactorAuthScreen";
@@ -87,6 +89,8 @@ export type AuthStackParamList = {
   UserProfile: { userId: string };
   Settings: undefined;
   AboutContent: undefined;
+  PrivacyPolicy: undefined;
+  TermsOfUse: undefined;
   SecurityKeys: undefined;
   Devices: undefined;
   TwoFactorAuth: undefined;
@@ -342,6 +346,8 @@ export const AuthNavigator: React.FC = () => {
         }}
       />
       <Stack.Screen name="AboutContent" component={AboutContentScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="TermsOfUse" component={TermsOfUseScreen} />
       <Stack.Screen name="SecurityKeys" component={SecurityKeysScreen} />
       <Stack.Screen name="Devices" component={DevicesScreen} />
       <Stack.Screen name="TwoFactorAuth" component={TwoFactorAuthScreen} />
@@ -472,9 +478,7 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen name="AppealReview" component={AppealReviewScreen} />
       <Stack.Screen name="UserModeration" component={UserModerationScreen} />
       <Stack.Screen name="SanctionForm" component={SanctionFormScreen} />
-      {__DEV__ && (
-        <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
-      )}
+      <Stack.Screen name="ModerationTest" component={ModerationTestScreen} />
     </Stack.Navigator>
   );
 };
