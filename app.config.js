@@ -44,10 +44,6 @@ module.exports = () => ({
   extra: {
     ...base.expo.extra,
     apiBaseUrl: process.env.API_BASE_URL || 'https://whispr.devzeyu.com',
-    legalPrivacyUrl:
-      process.env.EXPO_PUBLIC_LEGAL_PRIVACY_URL || 'https://whispr.example/privacy',
-    legalTermsUrl:
-      process.env.EXPO_PUBLIC_LEGAL_TERMS_URL || 'https://whispr.example/terms',
     appVersion: '1.0.0',
     eas: {
       projectId:
