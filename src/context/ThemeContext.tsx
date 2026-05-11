@@ -835,11 +835,10 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Une modération automatique côté serveur peut également être appliquée pour protéger l'intégrité du réseau ; cela ne garantit pas une intervention humaine pour chaque signalement.",
     "about.privacyPolicy": "Politique de confidentialité",
     "about.termsOfUse": "Conditions d'utilisation",
+    "about.testImageAnalysis": "Tester l'analyse d'image",
     "about.reportContent": "Signaler un contenu",
     "about.reportComingSoon":
       "Le flux de signalement sera bientôt disponible. En attendant, utilisez le menu du message lorsque l'option sera proposée.",
-    "about.legalOpenError":
-      "Impossible d'ouvrir le lien. Vérifiez votre connexion ou l'URL configurée.",
 
     // Notifications
     "notif.success": "Succès",
@@ -1167,11 +1166,10 @@ const localizedTexts: Record<Language, Record<string, string>> = {
       "Automatic server-side moderation may also be used to protect the network; this does not guarantee human review for every report.",
     "about.privacyPolicy": "Privacy policy",
     "about.termsOfUse": "Terms of use",
+    "about.testImageAnalysis": "Test image analysis",
     "about.reportContent": "Report content",
     "about.reportComingSoon":
       "The reporting flow is coming soon. Until then, use the message menu when the option is available.",
-    "about.legalOpenError":
-      "Could not open the link. Check your connection or the configured URL.",
 
     // Notifications
     "notif.success": "Success",
