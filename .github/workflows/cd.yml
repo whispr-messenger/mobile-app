@@ -121,7 +121,7 @@ jobs:
         with:
           repository: whispr-messenger/infrastructure
           path: infrastructure
-          ref: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
+          ref: main
           token: ${{ steps.generate_token.outputs.token }}
           fetch-depth: 0
 
@@ -157,7 +157,7 @@ jobs:
           COMMIT_SHA: ${{ steps.validate_commit.outputs.commit_sha }}
           EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
-          INFRA_BRANCH: ${{ (github.event.workflow_run.head_branch == 'deploy/preprod' || github.ref == 'refs/heads/deploy/preprod') && 'deploy/preprod' || 'main' }}
+          INFRA_BRANCH: main
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
