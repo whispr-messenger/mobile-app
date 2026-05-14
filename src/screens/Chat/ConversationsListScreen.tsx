@@ -58,7 +58,6 @@ import { SwipeableConversationItem } from "../../components/Chat/SwipeableConver
 import { EmptyState } from "../../components/Chat/EmptyState";
 import { ConversationSkeleton } from "../../components/Chat/SkeletonLoader";
 import { NewConversationModal } from "../../components/Chat/NewConversationModal";
-import { useTheme } from "../../context/ThemeContext";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { colors } from "../../theme/colors";
 import Toast from "../../components/Toast/Toast";
@@ -169,9 +168,6 @@ export const ConversationsListScreen: React.FC = () => {
   const [messageSearchConvIds, setMessageSearchConvIds] = useState<Set<string>>(
     new Set(),
   );
-  const { getThemeColors } = useTheme();
-  const themeColors = getThemeColors();
-
   // Filter and sort conversations
   const filteredAndSortedConversations = useMemo(() => {
     if (!conversations || conversations.length === 0) {
