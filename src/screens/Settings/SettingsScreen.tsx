@@ -411,11 +411,9 @@ export const SettingsScreen: React.FC = () => {
     loadSettings();
     fetchMyRole();
 
-    if (__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") {
-      getModerationModelVersion()
-        .then((v) => setModerationModel(v))
-        .catch(() => setModerationModel(DEFAULT_MODERATION_MODEL));
-    }
+    getModerationModelVersion()
+      .then((v) => setModerationModel(v))
+      .catch(() => setModerationModel(DEFAULT_MODERATION_MODEL));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggle = (category: string, key: string, value: boolean) => {
@@ -1326,35 +1324,32 @@ export const SettingsScreen: React.FC = () => {
           )}
         </SettingSection>
 
-        {/* Developer / Debug - visible en dev local + en build preprod (jamais en prod) */}
-        {(__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") && (
-          <SettingSection title="Debug" icon="bug-outline">
-            <SettingItem
-              label="Modèle de modération"
-              subtitle="Bascule entre le modèle v2 (EfficientNet 9-classes) et v3 (MobileNetV3 binary, avec gate vidéo)"
-              value={
-                moderationModel === "v3"
-                  ? "v3 · MobileNetV3 binary"
-                  : "v2 · EfficientNet 9-classes"
-              }
-              onPress={() => setShowModerationModelModal(true)}
-              icon="cube-outline"
-            />
-            <SettingItem
-              label="Moderation Test"
-              subtitle="Run the on-device TFJS image gate"
-              onPress={() => navigation.navigate("ModerationTest")}
-              icon="image-outline"
-              rightComponent={
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={themeColors.text.tertiary}
-                />
-              }
-            />
-          </SettingSection>
-        )}
+        <SettingSection title="Debug" icon="bug-outline">
+          <SettingItem
+            label="Modèle de modération"
+            subtitle="Bascule entre le modèle v2 (EfficientNet 9-classes) et v3 (MobileNetV3 binary, avec gate vidéo)"
+            value={
+              moderationModel === "v3"
+                ? "v3 · MobileNetV3 binary"
+                : "v2 · EfficientNet 9-classes"
+            }
+            onPress={() => setShowModerationModelModal(true)}
+            icon="cube-outline"
+          />
+          <SettingItem
+            label="Moderation Test"
+            subtitle="Run the on-device TFJS image gate"
+            onPress={() => navigation.navigate("ModerationTest")}
+            icon="image-outline"
+            rightComponent={
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={themeColors.text.tertiary}
+              />
+            }
+          />
+        </SettingSection>
       </ScrollView>
 
       {/* Modals — alerte centrée style iOS (Application + Privacy) */}
@@ -1436,30 +1431,28 @@ export const SettingsScreen: React.FC = () => {
         layout="auto"
       />
 
-      {(__DEV__ || process.env.EXPO_PUBLIC_ENV === "preprod") && (
-        <SettingsChoiceAlert
-          visible={showModerationModelModal}
-          onClose={() => setShowModerationModelModal(false)}
-          title="Modèle de modération"
-          options={[
-            { label: "v2 · EfficientNet 9-classes", value: "v2" },
-            { label: "v3 · MobileNetV3 binary (+ vidéo)", value: "v3" },
-          ]}
-          selectedValue={moderationModel}
-          onSelect={async (value) => {
-            const next = value as ModerationModelVersion;
-            setModerationModel(next);
-            setShowModerationModelModal(false);
-            try {
-              await setModerationModelVersion(next);
-            } catch (e) {
-              console.warn("Failed to persist moderation model", e);
-            }
-          }}
-          cancelLabel={getLocalizedText("common.cancel")}
-          layout="vertical"
-        />
-      )}
+      <SettingsChoiceAlert
+        visible={showModerationModelModal}
+        onClose={() => setShowModerationModelModal(false)}
+        title="Modèle de modération"
+        options={[
+          { label: "v2 · EfficientNet 9-classes", value: "v2" },
+          { label: "v3 · MobileNetV3 binary (+ vidéo)", value: "v3" },
+        ]}
+        selectedValue={moderationModel}
+        onSelect={async (value) => {
+          const next = value as ModerationModelVersion;
+          setModerationModel(next);
+          setShowModerationModelModal(false);
+          try {
+            await setModerationModelVersion(next);
+          } catch (e) {
+            console.warn("Failed to persist moderation model", e);
+          }
+        }}
+        cancelLabel={getLocalizedText("common.cancel")}
+        layout="vertical"
+      />
 
       <SettingsChoiceAlert
         visible={showFontSizeModal}
