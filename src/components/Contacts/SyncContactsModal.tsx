@@ -383,6 +383,23 @@ export const SyncContactsModal: React.FC<SyncContactsModalProps> = ({
               >
                 Aucun de vos contacts téléphoniques n'utilise Whispr
               </Text>
+              <TouchableOpacity
+                style={[
+                  styles.closeActionButton,
+                  { borderColor: themeColors.text.secondary },
+                ]}
+                onPress={handleClose}
+                accessibilityLabel="Fermer"
+              >
+                <Text
+                  style={[
+                    styles.closeActionButtonText,
+                    { color: themeColors.text.secondary },
+                  ]}
+                >
+                  Fermer
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -500,6 +517,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: "center",
+  },
+  closeActionButton: {
+    marginTop: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  closeActionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   infoContainer: {
     paddingHorizontal: 16,

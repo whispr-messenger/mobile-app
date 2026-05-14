@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import Toast from "../components/Toast/Toast";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { navigationRef } from "../navigation/navigationRef";
 import { TokenService } from "../services/TokenService";
 import { useConversationsStore } from "../store/conversationsStore";
+import { useToastStore } from "../store/toastStore";
 import type { Message } from "../types/messaging";
 
 type RouteParams = {
@@ -26,11 +26,8 @@ export const InAppNotificationProvider: React.FC<{
 }> = ({ children }) => {
   const { isAuthenticated, userId } = useAuth();
   const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
+  const showToast = useToastStore((s) => s.show);
   const [token, setToken] = useState("");
-  const [toast, setToast] = useState({
-    visible: false,
-    message: "",
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -60,12 +57,12 @@ export const InAppNotificationProvider: React.FC<{
       if (message.sender_id === userId) return;
       if (getActiveConversationId() === message.conversation_id) return;
 
-      setToast({
-        visible: true,
-        message: "Nouveau message",
-      });
+      // showToast écrit dans le store global — le Toast est rendu au niveau
+      // root dans App.jsx, hors de tout conteneur overflow:hidden, pour
+      // garantir la visibilité en PWA web.
+      showToast("Nouveau message", "info");
     },
-    [applyNewMessage, userId],
+    [applyNewMessage, showToast, userId],
   );
 
   useWebSocket({
@@ -74,17 +71,7 @@ export const InAppNotificationProvider: React.FC<{
     onNewMessage: handleNewMessage,
   });
 
-  return (
-    <>
-      {children}
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type="info"
-        onHide={() => setToast((current) => ({ ...current, visible: false }))}
-      />
-    </>
-  );
+  return <>{children}</>;
 };
 
 export default InAppNotificationProvider;
