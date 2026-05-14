@@ -93,7 +93,6 @@ export const ConversationsListScreen: React.FC = () => {
   const applyConversationSummaries = useConversationsStore(
     (s) => s.applyConversationSummaries,
   );
-  const applyNewMessage = useConversationsStore((s) => s.applyNewMessage);
   const applyMessageUpdated = useConversationsStore(
     (s) => s.applyMessageUpdated,
   );
@@ -224,10 +223,6 @@ export const ConversationsListScreen: React.FC = () => {
     {
       userId,
       token,
-      onNewMessage: (message: Message) => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        applyNewMessage(message, userId);
-      },
       onMessageUpdated: (message: Message) => {
         applyMessageUpdated(message);
       },

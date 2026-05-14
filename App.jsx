@@ -25,6 +25,7 @@ import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
 import { MiniProfileCardHost } from "./src/components/Profile";
+import { InAppNotificationProvider } from "./src/providers/InAppNotificationProvider";
 import { hydrateReadReceiptsPref } from "./src/services/messaging/readReceiptsPref";
 import { startSignalKeyReplenisher } from "./src/services/signalKeyReplenisher";
 
@@ -63,27 +64,29 @@ function AppShell() {
         onReady={syncCurrentRouteName}
         onStateChange={syncCurrentRouteName}
       >
-        <View style={styles.appRoot}>
-          {settings.backgroundPreset === "custom" &&
-          settings.customBackgroundUri ? (
-            <ImageBackground
-              key={`${settings.customBackgroundUri}:${settings.customBackgroundVersion ?? 0}`}
-              source={{ uri: settings.customBackgroundUri }}
-              resizeMode="cover"
-              style={StyleSheet.absoluteFill}
-              imageStyle={styles.customBackgroundImage}
-            />
-          ) : null}
-          <View
-            style={styles.appContent}
-            accessibilityLabel={`app-background-${settings.backgroundPreset}`}
-          >
-            <AuthNavigator />
+        <InAppNotificationProvider>
+          <View style={styles.appRoot}>
+            {settings.backgroundPreset === "custom" &&
+            settings.customBackgroundUri ? (
+              <ImageBackground
+                key={`${settings.customBackgroundUri}:${settings.customBackgroundVersion ?? 0}`}
+                source={{ uri: settings.customBackgroundUri }}
+                resizeMode="cover"
+                style={StyleSheet.absoluteFill}
+                imageStyle={styles.customBackgroundImage}
+              />
+            ) : null}
+            <View
+              style={styles.appContent}
+              accessibilityLabel={`app-background-${settings.backgroundPreset}`}
+            >
+              <AuthNavigator />
+            </View>
           </View>
-        </View>
-        <BottomTabBar currentRouteName={currentRouteName} />
-        <MiniProfileCardHost />
-        <StatusBar style="light" />
+          <BottomTabBar currentRouteName={currentRouteName} />
+          <MiniProfileCardHost />
+          <StatusBar style="light" />
+        </InAppNotificationProvider>
       </NavigationContainer>
     </AuthProvider>
   );
