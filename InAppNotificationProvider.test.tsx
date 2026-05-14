@@ -43,10 +43,11 @@ jest.mock("./src/navigation/navigationRef", () => ({
   },
 }));
 
-jest.mock("./src/components/Toast/Toast", () => (props: any) => {
-  const { Text } = require("react-native");
-  return props.visible ? <Text>{props.message}</Text> : null;
-});
+const mockShowToast = jest.fn();
+jest.mock("./src/store/toastStore", () => ({
+  useToastStore: (selector: any) =>
+    selector({ show: mockShowToast, hide: jest.fn(), visible: false, message: "", type: "info" }),
+}));
 
 const { Text } = require("react-native");
 
@@ -66,6 +67,7 @@ describe("InAppNotificationProvider", () => {
   beforeEach(() => {
     capturedOptions = undefined;
     mockApplyNewMessage.mockClear();
+    mockShowToast.mockClear();
     mockGetAccessToken.mockReset();
     mockGetAccessToken.mockResolvedValue("token-1");
     mockCurrentRoute.mockReset();
@@ -86,7 +88,7 @@ describe("InAppNotificationProvider", () => {
     });
 
     expect(mockApplyNewMessage).toHaveBeenCalledWith(incomingMessage, "user-1");
-    expect(screen.getByText("Nouveau message")).toBeTruthy();
+    expect(mockShowToast).toHaveBeenCalledWith("Nouveau message", "info");
   });
 
   it("updates conversations but hides the toast for the active chat", async () => {
@@ -95,7 +97,7 @@ describe("InAppNotificationProvider", () => {
       params: { conversationId: "conv-1" },
     });
 
-    const screen = render(
+    render(
       <InAppNotificationProvider>
         <Text>App</Text>
       </InAppNotificationProvider>,
@@ -108,7 +110,7 @@ describe("InAppNotificationProvider", () => {
     });
 
     expect(mockApplyNewMessage).toHaveBeenCalledWith(incomingMessage, "user-1");
-    expect(screen.queryByText("Nouveau message")).toBeNull();
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 
   it("updates conversations but hides the toast for messages sent by the current user", async () => {
@@ -118,7 +120,7 @@ describe("InAppNotificationProvider", () => {
       sender_id: "user-1",
     };
 
-    const screen = render(
+    render(
       <InAppNotificationProvider>
         <Text>App</Text>
       </InAppNotificationProvider>,
@@ -131,6 +133,6 @@ describe("InAppNotificationProvider", () => {
     });
 
     expect(mockApplyNewMessage).toHaveBeenCalledWith(ownMessage, "user-1");
-    expect(screen.queryByText("Nouveau message")).toBeNull();
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 });
