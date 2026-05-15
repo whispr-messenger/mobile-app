@@ -541,12 +541,12 @@ describe("conversationsStore — applyConversationSummaries", () => {
     // Simule le scenario : conv archivée en mémoire, WS summary dit false
     // (après unarchive). Sans le fix, `|| existing.is_archived` re-archivait.
     act(() => {
-      useConversationsStore.getState().applyConversationUpdate(
-        makeConv("c-1", { is_archived: true }),
-      );
-      useConversationsStore.getState().applyConversationSummaries([
-        makeConv("c-1", { is_archived: false }),
-      ]);
+      useConversationsStore
+        .getState()
+        .applyConversationUpdate(makeConv("c-1", { is_archived: true }));
+      useConversationsStore
+        .getState()
+        .applyConversationSummaries([makeConv("c-1", { is_archived: false })]);
     });
 
     const conv = useConversationsStore
