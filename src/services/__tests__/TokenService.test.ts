@@ -1,4 +1,4 @@
-jest.mock("./src/services/storage", () => ({
+jest.mock("../storage", () => ({
   storage: {
     getItem: jest.fn(),
     setItem: jest.fn(),
@@ -6,9 +6,9 @@ jest.mock("./src/services/storage", () => ({
   },
 }));
 
-import { TokenService } from "./src/services/TokenService";
-import { storage } from "./src/services/storage";
-import { makeJwt, makeExpiredJwt } from "./src/__test-utils__/fixtures";
+import { TokenService } from "../TokenService";
+import { storage } from "../storage";
+import { makeJwt, makeExpiredJwt } from "../../__test-utils__/fixtures";
 
 const mockedStorage = storage as unknown as {
   getItem: jest.Mock;

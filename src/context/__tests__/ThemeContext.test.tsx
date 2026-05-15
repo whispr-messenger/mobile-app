@@ -10,7 +10,7 @@ import {
   shouldApplyRemoteVisualPreferences,
   shouldSyncVisualPreferences,
   type GlobalSettings,
-} from "./src/context/ThemeContext";
+} from "../ThemeContext";
 
 const LIGHT_BG = "#FFFFFF";
 const DARK_BG = "#0B1124";

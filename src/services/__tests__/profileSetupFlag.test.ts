@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { profileSetupFlag } from "./src/services/profileSetupFlag";
+import { profileSetupFlag } from "../profileSetupFlag";
 
 describe("profileSetupFlag", () => {
   beforeEach(async () => {

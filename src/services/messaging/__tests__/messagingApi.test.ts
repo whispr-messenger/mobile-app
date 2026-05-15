@@ -1,31 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-jest.mock("./src/services/TokenService", () =>
-  require("./src/__test-utils__/mockFactories").makeTokenServiceMock(),
+jest.mock("../../TokenService", () =>
+  require("../../../__test-utils__/mockFactories").makeTokenServiceMock(),
 );
-jest.mock("./src/services/AuthService", () =>
-  require("./src/__test-utils__/mockFactories").makeAuthServiceMock(),
+jest.mock("../../AuthService", () =>
+  require("../../../__test-utils__/mockFactories").makeAuthServiceMock(),
 );
-jest.mock("./src/services/apiBase", () =>
-  require("./src/__test-utils__/mockFactories").makeApiBaseMock(
+jest.mock("../../apiBase", () =>
+  require("../../../__test-utils__/mockFactories").makeApiBaseMock(
     "https://api.test",
   ),
 );
-jest.mock("./src/utils/logger", () =>
-  require("./src/__test-utils__/mockFactories").makeLoggerMock(),
+jest.mock("../../../utils/logger", () =>
+  require("../../../__test-utils__/mockFactories").makeLoggerMock(),
 );
 
 import {
   messagingAPI,
   mapBackendAttachment,
   invalidateUserInfoCache,
-} from "./src/services/messaging/api";
-import { TokenService } from "./src/services/TokenService";
-import { AuthService } from "./src/services/AuthService";
+} from "../api";
+import { TokenService } from "../../TokenService";
+import { AuthService } from "../../AuthService";
 import {
   installFetchMock,
   mockResponse,
-} from "./src/__test-utils__/mockFactories";
+} from "../../../__test-utils__/mockFactories";
 
 const mockedToken = TokenService as any;
 const mockedAuth = AuthService as any;

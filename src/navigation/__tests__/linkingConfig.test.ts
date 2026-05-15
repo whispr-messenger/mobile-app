@@ -6,10 +6,7 @@
  * drop a screen or change a URL path.
  */
 
-import {
-  DEEP_LINK_PREFIXES,
-  linkingConfig,
-} from "./src/navigation/linkingConfig";
+import { DEEP_LINK_PREFIXES, linkingConfig } from "../linkingConfig";
 
 describe("linkingConfig", () => {
   it("exposes the whispr:// scheme", () => {

@@ -9,7 +9,7 @@ jest.mock("livekit-client", () => ({
   Track: { Source: { Camera: "camera" } },
 }));
 
-import { CallParticipantTile } from "./src/components/Calls/CallParticipantTile";
+import { CallParticipantTile } from "../CallParticipantTile";
 
 const makeParticipant = (opts: { identity: string; hasVideo?: boolean }) => ({
   identity: opts.identity,

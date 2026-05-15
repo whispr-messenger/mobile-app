@@ -17,7 +17,7 @@ jest.mock("expo-haptics", () => ({
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       primary: "#6200ee",
@@ -26,7 +26,7 @@ jest.mock("./src/context/ThemeContext", () => ({
   }),
 }));
 
-import { AttachmentSheet } from "./src/components/Chat/AttachmentSheet";
+import { AttachmentSheet } from "../AttachmentSheet";
 
 describe("AttachmentSheet", () => {
   it("renders nothing when not visible", () => {

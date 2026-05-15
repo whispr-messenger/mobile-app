@@ -5,7 +5,7 @@
 import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
 
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     background: { dark: "#000" },
     text: { light: "#fff" },
@@ -23,7 +23,7 @@ const mockGetLocalizedText = jest.fn((key: string) => {
   return dict[key] ?? key;
 });
 
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       text: { primary: "#fff", secondary: "#aaa", tertiary: "#888" },
@@ -32,7 +32,7 @@ jest.mock("./src/context/ThemeContext", () => ({
   }),
 }));
 
-import { DangerConfirmModal } from "./src/components/Common/DangerConfirmModal";
+import { DangerConfirmModal } from "../DangerConfirmModal";
 
 const baseProps = {
   visible: true,

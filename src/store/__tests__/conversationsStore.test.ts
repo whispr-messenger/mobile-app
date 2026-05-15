@@ -9,7 +9,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   removeItem: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock("./src/services/messaging/api", () => ({
+jest.mock("../../services/messaging/api", () => ({
   messagingAPI: {
     getConversations: jest.fn().mockResolvedValue([]),
     getConversation: jest.fn().mockResolvedValue(null),
@@ -33,28 +33,28 @@ jest.mock("./src/services/messaging/api", () => ({
   },
 }));
 
-jest.mock("./src/services/messaging/cache", () => ({
+jest.mock("../../services/messaging/cache", () => ({
   cacheService: {
     getConversations: jest.fn().mockResolvedValue(null),
     saveConversations: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../../services/TokenService", () => ({
   TokenService: {
     getAccessToken: jest.fn().mockResolvedValue(null),
     decodeAccessToken: jest.fn().mockReturnValue(null),
   },
 }));
 
-jest.mock("./src/services/NotificationService", () => ({
+jest.mock("../../services/NotificationService", () => ({
   NotificationService: {
     muteConversation: jest.fn().mockResolvedValue(undefined),
     unmuteConversation: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
-jest.mock("./src/utils/logger", () => ({
+jest.mock("../../utils/logger", () => ({
   logger: {
     warn: jest.fn(),
     error: jest.fn(),
@@ -63,7 +63,7 @@ jest.mock("./src/utils/logger", () => ({
   },
 }));
 
-import { useConversationsStore } from "./src/store/conversationsStore";
+import { useConversationsStore } from "../conversationsStore";
 import { act } from "@testing-library/react-native";
 
 beforeEach(() => {
@@ -242,10 +242,10 @@ describe("conversationsStore — applyNewMessage unread_count (WHISPR-1050)", ()
 // Helpers shared across the rest of the suite
 // ---------------------------------------------------------------------------
 
-import { messagingAPI } from "./src/services/messaging/api";
-import { cacheService } from "./src/services/messaging/cache";
-import { TokenService } from "./src/services/TokenService";
-import { NotificationService } from "./src/services/NotificationService";
+import { messagingAPI } from "../../services/messaging/api";
+import { cacheService } from "../../services/messaging/cache";
+import { TokenService } from "../../services/TokenService";
+import { NotificationService } from "../../services/NotificationService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1567,7 +1567,7 @@ describe("conversationsStore — applyMessageUnread (WHISPR-1302)", () => {
 
 describe("conversationsStore — markAsUnread API call (WHISPR-1302)", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { messagingAPI } = require("./src/services/messaging/api") as {
+  const { messagingAPI } = require("../../services/messaging/api") as {
     messagingAPI: { markMessageAsUnread: jest.Mock };
   };
 

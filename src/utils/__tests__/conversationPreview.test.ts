@@ -1,4 +1,4 @@
-import { buildConversationPreviewSnippet } from "./conversationPreview";
+import { buildConversationPreviewSnippet } from "../conversationPreview";
 
 describe("buildConversationPreviewSnippet", () => {
   const baseConversation = {

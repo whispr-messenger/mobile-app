@@ -4,13 +4,13 @@ import {
   makeTokenPair,
   makeDeviceInfo,
   makeSignalKeyBundle,
-} from "./src/__test-utils__/fixtures";
+} from "../../__test-utils__/fixtures";
 import {
   mockResponse,
   installFetchMock,
-} from "./src/__test-utils__/mockFactories";
+} from "../../__test-utils__/mockFactories";
 
-type AuthServiceType = typeof import("./src/services/AuthService").AuthService;
+type AuthServiceType = typeof import("../AuthService").AuthService;
 
 let AuthService: AuthServiceType;
 let mockedToken: any;
@@ -21,32 +21,32 @@ let mockFetch: jest.Mock;
 
 beforeEach(() => {
   jest.resetModules();
-  jest.doMock("./src/services/TokenService", () =>
-    require("./src/__test-utils__/mockFactories").makeTokenServiceMock(),
+  jest.doMock("../TokenService", () =>
+    require("../../__test-utils__/mockFactories").makeTokenServiceMock(),
   );
-  jest.doMock("./src/services/DeviceService", () =>
-    require("./src/__test-utils__/mockFactories").makeDeviceServiceMock(),
+  jest.doMock("../DeviceService", () =>
+    require("../../__test-utils__/mockFactories").makeDeviceServiceMock(),
   );
-  jest.doMock("./src/services/SignalKeyService", () =>
-    require("./src/__test-utils__/mockFactories").makeSignalKeyServiceMock(),
+  jest.doMock("../SignalKeyService", () =>
+    require("../../__test-utils__/mockFactories").makeSignalKeyServiceMock(),
   );
-  jest.doMock("./src/services/NotificationService", () =>
-    require("./src/__test-utils__/mockFactories").makeNotificationServiceMock(),
+  jest.doMock("../NotificationService", () =>
+    require("../../__test-utils__/mockFactories").makeNotificationServiceMock(),
   );
-  jest.doMock("./src/services/sessionEvents", () =>
-    require("./src/__test-utils__/mockFactories").makeSessionEventsMock(),
+  jest.doMock("../sessionEvents", () =>
+    require("../../__test-utils__/mockFactories").makeSessionEventsMock(),
   );
-  jest.doMock("./src/services/apiBase", () =>
-    require("./src/__test-utils__/mockFactories").makeApiBaseMock(
+  jest.doMock("../apiBase", () =>
+    require("../../__test-utils__/mockFactories").makeApiBaseMock(
       "https://api.test",
     ),
   );
 
-  AuthService = require("./src/services/AuthService").AuthService;
-  mockedToken = require("./src/services/TokenService").TokenService;
-  mockedDevice = require("./src/services/DeviceService").DeviceService;
-  mockedSignal = require("./src/services/SignalKeyService").SignalKeyService;
-  mockedEmitSessionExpired = require("./src/services/sessionEvents")
+  AuthService = require("../AuthService").AuthService;
+  mockedToken = require("../TokenService").TokenService;
+  mockedDevice = require("../DeviceService").DeviceService;
+  mockedSignal = require("../SignalKeyService").SignalKeyService;
+  mockedEmitSessionExpired = require("../sessionEvents")
     .emitSessionExpired as jest.Mock;
 
   mockedToken.decodeAccessToken.mockReturnValue({
@@ -351,7 +351,7 @@ describe("AuthService.logout", () => {
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
 
     const order: string[] = [];
-    const mockedNotif = require("./src/services/NotificationService")
+    const mockedNotif = require("../NotificationService")
       .NotificationService as any;
     mockedNotif.unregisterDevice.mockImplementation(async () => {
       await new Promise((r) => setTimeout(r, 10));
@@ -374,7 +374,7 @@ describe("AuthService.logout", () => {
     mockedToken.getAccessToken.mockResolvedValue("at");
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
 
-    const mockedNotif = require("./src/services/NotificationService")
+    const mockedNotif = require("../NotificationService")
       .NotificationService as any;
     // Hang forever — simulates a stalled connection.
     mockedNotif.unregisterDevice.mockImplementation(

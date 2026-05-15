@@ -1,7 +1,7 @@
 import React from "react";
 import { Platform, StyleSheet } from "react-native";
 import { render, waitFor } from "@testing-library/react-native";
-import { SettingsScreen } from "./src/screens/Settings/SettingsScreen";
+import { SettingsScreen } from "../SettingsScreen";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -31,7 +31,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   multiSet: jest.fn().mockResolvedValue(null),
   multiRemove: jest.fn().mockResolvedValue(null),
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     settings: { theme: "dark", language: "fr", fontSize: "medium" },
     updateSettings: jest.fn().mockResolvedValue(undefined),
@@ -48,7 +48,7 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/context/AuthContext", () => ({
+jest.mock("../../../context/AuthContext", () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isLoading: false,
@@ -58,7 +58,7 @@ jest.mock("./src/context/AuthContext", () => ({
     signOut: mockSignOut,
   }),
 }));
-jest.mock("./src/services/UserService", () => ({
+jest.mock("../../../services/UserService", () => ({
   UserService: {
     getInstance: () => ({
       getPrivacySettings: jest.fn().mockResolvedValue({ success: false }),
@@ -66,13 +66,13 @@ jest.mock("./src/services/UserService", () => ({
     }),
   },
 }));
-jest.mock("./src/services/NotificationService", () => ({
+jest.mock("../../../services/NotificationService", () => ({
   NotificationService: {
     getSettings: jest.fn().mockRejectedValue(new Error("not found")),
     updateSettings: jest.fn().mockResolvedValue({}),
   },
 }));
-jest.mock("./src/services/moderation", () => ({
+jest.mock("../../../services/moderation", () => ({
   DEFAULT_MODERATION_MODEL: "v2",
   getModerationModelVersion: jest.fn().mockResolvedValue("v2"),
   setModerationModelVersion: jest.fn().mockResolvedValue(undefined),
@@ -80,7 +80,7 @@ jest.mock("./src/services/moderation", () => ({
 // WHISPR-1359 — la categorie security est lue/ecrite via le wrapper
 // SecureStore. Mock in-memory pour tester sans toucher au natif.
 const secureStoreBackend: Record<string, string> = {};
-jest.mock("./src/services/storage", () => ({
+jest.mock("../../../services/storage", () => ({
   storage: {
     getItem: jest.fn(async (key: string) => secureStoreBackend[key] ?? null),
     setItem: jest.fn(async (key: string, value: string) => {
@@ -172,7 +172,7 @@ describe("SettingsScreen", () => {
 
   it("reads security settings from SecureStore on mount (WHISPR-1359)", async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { storage: secureStorageMock } = require("./src/services/storage");
+    const { storage: secureStorageMock } = require("../../../services/storage");
     secureStoreBackend["@whispr_settings_security"] = JSON.stringify({
       twoFactorAuth: true,
       biometricAuth: true,
@@ -190,7 +190,7 @@ describe("SettingsScreen", () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const AsyncStorage = require("@react-native-async-storage/async-storage");
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { storage: secureStorageMock } = require("./src/services/storage");
+    const { storage: secureStorageMock } = require("../../../services/storage");
     const legacyValue = JSON.stringify({
       twoFactorAuth: true,
       biometricAuth: false,

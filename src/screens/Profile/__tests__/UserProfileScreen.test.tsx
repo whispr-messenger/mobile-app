@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import { UserProfileScreen } from "./src/screens/Profile/UserProfileScreen";
+import { UserProfileScreen } from "../UserProfileScreen";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -24,10 +24,10 @@ jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/components/Chat/Avatar", () => ({
+jest.mock("../../../components/Chat/Avatar", () => ({
   Avatar: () => null,
 }));
-jest.mock("./src/services", () => {
+jest.mock("../../../services", () => {
   const singleton = {
     getProfile: jest.fn(),
     getUserProfile: jest.fn().mockResolvedValue({
@@ -44,7 +44,7 @@ jest.mock("./src/services", () => {
   };
   return { UserService: { getInstance: () => singleton } };
 });
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     background: {
       gradient: { app: ["#000", "#111"] },
@@ -64,7 +64,7 @@ jest.mock("./src/theme/colors", () => ({
   },
   withOpacity: (c: string) => c,
 }));
-jest.mock("./src/theme", () => ({
+jest.mock("../../../theme", () => ({
   colors: {
     text: {
       light: "#fff",
@@ -94,7 +94,7 @@ describe("UserProfileScreen", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("calls getUserProfile with the route userId", async () => {
-    const services = require("./src/services") as {
+    const services = require("../../../services") as {
       UserService: {
         getInstance: () => { getUserProfile: jest.Mock };
       };
@@ -124,7 +124,7 @@ describe("UserProfileScreen", () => {
   });
 
   it("never calls updateProfile", async () => {
-    const services = require("./src/services") as {
+    const services = require("../../../services") as {
       UserService: {
         getInstance: () => { updateProfile: jest.Mock };
       };

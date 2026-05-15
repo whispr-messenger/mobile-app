@@ -12,8 +12,8 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   }),
 }));
 
-import { cacheService } from "./src/services/messaging/cache";
-import type { Conversation } from "./src/types/messaging";
+import { cacheService } from "../cache";
+import type { Conversation } from "../../../types/messaging";
 
 const makeConversation = (id: string): Conversation =>
   ({

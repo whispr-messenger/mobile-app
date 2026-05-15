@@ -10,10 +10,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   }),
 }));
 
-import {
-  getFavoriteIds,
-  toggleFavorite,
-} from "./src/services/contacts/favorites";
+import { getFavoriteIds, toggleFavorite } from "../favorites";
 
 beforeEach(() => {
   for (const k of Object.keys(storage)) delete storage[k];

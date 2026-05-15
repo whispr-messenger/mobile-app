@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "@testing-library/react-native";
-import { FormattedText } from "./src/utils/textFormatter";
+import { FormattedText } from "../textFormatter";
 
 const flatten = (tree: unknown): string => JSON.stringify(tree);
 

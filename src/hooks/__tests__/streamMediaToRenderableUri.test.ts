@@ -21,7 +21,7 @@ import {
   probeMediaUrlThrottled,
   streamMediaToRenderableUri,
   streamMediaToRenderableUriThrottled,
-} from "./src/hooks/useResolvedMediaUrl";
+} from "../useResolvedMediaUrl";
 
 // The wrapper calls the inner function which on web hits URL.createObjectURL.
 // Make Blob round-trippable through that path in jsdom.

@@ -1,4 +1,4 @@
-import { useMiniProfileCardStore } from "./src/store/miniProfileCardStore";
+import { useMiniProfileCardStore } from "../miniProfileCardStore";
 
 beforeEach(() => {
   useMiniProfileCardStore.getState().close();

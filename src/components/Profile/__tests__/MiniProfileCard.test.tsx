@@ -1,11 +1,11 @@
 import React from "react";
 import { render, waitFor, act, fireEvent } from "@testing-library/react-native";
-import { MiniProfileCard } from "./src/components/Profile/MiniProfileCard";
-import { clearCache } from "./src/services/profile/miniProfileCache";
-import { clearRelationCache } from "./src/services/profile/miniRelationCache";
+import { MiniProfileCard } from "../MiniProfileCard";
+import { clearCache } from "../../../services/profile/miniProfileCache";
+import { clearRelationCache } from "../../../services/profile/miniRelationCache";
 
 const mockGetUserProfile = jest.fn();
-jest.mock("./src/services/UserService", () => ({
+jest.mock("../../../services/UserService", () => ({
   UserService: {
     getInstance: () => ({
       getUserProfile: (...args: unknown[]) => mockGetUserProfile(...args),
@@ -17,7 +17,7 @@ const mockGetBlockedUsers = jest.fn();
 const mockGetContacts = jest.fn();
 const mockBlockUser = jest.fn();
 const mockUnblockUser = jest.fn();
-jest.mock("./src/services/contacts/api", () => ({
+jest.mock("../../../services/contacts/api", () => ({
   contactsAPI: {
     getBlockedUsers: () => mockGetBlockedUsers(),
     getContacts: () => mockGetContacts(),

@@ -3,7 +3,7 @@ jest.mock("expo-clipboard", () => ({
 }));
 
 import * as Clipboard from "expo-clipboard";
-import { copyToClipboard } from "./src/utils/clipboard";
+import { copyToClipboard } from "../clipboard";
 
 const mockedSetString = Clipboard.setStringAsync as jest.MockedFunction<
   typeof Clipboard.setStringAsync

@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import { TwoFactorSetupScreen } from "./src/screens/Security/TwoFactorSetupScreen";
+import { TwoFactorSetupScreen } from "../TwoFactorSetupScreen";
 
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
@@ -16,7 +16,7 @@ jest.mock("expo-haptics", () => ({
   ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
   NotificationFeedbackType: { Success: "success" },
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -31,8 +31,8 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/components/Toast/Toast", () => () => null);
-jest.mock("./src/services/TwoFactorService", () => ({
+jest.mock("../../../components/Toast/Toast", () => () => null);
+jest.mock("../../../services/TwoFactorService", () => ({
   TwoFactorService: {
     setup: jest.fn().mockResolvedValue({
       secret: "JBSWY3DPEHPK3PXP",
@@ -48,7 +48,7 @@ jest.mock("react-native-svg", () => ({
   Path: () => null,
   Svg: () => null,
 }));
-jest.mock("./src/utils/clipboard", () => ({
+jest.mock("../../../utils/clipboard", () => ({
   copyToClipboard: jest.fn(),
 }));
 
@@ -59,7 +59,7 @@ describe("TwoFactorSetupScreen", () => {
   });
 
   it("calls TwoFactorService.setup on mount", async () => {
-    const { TwoFactorService } = require("./src/services/TwoFactorService");
+    const { TwoFactorService } = require("../../../services/TwoFactorService");
     render(<TwoFactorSetupScreen />);
     await waitFor(() => {
       expect(TwoFactorService.setup).toHaveBeenCalled();

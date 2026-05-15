@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
-import { WelcomeScreen } from "./src/screens/Auth/WelcomeScreen";
+import { WelcomeScreen } from "../WelcomeScreen";
 
 const mockNavigate = jest.fn();
 jest.mock("@react-navigation/native", () => ({
@@ -10,7 +10,7 @@ jest.mock("@react-navigation/native", () => ({
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -29,7 +29,7 @@ jest.mock("./src/context/ThemeContext", () => ({
     updateSettings: jest.fn(),
   }),
 }));
-jest.mock("./src/components", () => ({
+jest.mock("../../../components", () => ({
   Button: ({ title, onPress }: any) => {
     const { TouchableOpacity, Text } = require("react-native");
     return (
@@ -40,7 +40,7 @@ jest.mock("./src/components", () => ({
   },
   Logo: () => null,
 }));
-jest.mock("./src/theme", () => ({
+jest.mock("../../../theme", () => ({
   colors: { text: { light: "#fff" }, primary: { main: "#6200ee" } },
   spacing: { xl: 24, xs: 4, md: 16, massive: 48 },
   typography: { fontSize: { xxxl: 32, md: 16 } },

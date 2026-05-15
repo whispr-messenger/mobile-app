@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import { GroupManagementScreen } from "./src/screens/Groups/GroupManagementScreen";
+import { GroupManagementScreen } from "../GroupManagementScreen";
 
 jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
@@ -59,7 +59,7 @@ jest.mock("react-native-reanimated", () => {
     createAnimatedComponent: (c: any) => c,
   };
 });
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -74,7 +74,7 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/context/AuthContext", () => ({
+jest.mock("../../../context/AuthContext", () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isLoading: false,
@@ -84,11 +84,11 @@ jest.mock("./src/context/AuthContext", () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock("./src/components/Chat/Avatar", () => ({ Avatar: () => null }));
-jest.mock("./src/utils/logger", () => ({
+jest.mock("../../../components/Chat/Avatar", () => ({ Avatar: () => null }));
+jest.mock("../../../utils/logger", () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
-jest.mock("./src/services/groups/api", () => ({
+jest.mock("../../../services/groups/api", () => ({
   groupsAPI: {
     getGroupDetails: jest.fn().mockResolvedValue({
       id: "g1",
@@ -105,19 +105,19 @@ jest.mock("./src/services/groups/api", () => ({
     deleteGroup: jest.fn().mockResolvedValue({}),
   },
 }));
-jest.mock("./src/services/contacts/api", () => ({
+jest.mock("../../../services/contacts/api", () => ({
   contactsAPI: {
     getContacts: jest.fn().mockResolvedValue({ contacts: [] }),
   },
 }));
-jest.mock("./src/services/MediaService", () => ({
+jest.mock("../../../services/MediaService", () => ({
   MediaService: {
     uploadMedia: jest
       .fn()
       .mockResolvedValue({ id: "media-1", url: "https://cdn.test/img.jpg" }),
   },
 }));
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     background: { gradient: { app: ["#000", "#111"] }, dark: "#000" },
     text: { light: "#fff" },
@@ -127,7 +127,7 @@ jest.mock("./src/theme/colors", () => ({
   },
   withOpacity: (c: string) => c,
 }));
-jest.mock("./src/theme/typography", () => ({
+jest.mock("../../../theme/typography", () => ({
   typography: {
     fontSize: { base: 14, sm: 12, lg: 18, xl: 22, xs: 10, xxxl: 32 },
     fontWeight: { bold: "700", medium: "500", semiBold: "600", normal: "400" },

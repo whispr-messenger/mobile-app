@@ -7,13 +7,13 @@ import { render, fireEvent, waitFor } from "@testing-library/react-native";
 
 const mockDeleteContact = jest.fn();
 
-jest.mock("./src/services/contacts/api", () => ({
+jest.mock("../../../services/contacts/api", () => ({
   contactsAPI: {
     deleteContact: (...args: unknown[]) => mockDeleteContact(...args),
   },
 }));
 
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     background: { dark: "#000" },
     text: { light: "#fff" },
@@ -22,7 +22,7 @@ jest.mock("./src/theme/colors", () => ({
   withOpacity: (c: string) => c,
 }));
 
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       text: { primary: "#fff", secondary: "#aaa", tertiary: "#888" },
@@ -42,7 +42,7 @@ jest.mock("./src/context/ThemeContext", () => ({
   }),
 }));
 
-import { DeleteContactModal } from "./src/components/Contacts/DeleteContactModal";
+import { DeleteContactModal } from "../DeleteContactModal";
 
 const baseContact = {
   id: "rel-1",

@@ -1,12 +1,12 @@
 import { Alert } from "react-native";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import { ProfileSetupScreen } from "./src/screens/Auth/ProfileSetupScreen";
-import { profileSetupFlag } from "./src/services/profileSetupFlag";
+import { ProfileSetupScreen } from "../ProfileSetupScreen";
+import { profileSetupFlag } from "../../../services/profileSetupFlag";
 
 const mockReset = jest.fn();
 const mockNavigate = jest.fn();
 
-jest.mock("./src/services/profileSetupFlag", () => ({
+jest.mock("../../../services/profileSetupFlag", () => ({
   profileSetupFlag: {
     get: jest.fn().mockResolvedValue(null),
     markPending: jest.fn().mockResolvedValue(undefined),
@@ -32,7 +32,7 @@ jest.mock("expo-image-picker", () => ({
     .mockResolvedValue({ status: "granted" }),
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true }),
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -47,7 +47,7 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/context/AuthContext", () => ({
+jest.mock("../../../context/AuthContext", () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isLoading: false,
@@ -57,7 +57,7 @@ jest.mock("./src/context/AuthContext", () => ({
     signOut: jest.fn(),
   }),
 }));
-jest.mock("./src/components", () => ({
+jest.mock("../../../components", () => ({
   Button: ({ title, onPress, disabled }: any) => {
     const { TouchableOpacity, Text } = require("react-native");
     return (
@@ -80,7 +80,7 @@ jest.mock("./src/components", () => ({
     );
   },
 }));
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../../../services/TokenService", () => ({
   TokenService: {
     getAccessToken: jest.fn().mockResolvedValue("tok"),
     decodeAccessToken: jest.fn().mockReturnValue({ sub: "user1" }),
@@ -96,7 +96,7 @@ const mockGetProfile = jest.fn().mockResolvedValue({
   },
 });
 const mockUpdateProfile = jest.fn().mockResolvedValue({ success: true });
-jest.mock("./src/services", () => ({
+jest.mock("../../../services", () => ({
   UserService: {
     getInstance: () => ({
       getProfile: mockGetProfile,
@@ -104,17 +104,17 @@ jest.mock("./src/services", () => ({
     }),
   },
 }));
-jest.mock("./src/services/MediaService", () => ({
+jest.mock("../../../services/MediaService", () => ({
   MediaService: {
     uploadMedia: jest
       .fn()
       .mockResolvedValue({ id: "media-1", url: "https://cdn.test/img.jpg" }),
   },
 }));
-jest.mock("./src/services/apiBase", () => ({
+jest.mock("../../../services/apiBase", () => ({
   getApiBaseUrl: () => "https://api.test.com",
 }));
-jest.mock("./src/theme", () => ({
+jest.mock("../../../theme", () => ({
   colors: { text: { light: "#fff" }, primary: { main: "#6200ee" } },
   spacing: { xl: 24, xs: 4, md: 16, lg: 20, sm: 8, xxxl: 40 },
   typography: { fontSize: { xxl: 28, base: 14, sm: 12 } },

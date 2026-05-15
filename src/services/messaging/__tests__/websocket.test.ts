@@ -5,7 +5,7 @@
 // --- Mocks ---
 
 const mockEmitSessionExpired = jest.fn();
-jest.mock("./src/services/sessionEvents", () => ({
+jest.mock("../../sessionEvents", () => ({
   emitSessionExpired: (...args: any[]) => mockEmitSessionExpired(...args),
   SESSION_EXPIRED_EVENT: "whispr.session.expired",
   onSessionExpired: jest.fn(() => ({ remove: jest.fn() })),
@@ -13,7 +13,7 @@ jest.mock("./src/services/sessionEvents", () => ({
 
 const mockGetAccessToken = jest.fn<Promise<string | null>, []>();
 const mockIsTokenExpired = jest.fn<boolean, [string]>();
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../../TokenService", () => ({
   TokenService: {
     getAccessToken: (...args: any[]) => mockGetAccessToken(...args),
     isTokenExpired: (...args: any[]) => mockIsTokenExpired(...args),
@@ -26,19 +26,19 @@ const mockGetWsToken = jest.fn<
   Promise<{ wsToken: string; expiresIn: number }>,
   []
 >();
-jest.mock("./src/services/AuthService", () => ({
+jest.mock("../../AuthService", () => ({
   AuthService: {
     refreshTokens: (...args: any[]) => mockRefreshTokens(...args),
     getWsToken: (...args: any[]) => mockGetWsToken(...args),
   },
 }));
 
-jest.mock("./src/services/apiBase", () => ({
+jest.mock("../../apiBase", () => ({
   getWsBaseUrl: jest.fn(() => "ws://localhost"),
   getApiBaseUrl: jest.fn(() => "http://localhost"),
 }));
 
-jest.mock("./src/utils/logger", () => ({
+jest.mock("../../../utils/logger", () => ({
   logger: {
     info: jest.fn(),
     warn: jest.fn(),
@@ -104,7 +104,7 @@ import {
   getSharedSocket,
   destroySharedSocket,
   createSocket,
-} from "./src/services/messaging/websocket";
+} from "../websocket";
 
 // --- Helpers ---
 

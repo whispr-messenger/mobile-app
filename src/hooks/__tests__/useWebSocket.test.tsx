@@ -29,16 +29,12 @@ const mockSocket = {
   addConnectionStateListener: jest.fn(() => () => {}),
 };
 
-jest.mock("../mobile-app/src/services/messaging/websocket", () => ({
-  getSharedSocket: () => mockSocket,
-}));
-// re-mock via relative path used by the hook
-jest.mock("./src/services/messaging/websocket", () => ({
+jest.mock("../../services/messaging/websocket", () => ({
   getSharedSocket: () => mockSocket,
 }));
 
 const mockApplyMessageUnread = jest.fn();
-jest.mock("./src/store/conversationsStore", () => ({
+jest.mock("../../store/conversationsStore", () => ({
   useConversationsStore: {
     getState: () => ({
       applyMessageUnread: mockApplyMessageUnread,
@@ -46,7 +42,7 @@ jest.mock("./src/store/conversationsStore", () => ({
   },
 }));
 
-jest.mock("./src/store/presenceStore", () => ({
+jest.mock("../../store/presenceStore", () => ({
   usePresenceStore: {
     getState: () => ({
       applyPresenceDiff: jest.fn(),
@@ -55,7 +51,7 @@ jest.mock("./src/store/presenceStore", () => ({
   },
 }));
 
-jest.mock("./src/store/callsStore", () => ({
+jest.mock("../../store/callsStore", () => ({
   useCallsStore: {
     getState: () => ({
       setIncoming: jest.fn(),
@@ -66,7 +62,7 @@ jest.mock("./src/store/callsStore", () => ({
   },
 }));
 
-jest.mock("./src/navigation/navigationRef", () => ({
+jest.mock("../../navigation/navigationRef", () => ({
   navigate: jest.fn(),
   navigationRef: {
     isReady: () => false,
@@ -74,7 +70,7 @@ jest.mock("./src/navigation/navigationRef", () => ({
   },
 }));
 
-jest.mock("./src/services/calls/systemCallProvider", () => ({
+jest.mock("../../services/calls/systemCallProvider", () => ({
   buildIncomingCallPresentation: jest.fn(),
   systemCallProvider: {
     isSupported: () => false,
@@ -83,18 +79,18 @@ jest.mock("./src/services/calls/systemCallProvider", () => ({
   },
 }));
 
-jest.mock("./src/hooks/useCallsAvailable", () => ({
+jest.mock("../useCallsAvailable", () => ({
   isCallsAvailable: () => true,
 }));
 
 const mockGetReadReceiptsEnabled = jest.fn(() => true);
-jest.mock("./src/services/messaging/readReceiptsPref", () => ({
+jest.mock("../../services/messaging/readReceiptsPref", () => ({
   getReadReceiptsEnabled: () => mockGetReadReceiptsEnabled(),
 }));
 
 import React from "react";
 import { renderHook, act } from "@testing-library/react-native";
-import { useWebSocket } from "./src/hooks/useWebSocket";
+import { useWebSocket } from "../useWebSocket";
 
 beforeEach(() => {
   mockChannelPush.mockClear();

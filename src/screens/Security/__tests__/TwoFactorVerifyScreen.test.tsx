@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import { TwoFactorVerifyScreen } from "./src/screens/Security/TwoFactorVerifyScreen";
+import { TwoFactorVerifyScreen } from "../TwoFactorVerifyScreen";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -19,7 +19,7 @@ jest.mock("expo-haptics", () => ({
   ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
   NotificationFeedbackType: { Success: "success" },
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -34,8 +34,8 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/components/Toast/Toast", () => () => null);
-jest.mock("./src/services/TwoFactorService", () => ({
+jest.mock("../../../components/Toast/Toast", () => () => null);
+jest.mock("../../../services/TwoFactorService", () => ({
   TwoFactorService: {
     enable: jest.fn().mockResolvedValue({ backupCodes: ["code1", "code2"] }),
     verify: jest.fn().mockResolvedValue({ verified: true }),
@@ -61,7 +61,7 @@ describe("TwoFactorVerifyScreen", () => {
   });
 
   it("calls TwoFactorService.enable on valid code submit", async () => {
-    const { TwoFactorService } = require("./src/services/TwoFactorService");
+    const { TwoFactorService } = require("../../../services/TwoFactorService");
     const { getByPlaceholderText, getByText } = render(
       <TwoFactorVerifyScreen />,
     );

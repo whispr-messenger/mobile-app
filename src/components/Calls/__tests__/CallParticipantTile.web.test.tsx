@@ -14,7 +14,7 @@ jest.mock("livekit-client", () => ({
 // elements and the useRef refs populate as expected.
 jest.mock("react-native", () => require("react-native-web"));
 
-import { CallParticipantTile } from "./src/components/Calls/CallParticipantTile.web";
+import { CallParticipantTile } from "../CallParticipantTile.web";
 
 type MockTrack = {
   attach: jest.Mock;

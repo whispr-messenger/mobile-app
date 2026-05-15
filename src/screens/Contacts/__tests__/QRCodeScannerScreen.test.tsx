@@ -18,7 +18,7 @@ jest.mock("react-native-safe-area-context", () => ({
 
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
 
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       text: { primary: "#fff" },
@@ -44,14 +44,14 @@ jest.mock("@yudiel/react-qr-scanner", () => ({
   },
 }));
 
-jest.mock("./src/services/qrCode/qrCodeService", () => ({
+jest.mock("../../../services/qrCode/qrCodeService", () => ({
   qrCodeService: {
     parseQRCodeData: jest.fn(),
     getCurrentUserId: jest.fn().mockResolvedValue("me"),
   },
 }));
 
-jest.mock("./src/services/contacts/api", () => ({
+jest.mock("../../../services/contacts/api", () => ({
   contactsAPI: {
     getUserPreviewById: jest.fn(),
     addContact: jest.fn(),
@@ -71,9 +71,7 @@ describe("QRCodeScannerScreen", () => {
   it('renders the web scanner and not the "pas disponible" fallback on web', () => {
     Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const {
-      QRCodeScannerScreen,
-    } = require("./src/screens/Contacts/QRCodeScannerScreen");
+    const { QRCodeScannerScreen } = require("../QRCodeScannerScreen");
     const { getByTestId, queryByText } = render(<QRCodeScannerScreen />);
 
     expect(getByTestId("web-qr-scanner")).toBeTruthy();
@@ -83,9 +81,7 @@ describe("QRCodeScannerScreen", () => {
   it("renders the native CameraView on iOS (native path preserved)", () => {
     Object.defineProperty(Platform, "OS", { value: "ios", configurable: true });
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const {
-      QRCodeScannerScreen,
-    } = require("./src/screens/Contacts/QRCodeScannerScreen");
+    const { QRCodeScannerScreen } = require("../QRCodeScannerScreen");
     const { getByTestId, queryByTestId } = render(<QRCodeScannerScreen />);
 
     expect(getByTestId("native-camera-view")).toBeTruthy();

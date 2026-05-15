@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
-import { AboutContentScreen } from "./src/screens/Settings/AboutContentScreen";
+import { AboutContentScreen } from "../AboutContentScreen";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -12,7 +12,7 @@ jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {

@@ -1,27 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-jest.mock("./src/services/TokenService", () =>
-  require("./src/__test-utils__/mockFactories").makeTokenServiceMock(),
+jest.mock("../TokenService", () =>
+  require("../../__test-utils__/mockFactories").makeTokenServiceMock(),
 );
-jest.mock("./src/services/AuthService", () =>
-  require("./src/__test-utils__/mockFactories").makeAuthServiceMock(),
+jest.mock("../AuthService", () =>
+  require("../../__test-utils__/mockFactories").makeAuthServiceMock(),
 );
-jest.mock("./src/services/DeviceService", () =>
-  require("./src/__test-utils__/mockFactories").makeDeviceServiceMock(),
+jest.mock("../DeviceService", () =>
+  require("../../__test-utils__/mockFactories").makeDeviceServiceMock(),
 );
-jest.mock("./src/services/apiBase", () =>
-  require("./src/__test-utils__/mockFactories").makeApiBaseMock(
+jest.mock("../apiBase", () =>
+  require("../../__test-utils__/mockFactories").makeApiBaseMock(
     "https://api.test",
   ),
 );
 
-import { NotificationService } from "./src/services/NotificationService";
-import { TokenService } from "./src/services/TokenService";
-import { AuthService } from "./src/services/AuthService";
+import { NotificationService } from "../NotificationService";
+import { TokenService } from "../TokenService";
+import { AuthService } from "../AuthService";
 import {
   installFetchMock,
   mockResponse,
-} from "./src/__test-utils__/mockFactories";
+} from "../../__test-utils__/mockFactories";
 
 const mockedToken = TokenService as any;
 const mockedAuth = AuthService as any;
@@ -116,8 +116,7 @@ describe("NotificationService.unmuteConversation", () => {
 
 describe("NotificationService.registerDevice / unregisterDevice", () => {
   it("POSTs the token with device_id, platform, app_version, user_id", async () => {
-    const mockedDevice = require("./src/services/DeviceService")
-      .DeviceService as any;
+    const mockedDevice = require("../DeviceService").DeviceService as any;
     mockedDevice.getOrCreateDeviceId.mockResolvedValue("dev-xyz");
     mockFetch.mockResolvedValueOnce(mockResponse({ status: 204 }));
 

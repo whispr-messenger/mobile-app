@@ -38,7 +38,7 @@ describe("useCallsAvailable", () => {
     const {
       getCallsAvailability,
       isCallsAvailable,
-    } = require("./src/hooks/useCallsAvailable");
+    } = require("../useCallsAvailable");
 
     expect(getCallsAvailability()).toEqual({ available: true, reason: null });
     expect(isCallsAvailable()).toBe(true);
@@ -49,7 +49,7 @@ describe("useCallsAvailable", () => {
     const {
       getCallsAvailability,
       getCallsUnavailableMessage,
-    } = require("./src/hooks/useCallsAvailable");
+    } = require("../useCallsAvailable");
 
     const result = getCallsAvailability();
     expect(result.available).toBe(false);
@@ -59,7 +59,7 @@ describe("useCallsAvailable", () => {
 
   it("returns reason=web on web platform", () => {
     setupMocks({ platform: "web", expoGo: false });
-    const { getCallsAvailability } = require("./src/hooks/useCallsAvailable");
+    const { getCallsAvailability } = require("../useCallsAvailable");
 
     expect(getCallsAvailability()).toEqual({
       available: false,
@@ -69,7 +69,7 @@ describe("useCallsAvailable", () => {
 
   it("returns reason=no-webrtc when native module is missing", () => {
     setupMocks({ platform: "android", expoGo: false, hasWebRtc: false });
-    const { getCallsAvailability } = require("./src/hooks/useCallsAvailable");
+    const { getCallsAvailability } = require("../useCallsAvailable");
 
     expect(getCallsAvailability()).toEqual({
       available: false,
@@ -79,9 +79,7 @@ describe("useCallsAvailable", () => {
 
   it("provides a French fallback message for each reason", () => {
     setupMocks({ platform: "ios" });
-    const {
-      getCallsUnavailableMessage,
-    } = require("./src/hooks/useCallsAvailable");
+    const { getCallsUnavailableMessage } = require("../useCallsAvailable");
 
     expect(getCallsUnavailableMessage("expo-go")).toContain("Expo Go");
     expect(getCallsUnavailableMessage("no-webrtc")).toContain("WebRTC");

@@ -5,10 +5,7 @@
  * `p(food)`. decideV3FromProbs blocks when `p(food) >= threshold`.
  */
 
-import {
-  decideV3FromProbs,
-  V3_FOOD_THRESHOLD_DEFAULT,
-} from "./src/services/moderation/tfjs.decide";
+import { decideV3FromProbs, V3_FOOD_THRESHOLD_DEFAULT } from "../tfjs.decide";
 
 describe("decideV3FromProbs", () => {
   it("blocks when p(food) is clearly above the default threshold", () => {

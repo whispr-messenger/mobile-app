@@ -1,5 +1,5 @@
-import { filterAndSortContacts } from "./src/utils/contactsFilter";
-import type { Contact } from "./src/types/contact";
+import { filterAndSortContacts } from "../contactsFilter";
+import type { Contact } from "../../types/contact";
 
 const makeContact = (overrides: Partial<Contact> & { id: string }): Contact =>
   ({

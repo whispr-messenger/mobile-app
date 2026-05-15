@@ -13,7 +13,7 @@ import {
   setReadReceiptsEnabled,
   isReadReceiptsPrefHydrated,
   __resetReadReceiptsPrefForTests,
-} from "./src/services/messaging/readReceiptsPref";
+} from "../readReceiptsPref";
 
 const STORAGE_KEY = "@whispr_settings_messaging";
 

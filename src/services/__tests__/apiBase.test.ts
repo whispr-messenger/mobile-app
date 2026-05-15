@@ -41,7 +41,7 @@ describe("getApiBaseUrl", () => {
   it("uses EXPO_PUBLIC_API_BASE_URL when set, regardless of mode", () => {
     process.env.EXPO_PUBLIC_API_BASE_URL = "https://from-env.test";
     (global as { __DEV__?: boolean }).__DEV__ = false;
-    const { getApiBaseUrl } = require("./src/services/apiBase");
+    const { getApiBaseUrl } = require("../apiBase");
     expect(getApiBaseUrl()).toBe("https://from-env.test");
   });
 
@@ -50,26 +50,26 @@ describe("getApiBaseUrl", () => {
       extra: { apiBaseUrl: "https://from-constants.test" },
     };
     (global as { __DEV__?: boolean }).__DEV__ = false;
-    const { getApiBaseUrl } = require("./src/services/apiBase");
+    const { getApiBaseUrl } = require("../apiBase");
     expect(getApiBaseUrl()).toBe("https://from-constants.test");
   });
 
   it("falls back to whispr.devzeyu.com in dev when no source resolves", () => {
     (global as { __DEV__?: boolean }).__DEV__ = true;
-    const { getApiBaseUrl } = require("./src/services/apiBase");
+    const { getApiBaseUrl } = require("../apiBase");
     expect(getApiBaseUrl()).toBe(FALLBACK_DEV);
   });
 
   it("throws in production when no source resolves (no roadmvn fallback)", () => {
     (global as { __DEV__?: boolean }).__DEV__ = false;
-    const { getApiBaseUrl } = require("./src/services/apiBase");
+    const { getApiBaseUrl } = require("../apiBase");
     expect(() => getApiBaseUrl()).toThrow(/API base URL not configured/);
   });
 
   it("strips trailing slashes", () => {
     process.env.EXPO_PUBLIC_API_BASE_URL = "https://api.test///";
     (global as { __DEV__?: boolean }).__DEV__ = false;
-    const { getApiBaseUrl } = require("./src/services/apiBase");
+    const { getApiBaseUrl } = require("../apiBase");
     expect(getApiBaseUrl()).toBe("https://api.test");
   });
 });

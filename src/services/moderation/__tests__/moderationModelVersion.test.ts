@@ -16,7 +16,7 @@ import {
   getModerationModelVersionSync,
   setModerationModelVersion,
   subscribeModerationModelVersion,
-} from "./src/services/moderation/model-version";
+} from "../model-version";
 
 beforeEach(async () => {
   await AsyncStorage.clear();

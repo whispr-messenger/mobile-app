@@ -1,7 +1,7 @@
 import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
-import { InboxPanel } from "./src/components/Common/InboxPanel";
-import type { InboxItem } from "./src/types/inbox";
+import { InboxPanel } from "../InboxPanel";
+import type { InboxItem } from "../../../types/inbox";
 
 const mockNavigate = jest.fn();
 const mockMarkAllRead = jest.fn().mockResolvedValue(undefined);
@@ -14,7 +14,7 @@ jest.mock("@react-navigation/native", () => ({
 }));
 jest.mock("@react-navigation/stack", () => ({}));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     text: { light: "#fff" },
     ui: { error: "#f00" },
@@ -24,7 +24,7 @@ jest.mock("./src/theme/colors", () => ({
   withOpacity: (color: string, _opacity: number) => color,
 }));
 // Avatar renders as a simple Text so we can keep item rows identifiable by testID
-jest.mock("./src/components/Chat/Avatar", () => ({
+jest.mock("../../Chat/Avatar", () => ({
   Avatar: () => {
     const { View } = require("react-native");
     return <View testID="avatar" />;
@@ -57,7 +57,7 @@ const mockContactReq: InboxItem = {
   created_at: new Date(Date.now() - 120_000).toISOString(),
 };
 
-jest.mock("./src/store/inboxStore", () => ({
+jest.mock("../../../store/inboxStore", () => ({
   useInboxStore: () => ({
     items: [mockMention, mockContactReq],
     unread_count: 1,

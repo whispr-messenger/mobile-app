@@ -1,7 +1,7 @@
 import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import { BlockedUsersScreen } from "./src/screens/Contacts/BlockedUsersScreen";
-import { contactsAPI } from "./src/services/contacts/api";
+import { BlockedUsersScreen } from "../BlockedUsersScreen";
+import { contactsAPI } from "../../../services/contacts/api";
 
 const mockGoBack = jest.fn();
 
@@ -16,7 +16,7 @@ jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children }: any) => children,
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -32,14 +32,14 @@ jest.mock("./src/context/ThemeContext", () => ({
     settings: { language: "fr" },
   }),
 }));
-jest.mock("./src/components/Chat/Avatar", () => ({ Avatar: () => null }));
-jest.mock("./src/services/contacts/api", () => ({
+jest.mock("../../../components/Chat/Avatar", () => ({ Avatar: () => null }));
+jest.mock("../../../services/contacts/api", () => ({
   contactsAPI: {
     getBlockedUsers: jest.fn(),
     unblockUser: jest.fn(),
   },
 }));
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     background: { gradient: { app: ["#000", "#111"] } },
     primary: { main: "#6200ee" },

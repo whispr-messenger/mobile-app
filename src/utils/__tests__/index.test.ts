@@ -1,4 +1,4 @@
-import { isValidUsername, normalizeUsername } from "./index";
+import { isValidUsername, normalizeUsername } from "../index";
 
 describe("username utils", () => {
   it("keeps cyrillic characters when normalizing a username", () => {

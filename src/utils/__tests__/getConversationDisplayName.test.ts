@@ -2,7 +2,7 @@
 // le but : eviter d afficher "Utilisateur" en clair quand on a encore un
 // username ou un phone_number_masked a montrer.
 
-import { getConversationDisplayName } from "./src/utils";
+import { getConversationDisplayName } from "..";
 
 describe("getConversationDisplayName — direct conversation fallback chain", () => {
   it("retourne display_name quand present", () => {

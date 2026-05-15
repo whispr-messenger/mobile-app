@@ -2,7 +2,7 @@
 
 const mockSaveIdentityPrivateKey = jest.fn();
 
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../TokenService", () => ({
   TokenService: {
     saveIdentityPrivateKey: (...args: any[]) =>
       mockSaveIdentityPrivateKey(...args),
@@ -42,7 +42,7 @@ jest.mock("tweetnacl-util", () => ({
   encodeBase64: jest.fn((bytes: Uint8Array) => `b64(${bytes.length})`),
 }));
 
-import { SignalKeyService } from "./src/services/SignalKeyService";
+import { SignalKeyService } from "../SignalKeyService";
 import nacl from "tweetnacl";
 
 const mockedNacl = nacl as unknown as {

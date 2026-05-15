@@ -1,11 +1,11 @@
 import React from "react";
 import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
-import { TwoFactorAuthScreen } from "./src/screens/Security/TwoFactorAuthScreen";
-import { TwoFactorService } from "./src/services/TwoFactorService";
+import { TwoFactorAuthScreen } from "../TwoFactorAuthScreen";
+import { TwoFactorService } from "../../../services/TwoFactorService";
 
 // expo-secure-store is mocked globally in jest.setup.js (WHISPR-994).
 
-jest.mock("./src/services/apiBase", () => ({
+jest.mock("../../../services/apiBase", () => ({
   getApiBaseUrl: () => "https://whispr.devzeyu.com",
   getWsBaseUrl: () => "wss://whispr.devzeyu.com",
 }));
@@ -13,7 +13,7 @@ jest.mock("./src/services/apiBase", () => ({
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
 
-jest.mock("./src/services/TwoFactorService");
+jest.mock("../../../services/TwoFactorService");
 
 // useFocusEffect mock: call the callback synchronously during render via
 // a ref guard so it only fires once (mirrors real react-navigation behaviour).
@@ -37,7 +37,7 @@ jest.mock("@react-navigation/native", () => {
 // Actions (Node 22) can take >5s to flush microtasks from mocked promises.
 jest.setTimeout(15_000);
 
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -62,7 +62,7 @@ jest.mock("expo-haptics", () => ({
   NotificationFeedbackType: { Success: "success" },
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/components/Toast/Toast", () => () => null);
+jest.mock("../../../components/Toast/Toast", () => () => null);
 
 const mockedTwoFactorService = TwoFactorService as jest.Mocked<
   typeof TwoFactorService

@@ -6,7 +6,7 @@ jest.mock("react-native", () => ({
 
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import { storage } from "./src/services/storage";
+import { storage } from "../storage";
 
 const mockedSecureStore = SecureStore as unknown as {
   getItemAsync: jest.Mock;

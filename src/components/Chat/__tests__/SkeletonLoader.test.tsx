@@ -5,7 +5,7 @@ import {
   ContactItemSkeleton,
   MessageBubbleSkeleton,
   InboxItemSkeleton,
-} from "./src/components/Chat/SkeletonLoader";
+} from "../SkeletonLoader";
 
 // react-native-reanimated : stub minimal pour les tests
 jest.mock("react-native-reanimated", () => {

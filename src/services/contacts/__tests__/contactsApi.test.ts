@@ -1,20 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-jest.mock("./src/services/TokenService", () =>
-  require("./src/__test-utils__/mockFactories").makeTokenServiceMock(),
+jest.mock("../../TokenService", () =>
+  require("../../../__test-utils__/mockFactories").makeTokenServiceMock(),
 );
-jest.mock("./src/services/apiBase", () =>
-  require("./src/__test-utils__/mockFactories").makeApiBaseMock(
+jest.mock("../../apiBase", () =>
+  require("../../../__test-utils__/mockFactories").makeApiBaseMock(
     "https://api.test",
   ),
 );
 
-import { contactsAPI } from "./src/services/contacts/api";
-import { TokenService } from "./src/services/TokenService";
+import { contactsAPI } from "../api";
+import { TokenService } from "../../TokenService";
 import {
   installFetchMock,
   mockResponse,
-} from "./src/__test-utils__/mockFactories";
+} from "../../../__test-utils__/mockFactories";
 
 const mockedToken = TokenService as any;
 const BASE = "https://api.test/user/v1";

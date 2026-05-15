@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import type { InboxItem } from "./src/types/inbox";
+import type { InboxItem } from "../../types/inbox";
 
-jest.mock("./src/services/inboxApi", () => ({
+jest.mock("../../services/inboxApi", () => ({
   inboxApi: {
     fetchInbox: jest.fn(),
     markRead: jest.fn(),
@@ -19,8 +19,8 @@ jest.mock("expo-constants", () => ({
   },
 }));
 
-import { useInboxStore } from "./src/store/inboxStore";
-import { inboxApi } from "./src/services/inboxApi";
+import { useInboxStore } from "../inboxStore";
+import { inboxApi } from "../../services/inboxApi";
 
 const mockInboxApi = inboxApi as {
   fetchInbox: jest.Mock;

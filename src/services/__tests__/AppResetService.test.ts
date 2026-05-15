@@ -12,13 +12,13 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 const mockClearAll = jest.fn<Promise<void>, []>();
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../TokenService", () => ({
   TokenService: {
     clearAll: (...args: any[]) => mockClearAll(...args),
   },
 }));
 
-import { AppResetService } from "./src/services/AppResetService";
+import { AppResetService } from "../AppResetService";
 
 beforeEach(() => {
   mockGetAllKeys.mockReset();

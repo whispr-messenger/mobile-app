@@ -1,4 +1,4 @@
-import { isHttpUrl, isReachableUrl } from "./src/utils/urlFilters";
+import { isHttpUrl, isReachableUrl } from "../urlFilters";
 
 describe("isReachableUrl", () => {
   it("returns false for undefined", () => {

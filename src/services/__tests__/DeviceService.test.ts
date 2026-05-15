@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-jest.mock("./src/services/storage", () => ({
+jest.mock("../storage", () => ({
   storage: {
     getItem: jest.fn(),
     setItem: jest.fn(),
@@ -30,8 +30,8 @@ jest.mock("expo-crypto", () => ({
   getRandomBytes: jest.fn(),
 }));
 
-import { DeviceService } from "./src/services/DeviceService";
-import { storage } from "./src/services/storage";
+import { DeviceService } from "../DeviceService";
+import { storage } from "../storage";
 import * as ExpoCrypto from "expo-crypto";
 
 const mockedStorage = storage as unknown as {

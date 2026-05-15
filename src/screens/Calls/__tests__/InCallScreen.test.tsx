@@ -11,14 +11,14 @@ jest.mock("@react-navigation/native", () => ({
 const mockEnd = jest.fn().mockResolvedValue(undefined);
 let mockActive: any = null;
 
-jest.mock("./src/store/callsStore", () => {
+jest.mock("../../../store/callsStore", () => {
   const fn: any = (selector: any) =>
     selector({ active: mockActive, end: mockEnd });
   fn.getState = () => ({ active: mockActive, end: mockEnd });
   return { useCallsStore: fn };
 });
 
-jest.mock("./src/services/calls/liveKitProvider", () => ({
+jest.mock("../../../services/calls/liveKitProvider", () => ({
   callsLiveKit: {
     enableMic: jest.fn().mockResolvedValue(undefined),
     enableCamera: jest.fn().mockResolvedValue(undefined),
@@ -38,15 +38,15 @@ jest.mock("livekit-client", () => ({
   },
 }));
 
-jest.mock("./src/components/Calls/CallParticipantTile", () => ({
+jest.mock("../../../components/Calls/CallParticipantTile", () => ({
   CallParticipantTile: () => null,
 }));
 
-jest.mock("./src/components/Calls/CallControls", () => ({
+jest.mock("../../../components/Calls/CallControls", () => ({
   CallControls: () => null,
 }));
 
-import { InCallScreen } from "./src/screens/Calls/InCallScreen";
+import { InCallScreen } from "../InCallScreen";
 
 describe("InCallScreen", () => {
   beforeEach(() => {

@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "@testing-library/react-native";
-import { TermsOfUseScreen } from "./src/screens/Settings/TermsOfUseScreen";
+import { TermsOfUseScreen } from "../TermsOfUseScreen";
 
 const mockGoBack = jest.fn();
 
@@ -11,7 +11,7 @@ jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {

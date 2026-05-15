@@ -8,7 +8,7 @@ import {
   isWrapped,
   unwrap,
   wrap,
-} from "./src/services/webCryptoVault.web";
+} from "../webCryptoVault.web";
 
 describe("webCryptoVault", () => {
   beforeEach(() => {

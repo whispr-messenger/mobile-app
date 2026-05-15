@@ -1,13 +1,13 @@
 import React from "react";
 import { render } from "@testing-library/react-native";
-import { TypingIndicator } from "./src/components/Chat/TypingIndicator";
+import { TypingIndicator } from "../TypingIndicator";
 
 // Avatar fait du fetch / token. On le neutralise ici pour rester sur l'unite.
-jest.mock("./src/components/Chat/Avatar", () => ({
+jest.mock("../Avatar", () => ({
   Avatar: () => null,
 }));
 
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       primary: "#fff",

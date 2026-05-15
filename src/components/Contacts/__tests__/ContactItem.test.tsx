@@ -1,18 +1,18 @@
 import React from "react";
 import { render } from "@testing-library/react-native";
-import { ContactItem } from "./src/components/Contacts/ContactItem";
-import type { Contact } from "./src/types/contact";
+import { ContactItem } from "../ContactItem";
+import type { Contact } from "../../../types/contact";
 
 jest.mock("expo-blur", () => ({ BlurView: ({ children }: any) => children }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       text: { primary: "#fff", secondary: "#aaa", tertiary: "#555" },
     }),
   }),
 }));
-jest.mock("./src/theme/colors", () => ({
+jest.mock("../../../theme/colors", () => ({
   colors: {
     primary: { main: "#6200ee" },
     ui: { error: "#f00" },
@@ -20,13 +20,13 @@ jest.mock("./src/theme/colors", () => ({
   },
   withOpacity: (color: string) => color,
 }));
-jest.mock("./src/components/Chat/Avatar", () => ({
+jest.mock("../../Chat/Avatar", () => ({
   Avatar: ({ name }: { name: string }) => {
     const { Text } = require("react-native");
     return <Text testID="avatar-name">{name}</Text>;
   },
 }));
-jest.mock("./src/components/Profile/ProfileTrigger", () => ({
+jest.mock("../../Profile/ProfileTrigger", () => ({
   ProfileTrigger: ({ children }: any) => children,
 }));
 

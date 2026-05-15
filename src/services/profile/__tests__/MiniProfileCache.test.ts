@@ -3,8 +3,8 @@ import {
   setCached,
   clearCache,
   _internalSize,
-} from "./src/services/profile/miniProfileCache";
-import { UserProfile } from "./src/services/UserService";
+} from "../miniProfileCache";
+import { UserProfile } from "../../UserService";
 
 const baseProfile = (id: string): UserProfile => ({
   id,

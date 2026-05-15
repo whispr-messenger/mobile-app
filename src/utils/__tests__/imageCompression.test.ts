@@ -29,7 +29,7 @@ import {
   buildResizeAction,
   compressImage,
   detectImageFormatFromUri,
-} from "./src/utils/imageCompression";
+} from "../imageCompression";
 
 describe("buildResizeAction (WHISPR-1039)", () => {
   const MAX_W = 1920;

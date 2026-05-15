@@ -1,7 +1,7 @@
 import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
-import { PhoneInputScreen } from "./src/screens/Auth/PhoneInputScreen";
-import { AuthService } from "./src/services/AuthService";
+import { PhoneInputScreen } from "../PhoneInputScreen";
+import { AuthService } from "../../../services/AuthService";
 
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
@@ -20,7 +20,7 @@ jest.mock("expo-linear-gradient", () => ({
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -37,7 +37,7 @@ jest.mock("./src/context/ThemeContext", () => ({
     updateSettings: jest.fn(),
   }),
 }));
-jest.mock("./src/components", () => ({
+jest.mock("../../../components", () => ({
   Button: ({ title, onPress, disabled }: any) => {
     const { TouchableOpacity, Text } = require("react-native");
     return (
@@ -50,10 +50,10 @@ jest.mock("./src/components", () => ({
     );
   },
 }));
-jest.mock("./src/services/AuthService", () => ({
+jest.mock("../../../services/AuthService", () => ({
   AuthService: { requestVerification: jest.fn() },
 }));
-jest.mock("./src/theme", () => ({
+jest.mock("../../../theme", () => ({
   colors: {
     text: { light: "#fff", placeholder: "#888" },
     primary: { main: "#6200ee" },
@@ -63,7 +63,7 @@ jest.mock("./src/theme", () => ({
   spacing: { xl: 24, xs: 4, md: 16, lg: 20, sm: 8, base: 12, xxxl: 40 },
   typography: { fontSize: { xxxl: 32, md: 16, base: 14, sm: 12, lg: 18 } },
 }));
-jest.mock("./src/utils/phoneUtils", () => ({
+jest.mock("../../../utils/phoneUtils", () => ({
   normalizePhoneToE164: (digits: string, code: string) => `${code}${digits}`,
 }));
 jest.mock("../assets/images/logo-icon.png", () => 1, { virtual: true });

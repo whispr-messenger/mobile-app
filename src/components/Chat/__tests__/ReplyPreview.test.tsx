@@ -8,10 +8,10 @@
 
 import React from "react";
 import { render } from "@testing-library/react-native";
-import { ReplyPreview } from "./src/components/Chat/ReplyPreview";
-import { Message } from "./src/types/messaging";
+import { ReplyPreview } from "../ReplyPreview";
+import { Message } from "../../../types/messaging";
 
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       primary: "#fff",

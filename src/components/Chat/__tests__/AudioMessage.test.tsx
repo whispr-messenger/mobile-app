@@ -8,12 +8,12 @@
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 const mockGetAccessToken = jest.fn();
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../../../services/TokenService", () => ({
   TokenService: { getAccessToken: (...a: any[]) => mockGetAccessToken(...a) },
 }));
 
 const mockDownloadAudioToCacheFile = jest.fn();
-jest.mock("./src/services/MediaService", () => ({
+jest.mock("../../../services/MediaService", () => ({
   MediaService: {
     downloadAudioToCacheFile: (...a: any[]) =>
       mockDownloadAudioToCacheFile(...a),
@@ -35,7 +35,7 @@ jest.mock(
   { virtual: true },
 );
 
-import { AudioMessage } from "./src/components/Chat/AudioMessage";
+import { AudioMessage } from "../AudioMessage";
 
 const mockFetchJson = (body: unknown) => ({
   ok: true,

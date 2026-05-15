@@ -13,12 +13,12 @@ import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
 
 const mockGetAccessToken = jest.fn();
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../../../services/TokenService", () => ({
   TokenService: { getAccessToken: (...a: any[]) => mockGetAccessToken(...a) },
 }));
 
 // Simple deterministic theme provider.
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       primary: "#fff",
@@ -35,7 +35,7 @@ jest.mock(
   { virtual: true },
 );
 
-import { MediaMessage } from "./src/components/Chat/MediaMessage";
+import { MediaMessage } from "../MediaMessage";
 
 const originalFetch = global.fetch;
 

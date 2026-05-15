@@ -1,8 +1,8 @@
 import React from "react";
 import { Text } from "react-native";
 import { render, fireEvent } from "@testing-library/react-native";
-import { ProfileTrigger } from "./src/components/Profile/ProfileTrigger";
-import { useMiniProfileCardStore } from "./src/store/miniProfileCardStore";
+import { ProfileTrigger } from "../ProfileTrigger";
+import { useMiniProfileCardStore } from "../../../store/miniProfileCardStore";
 
 beforeEach(() => {
   useMiniProfileCardStore.getState().close();

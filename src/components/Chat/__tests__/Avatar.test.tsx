@@ -1,11 +1,11 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import { Avatar } from "./src/components/Chat/Avatar";
+import { Avatar } from "../Avatar";
 
-jest.mock("./src/services/TokenService", () => ({
+jest.mock("../../../services/TokenService", () => ({
   TokenService: { getAccessToken: jest.fn().mockResolvedValue("tok") },
 }));
-jest.mock("./src/services/apiBase", () => ({
+jest.mock("../../../services/apiBase", () => ({
   getApiBaseUrl: () => "https://api.test",
 }));
 

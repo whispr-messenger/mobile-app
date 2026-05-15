@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getLinkPreview, normalizeLinkPreview } from "./linkPreview";
+import { getLinkPreview, normalizeLinkPreview } from "../linkPreview";
 
 describe("linkPreview service", () => {
   const originalFetch = global.fetch;

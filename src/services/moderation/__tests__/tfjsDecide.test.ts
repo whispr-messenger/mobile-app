@@ -19,7 +19,7 @@ jest.mock("expo-asset", () => ({
   Asset: { fromModule: jest.fn() },
 }));
 jest.mock(
-  "./src/../assets/models/tfjs/model.json",
+  "../../../../assets/models/tfjs/model.json",
   () => ({
     format: "graph-model",
     modelTopology: {},
@@ -27,11 +27,11 @@ jest.mock(
   }),
   { virtual: true },
 );
-jest.mock("./src/../assets/models/tfjs/group1-shard1of1.bin", () => ({}), {
+jest.mock("../../../../assets/models/tfjs/group1-shard1of1.bin", () => ({}), {
   virtual: true,
 });
 jest.mock(
-  "./src/../assets/models/v3-tfjs/model.json",
+  "../../../../assets/models/v3-tfjs/model.json",
   () => ({
     format: "layers-model",
     modelTopology: {},
@@ -39,10 +39,14 @@ jest.mock(
   }),
   { virtual: true },
 );
-jest.mock("./src/../assets/models/v3-tfjs/group1-shard1of1.bin", () => ({}), {
-  virtual: true,
-});
-jest.mock("./src/services/moderation/image-to-tensor", () => ({
+jest.mock(
+  "../../../../assets/models/v3-tfjs/group1-shard1of1.bin",
+  () => ({}),
+  {
+    virtual: true,
+  },
+);
+jest.mock("../image-to-tensor", () => ({
   imageUriToFloatTensor_0_255: jest.fn(),
 }));
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -50,8 +54,8 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   setItem: jest.fn().mockResolvedValue(undefined),
 }));
 
-import { decideFromProbs } from "./src/services/moderation/tfjs.service";
-import { CLASS_NAMES } from "./src/services/moderation/moderation.constants";
+import { decideFromProbs } from "../tfjs.service";
+import { CLASS_NAMES } from "../moderation.constants";
 
 function probsFor(
   overrides: Partial<Record<(typeof CLASS_NAMES)[number], number>>,

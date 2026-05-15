@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react-native";
-import { SecurityKeysScreen } from "./src/screens/Security/SecurityKeysScreen";
+import { SecurityKeysScreen } from "../SecurityKeysScreen";
 
 const mockGoBack = jest.fn();
 jest.mock("@react-navigation/native", () => ({
@@ -15,7 +15,7 @@ jest.mock("expo-haptics", () => ({
   impactAsync: jest.fn(),
   ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
 }));
-jest.mock("./src/context/ThemeContext", () => ({
+jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
       background: {
@@ -30,8 +30,8 @@ jest.mock("./src/context/ThemeContext", () => ({
     getLocalizedText: (key: string) => key,
   }),
 }));
-jest.mock("./src/components/Toast/Toast", () => () => null);
-jest.mock("./src/utils/clipboard", () => ({
+jest.mock("../../../components/Toast/Toast", () => () => null);
+jest.mock("../../../utils/clipboard", () => ({
   copyToClipboard: jest.fn(),
 }));
 

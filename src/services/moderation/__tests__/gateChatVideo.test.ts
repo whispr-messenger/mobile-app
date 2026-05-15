@@ -1,6 +1,7 @@
 /**
- * Tests for gateChatVideoBeforeSend — v3-only moderation path for videos.
+ * Tests for gateChatVideoBeforeSend — on-device TFJS video moderation gate.
  *
+ * - web platform → short-circuit (expo-video-thumbnails unsupported on web).
  * - v2 selected → pass through (no thumbnail, no inference).
  * - v3 selected, happy path → thumbnail extraction + TFJS gate.
  * - v3 selected, thumbnail extraction fails → fail-closed.
@@ -12,11 +13,11 @@ const mockGate = jest.fn();
 const mockGetVersion = jest.fn();
 const mockGetThumbnail = jest.fn();
 
-jest.mock("./src/services/moderation/tfjs.service", () => ({
+jest.mock("../tfjs.service", () => ({
   tfjsService: { gate: (...args: unknown[]) => mockGate(...args) },
 }));
 
-jest.mock("./src/services/moderation/model-version", () => ({
+jest.mock("../model-version", () => ({
   getModerationModelVersion: (...args: unknown[]) => mockGetVersion(...args),
 }));
 
@@ -24,17 +25,34 @@ jest.mock("expo-video-thumbnails", () => ({
   getThumbnailAsync: (...args: unknown[]) => mockGetThumbnail(...args),
 }));
 
-jest.mock("./src/utils/logger", () => ({
+jest.mock("../../../utils/logger", () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn() },
 }));
 
-import { gateChatVideoBeforeSend } from "./src/services/moderation/gate-chat-video";
+jest.mock("react-native", () => ({
+  Platform: { OS: "ios" },
+}));
+
+import { Platform } from "react-native";
+import { gateChatVideoBeforeSend } from "../gate-chat-video";
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (Platform as { OS: string }).OS = "ios";
 });
 
 describe("gateChatVideoBeforeSend", () => {
+  it("returns ok:true on web without calling the thumbnail extractor", async () => {
+    (Platform as { OS: string }).OS = "web";
+
+    const result = await gateChatVideoBeforeSend("file:///foo.mp4");
+
+    expect(result).toEqual({ ok: true });
+    expect(mockGetThumbnail).not.toHaveBeenCalled();
+    expect(mockGate).not.toHaveBeenCalled();
+    expect(mockGetVersion).not.toHaveBeenCalled();
+  });
+
   it("returns ok:true immediately when v2 is selected (no gate, no thumbnail)", async () => {
     mockGetVersion.mockResolvedValue("v2");
 

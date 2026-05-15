@@ -1,6 +1,6 @@
 import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
-import { CallControls } from "./src/components/Calls/CallControls";
+import { CallControls } from "../CallControls";
 
 describe("CallControls", () => {
   const makeProps = () => ({
