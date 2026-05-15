@@ -536,6 +536,24 @@ describe("conversationsStore — applyConversationSummaries", () => {
     expect(conv?.display_name).toBe("Enriched");
     expect(conv?.avatar_url).toBe("https://cdn/x.png");
   });
+
+  it("WS summary with is_archived=false wins over stale in-memory is_archived=true (unarchive regression)", () => {
+    // Simule le scenario : conv archivée en mémoire, WS summary dit false
+    // (après unarchive). Sans le fix, `|| existing.is_archived` re-archivait.
+    act(() => {
+      useConversationsStore.getState().applyConversationUpdate(
+        makeConv("c-1", { is_archived: true }),
+      );
+      useConversationsStore.getState().applyConversationSummaries([
+        makeConv("c-1", { is_archived: false }),
+      ]);
+    });
+
+    const conv = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === "c-1");
+    expect(conv?.is_archived).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
