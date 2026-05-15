@@ -240,4 +240,48 @@ describe("MyProfileScreen — save flow", () => {
       );
     });
   });
+
+  it("preserves phoneNumber in state after PATCH response omits it (regression WHISPR-fix-profile-phone-stale-state)", async () => {
+    // Simule la reponse PATCH reelle du backend : phoneNumberMasked present
+    // mais phoneNumber absent. normalizeProfile convertit phoneNumber absent
+    // en "" ce qui ecrasait l'etat precedent et faisait disparaitre le numero
+    // dans l'UI.
+    const services = require("./src/services") as {
+      UserService: {
+        getInstance: () => {
+          updateProfile: jest.Mock;
+          getProfile: jest.Mock;
+        };
+      };
+    };
+    const mockInstance = services.UserService.getInstance();
+    (mockInstance.updateProfile as jest.Mock).mockResolvedValueOnce({
+      success: true,
+      profile: {
+        id: "user-123",
+        firstName: "John",
+        lastName: "Doe",
+        username: "johndoe",
+        biography: "nouvelle bio",
+        // phoneNumber intentionnellement absent — comme la vraie reponse PATCH
+        phoneNumberMasked: "••••••••164",
+        phoneNumber: "",
+      },
+    });
+
+    const { getByLabelText, getByText, getByDisplayValue, queryByText } =
+      render(<MyProfileScreen />);
+    await waitFor(() => expect(getByText("John Doe")).toBeTruthy());
+
+    fireEvent.press(getByLabelText("Modifier le profil"));
+    fireEvent.changeText(getByDisplayValue(""), "nouvelle bio");
+    fireEvent.press(getByText("Sauvegarder"));
+
+    await waitFor(() => expect(mockInstance.updateProfile).toHaveBeenCalled());
+
+    // Le numero de telephone doit rester visible — pas remplace par "—"
+    await waitFor(() => {
+      expect(queryByText("+33612345678")).toBeTruthy();
+    });
+  });
 });
