@@ -36,6 +36,8 @@ import {
   MAX_INPUT_HEIGHT,
   INPUT_VERTICAL_PADDING,
   INPUT_LINE_HEIGHT,
+  INPUT_EXTRA_TOP_PADDING,
+  INPUT_EXTRA_BOTTOM_PADDING,
   MentionMember,
 } from "./ComposerInput";
 import { RecordingBar } from "./RecordingBar";
@@ -252,16 +254,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     [updateMentionState, updateTypingState],
   );
 
-  const updateInputHeightFromLineCount = useCallback((lineCount: number) => {
-    const nextHeight = Math.max(
-      MIN_INPUT_HEIGHT,
-      Math.min(
-        MAX_INPUT_HEIGHT,
-        lineCount * INPUT_LINE_HEIGHT + INPUT_VERTICAL_PADDING * 2,
-      ),
-    );
-    setInputHeight((prev) => (prev === nextHeight ? prev : nextHeight));
-  }, []);
+  const updateInputHeightFromLineCount = useCallback(
+    (lineCount: number, addExtraBottomRow: boolean) => {
+      const effectiveLineCount = lineCount + (addExtraBottomRow ? 1 : 0);
+      const nextHeight = Math.max(
+        MIN_INPUT_HEIGHT,
+        Math.min(
+          MAX_INPUT_HEIGHT,
+          effectiveLineCount * INPUT_LINE_HEIGHT +
+            INPUT_VERTICAL_PADDING * 2 +
+            INPUT_EXTRA_TOP_PADDING +
+            INPUT_EXTRA_BOTTOM_PADDING,
+        ),
+      );
+      setInputHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    },
+    [],
+  );
 
   const handleMeasuredTextLayout = useCallback(
     (event: { nativeEvent: { lines?: Array<unknown> } }) => {
@@ -278,7 +287,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       );
       const explicitLineCount = Math.max(1, text.split("\n").length);
       const lineCount = Math.max(measuredLineCount, explicitLineCount);
-      updateInputHeightFromLineCount(lineCount);
+      const didWrap = measuredLineCount > explicitLineCount;
+      updateInputHeightFromLineCount(lineCount, didWrap);
     },
     [text, updateInputHeightFromLineCount],
   );

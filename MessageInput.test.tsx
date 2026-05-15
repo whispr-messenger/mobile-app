@@ -168,16 +168,22 @@ import {
   MAX_INPUT_HEIGHT,
   INPUT_LINE_HEIGHT,
   INPUT_VERTICAL_PADDING,
+  INPUT_EXTRA_TOP_PADDING,
+  INPUT_EXTRA_BOTTOM_PADDING,
 } from "./src/components/Chat/MessageInput/ComposerInput";
 
 // Helper: calcule la hauteur attendue pour un nombre de lignes mesurees,
 // en fonction des constantes du ComposerInput (clamp entre MIN et MAX).
+// Inclut les paddings extra haut/bas ajoutés par DALM1 (auto-grow Instagram).
 const expectedShellHeight = (lineCount: number) =>
   Math.max(
     MIN_INPUT_HEIGHT,
     Math.min(
       MAX_INPUT_HEIGHT,
-      lineCount * INPUT_LINE_HEIGHT + INPUT_VERTICAL_PADDING * 2,
+      lineCount * INPUT_LINE_HEIGHT +
+        INPUT_VERTICAL_PADDING * 2 +
+        INPUT_EXTRA_TOP_PADDING +
+        INPUT_EXTRA_BOTTOM_PADDING,
     ),
   );
 

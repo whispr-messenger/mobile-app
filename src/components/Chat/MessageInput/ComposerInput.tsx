@@ -15,7 +15,9 @@ import { Avatar } from "../Avatar";
 export const MIN_INPUT_HEIGHT = 40;
 export const MAX_INPUT_HEIGHT = 350;
 export const INPUT_VERTICAL_PADDING = 10;
-export const INPUT_LINE_HEIGHT = 20;
+export const INPUT_LINE_HEIGHT = 14;
+export const INPUT_EXTRA_TOP_PADDING = 5;
+export const INPUT_EXTRA_BOTTOM_PADDING = 0;
 
 export interface MentionMember {
   id: string;
@@ -196,7 +198,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingVertical: INPUT_VERTICAL_PADDING,
+    paddingTop: INPUT_VERTICAL_PADDING + INPUT_EXTRA_TOP_PADDING,
+    paddingBottom: INPUT_VERTICAL_PADDING + INPUT_EXTRA_BOTTOM_PADDING,
     minHeight: MIN_INPUT_HEIGHT,
     fontSize: 15,
     lineHeight: INPUT_LINE_HEIGHT,
@@ -205,7 +208,7 @@ const styles = StyleSheet.create({
   measurementText: {
     position: "absolute",
     left: 16,
-    top: INPUT_VERTICAL_PADDING,
+    top: INPUT_VERTICAL_PADDING + INPUT_EXTRA_TOP_PADDING,
     opacity: 0,
     fontSize: 15,
     lineHeight: INPUT_LINE_HEIGHT,
