@@ -17,14 +17,17 @@
 const fs = require("fs");
 const path = require("path");
 
-// Project-wide baselines. These are intentionally set slightly below the
-// current coverage measured right after Sprint 4 so PRs have headroom.
-// Ratchet upward in future sprints as more screens/services get tested.
+// Project-wide baselines. Ratcheted from 35/60/33/35 to 55/65/48/55 after
+// covering services/groups/api.ts and 5 large Chat components (CameraCapture,
+// ConversationItem, NewConversationModal, ReportMessageSheet,
+// ScheduleDateTimePicker). Keep a few points of headroom below the current
+// measured coverage (~59% stmts) so reviewable PRs aren't blocked by minor
+// fluctuations. Ratchet again once the next batch lands.
 const THRESHOLDS = {
-  statements: 35,
-  branches: 60,
-  functions: 33,
-  lines: 35,
+  statements: 55,
+  branches: 65,
+  functions: 48,
+  lines: 55,
 };
 
 const summaryPath = path.resolve(
