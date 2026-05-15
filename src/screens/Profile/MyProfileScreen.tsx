@@ -358,7 +358,13 @@ export const MyProfileScreen: React.FC = () => {
       const res = await service.updateProfile({ avatarMediaId: mediaId });
       if (res.success) {
         if (res.profile) {
-          setProfile((prev) => ({ ...prev, ...res.profile }));
+          // Meme preservation que handleSaveProfile : PATCH avatar ne renvoie
+          // pas phoneNumber, ne pas ecraser prev.phoneNumber avec "".
+          setProfile((prev) => ({
+            ...prev,
+            ...res.profile,
+            phoneNumber: res.profile!.phoneNumber || prev.phoneNumber,
+          }));
         } else {
           setProfile((prev) => ({ ...prev, profilePicture: mediaId }));
         }
@@ -585,7 +591,15 @@ export const MyProfileScreen: React.FC = () => {
       }
 
       if (res.profile) {
-        setProfile((prev) => ({ ...prev, ...res.profile }));
+        // Le PATCH /profile retourne phoneNumberMasked mais pas phoneNumber.
+        // normalizeProfile mappe phoneNumber ?? "" ce qui efface le numero
+        // existant dans le state. On preserve donc prev.phoneNumber quand la
+        // reponse PATCH ne le contient pas.
+        setProfile((prev) => ({
+          ...prev,
+          ...res.profile,
+          phoneNumber: res.profile!.phoneNumber || prev.phoneNumber,
+        }));
         if (avatarMediaId) {
           setPendingAvatar(null);
           await AsyncStorage.removeItem(pendingAvatarKey);
