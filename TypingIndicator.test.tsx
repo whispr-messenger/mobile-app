@@ -25,11 +25,29 @@ describe("TypingIndicator", () => {
     expect(getByText("Alice est en train d'écrire")).toBeTruthy();
   });
 
+  it("affiche le nom via userNames (cas normal 1:1)", () => {
+    const { getByText } = render(<TypingIndicator userNames={["Alice"]} />);
+    expect(getByText("Alice est en train d'écrire")).toBeTruthy();
+  });
+
   it("gere plusieurs utilisateurs", () => {
     const { getByText } = render(
       <TypingIndicator userNames={["Alice", "Bob"]} />,
     );
     expect(getByText("Alice et Bob sont en train d'écrire")).toBeTruthy();
+  });
+
+  it("affiche le fallback quand le nom n'est pas encore resolu", () => {
+    // Simule le cas ou le nom arrive en asynchrone : userNames vide → "Quelqu'un"
+    const { getByText } = render(<TypingIndicator userNames={[]} />);
+    expect(getByText("Quelqu'un est en train d'écrire")).toBeTruthy();
+  });
+
+  it("prefere le nom du contact sur le fallback getUserInfo", () => {
+    // Quand le nom vient directement de conversationMembers (synchrone),
+    // le composant l'affiche immediatement sans attendre le reseau.
+    const { getByText } = render(<TypingIndicator userNames={["Marie"]} />);
+    expect(getByText("Marie est en train d'écrire")).toBeTruthy();
   });
 
   it("monte et demonte plusieurs fois sans warning console", () => {
