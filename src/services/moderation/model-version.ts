@@ -1,12 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type ModerationModelVersion = "v2" | "v3";
+export type ModerationModelVersion = "v2" | "v3" | "v4";
 
 export const DEFAULT_MODERATION_MODEL: ModerationModelVersion = "v2";
 export const MODERATION_MODEL_STORAGE_KEY = "debug:moderationModel";
 
 function isValidVersion(value: unknown): value is ModerationModelVersion {
-  return value === "v2" || value === "v3";
+  return value === "v2" || value === "v3" || value === "v4";
 }
 
 // Cached in memory so `gate()` stays synchronous-friendly and the storage

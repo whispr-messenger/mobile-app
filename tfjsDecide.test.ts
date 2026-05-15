@@ -42,6 +42,18 @@ jest.mock(
 jest.mock("./src/../assets/models/v3-tfjs/group1-shard1of1.bin", () => ({}), {
   virtual: true,
 });
+jest.mock(
+  "./src/../assets/models/tfjsv2/model.json",
+  () => ({
+    format: "layers-model",
+    modelTopology: {},
+    weightsManifest: [{ paths: [], weights: [] }],
+  }),
+  { virtual: true },
+);
+jest.mock("./src/../assets/models/tfjsv2/group1-shard1of1.bin", () => ({}), {
+  virtual: true,
+});
 jest.mock("./src/services/moderation/image-to-tensor", () => ({
   imageUriToFloatTensor_0_255: jest.fn(),
 }));

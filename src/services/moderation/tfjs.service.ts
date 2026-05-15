@@ -7,7 +7,11 @@ import { Platform, InteractionManager } from "react-native";
 import type { GateResult } from "./moderation.types";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
 import { INPUT_SIZE } from "./moderation.constants";
-import { decideV2FromProbs, decideV3FromProbs } from "./tfjs.decide";
+import {
+  decideV2FromProbs,
+  decideV3FromProbs,
+  decideV4FromProbs,
+} from "./tfjs.decide";
 import {
   getModerationModelVersion,
   type ModerationModelVersion,
@@ -16,10 +20,12 @@ import {
 export {
   decideV2FromProbs,
   decideV3FromProbs,
+  decideV4FromProbs,
   decideFromProbs,
   OTHER_CONFIDENCE_CEILING,
   SECONDARY_FOOD_THRESHOLD,
   V3_FOOD_THRESHOLD_DEFAULT,
+  V4_UNHEALTHY_THRESHOLD_DEFAULT,
 } from "./tfjs.decide";
 
 // Manually register a React Native platform for Hermes compatibility
@@ -64,9 +70,11 @@ const v3ModelJsonAsset = require("../../../assets/models/v3-tfjs/model.json");
 const v3WeightAssets = [
   require("../../../assets/models/v3-tfjs/group1-shard1of1.bin"),
 ];
+const v4ModelJsonAsset = require("../../../assets/models/tfjsv2/model.json");
+const v4WeightAssets = [
+  require("../../../assets/models/tfjsv2/group1-shard1of1.bin"),
+];
 /* eslint-enable @typescript-eslint/no-require-imports */
-
-type LoadedModel = tf.GraphModel | tf.LayersModel;
 
 interface ModelJson {
   modelTopology: object;
@@ -77,26 +85,21 @@ interface ModelJson {
 }
 
 interface ModelSpec {
-  format: "graph" | "layers";
   modelJson: ModelJson;
   /** Metro/Expo `require()` of a binary asset returns a numeric module id. */
   weights: number[];
 }
 
+// All three model versions are TFJS graph-model exports (not layers-model).
+// Graph models avoid the entire Keras layers schema, so the loader stays
+// uniform across versions and no per-version compat patching is needed.
 const SPECS: Record<ModerationModelVersion, ModelSpec> = {
-  v2: {
-    format: "graph",
-    modelJson: v2ModelJsonAsset,
-    weights: v2WeightAssets,
-  },
-  v3: {
-    format: "graph",
-    modelJson: v3ModelJsonAsset,
-    weights: v3WeightAssets,
-  },
+  v2: { modelJson: v2ModelJsonAsset, weights: v2WeightAssets },
+  v3: { modelJson: v3ModelJsonAsset, weights: v3WeightAssets },
+  v4: { modelJson: v4ModelJsonAsset, weights: v4WeightAssets },
 };
 
-const models: Partial<Record<ModerationModelVersion, LoadedModel>> = {};
+const models: Partial<Record<ModerationModelVersion, tf.GraphModel>> = {};
 const loading: Partial<Record<ModerationModelVersion, Promise<void>>> = {};
 let tfReady = false;
 
@@ -107,15 +110,11 @@ function yieldThread(): Promise<void> {
 
 /**
  * Custom IOHandler: reads model.json from a bundled require() and
- * fetches weight shards from expo-asset URIs. Uses Asset.fromModule so
- * it works on both React Native (local file URI) and web (HTTP asset URL).
+ * fetches weight shards from expo-asset URIs.
  */
 function bundledAssetIO(spec: ModelSpec): tf.io.IOHandler {
   return {
     async load(): Promise<tf.io.ModelArtifacts> {
-      const modelTopology = spec.modelJson.modelTopology;
-      const weightsManifest = spec.modelJson.weightsManifest;
-
       const weightBuffers: ArrayBuffer[] = [];
       for (const mod of spec.weights) {
         const asset = Asset.fromModule(mod);
@@ -130,8 +129,7 @@ function bundledAssetIO(spec: ModelSpec): tf.io.IOHandler {
             `[tfjs] Failed to fetch weight shard ${uri}: HTTP ${response.status}`,
           );
         }
-        const buf = await response.arrayBuffer();
-        weightBuffers.push(buf);
+        weightBuffers.push(await response.arrayBuffer());
       }
 
       const totalSize = weightBuffers.reduce((s, b) => s + b.byteLength, 0);
@@ -142,11 +140,9 @@ function bundledAssetIO(spec: ModelSpec): tf.io.IOHandler {
         offset += buf.byteLength;
       }
 
-      const weightSpecs = weightsManifest[0].weights;
-
       return {
-        modelTopology,
-        weightSpecs,
+        modelTopology: spec.modelJson.modelTopology,
+        weightSpecs: spec.modelJson.weightsManifest[0].weights,
         weightData: combined.buffer,
         format: spec.modelJson.format,
         generatedBy: spec.modelJson.generatedBy,
@@ -172,14 +168,22 @@ async function ensureModel(version: ModerationModelVersion): Promise<void> {
     try {
       await ensureTf();
       await yieldThread();
-      const spec = SPECS[version];
-      const io = bundledAssetIO(spec);
-      models[version] =
-        spec.format === "graph"
-          ? await tf.loadGraphModel(io)
-          : await tf.loadLayersModel(io);
+      models[version] = await tf.loadGraphModel(bundledAssetIO(SPECS[version]));
     } catch (err) {
-      console.error(`[tfjs] ensureModel(${version}) failed:`, err);
+      // Hermes/RN sometimes prints raw Error objects as just "[Error]" with
+      // no surface info. Dump every channel we can reach so the underlying
+      // message isn't swallowed.
+      const e = err as { message?: string; name?: string; stack?: string };
+      console.error(
+        `[tfjs] ensureModel(${version}) failed —`,
+        "name=",
+        e?.name,
+        "message=",
+        e?.message,
+      );
+      if (e?.stack) {
+        console.error(`[tfjs] ensureModel(${version}) stack:\n${e.stack}`);
+      }
       delete loading[version];
       throw err;
     }
@@ -190,12 +194,16 @@ async function ensureModel(version: ModerationModelVersion): Promise<void> {
 }
 
 /**
- * Eagerly load both v2 and v3 so that the first gate call doesn't pay the
+ * Eagerly load v2, v3 and v4 so the first gate call doesn't pay the
  * model-load cost inline. Errors are swallowed — if preload fails, the
  * next `gate()` will retry and surface the error to the caller.
  */
 async function preloadModels(): Promise<void> {
-  await Promise.allSettled([ensureModel("v2"), ensureModel("v3")]);
+  await Promise.allSettled([
+    ensureModel("v2"),
+    ensureModel("v3"),
+    ensureModel("v4"),
+  ]);
 }
 
 async function gate(params: {
@@ -237,9 +245,14 @@ async function gate(params: {
     },
   );
 
-  return resolvedVersion === "v3"
-    ? decideV3FromProbs(data, threshold)
-    : decideV2FromProbs(data, threshold);
+  switch (resolvedVersion) {
+    case "v3":
+      return decideV3FromProbs(data, threshold);
+    case "v4":
+      return decideV4FromProbs(data, threshold);
+    default:
+      return decideV2FromProbs(data, threshold);
+  }
 }
 
 async function isAllowed(params: {

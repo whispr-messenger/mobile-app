@@ -2,7 +2,9 @@ import type { GateResult } from "./moderation.types";
 import {
   CLASS_NAMES_V2,
   CLASS_NAMES_V3,
+  CLASS_NAMES_V4,
   V3_FOOD_INDEX,
+  V4_UNHEALTHY_INDEX,
 } from "./moderation.constants";
 
 /**
@@ -15,6 +17,7 @@ import {
 export const OTHER_CONFIDENCE_CEILING = 0.85;
 export const SECONDARY_FOOD_THRESHOLD = 0.15;
 export const V3_FOOD_THRESHOLD_DEFAULT = 0.5;
+export const V4_UNHEALTHY_THRESHOLD_DEFAULT = 0.5;
 
 /**
  * V2 decision: 9-class softmax (8 food classes + "Other"), with a runner-up
@@ -133,6 +136,61 @@ export function decideV3FromProbs(
     bestIndex: 1 - V3_FOOD_INDEX,
     bestProb: pNotFood,
     bestClass: notFoodLabel,
+    probs,
+  };
+}
+
+/**
+ * V4 decision: 3-class softmax over [healthyfood, unhealthyfood, others].
+ * Block only when argmax == unhealthyfood AND its probability is >= threshold.
+ * Healthy food and everything else (others) are allowed — even if the model
+ * is more confident about them.
+ */
+export function decideV4FromProbs(
+  data: ArrayLike<number>,
+  threshold = V4_UNHEALTHY_THRESHOLD_DEFAULT,
+): GateResult {
+  if (data.length !== CLASS_NAMES_V4.length) {
+    throw new Error(
+      `Output length mismatch: got ${data.length}, expected ${CLASS_NAMES_V4.length}.`,
+    );
+  }
+
+  let bestIndex = 0;
+  let bestProb = data[0];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i] > bestProb) {
+      bestProb = data[i];
+      bestIndex = i;
+    }
+  }
+
+  const probs: Record<string, number> = {};
+  for (let i = 0; i < CLASS_NAMES_V4.length; i++) {
+    probs[CLASS_NAMES_V4[i]] = Number(data[i]);
+  }
+
+  const unhealthyProb = Number(data[V4_UNHEALTHY_INDEX]);
+  const isUnhealthyTop = bestIndex === V4_UNHEALTHY_INDEX;
+  const isConfident = unhealthyProb >= threshold;
+
+  if (isUnhealthyTop && isConfident) {
+    return {
+      allowed: false,
+      reason: "BLOCK_TRAINED_CLASS",
+      bestIndex,
+      bestProb: Number(bestProb),
+      bestClass: CLASS_NAMES_V4[bestIndex],
+      probs,
+    };
+  }
+
+  return {
+    allowed: true,
+    reason: isUnhealthyTop ? "UNCERTAIN" : "OTHER_CLASS",
+    bestIndex,
+    bestProb: Number(bestProb),
+    bestClass: CLASS_NAMES_V4[bestIndex],
     probs,
   };
 }

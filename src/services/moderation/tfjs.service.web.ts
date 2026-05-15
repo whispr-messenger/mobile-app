@@ -1,7 +1,11 @@
 import type { GateResult } from "./moderation.types";
 import { imageUriToFloatTensor_0_255 } from "./image-to-tensor";
 import { INPUT_SIZE } from "./moderation.constants";
-import { decideV2FromProbs, decideV3FromProbs } from "./tfjs.decide";
+import {
+  decideV2FromProbs,
+  decideV3FromProbs,
+  decideV4FromProbs,
+} from "./tfjs.decide";
 import {
   getModerationModelVersion,
   type ModerationModelVersion,
@@ -15,9 +19,11 @@ type TFConverter = typeof import("@tensorflow/tfjs-converter");
 let tfCore: TFCore | null = null;
 let tfConverter: TFConverter | null = null;
 
+// All three model versions are TFJS graph-model exports.
 const MODEL_URLS: Record<ModerationModelVersion, string> = {
   v2: "/models/tfjs/model.json",
   v3: "/models/v3-tfjs/model.json",
+  v4: "/models/tfjsv2/model.json",
 };
 
 type LoadedModel = Awaited<ReturnType<TFConverter["loadGraphModel"]>>;
@@ -50,7 +56,11 @@ async function ensureModel(version: ModerationModelVersion): Promise<void> {
 }
 
 async function preloadModels(): Promise<void> {
-  await Promise.allSettled([ensureModel("v2"), ensureModel("v3")]);
+  await Promise.allSettled([
+    ensureModel("v2"),
+    ensureModel("v3"),
+    ensureModel("v4"),
+  ]);
 }
 
 async function gate(params: {
@@ -78,9 +88,14 @@ async function gate(params: {
   input.dispose();
   output.dispose();
 
-  return resolvedVersion === "v3"
-    ? decideV3FromProbs(data, threshold)
-    : decideV2FromProbs(data, threshold);
+  switch (resolvedVersion) {
+    case "v3":
+      return decideV3FromProbs(data, threshold);
+    case "v4":
+      return decideV4FromProbs(data, threshold);
+    default:
+      return decideV2FromProbs(data, threshold);
+  }
 }
 
 async function isAllowed(params: {
