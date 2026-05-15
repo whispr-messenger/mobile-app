@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // Setup global Jest : mocks partages pour les modules natifs / expo.
 
+// Coverage mode (v8 provider) is ~2-3x slower; default 5s timeout is too
+// tight for waitFor in screen-level tests, causing flaky timeouts only
+// under --coverage. Lift it globally.
+jest.setTimeout(15_000);
+
 // polyfill IndexedDB pour que les services web qui persistent une wrapping
 // key (cf. src/services/webCryptoVault.web.ts) tournent sous Jest.
 require("fake-indexeddb/auto");
