@@ -18,11 +18,13 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthNavigator } from "./src/navigation/AuthNavigator";
 import { linkingConfig } from "./src/navigation/linkingConfig";
 import { navigationRef } from "./src/navigation/navigationRef";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
+import { getAppQueryClient } from "./src/lib/queryClient";
 import { BottomTabBar } from "./src/components/Navigation/BottomTabBar";
 import { MiniProfileCardHost } from "./src/components/Profile";
 import { InAppNotificationProvider } from "./src/providers/InAppNotificationProvider";
@@ -166,9 +168,11 @@ export default function App() {
       }}
     >
       <SafeAreaProvider>
-        <ThemeProvider>
-          <AppShell />
-        </ThemeProvider>
+        <QueryClientProvider client={getAppQueryClient()}>
+          <ThemeProvider>
+            <AppShell />
+          </ThemeProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

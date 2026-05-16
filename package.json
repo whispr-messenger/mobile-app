@@ -26,6 +26,7 @@
     "@react-native-masked-view/masked-view": "^0.3.2",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.8",
+    "@tanstack/react-query": "^5.100.10",
     "@tensorflow/tfjs": "^4.22.0",
     "@types/jpeg-js": "^0.3.0",
     "@yudiel/react-qr-scanner": "^2.5.1",
@@ -57,6 +58,7 @@
     "livekit-client": "^2.18.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-hook-form": "^7.76.0",
     "react-native": "0.81.5",
     "react-native-call-keeper": "^2.1.1",
     "react-native-fs": "^2.20.0",
@@ -71,6 +73,7 @@
     "react-native-worklets": "0.5.1",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
+    "zod": "^4.4.3",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
