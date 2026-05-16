@@ -17,17 +17,18 @@
 const fs = require("fs");
 const path = require("path");
 
-// Project-wide baselines. Ratcheted from 35/60/33/35 to 55/65/48/55 after
-// covering services/groups/api.ts and 5 large Chat components (CameraCapture,
-// ConversationItem, NewConversationModal, ReportMessageSheet,
-// ScheduleDateTimePicker). Keep a few points of headroom below the current
-// measured coverage (~59% stmts) so reviewable PRs aren't blocked by minor
-// fluctuations. Ratchet again once the next batch lands.
+// Project-wide baselines. Ratcheted incrementally as new test surface
+// landed:
+//   v1 (pre-2026-05): 35/60/33/35
+//   v2 (groups/api + 5 Chat components): 55/65/48/55
+//   v3 (stack modernization + admin smoke + heavy screen smoke): 72/65/50/72
+// Headroom of ~5 pts below the current measurement so a normal PR can't
+// silently regress.
 const THRESHOLDS = {
-  statements: 55,
+  statements: 72,
   branches: 65,
-  functions: 48,
-  lines: 55,
+  functions: 50,
+  lines: 72,
 };
 
 const summaryPath = path.resolve(

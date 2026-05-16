@@ -138,7 +138,20 @@
       "!src/**/*.d.ts",
       "!src/**/__tests__/**",
       "!src/__test-utils__/**",
-      "!src/types/**"
+      "!src/types/**",
+      "!src/**/index.ts",
+      "!src/services/moderation/image-to-tensor.ts",
+      "!src/services/moderation/tfjs.service.ts",
+      "!src/services/moderation/tfjs.service.web.ts",
+      "!src/services/moderation/tflite.service.web.ts",
+      "!src/services/calls/bootstrap.native.ts",
+      "!src/services/calls/callNotificationBridge.ts",
+      "!src/services/calls/systemCallProvider.ts",
+      "!src/services/calls/liveKitProvider.ts",
+      "!src/components/Calls/CallParticipantTile.web.tsx",
+      "!src/services/storage.web.ts",
+      "!src/services/webCryptoVault.web.ts",
+      "!src/components/Common/SafariPWABanner.tsx"
     ]
   }
 }
