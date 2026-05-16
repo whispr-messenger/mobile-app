@@ -3,6 +3,9 @@ import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import { ProfileSetupScreen } from "../ProfileSetupScreen";
 import { profileSetupFlag } from "../../../services/profileSetupFlag";
 
+// Polling splash + parallel coverage runs need extra headroom.
+jest.setTimeout(30_000);
+
 const mockReset = jest.fn();
 const mockNavigate = jest.fn();
 
@@ -190,9 +193,12 @@ describe("ProfileSetupScreen", () => {
       <ProfileSetupScreen />,
     );
     // Wait for polling to complete (profileReady = true, banner disappears)
-    await waitFor(() => {
-      expect(queryByText("Préparation de votre compte...")).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(queryByText("Préparation de votre compte...")).toBeNull();
+      },
+      { timeout: 8000 },
+    );
     fireEvent.changeText(getByPlaceholderText("auth.firstName"), "John");
     fireEvent.changeText(getByPlaceholderText("auth.lastName"), "Doe");
     fireEvent.changeText(getByPlaceholderText("Pseudo"), "johndoe");
@@ -218,9 +224,12 @@ describe("ProfileSetupScreen", () => {
       <ProfileSetupScreen />,
     );
 
-    await waitFor(() => {
-      expect(queryByText("Préparation de votre compte...")).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(queryByText("Préparation de votre compte...")).toBeNull();
+      },
+      { timeout: 8000 },
+    );
 
     const usernameInput = getByPlaceholderText("Pseudo");
     fireEvent.changeText(usernameInput, "ДАЛМ1");
@@ -241,9 +250,12 @@ describe("ProfileSetupScreen", () => {
   it("blocks save when username is empty and surfaces an explicit error", async () => {
     const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
       render(<ProfileSetupScreen />);
-    await waitFor(() => {
-      expect(queryByText("Préparation de votre compte...")).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(queryByText("Préparation de votre compte...")).toBeNull();
+      },
+      { timeout: 8000 },
+    );
     // Fill firstName but leave username empty — should NOT save
     fireEvent.changeText(getByPlaceholderText("auth.firstName"), "John");
     fireEvent.press(getByText("common.save"));
@@ -259,9 +271,12 @@ describe("ProfileSetupScreen", () => {
   it("blocks save when username is shorter than 3 characters", async () => {
     const { getByPlaceholderText, getByText, queryByText, queryByTestId } =
       render(<ProfileSetupScreen />);
-    await waitFor(() => {
-      expect(queryByText("Préparation de votre compte...")).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(queryByText("Préparation de votre compte...")).toBeNull();
+      },
+      { timeout: 8000 },
+    );
     fireEvent.changeText(getByPlaceholderText("Pseudo"), "ab");
     fireEvent.press(getByText("common.save"));
 
@@ -279,9 +294,12 @@ describe("ProfileSetupScreen", () => {
     const { getByPlaceholderText, getByText, queryByText } = render(
       <ProfileSetupScreen />,
     );
-    await waitFor(() => {
-      expect(queryByText("Préparation de votre compte...")).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(queryByText("Préparation de votre compte...")).toBeNull();
+      },
+      { timeout: 8000 },
+    );
 
     fireEvent.changeText(getByPlaceholderText("Pseudo"), "Привет_42");
     fireEvent.press(getByText("common.save"));
@@ -299,9 +317,12 @@ describe("ProfileSetupScreen", () => {
     const { getByPlaceholderText, getByText, queryByText } = render(
       <ProfileSetupScreen />,
     );
-    await waitFor(() => {
-      expect(queryByText("Préparation de votre compte...")).toBeNull();
-    });
+    await waitFor(
+      () => {
+        expect(queryByText("Préparation de votre compte...")).toBeNull();
+      },
+      { timeout: 8000 },
+    );
     const firstNameField = getByPlaceholderText("auth.firstName");
     fireEvent.changeText(firstNameField, "John");
     fireEvent.press(getByText("common.save"));

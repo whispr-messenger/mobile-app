@@ -76,9 +76,41 @@ npm test -- --watchAll=false
 
 # Specific pattern
 npm test -- --watchAll=false --testPathPattern="ChatScreen"
+
+# Full suite with coverage report (writes coverage/ and runs threshold check)
+npm run test:coverage
 ```
 
 All tests must be green before committing.
+
+### Coverage thresholds
+
+CI enforces these minimums via `scripts/check-coverage.js`:
+
+| Metric     | Min  |
+|------------|------|
+| Statements | 55%  |
+| Branches   | 65%  |
+| Functions  | 48%  |
+| Lines      | 55%  |
+
+PRs must keep coverage above these bars. The script consumes
+`coverage/coverage-summary.json`, produced by `npm run test:coverage`.
+
+### Test patterns
+
+Reach for these reference files when writing new tests:
+
+| Kind | Reference |
+|------|-----------|
+| API service with `fetch` + `TokenService` | `src/services/contacts/__tests__/contactsApi.test.ts`, `src/services/groups/__tests__/api.test.ts` |
+| Component with `expo-image-picker` / `expo-haptics` / `LinearGradient` | `src/components/Chat/__tests__/CameraCapture.test.tsx`, `src/components/Chat/__tests__/MessageInput.test.tsx` |
+| Modal / sheet wizard with multi-step state | `src/components/Chat/__tests__/ReportMessageSheet.test.tsx`, `src/components/Chat/__tests__/BlockedImageAppealModal.test.tsx` |
+| Component reading Zustand stores + context | `src/components/Chat/__tests__/ConversationItem.test.tsx` |
+| Reanimated mock | `src/components/Chat/__tests__/MessageBubble.test.tsx` (inline `jest.mock("react-native-reanimated", …)`) |
+
+Shared helpers live in `src/__test-utils__/` — prefer `installFetchMock` +
+`mockResponse` from `mockFactories.ts` over hand-rolling fetch mocks.
 
 ---
 
