@@ -17,14 +17,18 @@
 const fs = require("fs");
 const path = require("path");
 
-// Project-wide baselines. These are intentionally set slightly below the
-// current coverage measured right after Sprint 4 so PRs have headroom.
-// Ratchet upward in future sprints as more screens/services get tested.
+// Project-wide baselines. Ratcheted incrementally as new test surface
+// landed:
+//   v1 (pre-2026-05): 35/60/33/35
+//   v2 (groups/api + 5 Chat components): 55/65/48/55
+//   v3 (stack modernization + admin smoke + heavy screen smoke): 72/65/50/72
+// Headroom of ~5 pts below the current measurement so a normal PR can't
+// silently regress.
 const THRESHOLDS = {
-  statements: 35,
-  branches: 60,
-  functions: 33,
-  lines: 35,
+  statements: 72,
+  branches: 65,
+  functions: 50,
+  lines: 72,
 };
 
 const summaryPath = path.resolve(

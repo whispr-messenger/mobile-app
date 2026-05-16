@@ -1,0 +1,196 @@
+import React from "react";
+import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { ConversationsListScreen } from "../ConversationsListScreen";
+
+const mockNavigate = jest.fn();
+
+jest.mock("@react-navigation/native", () => ({
+  useNavigation: () => ({ navigate: mockNavigate, goBack: jest.fn() }),
+  useRoute: () => ({ params: {} }),
+  useFocusEffect: jest.fn(),
+}));
+jest.mock("expo-linear-gradient", () => ({
+  LinearGradient: ({ children }: any) => children,
+}));
+jest.mock("react-native-safe-area-context", () => ({
+  SafeAreaView: ({ children }: any) => children,
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+jest.mock("expo-haptics", () => ({
+  impactAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: "light", Medium: "medium", Heavy: "heavy" },
+  NotificationFeedbackType: { Success: "success" },
+}));
+jest.mock("../../../context/ThemeContext", () => ({
+  useTheme: () => ({
+    getThemeColors: () => ({
+      background: {
+        gradient: ["#000", "#111"],
+        primary: "#000",
+        secondary: "#111",
+      },
+      text: { primary: "#fff", secondary: "#aaa", tertiary: "#555" },
+      primary: "#6200ee",
+    }),
+    getFontSize: () => 16,
+    getLocalizedText: (key: string) => key,
+  }),
+}));
+jest.mock("../../../context/AuthContext", () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    isLoading: false,
+    userId: "user1",
+    deviceId: "dev1",
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+  }),
+}));
+jest.mock("../../../hooks/useWebSocket", () => ({
+  useWebSocket: () => ({
+    joinConversationChannel: jest
+      .fn()
+      .mockReturnValue({ channel: null, cleanup: jest.fn() }),
+    sendMessage: jest.fn(),
+    markAsRead: jest.fn(),
+    sendTyping: jest.fn(),
+  }),
+}));
+jest.mock("../../../services/TokenService", () => ({
+  TokenService: { getAccessToken: jest.fn().mockResolvedValue("tok") },
+}));
+jest.mock("../../../services/messaging/api", () => ({
+  messagingAPI: {
+    searchMessagesGlobal: jest.fn().mockResolvedValue(null),
+  },
+}));
+jest.mock("../../../store/conversationsStore", () => ({
+  useConversationsStore: (selector: any) =>
+    selector({
+      conversations: [],
+      status: "empty",
+      manuallyUnreadIds: new Set<string>(),
+      archived: {
+        items: [],
+        status: "idle",
+        error: null,
+        offset: 0,
+        hasMore: false,
+        loadingMore: false,
+      },
+      fetchConversations: jest.fn().mockResolvedValue(undefined),
+      refreshConversations: jest.fn().mockResolvedValue(undefined),
+      applyConversationUpdate: jest.fn(),
+      applyConversationSummaries: jest.fn(),
+      applyNewMessage: jest.fn(),
+      applyMessageUpdated: jest.fn(),
+      applyMessageDeleted: jest.fn(),
+      deleteConversation: jest.fn().mockResolvedValue(undefined),
+      archiveConversation: jest.fn().mockResolvedValue(undefined),
+      applyArchiveBroadcast: jest.fn(),
+      muteConversation: jest.fn().mockResolvedValue(undefined),
+      pinConversation: jest.fn(),
+      markAsUnread: jest.fn(),
+      clearManualUnread: jest.fn(),
+      resetUnreadCount: jest.fn(),
+      loadManuallyUnreadIds: jest.fn(),
+    }),
+}));
+jest.mock("../../../components/Chat/SwipeableConversationItem", () => ({
+  SwipeableConversationItem: ({ conversation, onPress }: any) => {
+    const { TouchableOpacity, Text } = require("react-native");
+    return (
+      <TouchableOpacity onPress={() => onPress(conversation.id)}>
+        <Text>{conversation.display_name || "Conversation"}</Text>
+      </TouchableOpacity>
+    );
+  },
+}));
+jest.mock("../../../components/Chat/EmptyState", () => ({
+  EmptyState: ({ onNewConversation }: any) => {
+    const { TouchableOpacity, Text } = require("react-native");
+    return (
+      <TouchableOpacity onPress={onNewConversation}>
+        <Text>Nouvelle conversation</Text>
+      </TouchableOpacity>
+    );
+  },
+}));
+jest.mock("../../../components/Chat/SkeletonLoader", () => ({
+  ConversationSkeleton: () => null,
+}));
+jest.mock("../../../components/Navigation/BottomTabBar", () => ({
+  BottomTabBar: () => null,
+}));
+jest.mock("../../../components/Chat/NewConversationModal", () => ({
+  NewConversationModal: () => null,
+}));
+jest.mock("../../../components/Toast/Toast", () => () => null);
+jest.mock("../../../theme/colors", () => ({
+  colors: {
+    background: { gradient: { app: ["#000", "#111"] } },
+    primary: { main: "#6200ee" },
+    text: { light: "#fff" },
+    ui: { error: "#f00" },
+    secondary: { main: "#03dac6" },
+  },
+  withOpacity: (color: string, _opacity: number) => color,
+}));
+jest.mock("../../../store/inboxStore", () => ({
+  useInboxStore: (selector: any) =>
+    selector({
+      items: [],
+      unread_count: 0,
+      loading: false,
+      has_more: false,
+      next_cursor: null,
+      hydrate: jest.fn().mockResolvedValue(undefined),
+      loadMore: jest.fn().mockResolvedValue(undefined),
+      markAllRead: jest.fn().mockResolvedValue(undefined),
+      markRead: jest.fn().mockResolvedValue(undefined),
+      addNew: jest.fn(),
+    }),
+}));
+jest.mock("../../../components/Common/BellIcon", () => ({
+  BellIcon: () => null,
+}));
+jest.mock("../../../components/Common/InboxPanel", () => ({
+  InboxPanel: () => null,
+}));
+jest.mock("../../../components/Common/SafariPWABanner", () => ({
+  SafariPWABanner: () => null,
+}));
+
+describe("ConversationsListScreen", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("renders without crashing", () => {
+    const { toJSON } = render(<ConversationsListScreen />);
+    expect(toJSON()).toBeTruthy();
+  });
+
+  it("renders search bar", () => {
+    const { getByPlaceholderText } = render(<ConversationsListScreen />);
+    expect(
+      getByPlaceholderText("Rechercher des messages ou utilisateurs"),
+    ).toBeTruthy();
+  });
+
+  it("renders empty state when no conversations", () => {
+    const { getByText } = render(<ConversationsListScreen />);
+    expect(getByText("Nouvelle conversation")).toBeTruthy();
+  });
+
+  it("renders Edit button", () => {
+    const { getByText } = render(<ConversationsListScreen />);
+    expect(getByText("Modifier")).toBeTruthy();
+  });
+
+  it("toggles edit mode on Edit press", () => {
+    const { getByText } = render(<ConversationsListScreen />);
+    fireEvent.press(getByText("Modifier"));
+    expect(getByText("Annuler")).toBeTruthy();
+  });
+});

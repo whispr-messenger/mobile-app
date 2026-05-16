@@ -1,5 +1,5 @@
 /**
- * AboutContentScreen — contenu, sécurité, liens légaux et CTA signalement (WHISPR).
+ * AboutContentScreen — contenu, securite, liens legaux et CTA signalement (WHISPR).
  */
 
 import React, { useCallback } from "react";
@@ -11,61 +11,20 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { StackNavigationProp } from "@react-navigation/stack";
-import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import type { AuthStackParamList } from "../../navigation/AuthNavigator";
-
-type Extra = {
-  legalPrivacyUrl?: string;
-  legalTermsUrl?: string;
-};
-
-function getLegalExtra(): Extra {
-  const e = Constants.expoConfig?.extra as Extra | undefined;
-  return e ?? {};
-}
 
 export const AboutContentScreen: React.FC = () => {
   const navigation = useNavigation<StackNavigationProp<AuthStackParamList>>();
   const insets = useSafeAreaInsets();
   const { getThemeColors, getFontSize, getLocalizedText } = useTheme();
   const themeColors = getThemeColors();
-
-  const openLegalUrl = useCallback(
-    async (url: string | undefined) => {
-      if (!url?.trim()) {
-        Alert.alert(
-          getLocalizedText("notif.error"),
-          getLocalizedText("about.legalOpenError"),
-        );
-        return;
-      }
-      try {
-        const supported = await Linking.canOpenURL(url);
-        if (!supported) {
-          Alert.alert(
-            getLocalizedText("notif.error"),
-            getLocalizedText("about.legalOpenError"),
-          );
-          return;
-        }
-        await Linking.openURL(url);
-      } catch {
-        Alert.alert(
-          getLocalizedText("notif.error"),
-          getLocalizedText("about.legalOpenError"),
-        );
-      }
-    },
-    [getLocalizedText],
-  );
 
   const onReportPress = useCallback(() => {
     if (Platform.OS === "web") {
@@ -78,8 +37,6 @@ export const AboutContentScreen: React.FC = () => {
       [{ text: getLocalizedText("common.ok") }],
     );
   }, [getLocalizedText]);
-
-  const { legalPrivacyUrl, legalTermsUrl } = getLegalExtra();
 
   const bodyStyle = [
     styles.bodyText,
@@ -205,11 +162,12 @@ export const AboutContentScreen: React.FC = () => {
                 borderColor: themeColors.secondary,
               },
             ]}
-            onPress={() => openLegalUrl(legalPrivacyUrl)}
+            onPress={() => navigation.navigate("PrivacyPolicy")}
             accessibilityRole="button"
+            accessibilityLabel={getLocalizedText("about.privacyPolicy")}
           >
             <Ionicons
-              name="open-outline"
+              name="lock-closed-outline"
               size={20}
               color={themeColors.primary}
             />
@@ -234,11 +192,12 @@ export const AboutContentScreen: React.FC = () => {
                 borderColor: themeColors.secondary,
               },
             ]}
-            onPress={() => openLegalUrl(legalTermsUrl)}
+            onPress={() => navigation.navigate("TermsOfUse")}
             accessibilityRole="button"
+            accessibilityLabel={getLocalizedText("about.termsOfUse")}
           >
             <Ionicons
-              name="open-outline"
+              name="document-text-outline"
               size={20}
               color={themeColors.primary}
             />
@@ -252,6 +211,36 @@ export const AboutContentScreen: React.FC = () => {
               ]}
             >
               {getLocalizedText("about.termsOfUse")}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.legalButton,
+              {
+                backgroundColor: themeColors.background.secondary,
+                borderColor: themeColors.secondary,
+              },
+            ]}
+            onPress={() => navigation.navigate("ModerationTest")}
+            accessibilityRole="button"
+            accessibilityLabel={getLocalizedText("about.testImageAnalysis")}
+          >
+            <Ionicons
+              name="scan-outline"
+              size={20}
+              color={themeColors.primary}
+            />
+            <Text
+              style={[
+                styles.legalButtonLabel,
+                {
+                  color: themeColors.text.primary,
+                  fontSize: getFontSize("base"),
+                },
+              ]}
+            >
+              {getLocalizedText("about.testImageAnalysis")}
             </Text>
           </TouchableOpacity>
 

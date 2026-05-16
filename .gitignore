@@ -18,7 +18,9 @@ web-build/
 .env.*.local
 
 # Firebase config files - rotated via EAS secrets, see WHISPR-1402
-google-services.json
+# NOTE: google-services.json is intentionally tracked for the whispr-perso-test
+# Firebase project (test/preprod). Re-add the line and switch to EAS secrets
+# before pointing at a production Firebase project.
 GoogleService-Info.plist
 
 # Logs

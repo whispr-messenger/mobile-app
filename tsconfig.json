@@ -48,7 +48,9 @@
   "exclude": [
     "node_modules",
     "android",
-    "ios"
+    "ios",
+    "src/**/__tests__/**",
+    "src/__test-utils__/**"
   ],
-  "extends": "expo/tsconfig.base"
+  "extends": "expo/tsconfig.base.json"
 }

@@ -585,10 +585,19 @@ export const ChatScreen: React.FC = () => {
     },
     onTyping: (typingUserId: string, typing: boolean) => {
       if (typingUserId !== userId) {
-        setTypingUsers((prev) => {
-          if (typing) {
-            if (prev.includes(typingUserId)) return prev;
-            // Fetch user name when user starts typing
+        if (typing) {
+          // Résoudre le nom depuis conversationMembers en priorité (synchrone,
+          // zéro latence). Fallback sur getUserInfo seulement si absent du
+          // cache local — évite le "Quelqu'un" affiché pendant le round-trip.
+          const memberName = conversationMembers.find(
+            (m) => m.id === typingUserId,
+          )?.display_name;
+          if (memberName) {
+            setTypingUsersNames((prev) => ({
+              ...prev,
+              [typingUserId]: memberName,
+            }));
+          } else {
             messagingAPI.getUserInfo(typingUserId).then((userInfo) => {
               if (userInfo) {
                 setTypingUsersNames((prevNames) => ({
@@ -597,18 +606,26 @@ export const ChatScreen: React.FC = () => {
                 }));
               }
             });
-            return [...prev, typingUserId];
-          } else {
-            return prev.filter((id) => id !== typingUserId);
           }
-        });
-
-        // Auto-clear typing after 5s if no follow-up event
-        if (typing) {
+          setTypingUsers((prev) =>
+            prev.includes(typingUserId) ? prev : [...prev, typingUserId],
+          );
+          // Annuler le timer précédent avant d'en créer un nouveau — sans ça,
+          // des typing_started répétés empilent des timers et le user disparaît
+          // prématurément (le premier timer expire avant les suivants).
+          if (typingTimeoutsRef.current[typingUserId]) {
+            clearTimeout(typingTimeoutsRef.current[typingUserId]);
+          }
           typingTimeoutsRef.current[typingUserId] = setTimeout(() => {
             setTypingUsers((prev) => prev.filter((id) => id !== typingUserId));
             delete typingTimeoutsRef.current[typingUserId];
           }, 5000);
+        } else {
+          setTypingUsers((prev) => prev.filter((id) => id !== typingUserId));
+          if (typingTimeoutsRef.current[typingUserId]) {
+            clearTimeout(typingTimeoutsRef.current[typingUserId]);
+            delete typingTimeoutsRef.current[typingUserId];
+          }
         }
       }
     },

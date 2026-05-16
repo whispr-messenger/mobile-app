@@ -8,7 +8,9 @@ type MinimalNavigationRef = {
   isReady: () => boolean;
   navigate: (name: string, params?: unknown) => void;
   dispatch: (action: unknown) => void;
-  getCurrentRoute: () => { name: keyof AuthStackParamList } | undefined;
+  getCurrentRoute: () =>
+    | { name: keyof AuthStackParamList; params?: unknown }
+    | undefined;
 };
 
 function createFallbackNavigationRef(): MinimalNavigationRef {
