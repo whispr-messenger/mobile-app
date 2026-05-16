@@ -426,7 +426,11 @@ export const useConversationsStore = create<
           last_message: conv.last_message || existing.last_message,
           is_pinned: conv.is_pinned || existing.is_pinned,
           is_muted: conv.is_muted || existing.is_muted,
-          is_archived: conv.is_archived || existing.is_archived,
+          // Le serveur est source de vérité pour is_archived : on prend
+          // toujours la valeur WS. L'ancien `|| existing.is_archived` causait
+          // un re-archivage silencieux après un unarchive optimiste (le WS
+          // summary suivant remettait true depuis l'état mémoire stale).
+          is_archived: conv.is_archived,
         };
       }
       return conv;
