@@ -110,6 +110,12 @@
   "jest": {
     "preset": "jest-expo",
     "coverageProvider": "v8",
+    "roots": [
+      "<rootDir>/src"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.test.(ts|tsx)"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/e2e/"
@@ -126,6 +132,7 @@
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",
       "!src/**/*.d.ts",
+      "!src/**/__tests__/**",
       "!src/__test-utils__/**",
       "!src/types/**"
     ]
