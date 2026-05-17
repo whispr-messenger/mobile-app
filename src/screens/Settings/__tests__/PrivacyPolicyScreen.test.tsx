@@ -11,6 +11,12 @@ jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+jest.mock("react-native-webview", () => ({
+  WebView: () => null,
+}));
+jest.mock("../../../utils/legalDocumentUrl", () => ({
+  getLegalDocumentUrl: () => "https://example.test/legal/privacy.html",
+}));
 jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -30,10 +36,8 @@ jest.mock("../../../context/ThemeContext", () => ({
 }));
 
 describe("PrivacyPolicyScreen", () => {
-  it("renders without crashing and shows the main sections", () => {
+  it("renders header for privacy policy", () => {
     const { getByText } = render(<PrivacyPolicyScreen />);
     expect(getByText("about.privacyPolicy")).toBeTruthy();
-    expect(getByText("DONNEES COLLECTEES")).toBeTruthy();
-    expect(getByText("VOS DROITS RGPD")).toBeTruthy();
   });
 });

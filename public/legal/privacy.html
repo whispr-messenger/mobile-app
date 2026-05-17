@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Politique de confidentialité — Whispr</title>
+  <link rel="icon" type="image/png" href="../../assets/images/logo-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:        #080d1a;
+      --navy-1:      #0e1525;
+      --navy-2:      #141d30;
+      --navy-3:      #1c2840;
+      --violet:      #3C2E7C;
+      --violet-mid:  #6774BD;
+      --violet-glow: rgba(103,116,189,0.12);
+      --coral:       #FE7A5C;
+      --coral-glow:  rgba(254,122,92,0.1);
+      --text:        #eef0f8;
+      --text-2:      #8892b0;
+      --text-3:      #4a5470;
+      --border:      #172035;
+      --border-2:    #1e2d4a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--navy);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.8;
+      -webkit-font-smoothing: antialiased;
+      cursor: none;
+      overflow-x: hidden;
+    }
+
+    /* CURSOR */
+    #cursor {
+      width: 8px; height: 8px;
+      background: var(--violet-mid);
+      border-radius: 50%;
+      position: fixed; pointer-events: none; z-index: 9999;
+      transform: translate(-50%,-50%);
+      transition: transform 0.08s ease, width 0.2s ease, height 0.2s ease,
+                  background 0.2s ease;
+    }
+
+    #cursor-ring {
+      width: 32px; height: 32px;
+      border: 1px solid rgba(103,116,189,0.4);
+      border-radius: 50%;
+      position: fixed; pointer-events: none; z-index: 9998;
+      transform: translate(-50%,-50%);
+      transition: transform 0.18s ease, width 0.25s ease, height 0.25s ease,
+                  border-color 0.2s ease;
+    }
+
+    body:has(a:hover) #cursor,
+    body:has(button:hover) #cursor { width: 12px; height: 12px; }
+    body:has(a:hover) #cursor-ring,
+    body:has(button:hover) #cursor-ring {
+      width: 44px; height: 44px;
+      border-color: rgba(103,116,189,0.7);
+    }
+
+    /* PROGRESS */
+    #progress {
+      position: fixed; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, var(--violet-mid), var(--coral));
+      transform-origin: left; transform: scaleX(0);
+      z-index: 500; transition: transform 0.08s linear;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      height: 60px;
+      display: flex; align-items: center;
+      padding: 0 48px;
+      justify-content: space-between;
+      transition: background 0.3s ease, border-color 0.3s ease;
+      border-bottom: 1px solid transparent;
+    }
+
+    nav.scrolled {
+      background: rgba(8,13,26,0.85);
+      backdrop-filter: blur(20px) saturate(1.8);
+      -webkit-backdrop-filter: blur(20px) saturate(1.8);
+      border-bottom-color: var(--border);
+    }
+
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none; flex-shrink: 0;
+    }
+
+    .nav-logo img {
+      width: 30px; height: 30px; border-radius: 8px; display: block;
+      transition: transform 0.2s ease;
+    }
+    .nav-logo:hover img { transform: rotate(-8deg) scale(1.05); }
+
+    .nav-brand {
+      font-size: 16px; font-weight: 700; letter-spacing: -0.4px;
+      background: linear-gradient(110deg, #fff 0%, var(--text-2) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav-right { display: flex; align-items: center; gap: 6px; }
+
+    .nav-pill {
+      font-size: 13px; font-weight: 500;
+      color: var(--text-2); text-decoration: none;
+      padding: 6px 14px; border-radius: 20px;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+    .nav-pill:hover { color: var(--text); border-color: var(--border-2); }
+    .nav-pill.active {
+      color: var(--violet-mid);
+      background: var(--violet-glow);
+      border-color: rgba(103,116,189,0.2);
+    }
+
+    /* AMBIENT */
+    .ambient { position: fixed; pointer-events: none; z-index: 0; }
+    .ambient-1 {
+      top: -200px; left: -100px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(103,116,189,0.1) 0%, transparent 70%);
+    }
+    .ambient-2 {
+      bottom: 10%; right: -150px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(60,46,124,0.12) 0%, transparent 70%);
+    }
+
+    /* HERO */
+    .hero {
+      position: relative; z-index: 1;
+      padding: 160px 48px 80px;
+      max-width: 900px; margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 28px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.1s forwards;
+    }
+
+    .eyebrow-line {
+      width: 24px; height: 1px;
+      background: linear-gradient(90deg, var(--violet-mid), transparent);
+    }
+
+    .eyebrow-text {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+      color: var(--violet-mid);
+    }
+
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 72px);
+      font-weight: 900; letter-spacing: -2px; line-height: 1.05;
+      color: #fff;
+      opacity: 0; animation: fadeUp 0.7s ease 0.2s forwards;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(120deg, var(--violet-mid) 0%, var(--coral) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-divider {
+      width: 48px; height: 2px;
+      background: linear-gradient(90deg, var(--violet-mid), var(--coral));
+      margin: 36px 0; border-radius: 2px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.3s forwards;
+    }
+
+    .hero-meta {
+      font-size: 13px; color: var(--text-3); letter-spacing: 0.3px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.35s forwards;
+    }
+
+    /* TLDR */
+    .tldr-section {
+      position: relative; z-index: 1;
+      max-width: 900px; margin: 0 auto;
+      padding: 0 48px 64px;
+      opacity: 0; animation: fadeUp 0.7s ease 0.45s forwards;
+    }
+
+    .tldr-inner {
+      border: 1px solid var(--border-2);
+      border-radius: 16px; overflow: hidden;
+      background: linear-gradient(135deg, rgba(103,116,189,0.06) 0%, rgba(60,46,124,0.04) 100%);
+    }
+
+    .tldr-header {
+      padding: 20px 28px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .tldr-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--violet-mid);
+      box-shadow: 0 0 8px var(--violet-mid);
+    }
+
+    .tldr-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text-2);
+    }
+
+    .tldr-body { padding: 8px 0; }
+
+    .tldr-row {
+      display: flex; align-items: baseline; gap: 16px;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s ease;
+    }
+    .tldr-row:last-child { border-bottom: none; }
+    .tldr-row:hover { background: rgba(255,255,255,0.02); }
+
+    .tldr-num {
+      font-size: 11px; font-weight: 700;
+      color: var(--violet-mid); letter-spacing: 0.5px;
+      flex-shrink: 0; min-width: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tldr-text { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+
+    /* LAYOUT */
+    .layout {
+      position: relative; z-index: 1;
+      max-width: 1120px; margin: 0 auto;
+      padding: 0 48px 120px;
+      display: grid;
+      grid-template-columns: 192px 1fr;
+      gap: 72px; align-items: start;
+    }
+
+    /* SIDEBAR */
+    .sidebar { position: sticky; top: 88px; }
+
+    .sidebar-label {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text-3); margin-bottom: 16px; padding-left: 12px;
+    }
+
+    .sidebar-nav { list-style: none; }
+    .sidebar-nav li + li { margin-top: 1px; }
+
+    .sidebar-nav a {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text-3);
+      text-decoration: none;
+      padding: 6px 12px; border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .sidebar-nav a::before {
+      content: ''; width: 0; height: 1px;
+      background: var(--violet-mid);
+      transition: width 0.2s ease; flex-shrink: 0;
+    }
+
+    .sidebar-nav a:hover { color: var(--text-2); background: var(--navy-2); }
+    .sidebar-nav a:hover::before { width: 12px; }
+    .sidebar-nav a.active { color: var(--text); background: rgba(103,116,189,0.07); }
+    .sidebar-nav a.active::before { width: 12px; }
+
+    /* CONTENT */
+    .content section {
+      margin-bottom: 64px; scroll-margin-top: 80px;
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .content section.visible { opacity: 1; transform: translateY(0); }
+
+    .content h2 {
+      font-size: 20px; font-weight: 700;
+      letter-spacing: -0.5px; color: #fff;
+      margin-bottom: 24px; padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    .h2-num {
+      font-size: 11px; font-weight: 700;
+      color: var(--text-3); font-variant-numeric: tabular-nums;
+      letter-spacing: 1px; margin-top: 2px;
+    }
+
+    .content h3 {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--text-3); margin: 28px 0 10px;
+    }
+
+    .content p { font-size: 15px; color: var(--text-2); margin-bottom: 14px; line-height: 1.8; }
+
+    .content ul, .content ol { padding-left: 0; margin-bottom: 16px; list-style: none; }
+
+    .content li {
+      font-size: 15px; color: var(--text-2);
+      padding: 6px 0 6px 20px; position: relative;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .content li:last-child { border-bottom: none; }
+    .content li::before {
+      content: ''; position: absolute; left: 0; top: 14px;
+      width: 5px; height: 1px; background: var(--text-3);
+    }
+
+    .content a {
+      color: var(--violet-mid); text-decoration: none;
+      border-bottom: 1px solid rgba(103,116,189,0.25);
+      transition: all 0.15s;
+    }
+    .content a:hover { color: var(--coral); border-bottom-color: rgba(254,122,92,0.35); }
+
+    .content strong { color: var(--text); font-weight: 600; }
+
+    /* NOTE */
+    .note {
+      padding: 16px 20px; margin: 20px 0;
+      border-radius: 8px; background: var(--navy-2);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--border-2);
+    }
+    .note p { font-size: 14px; margin: 0; color: var(--text-2); line-height: 1.7; }
+    .note.accent { border-left-color: var(--coral); background: rgba(254,122,92,0.04); }
+    .note.info   { border-left-color: var(--violet-mid); background: rgba(103,116,189,0.05); }
+    .note.ok     { border-left-color: #2d8a3e; background: rgba(33,192,4,0.04); }
+
+    /* TABLE */
+    .table-wrap {
+      margin: 20px 0; border: 1px solid var(--border);
+      border-radius: 10px; overflow: hidden; overflow-x: auto;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: var(--navy-2); }
+
+    th {
+      padding: 12px 18px; text-align: left;
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--text-3); white-space: nowrap;
+    }
+
+    td {
+      padding: 13px 18px; font-size: 14px;
+      color: var(--text-2); border-top: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tr:hover td { background: rgba(255,255,255,0.015); }
+
+    /* GRID */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0; }
+
+    .g-card {
+      padding: 18px 20px; background: var(--navy-2);
+      border: 1px solid var(--border); border-radius: 10px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .g-card:hover { border-color: var(--border-2); background: var(--navy-3); }
+
+    .g-label {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--text-3); margin-bottom: 8px;
+    }
+
+    .g-card p { font-size: 13px; color: var(--text-2); margin: 0; line-height: 1.6; }
+
+    /* ── CONTACT ── */
+    .contact-intro {
+      font-size: 14px; color: var(--text-3); margin-bottom: 20px; line-height: 1.6;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+
+    .contact-card {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 22px 24px;
+      background: var(--navy-2);
+      border: 1px solid var(--border-2);
+      border-radius: 14px;
+      text-decoration: none;
+      position: relative; overflow: hidden;
+      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+      cursor: none;
+    }
+    .contact-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--violet-mid), transparent);
+      opacity: 0; transition: opacity 0.22s;
+    }
+    .contact-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(103,116,189,0.35);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+    .contact-card:hover::before { opacity: 0.7; }
+
+    .contact-card-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .contact-card-icon.violet {
+      background: rgba(103,116,189,0.12);
+      border: 1px solid rgba(103,116,189,0.2);
+    }
+    .contact-card-icon.purple {
+      background: rgba(60,46,124,0.18);
+      border: 1px solid rgba(60,46,124,0.3);
+    }
+
+    .contact-card-title {
+      font-size: 13px; font-weight: 650; color: var(--text); letter-spacing: -0.2px;
+    }
+    .contact-card-desc {
+      font-size: 12px; color: var(--text-3); line-height: 1.55;
+    }
+    .contact-card-link {
+      font-size: 11px; color: var(--violet-mid);
+      margin-top: 4px; letter-spacing: 0.1px;
+    }
+
+    /* FOOTER */
+    /* (footer styles consolidated below) */
+
+    /* COOKIE */
+    #cookie {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 400;
+      background: rgba(8,13,26,0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border-2);
+      padding: 0 48px; height: 56px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 20px;
+      transform: translateY(0);
+      transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    #cookie.out { transform: translateY(100%); }
+
+    .cookie-text { font-size: 13px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cookie-text a { color: var(--violet-mid); text-decoration: none; border-bottom: 1px solid rgba(103,116,189,0.3); }
+
+    .cookie-btns { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .ck-btn {
+      font-size: 12px; font-weight: 600;
+      padding: 6px 14px; border-radius: 6px;
+      border: none; cursor: none; transition: all 0.15s;
+    }
+
+    .ck-accept {
+      background: linear-gradient(135deg, var(--violet), var(--violet-mid));
+      color: #fff;
+    }
+    .ck-accept:hover { opacity: 0.88; }
+
+    .ck-decline {
+      background: transparent;
+      border: 1px solid var(--border-2); color: var(--text-3);
+    }
+    .ck-decline:hover { color: var(--text-2); border-color: var(--text-3); }
+
+    /* ── NOISE TEXTURE ── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; z-index: 1000;
+      pointer-events: none;
+      opacity: 0.028;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+    }
+
+    /* ── FLUID SIMULATION CANVAS ── */
+    canvas#canvas {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      pointer-events: auto;
+      opacity: 0.35;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--violet-mid); }
+
+    /* ── TEXT SELECTION ── */
+    ::selection { background: rgba(103,116,189,0.3); color: #fff; }
+
+    /* ══ FOOTER ══════════════════════════════════════════════════════ */
+    footer {
+      position: relative; z-index: 1;
+      margin-top: 80px;
+      background: rgba(8,13,26,0.55);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+    }
+
+    /* Gradient shimmer line en haut du footer */
+    footer::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(60,46,124,0.5) 20%,
+        rgba(254,122,92,0.8) 50%,
+        rgba(103,116,189,0.5) 80%,
+        transparent 100%
+      );
+      animation: shimmerLine 4s ease-in-out infinite;
+    }
+    @keyframes shimmerLine {
+      0%,100% { opacity:.55; }
+      50%      { opacity:1; }
+    }
+
+    .footer-top {
+      padding: 48px 48px 36px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+    }
+
+    .footer-brand { display: flex; flex-direction: column; gap: 14px; }
+    .footer-brand-logo { display: flex; align-items: center; gap: 10px; }
+    .footer-brand-logo img { width: 30px; height: 30px; border-radius: 8px; }
+    .footer-brand-name { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+
+    .footer-tagline { font-size: 13px; color: var(--text-3); line-height: 1.65; max-width: 260px; }
+    .footer-tagline .grad {
+      background: linear-gradient(90deg, var(--coral), var(--violet-mid));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; font-weight: 500;
+    }
+
+    /* Chat bubbles — staggered fade-in */
+    .footer-chat { display: flex; flex-direction: column; gap: 10px; justify-content: flex-end; }
+
+    .chat-bubble {
+      display: flex; align-items: flex-end; gap: 8px;
+      opacity: 0;
+      animation: bubbleIn 0.45s ease forwards;
+    }
+    .chat-bubble:nth-child(1) { animation-delay: 0.15s; }
+    .chat-bubble:nth-child(2) { animation-delay: 0.65s; }
+    .chat-bubble:nth-child(3) { animation-delay: 1.15s; }
+    @keyframes bubbleIn {
+      from { opacity:0; transform:translateY(8px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .chat-bubble.right { flex-direction: row-reverse; }
+
+    .bubble-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--navy-3); border: 1px solid var(--border-2);
+      overflow: hidden; flex-shrink: 0;
+    }
+    .bubble-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+    .bubble-text {
+      font-size: 12px; line-height: 1.5;
+      padding: 8px 12px; border-radius: 14px; max-width: 220px;
+    }
+    .chat-bubble:not(.right) .bubble-text {
+      background: var(--navy-3); border: 1px solid var(--border);
+      border-bottom-left-radius: 4px; color: var(--text-2);
+    }
+    .chat-bubble.right .bubble-text {
+      background: linear-gradient(135deg, var(--violet) 0%, rgba(103,116,189,0.8) 100%);
+      border-bottom-right-radius: 4px; color: rgba(255,255,255,0.9);
+    }
+    .bubble-time { font-size: 10px; color: var(--text-3); margin-bottom: 2px; flex-shrink: 0; }
+
+    /* ── Footer bottom — barre pleine largeur tout en bas ── */
+    .footer-bottom {
+      position: relative;
+      padding: 14px 48px;
+      display: flex; align-items: center;
+      justify-content: space-between; gap: 16px;
+    }
+    .footer-bottom::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg,
+        transparent, var(--border-2) 15%,
+        var(--border-2) 85%, transparent
+      );
+    }
+
+    /* ── Trust badges ── */
+    .trust-badges {
+      display: flex; flex-wrap: wrap; gap: 7px;
+      margin-top: 10px;
+    }
+    .trust-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px 4px 8px;
+      border-radius: 20px; border: 1px solid;
+      font-size: 10.5px; font-weight: 500; letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    .trust-pill.e2e  { background:rgba(33,192,4,.07); border-color:rgba(33,192,4,.22); color:#3dd68c; }
+    .trust-pill.rgpd { background:rgba(103,116,189,.07); border-color:rgba(103,116,189,.25); color:rgba(103,116,189,.95); }
+    .trust-pill.oss  { background:rgba(254,122,92,.07); border-color:rgba(254,122,92,.22); color:rgba(254,122,92,.9); }
+
+    /* ── Status indicator ── */
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 11px; color: var(--text-3);
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #21C004; flex-shrink: 0;
+      box-shadow: 0 0 0 0 rgba(33,192,4,.5);
+      animation: statusPulse 2.5s ease infinite;
+    }
+    @keyframes statusPulse {
+      0%  { box-shadow: 0 0 0 0   rgba(33,192,4,.5); }
+      60% { box-shadow: 0 0 0 7px rgba(33,192,4,0);  }
+      100%{ box-shadow: 0 0 0 0   rgba(33,192,4,0);  }
+    }
+
+    .footer-copy { font-size: 11px; color: var(--text-3); letter-spacing: 0.1px; }
+
+    .footer-links { display: flex; gap: 28px; list-style: none; }
+    .footer-links a {
+      font-size: 11px; color: var(--text-3); text-decoration: none;
+      position: relative; transition: color 0.2s;
+    }
+    .footer-links a::after {
+      content: ''; position: absolute; bottom: -2px; left: 0;
+      width: 0; height: 1px; background: var(--coral);
+      transition: width 0.25s ease;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-links a:hover::after { width: 100%; }
+
+    /* ── COOKIE — notification style ── */
+    #cookie {
+      position: fixed; bottom: 24px; right: 24px; z-index: 400;
+      width: 340px;
+      background: var(--navy-2);
+      border: 1px solid var(--border-2);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
+      transform: translateY(0); opacity: 1;
+      transition: transform 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.4s ease;
+    }
+
+    #cookie.out { transform: translateY(20px); opacity: 0; pointer-events: none; }
+
+    .ck-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+
+    .ck-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .ck-icon img { width: 100%; height: 100%; object-fit: cover; }
+
+    .ck-title { font-size: 13px; font-weight: 600; color: var(--text); }
+
+    .ck-body {
+      font-size: 12px; color: var(--text-3);
+      line-height: 1.6; margin-bottom: 14px;
+    }
+    .ck-body a { color: var(--violet-mid); text-decoration: none; }
+
+    .cookie-btns { display: flex; gap: 8px; }
+
+    .ck-btn {
+      flex: 1; font-size: 12px; font-weight: 600;
+      padding: 8px 12px; border-radius: 8px;
+      border: none; cursor: none; transition: all 0.15s;
+      text-align: center;
+    }
+
+    .ck-accept {
+      background: linear-gradient(135deg, var(--violet), var(--violet-mid));
+      color: #fff;
+    }
+    .ck-accept:hover { opacity: 0.88; }
+
+    .ck-decline {
+      background: transparent;
+      border: 1px solid var(--border-2); color: var(--text-3);
+    }
+    .ck-decline:hover { color: var(--text-2); border-color: var(--text-3); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      body { cursor: auto; }
+      #cursor, #cursor-ring { display: none; }
+      nav, footer { padding-left: 24px; padding-right: 24px; }
+      .hero, .tldr-section { padding-left: 24px; padding-right: 24px; }
+      .layout { grid-template-columns: 1fr; padding: 0 24px 80px; gap: 0; }
+      .sidebar { display: none; }
+      .grid-2 { grid-template-columns: 1fr; }
+      #cookie { right: 12px; bottom: 12px; width: calc(100vw - 24px); }
+      .footer-top { grid-template-columns: 1fr; gap: 28px; padding: 32px 24px 24px; }
+      .footer-bottom { padding: 16px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+<div id="progress"></div>
+
+<canvas id="canvas"></canvas>
+
+<nav id="nav">
+  <a class="nav-logo" href="#">
+    <img src="../../assets/images/logo-icon.png" alt="Whispr" />
+    <span class="nav-brand">Whispr</span>
+  </a>
+  <div class="nav-right">
+    <a href="privacy.html" class="nav-pill active">Confidentialité</a>
+    <a href="terms.html" class="nav-pill">CGU</a>
+    <a href="../waitlist.html" class="nav-pill" style="color:var(--coral);border-color:rgba(254,122,92,.25);background:var(--coral-glow)">Accès anticipé</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-eyebrow">
+    <div class="eyebrow-line"></div>
+    <span class="eyebrow-text">Légal · Version 1.0</span>
+  </div>
+  <h1>Politique de<br><span>confidentialité</span></h1>
+  <div class="hero-divider"></div>
+  <p class="hero-meta">Comment Whispr protège vos données personnelles.</p>
+</div>
+
+<div class="tldr-section">
+  <div class="tldr-inner">
+    <div class="tldr-header">
+      <div class="tldr-dot"></div>
+      <span class="tldr-label">En bref</span>
+    </div>
+    <div class="tldr-body">
+      <div class="tldr-row">
+        <span class="tldr-num">01</span>
+        <span class="tldr-text">Vos messages sont chiffrés de bout en bout — nous ne pouvons pas les lire.</span>
+      </div>
+      <div class="tldr-row">
+        <span class="tldr-num">02</span>
+        <span class="tldr-text">Nous ne vendons jamais vos données et ne faisons aucune publicité ciblée.</span>
+      </div>
+      <div class="tldr-row">
+        <span class="tldr-num">03</span>
+        <span class="tldr-text">Nous collectons uniquement ce qui est nécessaire au fonctionnement de l'app.</span>
+      </div>
+      <div class="tldr-row">
+        <span class="tldr-num">04</span>
+        <span class="tldr-text">Vous pouvez supprimer votre compte et toutes vos données à tout moment.</span>
+      </div>
+      <div class="tldr-row">
+        <span class="tldr-num">05</span>
+        <span class="tldr-text">Nous vous prévenons avant tout changement important de cette politique.</span>
+      </div>
+      <div class="tldr-row">
+        <span class="tldr-num">06</span>
+        <span class="tldr-text">L'analyse locale par IA se fait entièrement sur votre appareil — les contenus bloqués ne sont jamais transmis à nos serveurs.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-label">Sur cette page</div>
+    <ul class="sidebar-nav" id="toc">
+      <li><a href="#qui">Qui sommes-nous</a></li>
+      <li><a href="#collecte">Données collectées</a></li>
+      <li><a href="#finalites">Finalités</a></li>
+      <li><a href="#securite">Sécurité</a></li>
+      <li><a href="#filtrage-auto">Filtrage IA</a></li>
+      <li><a href="#partage">Partage</a></li>
+      <li><a href="#conservation">Conservation</a></li>
+      <li><a href="#droits">Vos droits</a></li>
+      <li><a href="#cookies">Cookies</a></li>
+      <li><a href="#ai-act">Conformité IA</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </aside>
+
+  <main class="content">
+
+    <section id="qui">
+      <h2><span class="h2-num">01</span> Qui sommes-nous</h2>
+      <p>Whispr est une application mobile de messagerie chiffrée. En tant que responsable du traitement de vos données personnelles, nous nous engageons à les traiter avec transparence et dans le strict respect du RGPD.</p>
+      <p>Contact : <a href="mailto:privacy@whispr.app">privacy@whispr.app</a></p>
+    </section>
+
+    <section id="collecte">
+      <h2><span class="h2-num">02</span> Données collectées</h2>
+
+      <h3>Que vous nous fournissez</h3>
+      <ul>
+        <li>Numéro de téléphone (authentification par SMS)</li>
+        <li>Nom d'utilisateur</li>
+        <li>Photo de profil (optionnelle)</li>
+        <li>Contacts ajoutés manuellement dans l'application</li>
+      </ul>
+
+      <h3>Collectées automatiquement</h3>
+      <ul>
+        <li>Métadonnées de connexion — adresse IP, horodatages (sécurité, pseudonymisées)</li>
+        <li>Identifiant d'appareil pour les notifications push</li>
+        <li>Métadonnées des échanges — qui contacte qui, quand (routage, minimisées)</li>
+      </ul>
+
+      <h3>Analysées localement sur votre appareil</h3>
+      <p>Les images et vidéos que vous souhaitez envoyer sont analysées par notre système IA directement sur votre appareil avant envoi. <strong>Les contenus identifiés comme problématiques ne sont jamais transmis à nos serveurs</strong> — ils restent sur votre téléphone et l'analyse ne produit aucune donnée envoyée à Whispr.</p>
+
+      <div class="note ok">
+        <p><strong>Ce que nous ne collectons pas :</strong> le contenu de vos messages (chiffré E2EE), les résultats de l'analyse locale, votre répertoire téléphonique, votre localisation, ni aucune donnée à des fins publicitaires.</p>
+      </div>
+    </section>
+
+    <section id="finalites">
+      <h2><span class="h2-num">03</span> Finalités et base légale</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Finalité</th>
+              <th>Base légale</th>
+              <th>Durée</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Authentification et gestion de compte</td><td>Exécution du contrat</td><td>Durée du compte</td></tr>
+            <tr><td>Envoi et livraison des messages</td><td>Exécution du contrat</td><td>Jusqu'à suppression</td></tr>
+            <tr><td>Notifications push iOS / Android</td><td>Exécution du contrat</td><td>Durée du compte</td></tr>
+            <tr><td>Analyse locale des contenus avant envoi (IA on-device)</td><td>Consentement explicite (Art. 6.1.a RGPD)</td><td>Aucune donnée collectée</td></tr>
+            <tr><td>Sécurité et prévention des abus</td><td>Intérêt légitime (Art. 6.1.f) + obligations DSA</td><td>12 mois</td></tr>
+            <tr><td>Traitement des signalements (DSA)</td><td>Obligation légale (Art. 6.1.c)</td><td>24 mois</td></tr>
+            <tr><td>Amélioration du service</td><td>Intérêt légitime</td><td>Données agrégées anonymisées</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="securite">
+      <h2><span class="h2-num">04</span> Sécurité</h2>
+      <p>La sécurité est un fondement architectural de Whispr, pas une couche ajoutée après coup.</p>
+
+      <h3>Messages</h3>
+      <p>Chiffrement de bout en bout via le protocole Signal (TweetNaCl). Le contenu de vos messages ne transite jamais en clair — nous ne pouvons techniquement pas y accéder.</p>
+
+      <h3>Fichiers</h3>
+      <p>Chiffrés en AES-256-GCM avant tout stockage. La clé est dérivée côté client.</p>
+
+      <h3>Authentification</h3>
+      <p>Tokens JWT signés RS256, révocables individuellement via un système de jti claims. Double authentification (TOTP) disponible.</p>
+
+      <h3>Infrastructure</h3>
+      <p>Communications inter-services chiffrées en mTLS. Secrets gérés via HashiCorp Vault avec rotation automatique.</p>
+
+      <h3>Analyse d'impact (DPIA)</h3>
+      <p>Compte tenu du recours à un système d'IA pour l'analyse de contenus potentiellement sensibles, Whispr a réalisé une <strong>Analyse d'Impact relative à la Protection des Données (DPIA)</strong> conformément à l'article 35 du RGPD. Cette analyse documente les risques résiduels et les mesures techniques et organisationnelles mises en place pour les atténuer.</p>
+      <div class="note info">
+        <p>La DPIA est révisée périodiquement ou lors de toute modification substantielle du système d'IA ou du traitement des données.</p>
+      </div>
+    </section>
+
+    <section id="filtrage-auto">
+      <h2><span class="h2-num">05</span> Filtrage local et décisions automatisées</h2>
+      <p>Whispr intègre un système d'intelligence artificielle qui analyse vos médias <strong>directement sur votre appareil</strong> avant tout envoi. Ce traitement est strictement local : aucun contenu analysé, aucun résultat d'analyse n'est transmis à nos serveurs.</p>
+
+      <h3>Fonctionnement</h3>
+      <p>Le modèle IA, embarqué dans l'application, inspecte les images et vidéos que vous souhaitez envoyer et les compare à des catégories de contenus potentiellement illicites (CSAM, incitation à la haine, contenus violents extrêmes). Si un contenu est détecté comme problématique, son envoi est bloqué localement.</p>
+
+      <div class="note info">
+        <p><strong>Base légale :</strong> Ce traitement repose sur votre consentement explicite, recueilli à l'inscription (Art. 6.1.a RGPD). Vous pouvez le gérer dans <strong>Paramètres → Confidentialité</strong>.</p>
+      </div>
+
+      <h3>Vos droits au titre de l'article 22 RGPD</h3>
+      <p>Le blocage automatique d'un contenu constitue une décision fondée exclusivement sur un traitement automatisé susceptible d'affecter votre expérience utilisateur, au sens de l'article 22 du RGPD. Vous bénéficiez des garanties suivantes :</p>
+      <div class="grid-2">
+        <div class="g-card">
+          <div class="g-label">Droit à l'information</div>
+          <p>Vous êtes informé de l'existence de ce filtrage, de la catégorie détectée et des grandes lignes du fonctionnement du système.</p>
+        </div>
+        <div class="g-card">
+          <div class="g-label">Droit de contestation</div>
+          <p>Vous pouvez contester toute décision de blocage via la procédure de recours intégrée. Une révision humaine est possible sans transmission du contenu en clair.</p>
+        </div>
+        <div class="g-card">
+          <div class="g-label">Seuils ajustables</div>
+          <p>Certaines catégories de filtrage peuvent être ajustées dans vos paramètres, lorsque cela est juridiquement acceptable.</p>
+        </div>
+        <div class="g-card">
+          <div class="g-label">Procédure non intrusive</div>
+          <p>Le recours humain ne nécessite jamais la transmission du contenu en clair — le chiffrement E2EE est intégralement préservé.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="partage">
+      <h2><span class="h2-num">06</span> Partage des données</h2>
+      <p>Nous faisons appel à un nombre limité de sous-traitants, strictement nécessaires au fonctionnement du service :</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Prestataire</th><th>Rôle</th><th>Localisation</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Google Cloud Storage</td><td>Stockage des fichiers médias chiffrés</td><td>Europe — UE</td></tr>
+            <tr><td>Google Firebase (FCM)</td><td>Notifications push Android</td><td>États-Unis *</td></tr>
+            <tr><td>Apple (APNS)</td><td>Notifications push iOS</td><td>États-Unis *</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note accent">
+        <p>* Les notifications push impliquent un transfert hors UE vers Google et Apple, encadré par leurs clauses contractuelles types (Art. 46 RGPD).</p>
+      </div>
+      <p>Nous ne vendons pas vos données. Nous ne les partageons à aucun tiers à des fins commerciales.</p>
+    </section>
+
+    <section id="conservation">
+      <h2><span class="h2-num">07</span> Conservation</h2>
+      <ul>
+        <li><strong>Compte et profil</strong> — conservés pendant l'utilisation, supprimés sous 30 jours après fermeture</li>
+        <li><strong>Messages</strong> — supprimés de nos serveurs après livraison</li>
+        <li><strong>Fichiers médias</strong> — supprimés à votre demande ou à l'expiration configurée</li>
+        <li><strong>Logs de sécurité</strong> — 12 mois, puis suppression automatique</li>
+      </ul>
+    </section>
+
+    <section id="droits">
+      <h2><span class="h2-num">08</span> Vos droits</h2>
+      <p>Conformément au RGPD, vous disposez des droits suivants :</p>
+      <div class="grid-2">
+        <div class="g-card"><div class="g-label">Accès</div><p>Obtenir une copie des données que nous détenons.</p></div>
+        <div class="g-card"><div class="g-label">Rectification</div><p>Corriger vos informations depuis Paramètres → Profil.</p></div>
+        <div class="g-card"><div class="g-label">Suppression</div><p>Supprimer compte et données depuis Paramètres → Compte.</p></div>
+        <div class="g-card"><div class="g-label">Portabilité</div><p>Exporter vos données dans un format structuré.</p></div>
+        <div class="g-card"><div class="g-label">Opposition</div><p>Vous opposer aux traitements sur intérêt légitime.</p></div>
+        <div class="g-card"><div class="g-label">Limitation</div><p>Suspendre un traitement pendant un litige.</p></div>
+      </div>
+      <p style="margin-top:18px;">Pour exercer vos droits : <a href="mailto:privacy@whispr.app">privacy@whispr.app</a> — Réponse sous 30 jours ouvrés.</p>
+      <p>Vous pouvez aussi déposer une réclamation auprès de la <a href="https://www.cnil.fr" target="_blank" rel="noopener">CNIL</a>.</p>
+    </section>
+
+    <section id="cookies">
+      <h2><span class="h2-num">09</span> Cookies</h2>
+      <p>L'application mobile Whispr n'utilise pas de cookies. Ces pages web utilisent uniquement des cookies techniques pour mémoriser vos préférences de consentement.</p>
+      <p>Aucun cookie publicitaire, analytique ou de suivi tiers n'est déposé.</p>
+    </section>
+
+    <section id="ai-act">
+      <h2><span class="h2-num">10</span> Conformité AI Act</h2>
+      <p>Le système de filtrage local de Whispr relève d'un <strong>niveau de risque limité</strong> au sens du Règlement (UE) 2024/1689 (AI Act), dans la mesure où il ne met pas en œuvre de reconnaissance biométrique et n'exerce pas de décisions aux effets significativement préjudiciables sur les droits fondamentaux.</p>
+      <p>Dans ce cadre, Whispr s'engage à respecter les obligations suivantes :</p>
+      <ul>
+        <li><strong>Transparence</strong> — information claire sur l'existence du filtrage IA, les catégories ciblées et ses effets possibles (blocage de certains contenus)</li>
+        <li><strong>Documentation technique</strong> — description du système, finalité, performances, limites et taux d'erreur approximatif maintenus à jour</li>
+        <li><strong>Suivi des performances</strong> — surveillance continue des faux positifs et faux négatifs, détection des biais, révision périodique des modèles</li>
+        <li><strong>Gestion des incidents</strong> — procédure dédiée en cas de bug, dérive des performances ou plainte utilisateur liée au système IA</li>
+        <li><strong>Non-escalade</strong> — interdiction d'évoluer vers des pratiques relevant de catégories à risque élevé ou inacceptable sans mise en conformité renforcée préalable</li>
+      </ul>
+      <div class="note info">
+        <p>Whispr ne procède à aucune reconnaissance biométrique, aucune notation sociale et n'utilise aucune technique de manipulation subliminale. Ces pratiques constituent des usages inacceptables au titre de l'AI Act et sont explicitement exclues de l'architecture du service.</p>
+      </div>
+    </section>
+
+    <section id="contact">
+      <h2><span class="h2-num">11</span> Contact</h2>
+      <p class="contact-intro">Une question sur cette politique, vos données ou vos droits ? On vous répond.</p>
+      <div class="contact-grid">
+
+        <a href="mailto:privacy@whispr.app" class="contact-card">
+          <div class="contact-card-icon violet">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(103,116,189,0.9)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+            </svg>
+          </div>
+          <div class="contact-card-title">Équipe confidentialité</div>
+          <div class="contact-card-desc">Questions sur le traitement de vos données, demandes d'accès ou de suppression, exercice de vos droits RGPD.</div>
+          <span class="contact-card-link">privacy@whispr.app →</span>
+        </a>
+
+        <a href="terms.html" class="contact-card">
+          <div class="contact-card-icon purple">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(103,116,189,0.8)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </div>
+          <div class="contact-card-title">Conditions d'utilisation</div>
+          <div class="contact-card-desc">Consulter les CGU, règles de conduite et les conditions applicables à l'utilisation de Whispr.</div>
+          <span class="contact-card-link">Lire les CGU →</span>
+        </a>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="footer-top">
+    <div class="footer-brand">
+      <div class="footer-brand-logo">
+        <img src="../../assets/images/logo-icon.png" alt="Whispr" />
+        <span class="footer-brand-name">Whispr</span>
+      </div>
+      <p class="footer-tagline">Messagerie <span class="grad">chiffrée de bout en bout</span>. Vos conversations restent les vôtres.</p>
+      <div class="trust-badges">
+        <span class="trust-pill e2e">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Chiffrement E2E
+        </span>
+        <span class="trust-pill rgpd">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Conforme RGPD
+        </span>
+        <span class="trust-pill oss">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          Open Source
+        </span>
+      </div>
+    </div>
+    <div class="footer-chat">
+      <div class="chat-bubble">
+        <div class="bubble-avatar"><img src="../../assets/images/logo-icon.png" alt="" /></div>
+        <div>
+          <div class="bubble-text">Vos données restent les vôtres.</div>
+          <div class="bubble-time">Whispr</div>
+        </div>
+      </div>
+      <div class="chat-bubble right">
+        <div>
+          <div class="bubble-text">On peut le vérifier ?</div>
+          <div class="bubble-time" style="text-align:right">Vous</div>
+        </div>
+      </div>
+      <div class="chat-bubble">
+        <div class="bubble-avatar"><img src="../../assets/images/logo-icon.png" alt="" /></div>
+        <div>
+          <div class="bubble-text">Toujours. C'est notre engagement.</div>
+          <div class="bubble-time">Whispr</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span class="footer-copy">© 2026 Whispr. Tous droits réservés.</span>
+    <div class="status-badge">
+      <span class="status-dot"></span>
+      Tous les services opérationnels
+    </div>
+    <ul class="footer-links">
+      <li><a href="privacy.html">Confidentialité</a></li>
+      <li><a href="terms.html">CGU</a></li>
+      <li><a href="mailto:privacy@whispr.app">Contact</a></li>
+    </ul>
+  </div>
+</footer>
+
+<div id="cookie">
+  <div class="ck-header">
+    <div class="ck-icon"><img src="../../assets/images/logo-icon.png" alt="" /></div>
+    <span class="ck-title">Whispr utilise des cookies</span>
+  </div>
+  <p class="ck-body">
+    Uniquement des cookies techniques essentiels — aucun tracker.
+    <a href="#cookies">En savoir plus</a>
+  </p>
+  <div class="cookie-btns">
+    <button class="ck-btn ck-decline" onclick="ckDecline()">Refuser</button>
+    <button class="ck-btn ck-accept" onclick="ckAccept()">Accepter</button>
+  </div>
+</div>
+
+<script>
+  const cur  = document.getElementById('cursor');
+  const ring = document.getElementById('cursor-ring');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cur.style.left = mx + 'px'; cur.style.top = my + 'px';
+  });
+
+  (function loop() {
+    rx += (mx - rx) * 0.12; ry += (my - ry) * 0.12;
+    ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+    requestAnimationFrame(loop);
+  })();
+
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    document.getElementById('progress').style.transform =
+      `scaleX(${h.scrollTop / (h.scrollHeight - h.clientHeight)})`;
+    document.getElementById('nav').classList.toggle('scrolled', h.scrollTop > 20);
+  });
+
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.07 });
+  document.querySelectorAll('.content section').forEach(s => io.observe(s));
+
+  const secs  = document.querySelectorAll('.content section[id]');
+  const links = document.querySelectorAll('#toc a');
+
+  const toc = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = document.querySelector(`#toc a[href="#${e.target.id}"]`);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  secs.forEach(s => toc.observe(s));
+
+  const CK = 'whispr_ck_v1';
+  if (localStorage.getItem(CK)) document.getElementById('cookie').classList.add('out');
+  function ckAccept()  { localStorage.setItem(CK,'ok'); document.getElementById('cookie').classList.add('out'); }
+  function ckDecline() { localStorage.setItem(CK,'no'); document.getElementById('cookie').classList.add('out'); }
+
+  /* ══════════════════════════════════════════════════════════════════
+     WHISPR FLUID SIMULATION — self-contained WebGL fluid (advection-based)
+     Palette: violet #3C2E7C · bleu #6774BD · coral #FE7A5C
+     ══════════════════════════════════════════════════════════════════ */
+  (function(){
+    'use strict';
+    const cv = document.getElementById('canvas');
+    if (!cv) return;
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+
+    const gl = cv.getContext('webgl', {alpha:false, antialias:false, preserveDrawingBuffer:false});
+    if (!gl) return;
+
+    /* Float textures required for velocity storage */
+    if (!gl.getExtension('OES_texture_float')) return;
+    gl.getExtension('OES_texture_float_linear');
+
+    /* ── Whispr palette ── */
+    const PAL = [
+      [0.40,0.22,0.96],  // violet
+      [0.50,0.58,1.00],  // bleu-violet
+      [1.00,0.48,0.36],  // coral
+      [0.22,0.12,0.82],  // deep violet
+      [1.00,0.48,0.36],  // coral (poids double)
+    ];
+
+    const SIM=128, DYE=640;
+
+    /* ── Shaders ── */
+    const VS=`attribute vec2 p;varying vec2 v;void main(){v=p*.5+.5;gl_Position=vec4(p,0.,1.);}`;
+
+    const FS_ADV=`precision highp float;
+varying vec2 v;uniform sampler2D uV,uS;uniform float dt,di;
+void main(){vec2 vel=texture2D(uV,v).xy;gl_FragColor=di*texture2D(uS,v-dt*vel);}`;
+
+    const FS_SPL=`precision highp float;
+varying vec2 v;uniform sampler2D uT;uniform vec2 pt;uniform vec3 col;uniform float r,ar;
+void main(){vec2 p=v-pt;p.x*=ar;float d=exp(-dot(p,p)/r);
+gl_FragColor=texture2D(uT,v)+vec4(col*d,0.);}`;
+
+    const FS_DSP=`precision highp float;
+varying vec2 v;uniform sampler2D uT;
+void main(){vec3 c=texture2D(uT,v).rgb;vec3 bg=vec3(.031,.051,.102);
+c=c*1.5/(c+.18);gl_FragColor=vec4(clamp(bg+c,0.,1.),1.);}`;
+
+    function sh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);return s;}
+    function prog(fs){
+      const p=gl.createProgram();
+      gl.attachShader(p,sh(gl.VERTEX_SHADER,VS));
+      gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));
+      gl.linkProgram(p);
+      p.u={};
+      const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);
+      for(let i=0;i<n;i++){const nm=gl.getActiveUniform(p,i).name;p.u[nm]=gl.getUniformLocation(p,nm);}
+      return p;
+    }
+    const pAdv=prog(FS_ADV), pSpl=prog(FS_SPL), pDsp=prog(FS_DSP);
+
+    /* ── Quad buffer ── */
+    const qb=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,qb);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+    function useP(p){
+      gl.useProgram(p);
+      const a=gl.getAttribLocation(p,'p');
+      gl.enableVertexAttribArray(a);
+      gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);
+    }
+
+    /* ── FBO ── */
+    function fbo(w,h){
+      const t=gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D,t);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.FLOAT,null);
+      const f=gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER,f);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);
+      return {t,f,w,h};
+    }
+    let vA=fbo(SIM,SIM),vB=fbo(SIM,SIM);
+    let dA=fbo(DYE,DYE),dB=fbo(DYE,DYE);
+
+    function tex(s,u){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,s.t);}
+
+    /* ── Advect pass ── */
+    function advect(vel,src,dst,dt,di){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);
+      gl.viewport(0,0,dst.w,dst.h);
+      useP(pAdv);
+      tex(vel,0);gl.uniform1i(pAdv.u.uV,0);
+      tex(src,1);gl.uniform1i(pAdv.u.uS,1);
+      gl.uniform1f(pAdv.u.dt,dt);
+      gl.uniform1f(pAdv.u.di,di);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
+
+    /* ── Splat pass ── */
+    function splat(src,dst,x,y,c,r){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);
+      gl.viewport(0,0,dst.w,dst.h);
+      useP(pSpl);
+      tex(src,0);gl.uniform1i(pSpl.u.uT,0);
+      gl.uniform2f(pSpl.u.pt,x,y);
+      gl.uniform3f(pSpl.u.col,c[0],c[1],c[2]);
+      gl.uniform1f(pSpl.u.r,r);
+      gl.uniform1f(pSpl.u.ar,cv.width/cv.height);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
+
+    /* ── Inject velocity + dye ── */
+    function inject(x,y,dx,dy){
+      const c=PAL[Math.floor(Math.random()*PAL.length)];
+      splat(vA,vB,x,y,[dx,dy,0],.007);[vA,vB]=[vB,vA];
+      splat(dA,dB,x,y,c,.006);[dA,dB]=[dB,dA];
+    }
+
+    /* ── Auto splats ── */
+    function burst(n){
+      for(let i=0;i<n;i++){
+        const a=Math.random()*Math.PI*2;
+        const s=3+Math.random()*5;
+        inject(Math.random(),Math.random(),Math.cos(a)*s,Math.sin(a)*s);
+      }
+    }
+
+    /* ── Mouse ── */
+    let mx=-1,my=-1,px=-1,py=-1;
+    cv.addEventListener('mousemove',e=>{
+      px=mx;py=my;
+      mx=e.clientX/cv.width;my=1-e.clientY/cv.height;
+      if(px>=0){
+        const dx=(mx-px)*cv.width*5;
+        const dy=(my-py)*cv.height*5;
+        inject(mx,my,dx,dy);
+      }
+    });
+
+    window.addEventListener('resize',()=>{cv.width=window.innerWidth;cv.height=window.innerHeight;});
+
+    /* ── Render loop ── */
+    let last=0;
+    function render(ts){
+      requestAnimationFrame(render);
+      const dt=Math.min((ts-last)*.001,.033);last=ts;
+      advect(vA,vA,vB,dt,.972);[vA,vB]=[vB,vA];
+      advect(vA,dA,dB,dt,.984);[dA,dB]=[dB,dA];
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      gl.viewport(0,0,cv.width,cv.height);
+      useP(pDsp);tex(dA,0);gl.uniform1i(pDsp.u.uT,0);
+      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+    }
+
+    burst(14);
+    setInterval(()=>burst(3),4000);
+    requestAnimationFrame(render);
+  })();
+</script>
+
+</body>
+</html>

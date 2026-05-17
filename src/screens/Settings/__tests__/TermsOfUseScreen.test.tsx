@@ -11,6 +11,12 @@ jest.mock("expo-linear-gradient", () => ({
   LinearGradient: ({ children }: any) => children,
 }));
 jest.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+jest.mock("react-native-webview", () => ({
+  WebView: () => null,
+}));
+jest.mock("../../../utils/legalDocumentUrl", () => ({
+  getLegalDocumentUrl: () => "https://example.test/legal/terms.html",
+}));
 jest.mock("../../../context/ThemeContext", () => ({
   useTheme: () => ({
     getThemeColors: () => ({
@@ -30,10 +36,8 @@ jest.mock("../../../context/ThemeContext", () => ({
 }));
 
 describe("TermsOfUseScreen", () => {
-  it("renders without crashing and shows the main sections", () => {
+  it("renders header for terms of use", () => {
     const { getByText } = render(<TermsOfUseScreen />);
     expect(getByText("about.termsOfUse")).toBeTruthy();
-    expect(getByText("ACCEPTATION")).toBeTruthy();
-    expect(getByText("COMPORTEMENT ATTENDU")).toBeTruthy();
   });
 });
