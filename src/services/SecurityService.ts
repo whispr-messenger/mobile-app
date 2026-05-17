@@ -178,6 +178,13 @@ export interface SignalHealthStatus {
 }
 
 export const SignalKeysService = {
+  async listDevices(
+    userId: string,
+  ): Promise<{ userId: string; deviceIds: string[] }> {
+    return apiFetch<{ userId: string; deviceIds: string[] }>(
+      `/signal/keys/${encodeURIComponent(userId)}/devices`,
+    );
+  },
   /**
    * GET /auth/signal/keys/:userId/devices/:deviceId
    * Fetch the key bundle for a specific user+device (for E2E session init).

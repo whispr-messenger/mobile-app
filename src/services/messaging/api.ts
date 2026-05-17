@@ -309,6 +309,24 @@ export const messagingAPI = {
     return unwrap(response);
   },
 
+  async updateConversation(
+    id: string,
+    patch: { name?: string; metadata?: Record<string, any> },
+  ): Promise<Conversation> {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/conversations/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      },
+    );
+    if (!response.ok) {
+      throw httpError("Failed to update conversation", response);
+    }
+    return unwrap(response);
+  },
+
   async deleteConversation(id: string): Promise<void> {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/conversations/${encodeURIComponent(id)}`,
@@ -479,6 +497,8 @@ export const messagingAPI = {
       client_random: number | string;
       metadata?: Record<string, any>;
       reply_to_id?: string;
+      signature?: string;
+      sender_public_key?: string;
     },
   ): Promise<Message> {
     const response = await authenticatedFetch(
@@ -492,6 +512,8 @@ export const messagingAPI = {
           client_random: message.client_random,
           metadata: message.metadata,
           reply_to_id: message.reply_to_id,
+          signature: message.signature,
+          sender_public_key: message.sender_public_key,
         }),
       },
     );

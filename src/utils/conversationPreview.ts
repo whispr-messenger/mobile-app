@@ -11,6 +11,16 @@ function compactWhitespace(value?: string | null): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
+function isE2EEEnvelopeV1(content: string): boolean {
+  if (!content || !content.startsWith("{")) return false;
+  try {
+    const parsed = JSON.parse(content) as any;
+    return parsed?.v === 1 && parsed?.t === "whispr_e2ee_v1";
+  } catch {
+    return false;
+  }
+}
+
 function isUrlOnlyMessage(text: string): boolean {
   if (!text) return false;
   const withoutUrls = text.replace(/https?:\/\/\S+/gi, "").trim();
@@ -62,6 +72,10 @@ function getMediaLabel(message: Message): string | undefined {
 function buildMessageBody(message: Message): string {
   if (message.is_deleted) {
     return "Message supprimé";
+  }
+
+  if (message.message_type === "text" && isE2EEEnvelopeV1(message.content)) {
+    return "Message chiffré";
   }
 
   const text = compactWhitespace(message.content);

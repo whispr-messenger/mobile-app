@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -44,6 +45,7 @@ import { messagingAPI } from "../../services/messaging/api";
 import { cacheService } from "../../services/messaging/cache";
 import { contactsAPI } from "../../services/contacts/api";
 import { TokenService } from "../../services/TokenService";
+import { E2EEService } from "../../services/E2EEService";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageBubble } from "../../components/Chat/MessageBubble";
 import { MessageSwipeProvider } from "../../context/MessageSwipeContext";
@@ -253,6 +255,15 @@ export const ChatScreen: React.FC = () => {
       .conversations.find((c) => c.id === conversationId);
     return cached ?? null;
   });
+  const e2eeEnabled = useMemo(() => {
+    const meta = conversation?.metadata ?? {};
+    const e2ee = (meta as any).e2ee;
+    return !!e2ee && typeof e2ee === "object" && (e2ee as any).enabled === true;
+  }, [conversation]);
+  const e2eeEnabledRef = useRef<boolean>(false);
+  useEffect(() => {
+    e2eeEnabledRef.current = e2eeEnabled;
+  }, [e2eeEnabled]);
   const [messages, setMessages] = useState<MessageWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -284,6 +295,7 @@ export const ChatScreen: React.FC = () => {
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [showPinnedBar, setShowPinnedBar] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [e2eeToggleBusy, setE2eeToggleBusy] = useState(false);
   const [conversationMembers, setConversationMembers] = useState<
     Array<{
       id: string;
@@ -428,6 +440,13 @@ export const ChatScreen: React.FC = () => {
       // casts below. Missing fields stay undefined and the `||` fallbacks
       // still kick in, so behaviour is unchanged.
       const message = incoming as MessageWithRelations;
+      const isEncryptedIncoming =
+        message.message_type === "text" &&
+        typeof message.content === "string" &&
+        E2EEService.isEncryptedPayload(message.content);
+      const displayMessage: MessageWithRelations = isEncryptedIncoming
+        ? { ...message, content: "Message chiffré" }
+        : message;
       if (message.conversation_id === conversationId) {
         setMessages((prev) => {
           // Check if message already exists (avoid duplicates)
@@ -435,17 +454,23 @@ export const ChatScreen: React.FC = () => {
             return prev.map((m) =>
               m.id === message.id
                 ? {
-                    ...message,
+                    ...displayMessage,
+                    content:
+                      message.message_type === "text" &&
+                      typeof message.content === "string" &&
+                      E2EEService.isEncryptedPayload(message.content)
+                        ? m.content
+                        : displayMessage.content,
                     // Preserve attachments from the optimistic message when the
                     // WebSocket echo doesn't carry them (server Message has no
                     // attachments array).
-                    attachments: message.attachments || m.attachments,
+                    attachments: displayMessage.attachments || m.attachments,
                     // Preserve the populated reply_to (full Message object) we
                     // built optimistically — the WS echo only ships reply_to_id
                     // so spreading it would erase the reply preview until the
                     // next full reload.
-                    reply_to: message.reply_to || m.reply_to,
-                    status: message.status || ("sent" as const),
+                    reply_to: displayMessage.reply_to || m.reply_to,
+                    status: displayMessage.status || ("sent" as const),
                   }
                 : m,
             );
@@ -481,32 +506,58 @@ export const ChatScreen: React.FC = () => {
             const existing = prev[optimisticMessageIndex];
             const newMessages = [...prev];
             newMessages[optimisticMessageIndex] = {
-              ...message,
+              ...displayMessage,
+              content:
+                message.message_type === "text" &&
+                typeof message.content === "string" &&
+                E2EEService.isEncryptedPayload(message.content)
+                  ? existing.content
+                  : displayMessage.content,
               // Preserve attachments from the optimistic message
-              attachments: message.attachments || existing.attachments,
+              attachments: displayMessage.attachments || existing.attachments,
               // Same as the duplicate-id branch above: keep the populated
               // reply_to object so the reply preview doesn't disappear when
               // the server echo arrives.
-              reply_to: message.reply_to || existing.reply_to,
-              status: message.status || ("sent" as const),
+              reply_to: displayMessage.reply_to || existing.reply_to,
+              status: displayMessage.status || ("sent" as const),
             };
             return newMessages;
           }
           return [
             {
-              ...message,
-              status: message.status || ("sent" as const),
+              ...displayMessage,
+              status: displayMessage.status || ("sent" as const),
             },
             ...prev,
           ];
         });
         useConversationsStore
           .getState()
-          .applyNewMessage(message as any, userId)
+          .applyNewMessage(displayMessage as any, userId)
           .catch(() => {});
         useConversationsStore.getState().resetUnreadCount(conversationId);
         // Mark as read if chat is open
         markAsRead(conversationId, message.id);
+        if (isEncryptedIncoming) {
+          void (async () => {
+            const decrypted = await E2EEService.decryptTextMessage({
+              conversationId,
+              content: message.content as string,
+            });
+            if (decrypted === null) return;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === message.id ? { ...m, content: decrypted } : m,
+              ),
+            );
+            useConversationsStore
+              .getState()
+              .applyMessageUpdated({
+                ...(message as any),
+                content: decrypted,
+              } as any);
+          })();
+        }
         // Auto-scroll to the new message only when the user was already
         // reading the bottom of the list — don't yank them down if they
         // were scrolled up browsing older messages.
@@ -537,6 +588,10 @@ export const ChatScreen: React.FC = () => {
       );
     },
     onMessageUpdated: (message: Message) => {
+      const isEncryptedUpdate =
+        message.message_type === "text" &&
+        typeof message.content === "string" &&
+        E2EEService.isEncryptedPayload(message.content);
       if (message.conversation_id === conversationId) {
         setMessages((prev) =>
           prev.map((msg) =>
@@ -544,6 +599,7 @@ export const ChatScreen: React.FC = () => {
               ? {
                   ...msg,
                   ...message,
+                  content: isEncryptedUpdate ? msg.content : message.content,
                   edited_at: message.edited_at,
                   // Edit echoes ship reply_to_id only — keep the populated
                   // reply_to from the existing message so the preview survives.
@@ -553,7 +609,33 @@ export const ChatScreen: React.FC = () => {
           ),
         );
       }
-      useConversationsStore.getState().applyMessageUpdated(message);
+      useConversationsStore
+        .getState()
+        .applyMessageUpdated(
+          isEncryptedUpdate
+            ? { ...message, content: "Message chiffré" }
+            : message,
+        );
+      if (isEncryptedUpdate) {
+        void (async () => {
+          const decrypted = await E2EEService.decryptTextMessage({
+            conversationId: message.conversation_id,
+            content: message.content as string,
+          });
+          if (decrypted === null) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === message.id ? { ...m, content: decrypted } : m,
+            ),
+          );
+          useConversationsStore
+            .getState()
+            .applyMessageUpdated({
+              ...(message as any),
+              content: decrypted,
+            } as any);
+        })();
+      }
     },
     onMessageDeleted: (
       messageId: string,
@@ -688,12 +770,42 @@ export const ChatScreen: React.FC = () => {
       offlineQueue.getForConversation(conversationId).then(async (pending) => {
         for (const queued of pending) {
           try {
+            let outgoingContent = queued.content;
+            let signature: string | undefined;
+            let sender_public_key: string | undefined;
+            if (
+              e2eeEnabledRef.current &&
+              queued.message_type === "text" &&
+              conversation?.type === "direct"
+            ) {
+              const memberIds =
+                conversation.member_user_ids ||
+                conversation.members?.map(
+                  (m: { user_id: string }) => m.user_id,
+                );
+              const otherUserId = memberIds?.find(
+                (id: string) => id !== userId,
+              );
+              if (otherUserId) {
+                const enc = await E2EEService.encryptDirectTextMessage({
+                  conversationId,
+                  plaintext: queued.content,
+                  clientRandom: queued.client_random,
+                  recipientUserId: otherUserId,
+                });
+                outgoingContent = enc.content;
+                signature = enc.signature;
+                sender_public_key = enc.sender_public_key;
+              }
+            }
             const sent = await messagingAPI.sendMessage(conversationId, {
-              content: queued.content,
+              content: outgoingContent,
               message_type: queued.message_type,
               client_random: queued.client_random,
               metadata: {},
               reply_to_id: queued.reply_to_id,
+              signature,
+              sender_public_key,
             });
             // Replace queued message with sent one
             setMessages((prev) =>
@@ -701,6 +813,10 @@ export const ChatScreen: React.FC = () => {
                 m.client_random === queued.client_random
                   ? {
                       ...(sent as MessageWithRelations),
+                      content:
+                        queued.message_type === "text"
+                          ? queued.content
+                          : (sent as any).content,
                       status: "sent" as const,
                     }
                   : m,
@@ -715,7 +831,7 @@ export const ChatScreen: React.FC = () => {
     }
 
     prevConnectionStateRef.current = connectionState;
-  }, [connectionState, conversationId]);
+  }, [connectionState, conversationId, conversation, userId]);
 
   const loadPinnedMessages = useCallback(async () => {
     try {
@@ -772,6 +888,33 @@ export const ChatScreen: React.FC = () => {
       logger.error("ChatScreen", "Error loading conversation", error);
     }
   }, [conversationId, userId]);
+
+  const handleToggleE2EE = useCallback(
+    (enabled: boolean) => {
+      if (!conversation || conversation.type !== "direct") return;
+      if (e2eeToggleBusy) return;
+      setE2eeToggleBusy(true);
+      void (async () => {
+        try {
+          const updated = await messagingAPI.updateConversation(
+            conversationId,
+            {
+              metadata: { e2ee: { enabled, v: 1 } },
+            },
+          );
+          setConversation(updated);
+        } catch (error: any) {
+          Alert.alert(
+            getLocalizedText("notif.error"),
+            error?.message || "Impossible de mettre à jour le chiffrement",
+          );
+        } finally {
+          setE2eeToggleBusy(false);
+        }
+      })();
+    },
+    [conversationId, conversation, e2eeToggleBusy, getLocalizedText],
+  );
 
   // Mark messages as read when opening conversation and when new messages arrive
   useEffect(() => {
@@ -1065,6 +1208,19 @@ export const ChatScreen: React.FC = () => {
                   msg.message_type === "system"),
             ) // Include all message types
             .map(async (msg) => {
+              let displayContent = msg.content;
+              if (
+                msg.message_type === "text" &&
+                typeof msg.content === "string" &&
+                E2EEService.isEncryptedPayload(msg.content)
+              ) {
+                const decrypted = await E2EEService.decryptTextMessage({
+                  conversationId,
+                  content: msg.content,
+                });
+                displayContent =
+                  decrypted === null ? "Message chiffré" : decrypted;
+              }
               // WHISPR-1074: the backend may ship the enriched shape
               // (delivery_statuses + status). Widen once instead of
               // per-field casts below.
@@ -1108,6 +1264,7 @@ export const ChatScreen: React.FC = () => {
               // kept here.
               return {
                 ...msg,
+                content: displayContent,
                 status,
                 reactions,
                 attachments,
@@ -1217,22 +1374,50 @@ export const ChatScreen: React.FC = () => {
         // If editing, update the message
         if (editingMessage) {
           try {
+            let outgoingEditContent = content;
+            if (e2eeEnabledRef.current) {
+              const memberIds =
+                conversation?.member_user_ids ||
+                conversation?.members?.map(
+                  (m: { user_id: string }) => m.user_id,
+                );
+              const otherUserId = memberIds?.find(
+                (id: string) => id !== userId,
+              );
+              if (conversation?.type === "direct" && otherUserId) {
+                const enc = await E2EEService.encryptDirectTextMessage({
+                  conversationId,
+                  plaintext: content,
+                  clientRandom:
+                    typeof editingMessage.client_random === "number"
+                      ? editingMessage.client_random
+                      : generateClientRandom(),
+                  recipientUserId: otherUserId,
+                });
+                outgoingEditContent = enc.content;
+              }
+            }
             const updated = await messagingAPI.editMessage(
               editingMessage.id,
               conversationId,
-              content,
+              outgoingEditContent,
             );
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === editingMessage.id
-                  ? { ...msg, ...updated, edited_at: updated.edited_at }
+                  ? {
+                      ...msg,
+                      ...updated,
+                      content,
+                      edited_at: updated.edited_at,
+                    }
                   : msg,
               ),
             );
             setEditingMessage(null);
             useConversationsStore
               .getState()
-              .applyMessageUpdated(updated as any);
+              .applyMessageUpdated({ ...(updated as any), content } as any);
           } catch (error) {
             logger.error("ChatScreen", "Error editing message", error);
             Alert.alert(
@@ -1304,13 +1489,37 @@ export const ChatScreen: React.FC = () => {
         }
 
         try {
+          let outgoingContent = content;
+          let signature: string | undefined;
+          let sender_public_key: string | undefined;
+          if (e2eeEnabledRef.current) {
+            const memberIds =
+              conversation?.member_user_ids ||
+              conversation?.members?.map((m: { user_id: string }) => m.user_id);
+            const otherUserId = memberIds?.find((id: string) => id !== userId);
+            if (conversation?.type !== "direct" || !otherUserId) {
+              throw new Error("E2EE_UNSUPPORTED_CONVERSATION");
+            }
+            const enc = await E2EEService.encryptDirectTextMessage({
+              conversationId,
+              plaintext: content,
+              clientRandom: tempMessage.client_random as number,
+              recipientUserId: otherUserId,
+            });
+            outgoingContent = enc.content;
+            signature = enc.signature;
+            sender_public_key = enc.sender_public_key;
+          }
+
           const sent = await messagingAPI.sendMessage(conversationId, {
-            content,
+            content: outgoingContent,
             message_type: "text",
             client_random: tempMessage.client_random as number,
 
             metadata: {},
             reply_to_id: replyToId,
+            signature,
+            sender_public_key,
           });
 
           setMessages((prev) => {
@@ -1321,6 +1530,7 @@ export const ChatScreen: React.FC = () => {
               ) {
                 const updated: MessageWithRelations = {
                   ...(sent as MessageWithRelations),
+                  content,
                   status: "sent" as const,
                   reply_to: tempMessage.reply_to,
                 };
@@ -1332,7 +1542,7 @@ export const ChatScreen: React.FC = () => {
           });
           useConversationsStore
             .getState()
-            .applyNewMessage(sent as any, userId)
+            .applyNewMessage({ ...(sent as any), content } as any, userId)
             .catch(() => {});
           useConversationsStore.getState().resetUnreadCount(conversationId);
         } catch (error) {
@@ -1353,6 +1563,7 @@ export const ChatScreen: React.FC = () => {
     [
       conversationId,
       userId,
+      conversation,
       sendTyping,
       editingMessage,
       replyingTo,
@@ -2228,12 +2439,12 @@ export const ChatScreen: React.FC = () => {
       }
 
       try {
-        // Try server-side search first
-        const apiResults = await messagingAPI.searchMessages(
-          conversationId,
-          query.trim(),
-          { limit: 50 },
-        );
+        const trimmed = query.trim();
+        const apiResults = e2eeEnabledRef.current
+          ? null
+          : await messagingAPI.searchMessages(conversationId, trimmed, {
+              limit: 50,
+            });
 
         let results: MessageWithRelations[];
 
@@ -2253,7 +2464,7 @@ export const ChatScreen: React.FC = () => {
           results = messages.filter((msg) => {
             if (msg.message_type === "system" || msg.is_deleted) return false;
             if (!msg.content) return false;
-            return msg.content.toLowerCase().includes(query.toLowerCase());
+            return msg.content.toLowerCase().includes(trimmed.toLowerCase());
           });
         }
 
@@ -3000,6 +3211,24 @@ export const ChatScreen: React.FC = () => {
                         : "Conversation directe"}
                     </Text>
                   </View>
+                  {conversation?.type === "direct" ? (
+                    <View style={styles.infoSection}>
+                      <Text style={styles.infoLabel}>CONFIDENTIALITÉ</Text>
+                      <View style={styles.infoToggleRow}>
+                        <Text style={styles.infoValue}>Chiffrement E2E</Text>
+                        <Switch
+                          value={e2eeEnabled}
+                          onValueChange={handleToggleE2EE}
+                          disabled={e2eeToggleBusy}
+                          trackColor={{
+                            false: "rgba(255, 255, 255, 0.15)",
+                            true: colors.primary.main,
+                          }}
+                          thumbColor={colors.text.light}
+                        />
+                      </View>
+                    </View>
+                  ) : null}
                   <View style={styles.infoSection}>
                     <Text style={styles.infoLabel}>MESSAGES</Text>
                     <Text style={styles.infoValue}>
@@ -3256,6 +3485,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.text.light,
     letterSpacing: 0.2,
+  },
+  infoToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
   infoSectionActions: {
     marginBottom: 24,
