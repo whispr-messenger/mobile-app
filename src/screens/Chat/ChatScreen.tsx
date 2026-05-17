@@ -83,6 +83,8 @@ import { colors, withOpacity } from "../../theme/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { logger } from "../../utils/logger";
 import { MediaService } from "../../services/MediaService";
+import type { MediaUploadPhase } from "../../types/mediaUpload";
+import { mapMediaUploadError } from "../../utils/mapMediaUploadError";
 import { resolveConversationMemberIds } from "../../utils/resolveMembers";
 import { SchedulingService } from "../../services/SchedulingService";
 import * as FileSystem from "expo-file-system/legacy";
@@ -1411,6 +1413,8 @@ export const ChatScreen: React.FC = () => {
           media_url: uploadUri,
           thumbnail_url: uploadUri,
           duration: audioDuration,
+          localUri: uploadUri,
+          uploadPhase: "moderation" as MediaUploadPhase,
         },
         // crypto random Uint32 pour eviter birthday collision sur dedup serveur
         client_random: generateClientRandom(),
@@ -1516,12 +1520,39 @@ export const ChatScreen: React.FC = () => {
           }
         }
 
-        // 1. Upload file to media-service
-        const uploadResult = await MediaService.uploadMedia({
-          uri: uploadUri,
-          name: filename,
-          type: mimeType,
+        const patchTempUploadMeta = (
+          meta: Record<string, unknown>,
+          extra?: Partial<MessageWithRelations>,
+        ) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === tempMessageId
+                ? {
+                    ...m,
+                    ...extra,
+                    metadata: { ...(m.metadata || {}), ...meta },
+                  }
+                : m,
+            ),
+          );
+        };
+
+        patchTempUploadMeta({
+          uploadPhase: "uploading",
+          uploadProgress: 0,
         });
+
+        // 1. Upload file to media-service
+        const uploadResult = await MediaService.uploadMedia(
+          { uri: uploadUri, name: filename, type: mimeType },
+          (percent) => {
+            patchTempUploadMeta({
+              uploadPhase: "uploading",
+              uploadProgress: percent,
+            });
+          },
+          { context: "message", ownerId: userId },
+        );
 
         // Build metadata with the remote URLs from the upload result
         let resolvedDuration = audioDuration;
@@ -1583,6 +1614,11 @@ export const ChatScreen: React.FC = () => {
               : msg,
           ),
         );
+
+        patchTempUploadMeta({
+          uploadPhase: "sharing",
+          uploadProgress: undefined,
+        });
 
         // 2. Share media with all conversation participants so they can access it.
         // The fetch was started before upload (see membersFetchSettled above)
@@ -1662,6 +1698,11 @@ export const ChatScreen: React.FC = () => {
           }
         }
 
+        patchTempUploadMeta({
+          uploadPhase: "sending",
+          uploadProgress: undefined,
+        });
+
         // 3. Send message via messaging-service with remote media URLs
         const sentMessage = await messagingAPI.sendMessage(conversationId, {
           content: messageContent,
@@ -1712,14 +1753,20 @@ export const ChatScreen: React.FC = () => {
         useConversationsStore.getState().resetUnreadCount(conversationId);
       } catch (error) {
         console.error("[ChatScreen] Error sending media:", error);
-        // Keep message in chat with failed status and error indication
+        const { userMessage } = mapMediaUploadError(error);
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === tempMessageId
               ? {
                   ...msg,
                   status: "failed" as const,
-                  content: "Échec de l'envoi — appuyez pour réessayer",
+                  content: userMessage,
+                  metadata: {
+                    ...(msg.metadata || {}),
+                    localUri: uploadUri,
+                    uploadPhase: undefined,
+                    uploadProgress: undefined,
+                  },
                 }
               : msg,
           ),
