@@ -32,6 +32,11 @@ import { ReplyPreview } from "./ReplyPreview";
 import { ReactionPicker } from "./ReactionPicker";
 import { MediaMessage } from "./MediaMessage";
 import { AudioMessage } from "./AudioMessage";
+import { MediaUploadProgressOverlay } from "./MediaUploadProgressOverlay";
+import {
+  getMediaUploadOverlayState,
+  type MediaSendClientMetadata,
+} from "../../types/mediaUpload";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import { MaskedBubbleSurface } from "./MaskedBubbleSurface";
 import { MessageStatusLabel } from "./MessageStatusLabel";
@@ -405,6 +410,28 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isForwarded =
     !!message.forwarded_from_id || message.metadata?.forwarded === true;
   const isFailed = message.status === "failed";
+  const mediaUploadOverlay = isSent
+    ? getMediaUploadOverlayState(
+        message.status,
+        message.metadata as MediaSendClientMetadata | undefined,
+      )
+    : { visible: false, indeterminate: false };
+
+  const wrapOutgoingMedia = (node: React.ReactNode) => {
+    if (!mediaUploadOverlay.visible) {
+      return node;
+    }
+    return (
+      <View style={styles.mediaOverlayHost}>
+        {node}
+        <MediaUploadProgressOverlay
+          progress={mediaUploadOverlay.progress}
+          label={mediaUploadOverlay.label}
+          indeterminate={mediaUploadOverlay.indeterminate}
+        />
+      </View>
+    );
+  };
 
   // Only display the sender avatar for received messages in a group conversation.
   const shouldRenderAvatarSlot = !isSent && showSenderAvatar;
@@ -522,39 +549,39 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 onPress={() => onReplyPress?.(message.reply_to!.id)}
               />
             ) : null}
-            {hasMedia && firstAttachment && firstAttachment.metadata ? (
-              <>
-                {firstAttachment.media_type === "audio" ? (
-                  <AudioMessage
-                    uri={resolveMediaUrl(
-                      firstAttachment.metadata.media_url,
-                      firstAttachment.media_id,
-                      "blob",
-                    )}
-                    mediaId={firstAttachment.media_id}
-                    duration={firstAttachment.metadata.duration}
-                    isSent={true}
-                  />
-                ) : (
-                  <MediaMessage
-                    uri={resolveMediaUrl(
-                      firstAttachment.metadata.media_url ||
+            {hasMedia && firstAttachment && firstAttachment.metadata
+              ? wrapOutgoingMedia(
+                  firstAttachment.media_type === "audio" ? (
+                    <AudioMessage
+                      uri={resolveMediaUrl(
+                        firstAttachment.metadata.media_url,
+                        firstAttachment.media_id,
+                        "blob",
+                      )}
+                      mediaId={firstAttachment.media_id}
+                      duration={firstAttachment.metadata.duration}
+                      isSent={true}
+                    />
+                  ) : (
+                    <MediaMessage
+                      uri={resolveMediaUrl(
+                        firstAttachment.metadata.media_url ||
+                          firstAttachment.metadata.thumbnail_url,
+                        firstAttachment.media_id,
+                        "blob",
+                      )}
+                      type={firstAttachment.media_type}
+                      filename={firstAttachment.metadata.filename}
+                      size={firstAttachment.metadata.size}
+                      thumbnailUri={resolveMediaUrl(
                         firstAttachment.metadata.thumbnail_url,
-                      firstAttachment.media_id,
-                      "blob",
-                    )}
-                    type={firstAttachment.media_type}
-                    filename={firstAttachment.metadata.filename}
-                    size={firstAttachment.metadata.size}
-                    thumbnailUri={resolveMediaUrl(
-                      firstAttachment.metadata.thumbnail_url,
-                      firstAttachment.media_id,
-                      "thumbnail",
-                    )}
-                  />
-                )}
-              </>
-            ) : null}
+                        firstAttachment.media_id,
+                        "thumbnail",
+                      )}
+                    />
+                  ),
+                )
+              : null}
             {displayContent ? (
               isTombstoned ? (
                 <Text style={[styles.sentText, styles.deletedText]}>
@@ -835,6 +862,11 @@ const styles = StyleSheet.create({
   sentBubbleWrapper: {
     maxWidth: "75%",
     position: "relative",
+  },
+  mediaOverlayHost: {
+    position: "relative",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
   },
   bubbleContent: {
     paddingHorizontal: 14,
