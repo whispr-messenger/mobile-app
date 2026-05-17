@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Early Access — Whispr</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/images/logo-icon.png" />
+  <link rel="shortcut icon" href="../assets/images/logo-icon.png" />
+  <link rel="apple-touch-icon" href="../assets/images/logo-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:        #080d1a;
+      --navy-1:      #0e1525;
+      --navy-2:      #141d30;
+      --navy-3:      #1c2840;
+      --violet:      #3C2E7C;
+      --violet-mid:  #6774BD;
+      --violet-glow: rgba(103,116,189,0.12);
+      --coral:       #FE7A5C;
+      --coral-glow:  rgba(254,122,92,0.10);
+      --text:        #eef0f8;
+      --text-2:      #8892b0;
+      --text-3:      #4a5470;
+      --border:      #172035;
+      --border-2:    #1e2d4a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--navy);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.8;
+      -webkit-font-smoothing: antialiased;
+      cursor: none;
+      overflow-x: hidden;
+    }
+
+    /* ── CUSTOM CURSOR ── */
+    #cursor {
+      width: 8px; height: 8px;
+      background: var(--violet-mid); border-radius: 50%;
+      position: fixed; pointer-events: none; z-index: 9999;
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      transition: transform .08s ease, width .2s, height .2s, background .2s, opacity .3s;
+    }
+    #cursor-ring {
+      width: 32px; height: 32px;
+      border: 1px solid rgba(103,116,189,0.4); border-radius: 50%;
+      position: fixed; pointer-events: none; z-index: 9998;
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      transition: transform .18s ease, width .25s, height .25s, border-color .2s, opacity .3s;
+    }
+    body:has(a:hover) #cursor,
+    body:has(button:hover) #cursor { width: 14px; height: 14px; background: var(--coral); }
+    body:has(a:hover) #cursor-ring,
+    body:has(button:hover) #cursor-ring { width: 50px; height: 50px; border-color: rgba(254,122,92,0.6); }
+
+    /* ── PROGRESS ── */
+    #progress {
+      position: fixed; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, var(--violet-mid), var(--coral));
+      transform-origin: left; transform: scaleX(0);
+      z-index: 500; transition: transform .08s linear;
+    }
+
+    /* ── CANVAS ── */
+    canvas#canvas {
+      position: fixed !important; inset: 0 !important;
+      z-index: 0 !important; width: 100% !important; height: 100% !important;
+      pointer-events: auto; opacity: 0.28;
+    }
+
+    /* ── AMBIENTS ── */
+    .amb { position: fixed; pointer-events: none; z-index: 0; border-radius: 50%; }
+    .amb-1 {
+      top: -250px; left: -150px; width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(60,46,124,.22) 0%, transparent 68%);
+    }
+    .amb-2 {
+      bottom: -100px; right: -200px; width: 650px; height: 650px;
+      background: radial-gradient(circle, rgba(254,122,92,.08) 0%, transparent 68%);
+    }
+    .amb-3 {
+      top: 40%; left: 30%; width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(103,116,189,.06) 0%, transparent 70%);
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      height: 60px; display: flex; align-items: center;
+      padding: 0 48px; justify-content: space-between;
+      transition: background .3s, border-color .3s;
+      border-bottom: 1px solid transparent;
+    }
+    nav.scrolled {
+      background: rgba(8,13,26,.88);
+      backdrop-filter: blur(20px) saturate(1.8);
+      -webkit-backdrop-filter: blur(20px) saturate(1.8);
+      border-bottom-color: var(--border);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+    .nav-logo img { width: 30px; height: 30px; border-radius: 8px; display: block; transition: transform .2s; }
+    .nav-logo:hover img { transform: rotate(-8deg) scale(1.05); }
+    .nav-brand {
+      font-size: 16px; font-weight: 700; letter-spacing: -.4px;
+      background: linear-gradient(110deg, #fff 0%, var(--text-2) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .nav-right { display: flex; align-items: center; gap: 6px; }
+    .nav-pill {
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+      text-decoration: none; padding: 6px 14px; border-radius: 20px;
+      transition: all .2s; border: 1px solid transparent;
+    }
+    .nav-pill:hover { color: var(--text); border-color: var(--border-2); }
+    .nav-pill.active {
+      color: var(--coral); background: var(--coral-glow);
+      border-color: rgba(254,122,92,.2);
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 100px 24px 100px;
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 20px;
+      border: 1px solid rgba(103,116,189,.3);
+      background: rgba(103,116,189,.08);
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+      color: var(--violet-mid); margin-bottom: 44px;
+      opacity: 0; animation: fadeUp .6s ease .15s forwards;
+    }
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--coral); box-shadow: 0 0 8px var(--coral);
+      animation: badgePulse 2s ease infinite;
+    }
+    @keyframes badgePulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.5; transform:scale(.75); }
+    }
+
+    .hero-title {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(64px, 10vw, 128px);
+      font-weight: 800;
+      letter-spacing: -4px;
+      line-height: .92;
+      margin-bottom: 36px;
+      opacity: 0; animation: fadeUp .8s ease .25s forwards;
+      position: relative;
+    }
+    .hero-title .word {
+      display: inline-block;
+      background: linear-gradient(135deg, #fff 0%, rgba(103,116,189,.9) 45%, var(--coral) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      position: relative;
+    }
+    .hero-title .word::after {
+      content: attr(data-text);
+      position: absolute; inset: 0;
+      background: inherit;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      filter: blur(48px); opacity: .35; z-index: -1;
+    }
+
+    .hero-tagline {
+      min-height: 32px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      font-size: clamp(15px, 2vw, 19px); color: var(--text-3);
+      margin-bottom: 56px; letter-spacing: .2px;
+      opacity: 0; animation: fadeUp .7s ease .4s forwards;
+    }
+    .typer { color: var(--text-2); }
+    .caret {
+      width: 2px; height: 1.1em; background: var(--coral);
+      animation: caretBlink 1s step-end infinite; flex-shrink: 0;
+    }
+    @keyframes caretBlink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+    .hero-actions {
+      display: flex; gap: 14px;
+      opacity: 0; animation: fadeUp .7s ease .55s forwards;
+    }
+    .btn-main {
+      padding: 15px 34px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--violet) 0%, var(--coral) 100%);
+      color: #fff; font-size: 14px; font-weight: 700;
+      border: none; cursor: none; letter-spacing: -.2px;
+      transition: opacity .2s;
+      position: relative; overflow: hidden; text-decoration: none;
+      display: inline-block;
+    }
+    .btn-main::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.14), transparent);
+      opacity: 0; transition: opacity .2s;
+    }
+    .btn-main:hover { opacity: .88; }
+    .btn-main:hover::before { opacity: 1; }
+    .btn-outline {
+      padding: 15px 34px; border-radius: 14px;
+      background: transparent; color: var(--text-2);
+      font-size: 14px; font-weight: 600; letter-spacing: -.2px;
+      border: 1px solid var(--border-2); cursor: none;
+      transition: all .2s; text-decoration: none; display: inline-block;
+    }
+    .btn-outline:hover { color: var(--text); border-color: rgba(103,116,189,.4); background: rgba(103,116,189,.07); }
+
+    .scroll-indicator {
+      position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      opacity: 0; animation: fadeUp .6s ease .9s forwards;
+    }
+    .scroll-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: var(--text-3); }
+    .scroll-mouse {
+      width: 20px; height: 32px; border: 1.5px solid var(--border-2);
+      border-radius: 10px; position: relative;
+    }
+    .scroll-mouse::after {
+      content: ''; width: 3px; height: 7px; background: var(--coral); border-radius: 2px;
+      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+      animation: scrollBob 2s ease infinite;
+    }
+    @keyframes scrollBob {
+      0%   { opacity:1; transform:translateX(-50%) translateY(0); }
+      80%  { opacity:0; transform:translateX(-50%) translateY(10px); }
+      100% { opacity:0; }
+    }
+
+    /* ── STATS ── */
+    .stats-row {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: center;
+      padding: 64px 24px 72px;
+      opacity: 0; transform: translateY(16px);
+      transition: opacity .6s, transform .6s;
+    }
+    .stats-row.visible { opacity: 1; transform: none; }
+    .stat-item {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 0 52px; text-align: center;
+    }
+    .stat-num {
+      font-family: 'Inter', sans-serif; font-size: 44px; font-weight: 800;
+      color: #fff; letter-spacing: -2.5px; line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    #cnum { color: var(--coral); }
+    .stat-label {
+      font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--text-3);
+    }
+    .stat-sep {
+      width: 1px; height: 42px; flex-shrink: 0;
+      background: linear-gradient(to bottom, transparent, var(--border-2), transparent);
+    }
+
+    /* ── CTA CARDS ── */
+    .cards-wrap {
+      position: relative; z-index: 1;
+      max-width: 980px; margin: 0 auto;
+      padding: 0 40px 96px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+
+    .form-card {
+      padding: 44px; border-radius: 28px;
+      border: 1px solid var(--border-2);
+      background: rgba(14,21,37,.55);
+      backdrop-filter: blur(24px) saturate(1.6);
+      position: relative; overflow: hidden;
+      transition: border-color .3s, transform .35s cubic-bezier(.34,1.56,.64,1), box-shadow .3s;
+    }
+    .form-card::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      opacity: 0; transition: opacity .3s;
+    }
+    .form-card.card-a::after { background: linear-gradient(90deg, transparent, var(--coral) 50%, transparent); }
+    .form-card.card-b::after { background: linear-gradient(90deg, transparent, var(--violet-mid) 50%, transparent); }
+    .form-card:hover { border-color: rgba(103,116,189,.35); transform: translateY(-6px); box-shadow: 0 28px 80px rgba(0,0,0,.45); }
+    .form-card.card-a:hover { border-color: rgba(254,122,92,.35); }
+    .form-card:hover::after { opacity: 1; }
+
+    /* Decorative blurred circle per card */
+    .form-card .deco {
+      position: absolute; border-radius: 50%; pointer-events: none;
+      filter: blur(60px);
+    }
+    .card-a .deco { width: 180px; height: 180px; right: -40px; top: -40px; background: rgba(254,122,92,.12); }
+    .card-b .deco { width: 180px; height: 180px; left: -40px; bottom: -40px; background: rgba(103,116,189,.12); }
+
+    .card-num {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2px;
+      margin-bottom: 16px;
+    }
+    .card-a .card-num { color: var(--coral); }
+    .card-b .card-num { color: var(--violet-mid); }
+
+    .form-card h2 {
+      font-family: 'Inter', sans-serif; font-size: 28px;
+      font-weight: 800; letter-spacing: -1px; line-height: 1.1;
+      color: #fff; margin-bottom: 10px;
+    }
+    .form-card > p {
+      font-size: 13.5px; color: var(--text-3); line-height: 1.7; margin-bottom: 30px;
+    }
+
+    .field { margin-bottom: 10px; }
+    .field input[type="email"] {
+      width: 100%; padding: 14px 18px;
+      background: rgba(8,13,26,.65); color: var(--text);
+      border: 1px solid var(--border-2); border-radius: 12px;
+      font-size: 14px; font-family: 'Inter', sans-serif; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field input::placeholder { color: var(--text-3); }
+    .card-a .field input:focus {
+      border-color: var(--coral); box-shadow: 0 0 0 3px rgba(254,122,92,.12);
+    }
+    .card-b .field input:focus {
+      border-color: var(--violet-mid); box-shadow: 0 0 0 3px rgba(103,116,189,.14);
+    }
+
+    .cta-btn {
+      width: 100%; padding: 15px 20px; border-radius: 12px;
+      border: none; cursor: none; font-size: 14px; font-weight: 700;
+      letter-spacing: -.2px; transition: all .2s; margin-bottom: 12px;
+    }
+    .btn-coral { background: linear-gradient(135deg, var(--coral) 0%, #d95f42 100%); color: #fff; }
+    .btn-coral:hover { opacity: .86; }
+    .btn-vi {
+      background: transparent; color: var(--text-2);
+      border: 1px solid var(--border-2);
+    }
+    .btn-vi:hover { border-color: rgba(103,116,189,.45); background: rgba(103,116,189,.09); color: var(--text); }
+
+    .form-note { font-size: 11px; color: var(--text-3); text-align: center; letter-spacing: .1px; }
+
+    .toast {
+      display: none; margin-top: 14px; padding: 14px 16px;
+      border-radius: 10px; font-size: 13.5px; font-weight: 500; text-align: center;
+      background: rgba(33,192,4,.08); border: 1px solid rgba(33,192,4,.22); color: #3dd68c;
+    }
+    .toast.show { display: block; animation: fadeUp .4s ease forwards; }
+
+    /* ── FOLLOW SECTION ── */
+    .follow-wrap {
+      position: relative; z-index: 1;
+      max-width: 980px; margin: 0 auto;
+      padding: 0 40px 100px;
+    }
+    .section-head {
+      margin-bottom: 36px;
+      opacity: 0; transform: translateY(18px);
+      transition: opacity .55s, transform .55s;
+    }
+    .section-head.visible { opacity: 1; transform: none; }
+    .section-eyebrow {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2.5px;
+      color: var(--text-3); margin-bottom: 8px;
+    }
+    .section-head h2 {
+      font-family: 'Inter', sans-serif; font-size: 36px;
+      font-weight: 800; letter-spacing: -1.2px; color: #fff;
+    }
+    .section-head h2 em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--violet-mid), var(--coral));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    .social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+    .social-card {
+      padding: 34px; border-radius: 24px;
+      border: 1px solid var(--border-2);
+      background: rgba(14,21,37,.55);
+      backdrop-filter: blur(20px);
+      text-decoration: none; display: flex; flex-direction: column; gap: 20px;
+      cursor: none; overflow: hidden; position: relative;
+      transform-style: preserve-3d;
+      opacity: 0; transform: translateY(24px);
+      transition: opacity .5s, transform .5s, border-color .25s, box-shadow .25s;
+    }
+    .social-card.visible { opacity: 1; transform: translateY(0); }
+    .social-card:nth-child(2) { transition-delay: .12s; }
+    .social-card:hover { border-color: rgba(103,116,189,.32); box-shadow: 0 24px 70px rgba(0,0,0,.45); }
+
+    /* top shimmer line */
+    .social-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      opacity: 0; transition: opacity .3s;
+    }
+    .social-card.medium-card::before { background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent); }
+    .social-card.linkedin-card::before { background: linear-gradient(90deg, transparent, rgba(10,102,194,.6), transparent); }
+    .social-card:hover::before { opacity: 1; }
+
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; }
+    .s-icon {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .s-icon.m { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); }
+    .s-icon.li { background: rgba(10,102,194,.14); border: 1px solid rgba(10,102,194,.25); }
+    .arrow-ext { color: var(--text-3); transition: transform .22s, color .22s; }
+    .social-card:hover .arrow-ext { transform: translate(4px, -4px); color: var(--text-2); }
+
+    .s-name {
+      font-family: 'Inter', sans-serif; font-size: 22px;
+      font-weight: 700; color: #fff; letter-spacing: -.3px; margin-bottom: 6px;
+    }
+    .s-desc { font-size: 13px; color: var(--text-3); line-height: 1.65; }
+    .s-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--text-3);
+    }
+    .tag-pill {
+      padding: 3px 10px; border-radius: 20px;
+      border: 1px solid var(--border-2);
+      font-size: 11px; font-weight: 600; color: var(--text-2);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative; z-index: 1;
+      background: rgba(8,13,26,.55);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+    }
+    footer::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg,
+        transparent 0%, rgba(254,122,92,.5) 20%,
+        rgba(103,116,189,.8) 50%, rgba(254,122,92,.4) 80%, transparent 100%
+      );
+      animation: shimmerLine 4s ease-in-out infinite;
+    }
+    @keyframes shimmerLine { 0%,100%{opacity:.55;} 50%{opacity:1;} }
+
+    .footer-inner {
+      padding: 16px 48px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .footer-copy { font-size: 11px; color: var(--text-3); }
+    .footer-links { display: flex; gap: 28px; list-style: none; }
+    .footer-links a {
+      font-size: 11px; color: var(--text-3); text-decoration: none;
+      position: relative; transition: color .2s;
+    }
+    .footer-links a::after {
+      content: ''; position: absolute; bottom: -2px; left: 0;
+      width: 0; height: 1px; background: var(--coral); transition: width .25s;
+    }
+    .footer-links a:hover { color: var(--text); }
+    .footer-links a:hover::after { width: 100%; }
+
+    /* ── COOKIE ── */
+    #cookie {
+      position: fixed; bottom: 24px; right: 24px; z-index: 400;
+      width: 340px; background: var(--navy-2);
+      border: 1px solid var(--border-2); border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03);
+      transform: translateY(0); opacity: 1;
+      transition: transform .4s cubic-bezier(.4,0,.2,1), opacity .4s;
+    }
+    #cookie.out { transform: translateY(20px); opacity: 0; pointer-events: none; }
+    .ck-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .ck-icon { width: 28px; height: 28px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+    .ck-icon img { width: 100%; height: 100%; object-fit: cover; }
+    .ck-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .ck-body { font-size: 12px; color: var(--text-3); line-height: 1.6; margin-bottom: 14px; }
+    .ck-body a { color: var(--violet-mid); text-decoration: none; }
+    .ck-btns { display: flex; gap: 8px; }
+    .ck-btn {
+      flex: 1; font-size: 12px; font-weight: 600;
+      padding: 8px 12px; border-radius: 8px; border: none;
+      cursor: none; transition: all .15s; text-align: center;
+    }
+    .ck-accept { background: linear-gradient(135deg, var(--coral), #d95f42); color: #fff; }
+    .ck-accept:hover { opacity: .88; }
+    .ck-decline { background: transparent; border: 1px solid var(--border-2); color: var(--text-3); }
+    .ck-decline:hover { color: var(--text-2); border-color: var(--text-3); }
+
+    /* ── NOISE ── */
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: 1000; pointer-events: none;
+      opacity: .028;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+    }
+
+    /* ── MARQUEE ── */
+    .marquee-wrap {
+      position: relative; z-index: 1; overflow: hidden;
+      padding: 18px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .marquee-track {
+      display: flex; width: max-content;
+      animation: marqueeScroll 36s linear infinite;
+    }
+    .marquee-wrap:hover .marquee-track { animation-play-state: paused; }
+    .marquee-item {
+      display: flex; align-items: center; gap: 14px; padding: 0 32px;
+      white-space: nowrap; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2.5px; color: var(--text-3);
+    }
+    .marquee-hl { color: var(--violet-mid); }
+    .marquee-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border-2); flex-shrink: 0; }
+    @keyframes marqueeScroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+    /* ── HOW IT WORKS ── */
+    .how-wrap {
+      position: relative; z-index: 1;
+      max-width: 980px; margin: 0 auto; padding: 80px 40px 96px;
+    }
+    .steps-grid {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; margin-top: 40px;
+    }
+    .step-card {
+      padding: 34px 28px; border-radius: 22px;
+      border: 1px solid var(--border-2); background: rgba(14,21,37,.45);
+      backdrop-filter: blur(16px); position: relative; overflow: hidden;
+      opacity: 0; transform: translateY(22px);
+      transition: opacity .5s, transform .5s, border-color .25s;
+    }
+    .step-card.visible { opacity: 1; transform: none; }
+    .step-card:nth-child(2) { transition-delay: .1s; }
+    .step-card:nth-child(3) { transition-delay: .2s; }
+    .step-card:hover { border-color: rgba(103,116,189,.32); }
+    .step-num {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--text-3); margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .step-num::after { content:''; flex:1; height:1px; background:var(--border-2); }
+    .step-icon {
+      width: 48px; height: 48px; border-radius: 14px; margin-bottom: 18px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(103,116,189,.1); border: 1px solid rgba(103,116,189,.18);
+    }
+    .step-title { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.4px; margin-bottom: 8px; }
+    .step-desc { font-size: 13px; color: var(--text-3); line-height: 1.72; }
+
+    /* ── REFERRAL ── */
+    .referral-box {
+      display: none; margin-top: 14px; padding: 20px; border-radius: 14px;
+      background: rgba(103,116,189,.07); border: 1px solid rgba(103,116,189,.2);
+    }
+    .referral-box.show { display: block; animation: fadeUp .4s ease forwards; }
+    .ref-position { font-size: 13px; color: var(--text-3); text-align: center; margin-bottom: 14px; }
+    .ref-position strong { color: var(--coral); font-size: 26px; font-weight: 800; letter-spacing: -1px; display: block; margin-bottom: 2px; }
+    .ref-link-row { display: flex; gap: 8px; }
+    .ref-link-input {
+      flex: 1; padding: 10px 12px; border-radius: 9px;
+      background: rgba(8,13,26,.65); border: 1px solid var(--border-2);
+      color: var(--text-3); font-size: 11.5px; font-family: 'Inter', sans-serif;
+      outline: none; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ref-copy-btn {
+      padding: 10px 15px; border-radius: 9px; border: none;
+      background: rgba(103,116,189,.18); color: var(--violet-mid);
+      font-size: 12px; font-weight: 700; cursor: none;
+      transition: background .2s, color .2s; white-space: nowrap; flex-shrink: 0;
+    }
+    .ref-copy-btn:hover { background: rgba(103,116,189,.32); color: #fff; }
+    .ref-note { font-size: 11px; color: var(--text-3); text-align: center; margin-top: 10px; line-height: 1.55; }
+
+    /* ── TRUST ── */
+    .trust-wrap {
+      position: relative; z-index: 1;
+      max-width: 980px; margin: 0 auto; padding: 80px 40px 0;
+    }
+    .trust-badges {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px;
+    }
+    .trust-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 12px 18px; border-radius: 12px;
+      border: 1px solid var(--border-2); background: rgba(14,21,37,.5);
+      backdrop-filter: blur(12px);
+      opacity: 0; transform: translateY(14px);
+      transition: opacity .4s, transform .4s, border-color .2s;
+    }
+    .trust-badge.visible { opacity: 1; transform: none; }
+    .trust-badge:nth-child(2){transition-delay:.05s}.trust-badge:nth-child(3){transition-delay:.1s}
+    .trust-badge:nth-child(4){transition-delay:.15s}.trust-badge:nth-child(5){transition-delay:.2s}
+    .trust-badge:hover { border-color: rgba(103,116,189,.35); }
+    .trust-badge-icon {
+      width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 15px;
+      background: rgba(103,116,189,.1);
+    }
+    .trust-badge-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+    .trust-badge-sub { font-size: 11px; color: var(--text-3); }
+
+    /* ── FAQ ── */
+    .faq-wrap {
+      position: relative; z-index: 1;
+      max-width: 720px; margin: 0 auto; padding: 80px 40px;
+    }
+    .faq-list { margin-top: 36px; display: flex; flex-direction: column; gap: 4px; }
+    .faq-item {
+      border-radius: 12px; border: 1px solid var(--border-2);
+      background: rgba(14,21,37,.4); overflow: hidden;
+      opacity: 0; transform: translateY(14px);
+      transition: opacity .4s, transform .4s, border-color .2s;
+    }
+    .faq-item.visible { opacity: 1; transform: none; }
+    .faq-item:nth-child(2){transition-delay:.06s}.faq-item:nth-child(3){transition-delay:.12s}
+    .faq-item:nth-child(4){transition-delay:.18s}.faq-item:nth-child(5){transition-delay:.24s}
+    .faq-item.open { border-color: rgba(103,116,189,.3); }
+    .faq-q {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 22px; background: none; border: none; cursor: none;
+      text-align: left; gap: 16px;
+    }
+    .faq-q-text { font-size: 14px; font-weight: 600; color: var(--text-2); transition: color .2s; }
+    .faq-item.open .faq-q-text { color: #fff; }
+    .faq-chevron { flex-shrink: 0; transition: transform .28s ease; color: var(--text-3); }
+    .faq-item.open .faq-chevron { transform: rotate(180deg); color: var(--violet-mid); }
+    .faq-a {
+      max-height: 0; overflow: hidden;
+      transition: max-height .32s cubic-bezier(.4,0,.2,1), padding .32s;
+      padding: 0 22px;
+    }
+    .faq-item.open .faq-a { max-height: 220px; padding: 0 22px 18px; }
+    .faq-a p { font-size: 13.5px; color: var(--text-3); line-height: 1.75; }
+    .faq-a a { color: var(--violet-mid); text-decoration: none; }
+
+    /* ── SCROLL / SELECTION ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--coral); }
+    ::selection { background: rgba(254,122,92,.22); color: #fff; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(18px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 860px) {
+      body { cursor: auto; }
+      #cursor, #cursor-ring { display: none; }
+      nav { padding: 0 20px; }
+      .hero-title { letter-spacing: -2px; }
+      .hero-actions { flex-direction: column; width: 100%; max-width: 340px; }
+      .btn-main, .btn-outline { width: 100%; text-align: center; }
+      .cards-wrap { grid-template-columns: 1fr; padding: 0 20px 60px; }
+      .follow-wrap { padding: 0 20px 80px; }
+      .social-grid { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; text-align: center; padding: 20px; }
+      #cookie { right: 12px; bottom: 12px; width: calc(100vw - 24px); }
+      .how-wrap, .trust-wrap, .faq-wrap { padding-left: 20px; padding-right: 20px; }
+      .steps-grid { grid-template-columns: 1fr; }
+      .trust-badges { gap: 8px; }
+      .stat-item { padding: 0 24px; }
+      .stats-row { flex-wrap: wrap; gap: 24px; padding-bottom: 48px; }
+      .stat-sep { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+<div id="progress"></div>
+<canvas id="canvas"></canvas>
+
+<div class="amb amb-1"></div>
+<div class="amb amb-2"></div>
+<div class="amb amb-3"></div>
+
+<!-- ── NAV ── -->
+<nav id="nav">
+  <a class="nav-logo" href="#">
+    <img src="../assets/images/logo-icon.png" alt="Whispr" />
+    <span class="nav-brand">Whispr</span>
+  </a>
+  <div class="nav-right">
+    <a href="legal/privacy.html" class="nav-pill">Confidentialité</a>
+    <a href="legal/terms.html" class="nav-pill">CGU</a>
+    <a href="waitlist.html" class="nav-pill active">Accès anticipé</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-badge">
+    <span class="badge-dot"></span>
+    Bientôt disponible &nbsp;·&nbsp; Accès anticipé
+  </div>
+
+  <h1 class="hero-title">
+    <span class="word" data-text="WHISPR">WHISPR</span>
+  </h1>
+
+  <p class="hero-tagline">
+    <span class="typer" id="typer"></span>
+    <span class="caret"></span>
+  </p>
+
+  <div class="hero-actions">
+    <a href="#waitlist" class="btn-main magnetic">Rejoindre la liste d'attente</a>
+    <a href="#newsletter" class="btn-outline magnetic">S'abonner à la newsletter</a>
+  </div>
+
+  <div class="scroll-indicator">
+    <span class="scroll-label">Défiler</span>
+    <div class="scroll-mouse"></div>
+  </div>
+</section>
+
+<!-- ── MARQUEE ── -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <div class="marquee-item"><span class="marquee-hl">E2E Chiffré</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Signal Protocol<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">IA On-Device</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Vie privée totale<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">RGPD</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Zéro donnée collectée<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">AI Act</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">DSA Conforme<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">Open Source</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Chiffrement bout en bout<span class="marquee-dot"></span></div>
+    <!-- duplicate for seamless loop -->
+    <div class="marquee-item"><span class="marquee-hl">E2E Chiffré</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Signal Protocol<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">IA On-Device</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Vie privée totale<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">RGPD</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Zéro donnée collectée<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">AI Act</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">DSA Conforme<span class="marquee-dot"></span></div>
+    <div class="marquee-item"><span class="marquee-hl">Open Source</span><span class="marquee-dot"></span></div>
+    <div class="marquee-item">Chiffrement bout en bout<span class="marquee-dot"></span></div>
+  </div>
+</div>
+
+<!-- ── STATS ── -->
+<div class="stats-row" id="stats-row">
+  <div class="stat-item">
+    <span class="stat-num" id="cnum">0</span>
+    <span class="stat-label">Membres inscrits</span>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat-item">
+    <span class="stat-num">E2E</span>
+    <span class="stat-label">Chiffré de bout en bout</span>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat-item">
+    <span class="stat-num">0</span>
+    <span class="stat-label">Données collectées</span>
+  </div>
+</div>
+
+<!-- ── HOW IT WORKS ── -->
+<div class="how-wrap">
+  <div class="section-head">
+    <div class="section-eyebrow">01 — Fonctionnement</div>
+    <h2>Comment ça <em>marche</em> ?</h2>
+  </div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-num">Étape 01</div>
+      <div class="step-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-mid)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div class="step-title">Créez votre compte</div>
+      <div class="step-desc">Inscription en 30 secondes avec votre numéro de téléphone. Vos données restent chiffrées et protégées dès le premier instant.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">Étape 02</div>
+      <div class="step-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-mid)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <div class="step-title">Envoyez un message</div>
+      <div class="step-desc">Chaque message est chiffré localement avant envoi via le protocole Signal. Zéro accès serveur — même Whispr ne peut pas lire vos échanges.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">Étape 03</div>
+      <div class="step-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="m8 21 4-4 4 4"/><path d="M12 17v4"/>
+        </svg>
+      </div>
+      <div class="step-title">L'IA filtre en local</div>
+      <div class="step-desc">Notre IA de modération s'exécute uniquement sur votre appareil. Aucun contenu ne quitte votre téléphone pour être analysé — votre vie privée est totale.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FORM CARDS ── -->
+<div class="cards-wrap">
+
+  <!-- WAITLIST -->
+  <div class="form-card card-a" id="waitlist">
+    <div class="deco"></div>
+    <div class="card-num">01 — Accès prioritaire</div>
+    <h2>Rejoindre<br>la liste</h2>
+    <p>Soyez parmi les premiers à découvrir la messagerie chiffrée réinventée. Obtenez un accès prioritaire et des avantages exclusifs au lancement.</p>
+    <form onsubmit="handleForm(event,'toast-a','ref-a')">
+      <div class="field">
+        <input type="email" placeholder="votre@email.com" required autocomplete="email" />
+      </div>
+      <button type="submit" class="cta-btn btn-coral magnetic">Réserver ma place gratuite →</button>
+      <p class="form-note">Aucun spam. Désinscription à tout moment.</p>
+    </form>
+    <div class="toast" id="toast-a">✓ Vous êtes sur la liste !</div>
+    <div class="referral-box" id="ref-a">
+      <div class="ref-position">Votre position<strong id="ref-a-pos">#2,848</strong></div>
+      <p class="ref-note" style="margin-bottom:10px">Invitez des amis pour passer devant — votre lien unique :</p>
+      <div class="ref-link-row">
+        <input type="text" class="ref-link-input" id="ref-a-url" readonly />
+        <button class="ref-copy-btn" id="ref-a-btn" onclick="copyRef('ref-a-url','ref-a-btn')">Copier</button>
+      </div>
+      <p class="ref-note">Invitez 3 amis → gagnez 30 places sur la liste</p>
+    </div>
+  </div>
+
+  <!-- NEWSLETTER -->
+  <div class="form-card card-b" id="newsletter">
+    <div class="deco"></div>
+    <div class="card-num">02 — Restez informé</div>
+    <h2>S'abonner à<br>la Newsletter</h2>
+    <p>Recevez les mises à jour produit, les notes de version, les insights des fondateurs et les aperçus de fonctionnalités.</p>
+    <form onsubmit="handleForm(event,'toast-b')">
+      <div class="field">
+        <input type="email" placeholder="votre@email.com" required autocomplete="email" />
+      </div>
+      <button type="submit" class="cta-btn btn-vi magnetic">S'abonner →</button>
+      <p class="form-note">Résumé hebdomadaire. Annulation à tout moment.</p>
+    </form>
+    <div class="toast" id="toast-b">✓ Inscrit ! Premier numéro bientôt.</div>
+  </div>
+
+</div>
+
+<!-- ── TRUST ── -->
+<div class="trust-wrap">
+  <div class="section-head">
+    <div class="section-eyebrow">02 — Crédibilité</div>
+    <h2>Pourquoi nous <em>faire confiance</em> ?</h2>
+  </div>
+  <div class="trust-badges">
+    <div class="trust-badge">
+      <div class="trust-badge-icon">🔒</div>
+      <div><div class="trust-badge-label">RGPD</div><div class="trust-badge-sub">Conformité totale — données EU</div></div>
+    </div>
+    <div class="trust-badge">
+      <div class="trust-badge-icon">⚡</div>
+      <div><div class="trust-badge-label">Signal Protocol</div><div class="trust-badge-sub">Chiffrement E2E éprouvé</div></div>
+    </div>
+    <div class="trust-badge">
+      <div class="trust-badge-icon">🤖</div>
+      <div><div class="trust-badge-label">AI Act UE 2026</div><div class="trust-badge-sub">Risque limité, transparence totale</div></div>
+    </div>
+    <div class="trust-badge">
+      <div class="trust-badge-icon">📋</div>
+      <div><div class="trust-badge-label">DSA Conforme</div><div class="trust-badge-sub">Notice & Action intégrée</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FAQ ── -->
+<div class="faq-wrap">
+  <div class="section-head">
+    <div class="section-eyebrow">03 — Questions fréquentes</div>
+    <h2>On répond à tout <em>honnêtement</em></h2>
+  </div>
+  <div class="faq-list">
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Mes données sont-elles stockées sur vos serveurs ?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-a"><p>Non. Vos messages sont chiffrés localement avant d'être envoyés via le protocole Signal. Nos serveurs ne voient jamais le contenu en clair. L'analyse IA se fait exclusivement sur votre appareil, aucune donnée de contenu ne transite par notre infrastructure.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Quelle est la différence avec Signal ou Telegram ?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-a"><p>Whispr combine le chiffrement E2E de Signal avec une couche d'IA de filtrage qui s'exécute <strong>sur votre appareil</strong> — pas sur un serveur distant comme Telegram. Vous gardez le contrôle total sur ce qui est filtré, avec la possibilité de contester chaque décision automatisée (Article 22 RGPD).</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Quand est prévu le lancement ?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-a"><p>Nous sommes en développement actif. Les inscrits sur la liste d'attente seront les premiers notifiés et auront un accès prioritaire à la bêta. Rejoignez la liste pour ne rien rater.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span class="faq-q-text">Comment fonctionne le filtrage IA ?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-a"><p>Le modèle IA est embarqué dans l'application et s'exécute localement sur votre téléphone avant chaque envoi. Si un contenu est détecté comme problématique, vous êtes notifié et pouvez contester la décision — tout ça sans qu'une seule image ou vidéo ne quitte votre appareil.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggleFaq(this)">
+        <span class="faq-q-text">C'est gratuit ?</span>
+        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-a"><p>Oui, Whispr sera gratuit au lancement. Notre modèle économique repose sur des fonctionnalités premium optionnelles — jamais sur la vente de vos données.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FOLLOW US ── -->
+<div class="follow-wrap" id="follow">
+  <div class="section-head">
+    <div class="section-eyebrow">03 — Communauté</div>
+    <h2>Suivez <em>l'aventure</em></h2>
+  </div>
+
+  <div class="social-grid">
+
+    <!-- MEDIUM -->
+    <a href="https://medium.com/@whispr" target="_blank" rel="noopener noreferrer"
+       class="social-card medium-card tilt">
+      <div class="card-top">
+        <div class="s-icon m">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff">
+            <path d="M13.54 12a6.8 6.8 0 01-6.77 6.82A6.8 6.8 0 010 12a6.8 6.8 0 016.77-6.82A6.8 6.8 0 0113.54 12zM20.96 12c0 3.54-1.51 6.42-3.38 6.42-1.87 0-3.39-2.88-3.39-6.42s1.52-6.42 3.39-6.42 3.38 2.88 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75-.66 0-1.19-2.58-1.19-5.75s.53-5.75 1.19-5.75C23.47 6.25 24 8.83 24 12z"/>
+          </svg>
+        </div>
+        <span class="arrow-ext">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+          </svg>
+        </span>
+      </div>
+      <div>
+        <div class="s-name">Medium</div>
+        <div class="s-desc">Analyses approfondies sur le chiffrement, l'architecture de confidentialité et notre aventure à construire Whispr.</div>
+      </div>
+      <div class="s-tag">
+        <span class="tag-pill">Blog</span>
+        Articles techniques &amp; notes des fondateurs
+      </div>
+    </a>
+
+    <!-- LINKEDIN -->
+    <a href="https://www.linkedin.com/in/whispr-group-85b8703b0/" target="_blank" rel="noopener noreferrer"
+       class="social-card linkedin-card tilt">
+      <div class="card-top">
+        <div class="s-icon li">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#0a66c2">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+        </div>
+        <span class="arrow-ext">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+          </svg>
+        </span>
+      </div>
+      <div>
+        <div class="s-name">LinkedIn</div>
+        <div class="s-desc">Actualités de l'équipe, jalons et annonces produit de la part de l'équipe Whispr.</div>
+      </div>
+      <div class="s-tag">
+        <span class="tag-pill">Entreprise</span>
+        Actualités &amp; annonces
+      </div>
+    </a>
+
+  </div>
+</div>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-inner">
+    <span class="footer-copy">© 2026 Whispr. Tous droits réservés.</span>
+    <ul class="footer-links">
+      <li><a href="legal/privacy.html">Politique de confidentialité</a></li>
+      <li><a href="legal/terms.html">Conditions d'utilisation</a></li>
+      <li><a href="mailto:hello@whispr.app">Contact</a></li>
+    </ul>
+  </div>
+</footer>
+
+<!-- ── COOKIE ── -->
+<div id="cookie">
+  <div class="ck-header">
+    <div class="ck-icon"><img src="../assets/images/logo-icon.png" alt="" /></div>
+    <span class="ck-title">Whispr utilise des cookies</span>
+  </div>
+  <p class="ck-body">Cookies techniques essentiels uniquement — sans traceurs. <a href="legal/privacy.html#cookies">En savoir plus</a></p>
+  <div class="ck-btns">
+    <button class="ck-btn ck-decline" onclick="ckDecline()">Refuser</button>
+    <button class="ck-btn ck-accept" onclick="ckAccept()">Accepter</button>
+  </div>
+</div>
+
+<script>
+/* ── CURSOR ── */
+const cur = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let mx = 0, my = 0, rx = 0, ry = 0;
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cur.style.left = mx+'px'; cur.style.top = my+'px';
+  cur.style.opacity = '1'; ring.style.opacity = '1';
+}, { once: false });
+document.addEventListener('mousemove', () => {
+  cur.style.opacity = '1'; ring.style.opacity = '1';
+}, { once: true });
+(function loop(){ rx += (mx-rx)*.12; ry += (my-ry)*.12; ring.style.left=rx+'px'; ring.style.top=ry+'px'; requestAnimationFrame(loop); })();
+
+/* ── SCROLL PROGRESS + NAV ── */
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  document.getElementById('progress').style.transform = `scaleX(${h.scrollTop/(h.scrollHeight-h.clientHeight)})`;
+  document.getElementById('nav').classList.toggle('scrolled', h.scrollTop > 20);
+});
+
+/* ── TYPEWRITER ── */
+const phrases = [
+  'La messagerie privée, réinventée.',
+  'Chiffrement de bout en bout par défaut.',
+  'Vos conversations, rien que les vôtres.',
+  'Zéro connaissance. Vie privée totale.',
+  'Lancement imminent.'
+];
+let pi = 0, ci = 0, deleting = false;
+const typerEl = document.getElementById('typer');
+function type() {
+  const phrase = phrases[pi];
+  if (deleting) { ci--; } else { ci++; }
+  typerEl.textContent = phrase.slice(0, ci);
+  if (!deleting && ci === phrase.length) { setTimeout(()=>{ deleting=true; }, 2000); }
+  else if (deleting && ci === 0) { deleting=false; pi=(pi+1)%phrases.length; }
+  setTimeout(type, deleting ? 50 : 85);
+}
+setTimeout(type, 600);
+
+/* ── MAGNETIC BUTTONS ── */
+document.querySelectorAll('.magnetic').forEach(el => {
+  el.addEventListener('mousemove', e => {
+    const r = el.getBoundingClientRect();
+    const dx = (e.clientX - r.left - r.width/2) * .28;
+    const dy = (e.clientY - r.top  - r.height/2) * .28;
+    el.style.transform = `translate(${dx}px,${dy}px)`;
+  });
+  el.addEventListener('mouseleave', () => { el.style.transform = ''; });
+});
+
+/* ── COUNTER ANIMATION ── */
+function animCount(el, target, ms=2200) {
+  let start;
+  const step = ts => {
+    if (!start) start = ts;
+    const p = Math.min((ts-start)/ms, 1);
+    const e = 1 - Math.pow(1-p, 4);
+    el.textContent = Math.floor(e*target).toLocaleString('en');
+    if (p < 1) requestAnimationFrame(step);
+    else el.textContent = target.toLocaleString('en');
+  };
+  requestAnimationFrame(step);
+}
+const pillIO = new IntersectionObserver(entries => {
+  if (entries[0].isIntersecting) {
+    document.getElementById('stats-row').classList.add('visible');
+    animCount(document.getElementById('cnum'), 2847);
+    pillIO.disconnect();
+  }
+}, { threshold: .5 });
+pillIO.observe(document.getElementById('stats-row'));
+
+/* ── SCROLL REVEAL ── */
+const revealIO = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: .1 });
+document.querySelectorAll('.section-head, .social-card, .form-card, .step-card, .trust-badge, .faq-item').forEach(el => revealIO.observe(el));
+
+/* ── 3D TILT ON SOCIAL CARDS ── */
+document.querySelectorAll('.tilt').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const r = card.getBoundingClientRect();
+    const rx = ((e.clientY - r.top)  / r.height - .5) * -18;
+    const ry = ((e.clientX - r.left) / r.width  - .5) *  18;
+    card.style.transform = `perspective(700px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(10px) translateY(0)`;
+  });
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = 'perspective(700px) rotateX(0) rotateY(0) translateZ(0) translateY(0)';
+  });
+});
+
+/* ── REFERRAL ── */
+function generateRef(email) {
+  let h = 0;
+  for (let i = 0; i < email.length; i++) { h = Math.imul(31, h) + email.charCodeAt(i) | 0; }
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let ref = ''; let n = Math.abs(h);
+  for (let i = 0; i < 8; i++) { ref += chars[n % chars.length]; n = Math.floor(n / chars.length) || (n * 37 + i); }
+  return ref;
+}
+function copyRef(inputId, btnId) {
+  const val = document.getElementById(inputId).value;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById(btnId);
+    const orig = btn.textContent; btn.textContent = '✓ Copié !';
+    setTimeout(() => { btn.textContent = orig; }, 2200);
+  });
+}
+
+/* ── FORM SUBMIT ── */
+function handleForm(e, toastId, refBoxId) {
+  e.preventDefault();
+  const form = e.target;
+  const email = form.querySelector('input[type="email"]').value;
+  const toast = document.getElementById(toastId);
+  form.style.opacity = '0'; form.style.transition = 'opacity .3s';
+  setTimeout(() => {
+    form.style.display = 'none';
+    toast.classList.add('show');
+    if (refBoxId) {
+      const pos = 2848 + Math.floor(Math.random() * 12);
+      document.getElementById(refBoxId + '-pos').textContent = '#' + pos.toLocaleString('fr');
+      const base = window.location.href.split('?')[0];
+      document.getElementById(refBoxId + '-url').value = base + '?ref=' + generateRef(email);
+      document.getElementById(refBoxId).classList.add('show');
+    }
+  }, 300);
+}
+
+/* ── FAQ TOGGLE ── */
+function toggleFaq(btn) {
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+
+/* ── COOKIE ── */
+const CK = 'whispr_ck_v1';
+if (localStorage.getItem(CK)) document.getElementById('cookie').classList.add('out');
+function ckAccept()  { localStorage.setItem(CK,'ok'); document.getElementById('cookie').classList.add('out'); }
+function ckDecline() { localStorage.setItem(CK,'no'); document.getElementById('cookie').classList.add('out'); }
+
+/* ══════════════════════════════════════════════════════════════════
+   WHISPR FLUID SIMULATION — WebGL fluid (advection-based)
+   Palette: violet dominant · coral accent
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  const cv = document.getElementById('canvas');
+  if (!cv) return;
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  const gl = cv.getContext('webgl',{alpha:false,antialias:false,preserveDrawingBuffer:false});
+  if (!gl) return;
+  if (!gl.getExtension('OES_texture_float')) return;
+  gl.getExtension('OES_texture_float_linear');
+
+  const PAL = [
+    [.40,.22,.96], // violet
+    [.50,.58,1.00], // bleu-violet
+    [1.00,.48,.36], // coral
+    [.22,.12,.82], // deep violet
+    [.40,.22,.96], // violet again (weight)
+  ];
+
+  const SIM=128, DYE=640;
+  const VS=`attribute vec2 p;varying vec2 v;void main(){v=p*.5+.5;gl_Position=vec4(p,0.,1.);}`;
+  const FS_ADV=`precision highp float;varying vec2 v;uniform sampler2D uV,uS;uniform float dt,di;void main(){vec2 vel=texture2D(uV,v).xy;gl_FragColor=di*texture2D(uS,v-dt*vel);}`;
+  const FS_SPL=`precision highp float;varying vec2 v;uniform sampler2D uT;uniform vec2 pt;uniform vec3 col;uniform float r,ar;void main(){vec2 p=v-pt;p.x*=ar;float d=exp(-dot(p,p)/r);gl_FragColor=texture2D(uT,v)+vec4(col*d,0.);}`;
+  const FS_DSP=`precision highp float;varying vec2 v;uniform sampler2D uT;void main(){vec3 c=texture2D(uT,v).rgb;vec3 bg=vec3(.031,.051,.102);c=c*1.5/(c+.18);gl_FragColor=vec4(clamp(bg+c,0.,1.),1.);}`;
+
+  function sh(t,s){const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);return x;}
+  function prog(fs){const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,VS));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);p.u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const nm=gl.getActiveUniform(p,i).name;p.u[nm]=gl.getUniformLocation(p,nm);}return p;}
+  const pA=prog(FS_ADV),pS=prog(FS_SPL),pD=prog(FS_DSP);
+  const qb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,qb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+  function useP(p){gl.useProgram(p);const a=gl.getAttribLocation(p,'p');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,2,gl.FLOAT,false,0,0);}
+  function fbo(w,h){const t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.FLOAT,null);const f=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,f);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,t,0);return{t,f,w,h};}
+  let vA=fbo(SIM,SIM),vB=fbo(SIM,SIM),dA=fbo(DYE,DYE),dB=fbo(DYE,DYE);
+  function tex(s,u){gl.activeTexture(gl.TEXTURE0+u);gl.bindTexture(gl.TEXTURE_2D,s.t);}
+  function advect(vel,src,dst,dt,di){gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);gl.viewport(0,0,dst.w,dst.h);useP(pA);tex(vel,0);gl.uniform1i(pA.u.uV,0);tex(src,1);gl.uniform1i(pA.u.uS,1);gl.uniform1f(pA.u.dt,dt);gl.uniform1f(pA.u.di,di);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+  function splat(src,dst,x,y,c,r){gl.bindFramebuffer(gl.FRAMEBUFFER,dst.f);gl.viewport(0,0,dst.w,dst.h);useP(pS);tex(src,0);gl.uniform1i(pS.u.uT,0);gl.uniform2f(pS.u.pt,x,y);gl.uniform3f(pS.u.col,c[0],c[1],c[2]);gl.uniform1f(pS.u.r,r);gl.uniform1f(pS.u.ar,cv.width/cv.height);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+  function inject(x,y,dx,dy){const c=PAL[Math.floor(Math.random()*PAL.length)];splat(vA,vB,x,y,[dx,dy,0],.007);[vA,vB]=[vB,vA];splat(dA,dB,x,y,c,.006);[dA,dB]=[dB,dA];}
+  function burst(n){for(let i=0;i<n;i++){const a=Math.random()*Math.PI*2,s=3+Math.random()*5;inject(Math.random(),Math.random(),Math.cos(a)*s,Math.sin(a)*s);}}
+  let _mx=-1,_my=-1,_px=-1,_py=-1;
+  cv.addEventListener('mousemove',e=>{_px=_mx;_py=_my;_mx=e.clientX/cv.width;_my=1-e.clientY/cv.height;if(_px>=0){inject(_mx,_my,(_mx-_px)*cv.width*5,(_my-_py)*cv.height*5);}});
+  window.addEventListener('resize',()=>{cv.width=window.innerWidth;cv.height=window.innerHeight;});
+  let last=0;
+  function render(ts){requestAnimationFrame(render);const dt=Math.min((ts-last)*.001,.033);last=ts;advect(vA,vA,vB,dt,.972);[vA,vB]=[vB,vA];advect(vA,dA,dB,dt,.984);[dA,dB]=[dB,dA];gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,cv.width,cv.height);useP(pD);tex(dA,0);gl.uniform1i(pD.u.uT,0);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);}
+  burst(14);setInterval(()=>burst(3),4000);requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
